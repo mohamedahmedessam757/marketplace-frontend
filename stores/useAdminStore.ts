@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { MerchantStatus } from './useVendorStore';
 
+// Dynamic API URL - uses environment variable in production
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT';
 
 export interface AdminUser {
@@ -39,12 +42,12 @@ export interface SystemConfig {
     supportPhone: string;
   };
   financial: {
-    commissionRate: number; // %
-    vatRate: number; // %
+    commissionRate: number;
+    vatRate: number;
   };
   logistics: {
     shippingRules: ShippingRule[];
-    baseShippingCost: number; // Fallback
+    baseShippingCost: number;
   };
   content: {
     vendorContract: string;
@@ -80,31 +83,23 @@ export interface AdminState {
   systemConfig: SystemConfig;
   dashboardStats: DashboardStats | null;
   isLoadingStats: boolean;
-
-  // New Stores Management
-  stores: any[]; // Using any to be flexible with backend response
+  stores: any[];
   currentStoreProfile: any | null;
   isLoadingStores: boolean;
 
-  // Actions
   loginAdmin: (email: string) => void;
   logoutAdmin: () => void;
   fetchDashboardStats: () => Promise<void>;
   setCommissionRate: (rate: number) => void;
   toggleSystemStatus: () => void;
   updateSystemConfig: (section: keyof SystemConfig, data: any) => void;
-
-  // Store Actions
   fetchAllStores: () => Promise<void>;
   fetchStoreProfile: (id: string) => Promise<void>;
-
-  // Legacy Vendor Actions
   getVendorById: (id: string) => Vendor | undefined;
   updateVendorStatus: (id: string, status: MerchantStatus) => void;
   updateVendorDocStatus: (vendorId: string, docType: 'cr' | 'license', status: 'approved' | 'rejected') => void;
 }
 
-// Mock Data
 const MOCK_VENDORS: Vendor[] = [
   { id: '1', name: 'Mohammed Ali', storeName: 'Al-Jazira Parts', email: 'mohammed@store.com', status: 'ACTIVE', licenseExpiry: '2024-12-01', rating: 4.8, totalSales: 450000, joinedAt: '2023-01-15', balance: 12500, docs: { cr: 'approved', license: 'approved' } },
   { id: '2', name: 'Khalid Omar', storeName: 'Seoul Auto', email: 'khalid@seoul.com', status: 'ACTIVE', licenseExpiry: '2024-10-10', rating: 4.5, totalSales: 320000, joinedAt: '2023-03-20', balance: 8400, docs: { cr: 'approved', license: 'approved' } },
@@ -123,8 +118,6 @@ export const useAdminStore = create<AdminState>()(
       vendorsList: MOCK_VENDORS,
       dashboardStats: null,
       isLoadingStats: false,
-
-      // New State
       stores: [],
       currentStoreProfile: null,
       isLoadingStores: false,
@@ -183,14 +176,19 @@ export const useAdminStore = create<AdminState>()(
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
-            const res = await fetch('http://localhost:3000/dashboard/stats', { headers: { Authorization: `Bearer ${token}` } });
+            const res = await fetch(`${API_URL}/dashboard/stats`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
             if (res.ok) {
               const data = await res.json();
               set({ dashboardStats: data });
             }
           }
-        } catch (e) { console.error(e); }
-        finally { set({ isLoadingStats: false }); }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          set({ isLoadingStats: false });
+        }
       },
 
       setCommissionRate: (rate) => set({ commissionRate: rate }),
@@ -205,7 +203,6 @@ export const useAdminStore = create<AdminState>()(
           [section]: { ...state.systemConfig[section], ...data }
         };
         const newCommission = section === 'financial' && data.commissionRate ? data.commissionRate : state.commissionRate;
-
         return {
           systemConfig: newConfig,
           commissionRate: newCommission
@@ -217,7 +214,7 @@ export const useAdminStore = create<AdminState>()(
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
-            const response = await fetch('http://localhost:3000/stores', {
+            const response = await fetch(`${API_URL}/stores`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -237,7 +234,7 @@ export const useAdminStore = create<AdminState>()(
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
-            const response = await fetch(`http://localhost:3000/stores/${id}`, {
+            const response = await fetch(`${API_URL}/stores/${id}`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -267,7 +264,6 @@ export const useAdminStore = create<AdminState>()(
           };
         })
       }))
-
     }),
     {
       name: 'etashleh-admin-storage',
