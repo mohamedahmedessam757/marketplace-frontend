@@ -36,41 +36,93 @@ export interface OrderOffer {
     id: number;
     storeId?: string; // Store ID for vendor identification
     merchantName: string;
-    price: number;
+    storeRating: number;
+    storeReviewCount: number;
+    storeLogo?: string;
+    storeCity?: string;
+    price: number; // Final Total Price
+    unitPrice: number; // Part Price only
+    shippingCost: number;
+    isShippingIncluded: boolean;
     condition: string;
     warranty: string;
     deliveryTime: string;
     notes?: string;
     submittedAt: string;
+    offerImage?: string;
+    weight?: number; // In Kg
+    partType?: string; // Original, Commercial, etc.
 }
 
 export interface Order {
-    id: number | string;
+    id: number;
     orderNumber?: string;
-    car: string;
-    part: string;
-    partDescription?: string;
-    partImages?: string[];
-    vin?: string;
-    date: string;
-    status: StatusType;
-    offersCount: number;
-    offers: OrderOffer[];
-    merchantName?: string;
-    price?: string;
-    customer?: { name: string; email: string; phone?: string };
+    // Customer Info
+    customer: {
+        id: string;
+        name: string;
+        avatar?: string;
+        email?: string;
+        phone?: string;
+    };
 
+    // Merchant Info
+    merchantId?: string;
+    merchantName?: string;
+
+    // Legacy Fields (Must keep for backward compatibility)
+    part: string;
+    car: string;
+    vin?: string;
+    partDescription?: string;
+    partImages?: (string | File)[];
+
+    // New Fields for Enhanced Workflow
+    vehicle?: {
+        make: string;
+        model: string; // "Vehicle Type"
+        year: string;
+        vin: string;
+        vinImage?: File;
+    };
+    parts?: {
+        id: string;
+        name: string;
+        description: string;
+        images: (string | File)[];
+        video?: string | File;
+        notes?: string;
+    }[];
+    preferences?: {
+        condition: 'new' | 'used';
+        warranty: boolean;
+    };
+    requestType?: 'single' | 'multiple';
+    shippingType?: 'separate' | 'combined';
+
+    // Status & Dates
+    status: StatusType;
+    date: string; // Display Date
     createdAt: string;
     updatedAt: string;
     offerAcceptedAt?: string;
     shippedAt?: string;
     deliveredAt?: string;
 
+    // Financials
+    price?: string; // Total Price
+
+    // Offers
+    offersCount: number;
+    offers?: OrderOffer[];
+
+    // Logistics
     waybillNumber?: string;
     courier?: string;
     expectedDeliveryDate?: string;
     waybillImage?: string | File;
 
+    // Returns
     returnWaybillNumber?: string;
     returnShippedAt?: string;
 }
@@ -178,21 +230,41 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 part: o.partName,
                 partDescription: o.partDescription,
                 partImages: o.partImages || [],
+                // Ensure we map parts correctly if they exist in response
+                parts: o.parts ? o.parts.map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    description: p.description,
+                    images: p.images || [],
+                    video: p.video || null,
+                    notes: p.notes
+                })) : [],
                 vin: o.vin,
                 status: o.status,
                 date: new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
                 offersCount: o.offers ? o.offers.length : 0,
                 offers: o.offers ? o.offers.map((offer: any) => ({
                     id: offer.id,
-                    storeId: offer.store?.id || offer.storeId, // Store ID for vendor identification
+                    storeId: offer.store?.id || offer.storeId,
                     merchantName: offer.store?.name || 'Unknown Store',
-                    price: Number(offer.unitPrice),
+                    storeRating: offer.store?.rating || 0,
+                    storeReviewCount: offer.store?._count?.reviews || 0,
+                    storeLogo: offer.store?.logo || null,
+                    storeCity: offer.store?.city || 'Saudi Arabia',
+
+                    // Price Logic
+                    price: Number(offer.finalPrice || (Number(offer.unitPrice) + Number(offer.shippingCost || 0) + Number(offer.commission || 0))),
+                    shippingCost: Number(offer.shippingCost || 0),
+                    isShippingIncluded: Number(offer.shippingCost || 0) === 0,
+
                     condition: offer.condition || 'Used',
                     warranty: offer.hasWarranty ? (offer.warrantyDuration || 'Yes') : 'No',
                     deliveryTime: offer.deliveryDays || 'N/A',
                     notes: offer.notes,
                     submittedAt: offer.createdAt,
-                    offerImage: offer.offerImage
+                    offerImage: offer.offerImage,
+                    weight: offer.weight || 0,
+                    partType: offer.partType || 'Original'
                 })) : [],
                 createdAt: o.createdAt,
                 updatedAt: o.updatedAt,
@@ -221,21 +293,41 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 part: o.partName,
                 partDescription: o.partDescription,
                 partImages: o.partImages || [],
+                // Ensure we map parts correctly if they exist in response
+                parts: o.parts ? o.parts.map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    description: p.description,
+                    images: p.images || [],
+                    video: p.video || null,
+                    notes: p.notes
+                })) : [],
                 vin: o.vin,
                 status: o.status,
                 date: new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
                 offersCount: o.offers ? o.offers.length : 0,
                 offers: o.offers ? o.offers.map((offer: any) => ({
                     id: offer.id,
-                    storeId: offer.store?.id || offer.storeId, // Store ID for vendor identification
+                    storeId: offer.store?.id || offer.storeId,
                     merchantName: offer.store?.name || 'Unknown Store',
-                    price: Number(offer.unitPrice),
+                    storeRating: offer.store?.rating || 0,
+                    storeReviewCount: offer.store?._count?.reviews || 0,
+                    storeLogo: offer.store?.logo || null,
+                    storeCity: offer.store?.city || 'Saudi Arabia',
+
+                    // Price Logic
+                    price: Number(offer.finalPrice || (Number(offer.unitPrice) + Number(offer.shippingCost || 0) + Number(offer.commission || 0))),
+                    shippingCost: Number(offer.shippingCost || 0),
+                    isShippingIncluded: Number(offer.shippingCost || 0) === 0,
+
                     condition: offer.condition || 'Used',
                     warranty: offer.hasWarranty ? (offer.warrantyDuration || 'Yes') : 'No',
                     deliveryTime: offer.deliveryDays || 'N/A',
                     notes: offer.notes,
                     submittedAt: offer.createdAt,
-                    offerImage: offer.offerImage
+                    offerImage: offer.offerImage,
+                    weight: offer.weight || 0,
+                    partType: offer.partType || 'Original'
                 })) : [],
                 createdAt: o.createdAt,
                 updatedAt: o.updatedAt,

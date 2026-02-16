@@ -9,6 +9,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useVendorStore } from '../../stores/useVendorStore';
 import { useAdminStore } from '../../stores/useAdminStore'; // Import AdminStore for contract
 import { OTPVerification } from './OTPVerification';
+import { OTPMethodSelection } from './OTPMethodSelection';
 import { authApi } from '@/services/api/auth';
 
 interface VendorRegisterProps {
@@ -22,6 +23,10 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete }) =>
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Local OTP State
+  const [otpStep, setOtpStep] = React.useState<'method' | 'verify'>('method');
+  const [otpMethod, setOtpMethod] = React.useState<'email' | 'whatsapp'>('email');
+
   const NextIcon = language === 'ar' ? ChevronLeft : ChevronRight;
   const PrevIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
@@ -29,6 +34,13 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete }) =>
   useEffect(() => {
     store.reset();
   }, []);
+
+  // Reset OTP step when entering step 2
+  useEffect(() => {
+    if (store.step === 2) {
+      setOtpStep('method'); // Always start with selection
+    }
+  }, [store.step]);
 
   // Generate Dynamic Contract
   const getDynamicContract = () => {
@@ -352,7 +364,23 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete }) =>
               exit={{ opacity: 0, x: -20 }}
               className="p-4"
             >
-              <OTPVerification email={store.account.email} onVerify={handleVerifyOTP} />
+              {otpStep === 'method' ? (
+                <OTPMethodSelection
+                  email={store.account.email}
+                  name={store.account.name}
+                  onSelect={(m) => {
+                    setOtpMethod(m);
+                    setOtpStep('verify');
+                  }}
+                />
+              ) : (
+                <OTPVerification
+                  email={store.account.email}
+                  phone={store.account.phone}
+                  method={otpMethod}
+                  onVerify={handleVerifyOTP}
+                />
+              )}
             </motion.div>
           )}
 

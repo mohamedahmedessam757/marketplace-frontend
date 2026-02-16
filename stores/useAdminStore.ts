@@ -40,6 +40,7 @@ export interface SystemConfig {
     platformName: string;
     contactEmail: string;
     supportPhone: string;
+    enablePreferencesStep: boolean;
   };
   financial: {
     commissionRate: number;
@@ -126,7 +127,8 @@ export const useAdminStore = create<AdminState>()(
         general: {
           platformName: 'e-tashleh',
           contactEmail: 'cs@e-tashleh.net',
-          supportPhone: '0525700525'
+          supportPhone: '0525700525',
+          enablePreferencesStep: false
         },
         financial: {
           commissionRate: 20,

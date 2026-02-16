@@ -16,8 +16,13 @@ export const ordersApi = {
     // Create a new order
     // Using simple Record type here, can be stricter with shared DTO if shared
     create: async (data: any) => {
-        const response = await client.post('/orders', data);
-        return response.data;
+        try {
+            const response = await client.post('/orders', data);
+            return response.data;
+        } catch (error: any) {
+            console.error('Order Creation API Error:', error.response?.data || error.message);
+            throw error;
+        }
     },
 
     // Transition order state

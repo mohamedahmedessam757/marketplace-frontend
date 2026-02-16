@@ -87,14 +87,14 @@ export const AdminSettings: React.FC = () => {
 
       <GlassCard className="p-8 bg-[#1A1814]">
         <AnimatePresence mode="wait">
-          
+
           {/* GENERAL TAB */}
           {activeTab === 'general' && (
             <motion.div key="general" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6 max-w-2xl">
               <div>
                 <label className="block text-white/60 text-sm mb-2">Platform Name</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={formData.general.platformName}
                   onChange={(e) => handleInputChange('general', 'platformName', e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none"
@@ -102,8 +102,8 @@ export const AdminSettings: React.FC = () => {
               </div>
               <div>
                 <label className="block text-white/60 text-sm mb-2">Support Contact Email</label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={formData.general.contactEmail}
                   onChange={(e) => handleInputChange('general', 'contactEmail', e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none"
@@ -111,12 +111,31 @@ export const AdminSettings: React.FC = () => {
               </div>
               <div>
                 <label className="block text-white/60 text-sm mb-2">Support Phone</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={formData.general.supportPhone}
                   onChange={(e) => handleInputChange('general', 'supportPhone', e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none"
                 />
+              </div>
+
+              {/* Workflow Settings */}
+              <div className="pt-4 border-t border-white/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-white font-bold text-sm">Enable Preferences Step</div>
+                    <div className="text-xs text-white/40">Allow customers to choose New/Used condition and warranty options.</div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.general.enablePreferencesStep}
+                      onChange={(e) => handleInputChange('general', 'enablePreferencesStep', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gold-500"></div>
+                  </label>
+                </div>
               </div>
             </motion.div>
           )}
@@ -129,14 +148,14 @@ export const AdminSettings: React.FC = () => {
                   Restricted Access: View Only
                 </div>
               )}
-              
+
               <div>
                 <div className="flex justify-between text-white mb-2">
                   <span>Commission Rate</span>
                   <span className="text-gold-400 font-bold">{formData.financial.commissionRate}%</span>
                 </div>
-                <input 
-                  type="range" 
+                <input
+                  type="range"
                   min="0" max="30" step="1"
                   value={formData.financial.commissionRate}
                   disabled={!isSuperAdmin}
@@ -151,8 +170,8 @@ export const AdminSettings: React.FC = () => {
                   <span>VAT Rate</span>
                   <span className="text-gold-400 font-bold">{formData.financial.vatRate}%</span>
                 </div>
-                <input 
-                  type="range" 
+                <input
+                  type="range"
                   min="0" max="20" step="1"
                   value={formData.financial.vatRate}
                   disabled={!isSuperAdmin}
@@ -206,8 +225,8 @@ export const AdminSettings: React.FC = () => {
 
               <div className="mt-6 border-t border-white/10 pt-6">
                 <label className="block text-white/60 text-sm mb-2">Base Fallback Shipping Cost (SAR)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   value={formData.logistics.baseShippingCost}
                   onChange={(e) => handleInputChange('logistics', 'baseShippingCost', parseInt(e.target.value))}
                   className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 w-full max-w-xs"
@@ -221,7 +240,7 @@ export const AdminSettings: React.FC = () => {
             <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
               <div>
                 <label className="block text-white/60 text-sm mb-2">Vendor Agreement Contract</label>
-                <textarea 
+                <textarea
                   rows={10}
                   value={formData.content.vendorContract}
                   onChange={(e) => handleInputChange('content', 'vendorContract', e.target.value)}
@@ -229,11 +248,11 @@ export const AdminSettings: React.FC = () => {
                 />
                 <p className="text-xs text-white/30 mt-2">This text will appear in the Vendor Registration flow.</p>
               </div>
-              
+
               <div>
                 <label className="block text-white/60 text-sm mb-2">Invoice Footer Note</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={formData.content.invoiceFooter}
                   onChange={(e) => handleInputChange('content', 'invoiceFooter', e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none"
@@ -245,7 +264,7 @@ export const AdminSettings: React.FC = () => {
         </AnimatePresence>
 
         <div className="mt-8 pt-6 border-t border-white/10 flex justify-end">
-          <button 
+          <button
             onClick={handleSave}
             className="flex items-center gap-2 px-8 py-3 bg-gold-500 hover:bg-gold-600 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95"
           >

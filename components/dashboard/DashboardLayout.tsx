@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Package, PlusCircle, MessageSquare, User, Bell, LogOut, Menu, Scale, Info, ChevronDown, Search, Wallet, Grid, Users, ShieldAlert, BarChart3, Settings, ShoppingBag, ListChecks, Truck, FileText, BadgeDollarSign, Store, Star, Database, Headset, ShieldCheck, Lock } from 'lucide-react';
+import { Home, Package, PlusCircle, MessageSquare, User, Bell, LogOut, Menu, Scale, Info, ChevronDown, Search, Wallet, Grid, Users, ShieldAlert, BarChart3, Settings, ShoppingBag, ListChecks, Truck, FileText, BadgeDollarSign, Store, Star, Database, Headset, ShieldCheck, Lock, CreditCard, RotateCcw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { useVendorStore } from '../../stores/useVendorStore';
@@ -87,14 +87,20 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   // Define Menu Items per Role
   const customerNavItems = [
     { id: 'home', icon: Home, label: t.dashboard.menu.home },
+    { id: 'shipments', icon: Truck, label: t.dashboard.menu.shipments },
     { id: 'orders', icon: Package, label: t.dashboard.menu.orders },
+    { id: 'shipping-cart', icon: ShoppingBag, label: t.dashboard.menu.shippingCart },
     { id: 'create', icon: PlusCircle, label: t.dashboard.menu.create, isAction: true },
-    { id: 'wallet', icon: Wallet, label: t.dashboard.profile.tabs.wallet },
-    { id: 'resolution', icon: Scale, label: t.dashboard.menu.resolution },
+    { id: 'billing', icon: CreditCard, label: t.dashboard.menu.billing },
+    { id: 'resolution', icon: RotateCcw, label: t.dashboard.menu.resolution },
     { id: 'chats', icon: MessageSquare, label: t.dashboard.menu.chats },
     { id: 'profile', icon: User, label: t.dashboard.menu.profile },
-    { id: 'info-center', icon: Info, label: t.dashboard.menu.infoCenter },
-  ];
+    { id: 'support', icon: Headset, label: t.dashboard.menu.support },
+    // { id: 'preferences', icon: Settings, label: t.dashboard.menu.preferences }, // Moved to Profile
+    // { id: 'loyalty', icon: Star, label: t.dashboard.menu.loyalty }, // Moved to Profile
+  ]; // Billing restored
+
+
 
   // Updated Merchant Items
   const merchantNavItems = [
@@ -182,7 +188,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/10">
             <img
-              src="https://drive.google.com/thumbnail?id=1TpxgbWGVS4LykUr_psioU1F5ww0a7q64&sz=w1000"
+              src="/logo.png"
               alt="Logo"
               className="w-6 h-6 object-contain brightness-0 invert"
             />
@@ -251,7 +257,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           {/* Mobile Menu Trigger (Visual Only) */}
           <div className="md:hidden">
             <img
-              src="https://drive.google.com/thumbnail?id=1TpxgbWGVS4LykUr_psioU1F5ww0a7q64&sz=w1000"
+              src="/logo.png"
               alt="Logo"
               className="w-8 h-8 object-contain brightness-0 invert"
             />

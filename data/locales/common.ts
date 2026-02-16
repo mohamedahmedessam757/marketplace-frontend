@@ -56,6 +56,40 @@ export const common = {
     },
     daysShort: ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'],
     location: 'الرياض، السعودية',
+    roleSelection: {
+      customerOrders: 'طلبات القطع للعملاء',
+      storeLogin: 'دخول المتاجر',
+      wholesaleOrders: 'دخول طلبات الجملة للشركات',
+      howWeWork: 'تعرّف على طريقة عملنا قبل أن تبدأ معنا',
+      typingMessage: 'معنا… تشاليح الإمارات توصلك وفلوسك بأمان',
+      features: {
+        title: 'معنا... تشاليح الإمارات توصلك وفلوسك بأمان',
+        originalParts: 'قطع غيار أصلية مستعملة (غير مجددة أو معاد إصلاحها)',
+        shipping: 'توصيل للخليج مع إمكانية الإرجاع والاستبدال',
+        payment: 'الدفع آمن - لا تُصرف المبالغ للبائع إلا بعد استلامك القطعة والتأكد منها',
+        video: 'افحص قطعتك بالفيديو والصور مباشرة مع المتجر',
+        documentation: 'نوثّق المعاينة ونراجعها قبل الشحن لضمان التطابق',
+        guarantee: 'ضمان الشحن في الوقت المحدد وسياسة إرجاع سهلة',
+        terms: 'تُطبق الشروط والأحكام',
+        orderNow: 'انتقل للطلب الآن',
+        back: 'كيف نعمل'
+      }
+    },
+    wholesale: {
+      title: 'طلبات الجملة للشركات',
+      welcome: 'مرحباً بكم',
+      instruction: 'لطلبات الجملة للشركات فضلاً ارسال خطاب الشركة الى الايميل التالي:',
+      email: 'shop@e-tashleh.shop',
+      emailLabel: 'البريد الإلكتروني',
+      followUp: 'وسيتم التواصل معكم عبر أحد مدراء المبيعات',
+      thanks: 'شكراً لثقتكم ونتمنى لكم التوفيق',
+      sendRequest: 'إرسال طلب جملة',
+      backHome: 'العودة للرئيسية',
+      contactInfo: 'معلومات التواصل',
+      contactDesc: 'يمكنكم التواصل معنا عبر البريد الإلكتروني، أو زيارة موقعنا للحصول على المزيد من المعلومات حول خدماتنا',
+      howItWorks: 'كيفية العمل',
+      howItWorksDesc: 'بعد إرسال خطاب الشركة، سيتواصل معكم أحد مدراء المبيعات خلال 24-48 ساعة لمناقشة تفاصيل طلبكم'
+    },
   },
   en: {
     sar: 'SAR',
@@ -112,6 +146,40 @@ export const common = {
       RETURN_REQUESTED: 'Return Requested',
       RETURN_APPROVED: 'Return Approved',
       RESOLVED: 'Resolved'
+    },
+    roleSelection: {
+      customerOrders: 'Customer Parts Orders',
+      storeLogin: 'Vendor Login',
+      wholesaleOrders: 'Wholesale B2B Orders',
+      howWeWork: 'Learn how we work before you start',
+      typingMessage: 'With us... UAE Auto Parts reach you, with your money safe',
+      features: {
+        title: 'With us... UAE Auto Parts reach you, with your money safe',
+        originalParts: 'Original used parts (not refurbished or repaired)',
+        shipping: 'Shipping to GCC with return and exchange policy',
+        payment: 'Secure payment - Funds released to seller only after you receive and verify the part',
+        video: 'Inspect your part via video and photos directly with the store',
+        documentation: 'We document inspection and review before shipping to ensure matching',
+        guarantee: 'On-time shipping guarantee and easy return policy',
+        terms: 'Terms and Conditions apply',
+        orderNow: 'Order Now',
+        back: 'How We Work'
+      }
+    },
+    wholesale: {
+      title: 'Wholesale B2B Orders',
+      welcome: 'Welcome',
+      instruction: 'For corporate wholesale orders, please send the company letter to the following email:',
+      email: 'shop@e-tashleh.shop',
+      emailLabel: 'Email Address',
+      followUp: 'A sales manager will contact you shortly',
+      thanks: 'Thank you for your trust, we wish you success',
+      sendRequest: 'Send Wholesale Request',
+      backHome: 'Back to Home',
+      contactInfo: 'Contact Information',
+      contactDesc: 'You can contact us via email or visit our website for more information about our services',
+      howItWorks: 'How it Works',
+      howItWorksDesc: 'After sending the company letter, a sales manager will contact you within 24-48 hours to discuss your order details'
     }
   }
 };

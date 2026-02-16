@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Mail, Lock, User, Store, Chrome, Smartphone } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { OTPVerification } from './OTPVerification';
+import { OTPMethodSelection } from './OTPMethodSelection';
 import { authApi } from '@/services/api/auth';
 
 interface LoginPageProps {
@@ -10,13 +11,17 @@ interface LoginPageProps {
   onCustomerRegisterClick: () => void;
   onLoginSuccess: (role: 'customer' | 'merchant') => void;
   onForgotPasswordClick?: () => void;
+  initialTab?: 'customer' | 'merchant';
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustomerRegisterClick, onLoginSuccess, onForgotPasswordClick }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustomerRegisterClick, onLoginSuccess, onForgotPasswordClick, initialTab = 'customer' }) => {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'customer' | 'merchant'>('customer');
-  const [showOTP, setShowOTP] = useState(false);
+  const [activeTab, setActiveTab] = useState<'customer' | 'merchant'>(initialTab);
+  const [otpStep, setOtpStep] = useState<'none' | 'method' | 'verify'>('none');
+  const [otpMethod, setOtpMethod] = useState<'email' | 'whatsapp'>('email');
   const [email, setEmail] = useState('');
+  const [userName, setUserName] = useState('');
+  const [userPhone, setUserPhone] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +49,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustome
         throw new Error(t.auth.errors?.wrongAccountType);
       }
 
+      // Store user details for OTP display
+      setUserName(data.user.name || '');
+      setUserPhone(data.user.phone || '');
+
       // 2. OTP Verification (Mock for M1)
-      // The user requested OTP on login. We trigger it here.
-      setShowOTP(true);
+      // The user requested OTP method selection first.
+      setOtpStep('method');
 
       // We do NOT call onLoginSuccess yet. It will be called by OTPVerification onVerify.
       // Store temp data if needed, or rely on token being in localStorage already.
@@ -65,7 +74,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustome
     }
   };
 
-  if (showOTP) {
+  if (otpStep === 'method') {
+    return (
+      <div className="p-4">
+        <OTPMethodSelection
+          email={email}
+          name={userName}
+          onSelect={(method) => {
+            setOtpMethod(method);
+            setOtpStep('verify');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (otpStep === 'verify') {
     return (
       <div className="p-4">
         {/* 
@@ -75,6 +99,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustome
                */}
         <OTPVerification
           email={email}
+          phone={userPhone}
+          method={otpMethod}
           onVerify={(code) => {
             // On success, finalize login
             let frontendRole: 'customer' | 'merchant' = activeTab;

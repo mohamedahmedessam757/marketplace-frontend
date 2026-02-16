@@ -21,7 +21,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSupport, onAdminClick }) =
                     <div className={`flex flex-col items-center lg:items-start ${language === 'ar' ? 'lg:text-right' : 'lg:text-left'} text-center lg:text-start`}>
                         <div className="flex items-center gap-2 mb-4">
                             <img
-                                src="https://drive.google.com/thumbnail?id=1TpxgbWGVS4LykUr_psioU1F5ww0a7q64&sz=w1000"
+                                src="/logo.png"
                                 alt="E-Tashleh Logo"
                                 className="w-12 h-12 object-contain brightness-0 invert"
                             />

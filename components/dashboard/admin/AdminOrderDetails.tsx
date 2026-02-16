@@ -62,6 +62,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
     const order = getOrder(orderId);
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronRight : ChevronLeft;
+    const [activeMedia, setActiveMedia] = useState<{ type: 'image' | 'video', url: string } | null>(null);
 
     // Permissions
     const isAdmin = currentAdmin?.role === 'ADMIN' || currentAdmin?.role === 'SUPER_ADMIN';
@@ -91,6 +92,36 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            {/* Media Lightbox */}
+            {activeMedia && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+                    onClick={() => setActiveMedia(null)}
+                >
+                    <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
+                        {activeMedia.type === 'video' ? (
+                            <video
+                                src={activeMedia.url}
+                                controls
+                                autoPlay
+                                className="max-w-full max-h-[85vh] rounded-lg border border-gold-500/20 shadow-2xl"
+                            />
+                        ) : (
+                            <img
+                                src={activeMedia.url}
+                                alt="Full View"
+                                className="max-w-full max-h-[85vh] object-contain rounded-lg border border-gold-500/20 shadow-2xl"
+                            />
+                        )}
+                        <button
+                            className="mt-4 px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                            onClick={() => setActiveMedia(null)}
+                        >
+                            {t.common.close || (isAr ? "إغلاق" : "Close")}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Top Bar */}
             <div className="flex items-center gap-4">
@@ -184,37 +215,96 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                 <div className="lg:col-span-1 space-y-6">
                     <GlassCard className="p-6 h-full flex flex-col">
                         <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-white/5 pb-2">
-                            {order.part}
+                            {t.dashboard.createOrder.review.partDetails}
                         </h3>
-                        <div className="flex-1 space-y-4">
-                            <div className="aspect-video bg-black/40 rounded-xl border border-white/10 flex items-center justify-center text-white/20 overflow-hidden relative">
-                                {order.partImages && order.partImages.length > 0 ? (
-                                    <img
-                                        src={order.partImages[0]}
-                                        alt={order.part}
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    <span>{t.admin.orderDetails.noImage}</span>
-                                )}
-                                {order.partImages && order.partImages.length > 1 && (
-                                    <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 rounded text-xs text-white">
-                                        +{order.partImages.length - 1}
+
+                        <div className="flex-1 space-y-6 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
+                            {/* Check for new 'parts' array or fallback to legacy 'part' string */}
+                            {order.parts && order.parts.length > 0 ? (
+                                order.parts.map((part: any, idx: number) => (
+                                    <div key={idx} className="space-y-3 border-b border-white/5 pb-4 last:border-0">
+                                        <div className="flex items-start justify-between">
+                                            <span className="text-gold-400 font-bold text-sm">#{idx + 1} {part.name}</span>
+                                            {part.images && part.images.length > 0 && <span className="text-xs text-white/40">{part.images.length} {t.common.image}</span>}
+                                        </div>
+
+                                        {/* Images Grid */}
+                                        {part.images && part.images.length > 0 ? (
+                                            <div className="flex gap-2 overflow-x-auto pb-2">
+                                                {part.images.map((img: any, i: number) => (
+                                                    <div
+                                                        key={i}
+                                                        className="w-16 h-16 shrink-0 rounded-lg bg-black/40 border border-white/10 overflow-hidden cursor-pointer hover:border-gold-500/50 transition-colors"
+                                                        onClick={() => setActiveMedia({ type: 'image', url: typeof img === 'string' ? img : URL.createObjectURL(img) })}
+                                                    >
+                                                        <img src={typeof img === 'string' ? img : URL.createObjectURL(img)} alt={part.name} className="w-full h-full object-cover" />
+                                                    </div>
+                                                ))}
+                                                {part.video && (
+                                                    <div
+                                                        className="w-16 h-16 shrink-0 rounded-lg bg-black/40 border border-white/10 overflow-hidden cursor-pointer hover:border-gold-500/50 transition-colors relative group"
+                                                        onClick={() => setActiveMedia({ type: 'video', url: typeof part.video === 'string' ? part.video : URL.createObjectURL(part.video) })}
+                                                    >
+                                                        <video src={typeof part.video === 'string' ? part.video : URL.createObjectURL(part.video)} className="w-full h-full object-cover opacity-50 group-hover:opacity-75 transition-opacity" />
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <PlayCircle size={20} className="text-white drop-shadow-md" />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="w-full h-16 bg-white/5 rounded-lg flex items-center justify-center text-xs text-white/30">
+                                                {t.admin.orderDetails.noImage}
+                                            </div>
+                                        )}
+
+                                        <div className="text-sm text-white/70">{part.description}</div>
+                                        {part.notes && <div className="text-xs text-white/40 italic">"{part.notes}"</div>}
                                     </div>
-                                )}
-                            </div>
-                            <div className="space-y-2 text-sm">
+                                ))
+                            ) : (
+                                /* Legacy Fallback */
+                                <div className="space-y-4">
+                                    <div className="aspect-video bg-black/40 rounded-xl border border-white/10 flex items-center justify-center text-white/20 overflow-hidden relative">
+                                        {order.partImages && order.partImages.length > 0 ? (
+                                            <img
+                                                src={order.partImages[0]}
+                                                alt={order.part}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <span>{t.admin.orderDetails.noImage}</span>
+                                        )}
+                                        {order.partImages && order.partImages.length > 1 && (
+                                            <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 rounded text-xs text-white">
+                                                +{order.partImages.length - 1}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="text-white font-bold">{order.part}</div>
+                                </div>
+                            )}
+
+                            <div className="bg-white/5 p-4 rounded-xl space-y-2 text-sm mt-4">
                                 <div className="flex justify-between border-b border-white/5 pb-2">
                                     <span className="text-white/40">{t.admin.orderDetails.car}</span>
-                                    <span className="text-white font-medium">{order.car}</span>
+                                    <span className="text-white font-medium">{order.vehicle?.make ? `${order.vehicle.make} ${order.vehicle.model}` : order.car}</span>
                                 </div>
                                 <div className="flex justify-between border-b border-white/5 pb-2">
                                     <span className="text-white/40">{t.admin.orderDetails.vin}</span>
-                                    <span className="text-white font-mono">{order.vin || 'N/A'}</span>
+                                    <span className="text-white font-mono">{order.vehicle?.vin || order.vin || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between border-b border-white/5 pb-2">
-                                    <span className="text-white/40">{t.admin.orderDetails.offersCount}</span>
-                                    <span className="text-gold-400 font-bold">{order.offersCount}</span>
+                                    <span className="text-white/40">{t.dashboard.createOrder.prefs.condition}</span>
+                                    <span className="text-white">{order.preferences?.condition || 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-1">
+                                    <span className="text-white/40">{t.dashboard.createOrder.step.review?.warranty || 'Extended Warranty'}</span>
+                                    {order.preferences?.warranty ? (
+                                        <span className="text-green-400 font-bold text-xs px-2 py-0.5 bg-green-500/10 rounded">{t.common.yes || 'Yes'}</span>
+                                    ) : (
+                                        <span className="text-white/30 text-xs">{t.common.no || 'No'}</span>
+                                    )}
                                 </div>
                             </div>
                         </div>

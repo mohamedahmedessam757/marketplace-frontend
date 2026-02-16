@@ -1,185 +1,194 @@
 
 import { create } from 'zustand';
-import { useOrderStore } from './useOrderStore';
-import { useAuditStore } from './useAuditStore';
+import { supabase } from '../services/supabase';
+import { Order } from '../types';
+import { getCurrentUserId } from '../utils/auth';
 
-export type InvoiceType = 'CUSTOMER_INVOICE' | 'COMMISSION_INVOICE' | 'PAYOUT_INVOICE' | 'SHIPPING_INVOICE';
-export type InvoiceStatus = 'PAID' | 'PENDING' | 'REFUNDED' | 'FAILED' | 'FROZEN';
-
-export interface InvoiceItem {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  taxableAmount: number;
-  taxAmount: number;
-  totalAmount: number;
+interface Invoice extends Order {
+    invoice_number: string;
+    shipping_bill_number: string;
 }
 
-export interface Invoice {
-  id: string; // INV-XXXX
-  orderId?: number; // Linked order
-  merchantName?: string;
-  customerName?: string;
-  type: InvoiceType;
-  status: InvoiceStatus;
-  date: string;
-  supplyDate: string;
-  
-  // Financial Breakdown
-  subtotal: number;
-  taxAmount: number;
-  shippingAmount: number;
-  totalAmount: number;
-  
-  // Breakdown for Commission Logic
-  basePrice?: number;
-  commissionAmount?: number;
-  
-  items: InvoiceItem[];
+export interface SavedCard {
+    id: string;
+    last4: string;
+    brand: string;
+    expiry_month: number;
+    expiry_year: number;
+    is_default: boolean;
+    card_holder_name?: string;
 }
 
 interface BillingState {
-  invoices: Invoice[];
-  generateInvoicesFromOrders: () => void;
-  getInvoiceById: (id: string) => Invoice | undefined;
-  freezeInvoice: (orderId: number) => void;
-  releaseInvoice: (orderId: number, isRefund: boolean) => void;
-  markInvoicePaid: (invoiceId: string) => void; // New Action
+    invoices: Invoice[];
+    cards: SavedCard[];
+    walletBalance: number;
+    loading: boolean;
+    error: string | null;
+
+    fetchInvoices: () => Promise<void>;
+    fetchWallet: () => Promise<void>;
+    fetchCards: () => Promise<void>;
+    addCard: (card: Omit<SavedCard, 'id' | 'is_default'>) => Promise<void>;
+    deleteCard: (id: string) => Promise<void>;
+    setDefaultCard: (id: string) => Promise<void>;
 }
 
 export const useBillingStore = create<BillingState>((set, get) => ({
-  invoices: [],
+    invoices: [],
+    cards: [],
+    walletBalance: 0,
+    loading: false,
+    error: null,
 
-  generateInvoicesFromOrders: () => {
-    const orders = useOrderStore.getState().orders;
-    const generatedInvoices: Invoice[] = [];
+    fetchInvoices: async () => {
+        set({ loading: true });
+        try {
+            const userId = getCurrentUserId();
+            if (!userId) {
+                set({ invoices: [], loading: false });
+                return;
+            }
 
-    // Helper to generate Invoice ID
-    const genId = (prefix: string, seed: number) => `${prefix}-${10000 + seed}`;
+            // Invoices are essentially Completed/Paid orders
+            const { data, error } = await supabase
+                .from('orders')
+                .select(`
+                    *,
+                    offers!fk_orders_accepted_offer(*),
+                    store:stores(*)
+                `)
+                .in('status', ['COMPLETED', 'DELIVERED', 'SHIPPED'])
+                .eq('customer_id', userId)
+                .order('created_at', { ascending: false });
 
-    orders.forEach((order) => {
-        if (!order.price) return;
-        
-        // Parse Price (Structure: Total Paid by Customer)
-        const priceStr = order.price.replace(/[^0-9.]/g, '');
-        const totalOrderPrice = parseFloat(priceStr);
-        if (isNaN(totalOrderPrice)) return;
+            // Note: Adjusted offers foreign key based on schema (fk_orders_accepted_offer)
 
-        // Base Calculations
-        const vatRate = 0.15;
-        const shippingCost = 50; // Mock standard shipping
-        
-        // 1. CUSTOMER INVOICE (Sales Invoice)
-        if (['PREPARATION', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURNED', 'DISPUTED'].includes(order.status)) {
-            const itemBasePrice = (totalOrderPrice / (1 + vatRate));
-            const itemTax = totalOrderPrice - itemBasePrice;
-            
-            let status: InvoiceStatus = 'PAID';
-            if (order.status === 'RETURNED') status = 'REFUNDED';
-            if (order.status === 'DISPUTED') status = 'FROZEN';
+            if (error) {
+                // Fallback for foreign key name if changed
+                console.warn('Billing fetch error (first attempt):', error);
+            }
 
-            generatedInvoices.push({
-                id: genId('INV', order.id),
-                orderId: order.id,
-                type: 'CUSTOMER_INVOICE',
-                status: status,
-                date: order.offerAcceptedAt || order.date,
-                supplyDate: order.date,
-                merchantName: order.merchantName || 'E-Tashleh Vendor',
-                customerName: `Customer ${Math.floor(order.id / 10)}`,
-                subtotal: itemBasePrice,
-                taxAmount: itemTax,
-                shippingAmount: shippingCost,
-                totalAmount: totalOrderPrice + shippingCost,
-                basePrice: totalOrderPrice, // Store Base for calculations
-                items: [
-                    {
-                        description: `${order.part} for ${order.car}`,
-                        quantity: 1,
-                        unitPrice: itemBasePrice,
-                        taxableAmount: itemBasePrice,
-                        taxAmount: itemTax,
-                        totalAmount: totalOrderPrice
-                    }
-                ]
-            });
+            const mappedInvoices = (data || []).map((order: any) => ({
+                ...order,
+                invoice_number: `INV-${order.order_number}`,
+                shipping_bill_number: `SHP-${order.order_number}`,
+                offers: order.offers ? [order.offers] : [],
+                store: order.store || undefined
+            }));
+
+            set({ invoices: mappedInvoices });
+        } catch (err: any) {
+            console.error('Error fetching invoices:', err);
+            set({ error: err.message });
+        } finally {
+            set({ loading: false });
         }
+    },
 
-        // 2. COMMISSION INVOICE (To Merchant)
-        if (['COMPLETED', 'DELIVERED'].includes(order.status)) {
-            const commissionRate = 0.20;
-            const commissionTotal = totalOrderPrice * commissionRate;
-            const commissionBase = commissionTotal / (1 + vatRate);
-            const commissionTax = commissionTotal - commissionBase;
+    fetchWallet: async () => {
+        // Future: Fetch wallet balance from transactions table
+        set({ walletBalance: 0 });
+    },
 
-            generatedInvoices.push({
-                id: genId('COM', order.id),
-                orderId: order.id,
-                type: 'COMMISSION_INVOICE',
-                status: 'PAID', // Deducted from wallet
-                date: order.deliveredAt || new Date().toISOString(),
-                supplyDate: order.deliveredAt || new Date().toISOString(),
-                merchantName: 'E-Tashleh Platform', // Issuer
-                customerName: order.merchantName, // Recipient
-                subtotal: commissionBase,
-                taxAmount: commissionTax,
-                shippingAmount: 0,
-                totalAmount: commissionTotal,
-                items: [
-                    {
-                        description: `Platform Commission (20%) - Order #${order.id}`,
-                        quantity: 1,
-                        unitPrice: commissionBase,
-                        taxableAmount: commissionBase,
-                        taxAmount: commissionTax,
-                        totalAmount: commissionTotal
-                    }
-                ]
-            });
+    fetchCards: async () => {
+        const userId = getCurrentUserId();
+        if (!userId) return;
+
+        set({ loading: true });
+        try {
+            const { data, error } = await supabase
+                .from('user_cards')
+                .select('*')
+                .eq('user_id', userId)
+                .order('is_default', { ascending: false });
+
+            if (error) throw error;
+            set({ cards: data || [] });
+        } catch (err: any) {
+            console.error('Error fetching cards:', err);
+            // Don't set global error to avoid blocking UI
+        } finally {
+            set({ loading: false });
         }
-    });
-    
-    // Add some mock Payout Invoices
-    generatedInvoices.push({
-        id: 'PAY-8821',
-        type: 'PAYOUT_INVOICE',
-        status: 'PENDING',
-        date: new Date().toISOString(),
-        supplyDate: new Date().toISOString(),
-        merchantName: 'Al-Jazira Parts',
-        customerName: 'E-Tashleh Finance',
-        subtotal: 1500,
-        taxAmount: 0,
-        shippingAmount: 0,
-        totalAmount: 1500,
-        items: [{ description: 'Weekly Payout', quantity: 1, unitPrice: 1500, taxableAmount: 0, taxAmount: 0, totalAmount: 1500 }]
-    });
+    },
 
-    set({ invoices: generatedInvoices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) });
-  },
+    addCard: async (cardData) => {
+        const userId = getCurrentUserId();
+        if (!userId) return;
 
-  getInvoiceById: (id) => get().invoices.find(inv => inv.id === id),
+        set({ loading: true });
+        try {
+            // Check if it's the first card (make default)
+            const isFirst = get().cards.length === 0;
 
-  freezeInvoice: (orderId) => set((state) => ({
-      invoices: state.invoices.map(inv => inv.orderId === orderId ? { ...inv, status: 'FROZEN' } : inv)
-  })),
+            const { data, error } = await supabase
+                .from('user_cards')
+                .insert([{
+                    user_id: userId,
+                    ...cardData,
+                    is_default: isFirst
+                }])
+                .select()
+                .single();
 
-  releaseInvoice: (orderId, isRefund) => set((state) => ({
-      invoices: state.invoices.map(inv => inv.orderId === orderId ? { ...inv, status: isRefund ? 'REFUNDED' : 'PAID' } : inv)
-  })),
+            if (error) throw error;
 
-  markInvoicePaid: (invoiceId) => {
-      set((state) => ({
-          invoices: state.invoices.map(inv => inv.id === invoiceId ? { ...inv, status: 'PAID' } : inv)
-      }));
-      useAuditStore.getState().logAction({
-          action: 'FINANCIAL',
-          entity: 'Invoice',
-          actorType: 'Admin',
-          actorId: 'ADM-001',
-          actorName: 'Admin',
-          reason: 'Manual Payout Execution',
-          metadata: { invoiceId }
-      });
-  }
+            set((state) => ({
+                cards: [...state.cards, data]
+            }));
+        } catch (err: any) {
+            set({ error: err.message });
+            throw err;
+        } finally {
+            set({ loading: false });
+        }
+    },
+
+    deleteCard: async (id) => {
+        try {
+            const { error } = await supabase
+                .from('user_cards')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            set((state) => ({
+                cards: state.cards.filter(c => c.id !== id)
+            }));
+        } catch (err: any) {
+            set({ error: err.message });
+        }
+    },
+
+    setDefaultCard: async (id) => {
+        const userId = getCurrentUserId();
+        if (!userId) return;
+
+        try {
+            // Transaction-like logic to unset others and set new default
+            // Supabase doesn't support complex transactions via client easily, so we do two updates
+            await supabase
+                .from('user_cards')
+                .update({ is_default: false })
+                .eq('user_id', userId);
+
+            const { error } = await supabase
+                .from('user_cards')
+                .update({ is_default: true })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            set((state) => ({
+                cards: state.cards.map(c => ({
+                    ...c,
+                    is_default: c.id === id
+                }))
+            }));
+        } catch (err: any) {
+            set({ error: err.message });
+        }
+    }
 }));

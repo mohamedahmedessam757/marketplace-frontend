@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Check } from 'lucide-react';
 import { useCreateOrderStore } from '../../../stores/useCreateOrderStore';
+import { useAdminStore } from '../../../stores/useAdminStore';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -16,8 +17,8 @@ interface CreateOrderWizardProps {
 }
 
 export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete }) => {
-  const { step, setStep, submitOrder, reset, vehicle, part, preferences } = useCreateOrderStore();
-  const { addOrder } = useOrderStore(); // Kept for completeness though unused if we use fetchOrders logic
+  const { step, setStep, submitOrder, reset, vehicle, parts, preferences } = useCreateOrderStore();
+  const { systemConfig } = useAdminStore(); // Hook into admin config
   const { addNotification } = useNotificationStore();
   const { t, language } = useLanguage();
 
@@ -29,41 +30,68 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
   useEffect(() => {
     reset(); // Clear store on mount
     setIsReady(true);
-    return () => reset(); // Clear on unmount
   }, []);
+
+  // Use Dynamic Config
+  const SHOW_PREFERENCES_STEP = systemConfig.general.enablePreferencesStep;
 
   const steps = [
     { id: 1, title: t.dashboard.createOrder.steps.vehicle },
     { id: 2, title: t.dashboard.createOrder.steps.part },
-    { id: 3, title: t.dashboard.createOrder.steps.preferences },
+    ...(SHOW_PREFERENCES_STEP ? [{ id: 3, title: t.dashboard.createOrder.steps.preferences }] : []),
     { id: 4, title: t.dashboard.createOrder.steps.review },
   ];
 
-  const handleNext = () => {
-    // Basic validation logic
-    if (step === 1 && !vehicle.make) return; // Prevent next if make empty
-    if (step === 2 && (!part.name || !part.description || part.images.length === 0)) return; // Mandatory Description & Images
-    if (step === 3 && !preferences.condition) return; // Prevent next if condition not selected
-
-    setStep(step + 1);
+  // Adjust step IDs for navigation if preferences is skipped
+  const getNextStep = (current: number) => {
+    if (current === 2 && !SHOW_PREFERENCES_STEP) return 4;
+    return current + 1;
   };
 
-  const handleBack = () => setStep(step - 1);
+  const getPrevStep = (current: number) => {
+    if (current === 4 && !SHOW_PREFERENCES_STEP) return 2;
+    return current - 1;
+  };
+
+  const handleNext = () => {
+    // Validation
+    if (step === 1) {
+      if (!vehicle.make || !vehicle.model || !vehicle.year) {
+        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى تعبئة جميع بيانات المركبة' : 'Please fill all vehicle details', priority: 'urgent' });
+        return;
+      }
+    }
+
+    if (step === 2) {
+      // Validate ALL parts
+      const isValid = parts.every(p => p.name && p.description && p.images.length > 0);
+      if (!isValid) {
+        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى تعبئة البيانات وصورة واحدة على الأقل لكل قطعة' : 'Please fill details and at least one image for all parts', priority: 'urgent' });
+        return;
+      }
+    }
+
+    if (step === 3 && SHOW_PREFERENCES_STEP) {
+      if (!preferences.condition) {
+        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى اختيار حالة القطعة' : 'Please select part condition', priority: 'urgent' });
+        return;
+      }
+    }
+
+    setStep(getNextStep(step));
+  };
+
+  const handleBack = () => setStep(getPrevStep(step));
 
   const handleSubmit = async () => {
-    // 1. PERSIST DATA via Store Action (which handles API)
     try {
       await submitOrder();
+      useOrderStore.getState().fetchOrders(); // Sync
 
-      // 2. Refresh Order List to show new persistence
-      useOrderStore.getState().fetchOrders(); // SYNC ORDER STORE
-
-      // 3. TRIGGER NOTIFICATION (Simulating Broadcast to Merchants)
       addNotification({
         type: 'system',
-        titleKey: 'adminAlert', // Using generic alert key for "New Request"
-        message: `${t.dashboard.createOrder.successAlert}: ${part.name} - ${vehicle.make}`,
-        linkTo: 'marketplace', // Direct merchant to marketplace
+        titleKey: 'adminAlert',
+        message: language === 'ar' ? 'تم استلام طلبك بنجاح' : 'Order received successfully',
         priority: 'urgent'
       });
 
@@ -73,8 +101,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
       addNotification({
         type: 'system',
         titleKey: 'adminAlert',
-        message: "Failed to create order. Please check your connection.", // Fallback if no specific error
-        linkTo: 'create',
+        message: language === 'ar' ? "فشل إنشاء الطلب. حاول مرة أخرى." : "Failed to create order. Please try again.",
         priority: 'urgent'
       });
     }
@@ -85,12 +112,10 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-white mb-2">{t.dashboard.createOrder.title}</h1>
-        <p className="text-white/50">{t.dashboard.createOrder.subtitle}</p>
       </div>
 
-      {/* Progress Stepper - Luxurious Gold Glow */}
+      {/* Progress Stepper */}
       <div className="relative flex justify-between items-center px-4 md:px-12 mb-12">
-        {/* Background Line */}
         <div className="absolute top-1/2 left-0 w-full h-1 bg-white/5 -z-10 -translate-y-1/2 rounded-full overflow-hidden">
           <motion.div
             className="h-full bg-gradient-to-r from-gold-600 to-gold-400 shadow-[0_0_10px_#A88B3E]"
@@ -130,7 +155,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
       </div>
 
       {/* Main Content Card */}
-      <GlassCard className="bg-[#1A1814]/80 backdrop-blur-xl border border-gold-500/10 p-6 md:p-10 min-h-[400px] flex flex-col">
+      <GlassCard enableHover={false} className="bg-[#1A1814]/80 backdrop-blur-xl border border-gold-500/10 p-6 md:p-10 min-h-[400px] flex flex-col">
         <div className="flex-1">
           <AnimatePresence mode="wait">
             {step === 1 && <VehicleDetailsStep key="step1" />}

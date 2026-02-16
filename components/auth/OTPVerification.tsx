@@ -6,9 +6,11 @@ import { useLanguage } from '../../contexts/LanguageContext';
 interface OTPVerificationProps {
   onVerify: (code: string) => void;
   email: string;
+  phone?: string;
+  method?: 'email' | 'whatsapp';
 }
 
-export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, email }) => {
+export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, email, phone, method = 'email' }) => {
   const { t } = useLanguage();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
@@ -53,10 +55,12 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-white mb-2">{t.auth.otp.title}</h2>
-        <p className="text-white/60 text-sm">
+        <div className="text-white/60 text-sm">
           {t.auth.otp.subtitle} <br />
-          <span className="text-gold-400 font-mono mt-1 block">{email}</span>
-        </p>
+          <div className="text-gold-400 font-mono mt-1 text-lg" dir="ltr">
+            {method === 'whatsapp' ? (phone || email) : email}
+          </div>
+        </div>
       </div>
 
       <div className="flex gap-2 justify-center direction-ltr" dir="ltr">
@@ -95,14 +99,19 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
         )}
 
         <div className="flex flex-col gap-2 pt-4 border-t border-white/5">
-          <button className="flex items-center justify-center gap-2 text-green-400 hover:text-green-300 text-sm py-2 bg-green-500/5 hover:bg-green-500/10 rounded-lg transition-colors border border-green-500/10">
-            <MessageSquare size={16} />
-            {t.auth.otp.whatsapp}
-          </button>
-          <button className="flex items-center justify-center gap-2 text-gold-200 hover:text-white text-sm py-2">
-            <Mail size={16} />
-            {t.auth.otp.emailAlt}
-          </button>
+          <div className="text-center text-white/30 text-xs">
+            {method === 'whatsapp' ? (
+              <span className="flex items-center justify-center gap-2 text-green-500/50">
+                <MessageSquare size={12} />
+                {t.auth.otp.whatsapp}
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2 text-gold-500/50">
+                <Mail size={12} />
+                {t.auth.otp.emailAlt}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>

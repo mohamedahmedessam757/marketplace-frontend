@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShieldAlert, Lock, Mail } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { OTPVerification } from './OTPVerification';
+import { OTPMethodSelection } from './OTPMethodSelection';
 import { useAdminStore } from '../../stores/useAdminStore';
 import { authApi } from '@/services/api/auth';
 
@@ -12,8 +13,14 @@ interface AdminLoginProps {
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const { t } = useLanguage();
   const { loginAdmin } = useAdminStore();
-  const [showOTP, setShowOTP] = useState(false);
+
+  // Local OTP State
+  const [otpStep, setOtpStep] = useState<'none' | 'method' | 'verify'>('none');
+  const [otpMethod, setOtpMethod] = useState<'email' | 'whatsapp'>('email');
+
   const [email, setEmail] = useState('');
+  const [userName, setUserName] = useState('');
+  const [userPhone, setUserPhone] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +40,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
       // Verify Role
       const role = data.user?.role;
       if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPPORT') {
+        // Store Admin Details
+        setUserName(data.user.name || 'Admin');
+        setUserPhone(data.user.phone || '');
+
         // 2. Trigger OTP
         // In real backend, login might return "OTP_REQUIRED" status
         // For M1, we explicitly request OTP sending here
@@ -41,7 +52,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         } catch (otpErr) {
           console.warn('OTP Send warning (mock mode maybe)', otpErr);
         }
-        setShowOTP(true);
+        setOtpStep('method');
       } else {
         setError(t.auth.errors?.accessDenied || 'Access Denied');
         localStorage.removeItem('access_token');
@@ -70,8 +81,21 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  if (showOTP) {
-    return <OTPVerification email={email} onVerify={handleVerifyOTP} />;
+  if (otpStep === 'method') {
+    return (
+      <OTPMethodSelection
+        email={email}
+        name={userName}
+        onSelect={(method) => {
+          setOtpMethod(method);
+          setOtpStep('verify');
+        }}
+      />
+    );
+  }
+
+  if (otpStep === 'verify') {
+    return <OTPVerification email={email} phone={userPhone} method={otpMethod} onVerify={handleVerifyOTP} />;
   }
 
   return (

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, DollarSign, UploadCloud, Car, Settings, Loader2, Calculator, Info, Scale, ShieldCheck } from 'lucide-react';
+import { X, DollarSign, UploadCloud, Car, Settings, Loader2, Calculator, Info, Scale, ShieldCheck, PlayCircle } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useChatStore } from '../../../stores/useChatStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
@@ -16,6 +16,8 @@ interface SubmitOfferModalProps {
         id: number;
         car: string;
         part: string;
+        parts?: any[];
+        vehicle?: any;
         vin?: string;
         date: string;
         createdAt?: string;
@@ -43,6 +45,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     const [notes, setNotes] = useState('');
     const [uploading, setUploading] = useState(false);
     const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [activeMedia, setActiveMedia] = useState<{ type: 'image' | 'video', url: string } | null>(null);
 
     // Calculations State
     const [calculations, setCalculations] = useState({
@@ -204,10 +207,49 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                 <span className="bg-gold-500/20 text-gold-400 text-xs font-mono px-2 py-1 rounded border border-gold-500/20">#{requestDetails.id}</span>
                                 <span className="text-white/40 text-xs">{requestDetails.date}</span>
                             </div>
-                            <h2 className="text-xl font-bold text-white mb-1 line-clamp-2">{requestDetails.part}</h2>
+
+                            <div className="mb-3 space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar">
+                                {requestDetails.parts && requestDetails.parts.length > 0 ? (
+                                    requestDetails.parts.map((p: any, idx: number) => (
+                                        <div key={idx} className="bg-white/5 p-2 rounded-lg space-y-2">
+                                            <div>
+                                                <div className="font-bold text-white text-sm">{p.name}</div>
+                                                <div className="text-xs text-white/50 line-clamp-2">{p.description}</div>
+                                            </div>
+
+                                            {/* Media Thumbnails */}
+                                            <div className="flex gap-2 overflow-x-auto pb-1">
+                                                {p.images?.map((img: string | File, i: number) => (
+                                                    <div
+                                                        key={i}
+                                                        className="w-12 h-12 shrink-0 rounded bg-black/40 border border-white/10 overflow-hidden cursor-pointer hover:border-gold-500/50"
+                                                        onClick={() => setActiveMedia({ type: 'image', url: typeof img === 'string' ? img : URL.createObjectURL(img) })}
+                                                    >
+                                                        <img src={typeof img === 'string' ? img : URL.createObjectURL(img)} className="w-full h-full object-cover" />
+                                                    </div>
+                                                ))}
+                                                {p.video && (
+                                                    <div
+                                                        className="w-12 h-12 shrink-0 rounded bg-black/40 border border-white/10 overflow-hidden cursor-pointer hover:border-gold-500/50 relative group"
+                                                        onClick={() => setActiveMedia({ type: 'video', url: typeof p.video === 'string' ? p.video : URL.createObjectURL(p.video) })}
+                                                    >
+                                                        <video src={typeof p.video === 'string' ? p.video : URL.createObjectURL(p.video)} className="w-full h-full object-cover opacity-50" />
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <PlayCircle size={16} className="text-white" />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <h2 className="text-xl font-bold text-white mb-1 line-clamp-2">{requestDetails.part}</h2>
+                                )}
+                            </div>
+
                             <p className="text-white/60 text-sm flex items-center gap-2">
                                 <Car size={14} />
-                                {requestDetails.car}
+                                {requestDetails.vehicle ? `${requestDetails.vehicle.make} ${requestDetails.vehicle.model} ${requestDetails.vehicle.year}` : requestDetails.car}
                             </p>
                         </div>
 
@@ -497,6 +539,40 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
 
                 </motion.div>
             </motion.div>
-        </AnimatePresence>
+            {/* Lightbox Overlay */}
+            {
+                activeMedia && (
+                    <div
+                        className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+                        onClick={() => setActiveMedia(null)}
+                    >
+                        <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
+                            {activeMedia.type === 'video' ? (
+                                <video
+                                    src={activeMedia.url}
+                                    controls
+                                    autoPlay
+                                    className="max-w-full max-h-[85vh] rounded-lg border border-gold-500/20 shadow-2xl"
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                            ) : (
+                                <img
+                                    src={activeMedia.url}
+                                    alt="Full View"
+                                    className="max-w-full max-h-[85vh] object-contain rounded-lg border border-gold-500/20 shadow-2xl"
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                            )}
+                            <button
+                                className="mt-4 px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                                onClick={() => setActiveMedia(null)}
+                            >
+                                {t.common.close || (isAr ? "إغلاق" : "Close")}
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+        </AnimatePresence >
     );
 };

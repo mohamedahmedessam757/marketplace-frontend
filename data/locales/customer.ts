@@ -1,5 +1,4 @@
 
-
 export const customer = {
   ar: {
     menu: {
@@ -8,11 +7,61 @@ export const customer = {
       create: 'طلب جديد',
       chats: 'المحادثات',
       profile: 'الملف الشخصي',
-      resolution: 'النزاعات',
+      resolution: 'المرتجعات والنزاعات',
       infoCenter: 'مركز المعلومات',
       logout: 'تسجيل الخروج',
       notifications: 'الإشعارات',
-      settings: 'الإعدادات'
+      settings: 'الإعدادات',
+      shipments: 'الشحنات',
+      shippingCart: 'سلة الشحن',
+      billing: 'الدفع والفواتير',
+      preferences: 'التفضيلات والإشعارات',
+      loyalty: 'التقييم والولاء',
+      support: 'الدعم الفني',
+      returns: 'المرتجعات'
+    },
+    common: {
+      loading: 'جاري التحميل...',
+      select: 'اختر...',
+      expired: 'منتهية',
+      notFound: 'غير موجود',
+      redeem: 'استبدال',
+      history: 'السجل',
+      earned: 'المكتسبة',
+      rewards: 'المكافآت',
+      reviews: 'تقييمات'
+    },
+    shipments: {
+      subtitle: 'تتبع جميع شحناتك الحالية والسابقة',
+      noShipments: 'لا توجد شحنات',
+      routeDetails: 'تفاصيل المسار',
+      items: 'المحتويات',
+      quantity: 'الكمية'
+    },
+    actions: {
+      viewTracking: 'تتبع الشحنة',
+      hideTracking: 'إخفاء التتبع'
+    },
+    shippingCart: {
+      subtitle: 'تجميع العناصر المحتجزة في شحنة واحدة لتوفير التكاليف',
+      itemsInCart: 'عناصر في السلة',
+      summary: 'ملخص الطلب',
+      subtotal: 'المجموع الفرعي',
+      shippingEst: 'تكلفة الشحن التقديرة',
+      calculatedNext: 'تُحسب في الخطوة التالية',
+      total: 'الإجمالي',
+      proceed: 'المتابعة للدفع',
+      timerNote: 'يتم حجز العناصر المضافة للسلة لمدة 48 ساعة. يرجى إتمام الشراء قبل انتهاء الوقت.',
+      empty: 'سلة الشحن فارغة',
+      emptyDesc: 'ستظهر العناصر هنا بعد قبول عرض من أحد البائعين. تصفح طلباتك واقبل العروض لإضافة عناصر إلى سلتك.',
+      store: 'المتجر',
+      modes: {
+        title: 'نوع الشحن',
+        faster: 'أسرع',
+        cheaper: 'أوفر',
+        fasterDesc: 'شحن العناصر فور وصولها (أسرع)',
+        cheaperDesc: 'تجميع العناصر في صندوق واحد (صديق للبيئة وأوفر)'
+      }
     },
     dashboardHome: {
       stats: {
@@ -49,6 +98,8 @@ export const customer = {
     createOrder: {
       title: 'إنشاء طلب جديد',
       subtitle: 'قم بتعبئة التفاصيل التالية للحصول على أفضل العروض',
+      partSubtitle: 'أدخل تفاصيل القطع المطلوبة بدقة',
+      preferencesSubtitle: 'حدد تفضيلاتك للقطعة',
       steps: {
         vehicle: 'السيارة',
         part: 'القطعة',
@@ -126,7 +177,42 @@ export const customer = {
     },
     offers: {
       incVat: 'السعر شامل الضريبة',
-      accept: 'قبول'
+      accept: 'قبول',
+      finalPrice: 'السعر النهائي',
+      shippingIncluded: 'شامل الشحن',
+      offerNotes: 'ملاحظات المتجر',
+      conditions: {
+        new: 'جديد',
+        used: 'مستعمل',
+        used_clean: 'مستعمل - نظيف',
+        remanufactured: 'مجدد'
+      },
+      warranties: {
+        yes: 'ضمان متوفر',
+        no: 'بدون ضمان'
+      },
+      delivery: {
+        d1_3: '1-3 أيام',
+        d3_7: '3-7 أيام',
+        d7_14: '7-14 يوم'
+      },
+      labels: {
+        condition: 'الحالة',
+        type: 'النوع',
+        warranty: 'الضمان',
+        delivery: 'مدة التواصيل',
+        weight: 'الوزن التقريبي',
+        notes: 'ملاحظات التاجر',
+        unitPrice: 'سعر القطعة'
+      },
+      partTypes: {
+        original: 'أصلي',
+        commercial: 'تجاري',
+        aftermarket: 'تجاري'
+      },
+      units: {
+        kg: 'كجم'
+      }
     },
     chat: {
       title: 'المحادثات',
@@ -160,9 +246,41 @@ export const customer = {
         secureNote: 'يتم تشفير جميع كلمات المرور وحماية حسابك عبر بروتوكولات أمان متقدمة.'
       },
       wallet: { myCards: 'بطاقاتي', addNew: 'إضافة بطاقة', savedAddresses: 'العناوين المحفوظة' },
-      settings: { lang: 'اللغة', notif: 'الإشعارات', notifDesc: 'استلام تحديثات حول حالة طلباتك', delete: 'حذف الحساب', danger: 'منطقة الخطر' },
+      settings: {
+        lang: 'اللغة',
+        notif: 'الإشعارات',
+        notifDesc: 'استلام تحديثات حول حالة طلباتك',
+        delete: 'حذف الحساب',
+        danger: 'منطقة الخطر',
+        global: 'التفضيلات العامة',
+        currency: 'العملة',
+        theme: 'المظهر',
+        appearance: 'المظهر الخارجي',
+        langDesc: 'اختر لغتك المفضلة',
+        currencyDesc: 'عرض الأسعار بـ',
+        themeDesc: 'اختر وضع العرض',
+        dangerDesc: 'حذف الحساب والبيانات نهائياً',
+        save: 'حفظ الإعدادات',
+        notificationTypes: {
+          email: 'إشعارات البريد الإلكتروني',
+          emailDesc: 'استلام تحديثات حول طلباتك بشكل منظم.',
+          push: 'إشعارات التنبيه (Push)',
+          pushDesc: 'تنبيهات فورية على جهازك.',
+          offers: 'عروض تسويقية',
+          offersDesc: 'خصومات خاصة وعروض الشركاء.',
+          sms: 'رسائل نصية (SMS)',
+          smsDesc: 'تحديثات الأمان والتوصيل الهامة.'
+        }
+      },
       addresses: { title: 'العناوين المحفوظة', add: 'إضافة عنوان جديد', default: 'الافتراضي', setDefault: 'تعيين كافتراضي', noAddresses: 'لا توجد عناوين محفوظة', save: 'حفظ العنوان' },
-      reviews: { title: 'تقييماتي', noReviews: 'لم تقم بكتابة أي تقييم بعد' }
+      reviews: { title: 'تقييماتي', noReviews: 'لم تقم بكتابة أي تقييم بعد' },
+      loyalty: {
+        title: 'نقاط الولاء',
+        catalog: 'كتالوج المكافآت',
+        redeem: 'استبدال',
+        insufficient: 'رصيد غير كاف',
+        success: 'تم الاستبدال بنجاح'
+      }
     },
     tracking: {
       title: 'تتبع الشحنة',
@@ -176,7 +294,8 @@ export const customer = {
         transit: 'في الطريق',
         distribution: 'وصلت لمركز التوزيع',
         out: 'خرجت للتوصيل',
-        delivered: 'تم التسليم'
+        delivered: 'تم التسليم',
+        cancelled: 'ملغى'
       }
     },
     reviews: {
@@ -190,9 +309,10 @@ export const customer = {
       pending: 'قيد المراجعة'
     },
     resolution: {
-      title: 'النزاعات',
-      newReturn: 'طلب إرجاع',
-      newDispute: 'فتح نزاع',
+      billing: 'الفواتير',
+      loyalty: 'نقاط الولاء',
+      return: 'طلب إرجاع',
+      dispute: 'نزاع',
       subtitle: 'إدارة النزاعات وطلبات الإرجاع',
       returnPolicy: 'يمكنك طلب الإرجاع خلال 48 ساعة من الاستلام في حال وجود عيب مصنعي أو عدم مطابقة.',
       disputePolicy: 'يتم تجميد المبلغ فوراً عند فتح النزاع. يرجى التواصل مع المتجر أولاً لمحاولة حل المشكلة ودياً.',
@@ -201,6 +321,23 @@ export const customer = {
         defective: 'القطعة تالفة أو معيبة',
         delayed: 'تأخر الشحن عن الموعد المحدد',
         wrong_item: 'استلام منتج خاطئ'
+      },
+      guidelines: {
+        title: 'إرشادات التغليف',
+        policy: 'سياسة الإرجاع',
+        packaging: 'تعليمات الشحن',
+        steps: [
+          'استخدم العبوة الأصلية إن أمكن لضمان حماية القطعة.',
+          'تأكد من أن القطعة نظيفة وخالية من السوائل (زيوت، وقود).',
+          'استخدم حماية كافية (فقاعات) للأجزاء القابلة للكسر.',
+          'أغلق الصندوق بإحكام باستخدام شريط لاصق قوي.'
+        ],
+        highlights: [
+          'يتم قبول المرتجعات خلال 7 أيام من الاستلام في حال وجود عيب.',
+          'يجب أن تكون القطعة بنفس الحالة المستلمة (العلامات كما هي).',
+          'قد تطبق رسوم شحن للإرجاع في حال عدم وجود عيب بالقطعة.',
+          'تتم معالجة الاسترداد لنفس وسيلة الدفع أو المحفظة خلال 5 أيام.'
+        ]
       },
       form: {
         reason: 'سبب الطلب',
@@ -213,6 +350,96 @@ export const customer = {
       alerts: {
         freeze: 'تنبيه: سيتم تجميد المبلغ وحجزه لدى المنصة لحين حل النزاع نهائياً.',
         success: 'تم فتح الطلب بنجاح. سنقوم بمراجعة طلبك وإبلاغك بالتحديثات.'
+      }
+    },
+    returns: {
+      subtitle: 'إدارة طلبات الإرجاع والمنازعات',
+      tabs: {
+        activeReturns: 'المرتجعات النشطة',
+        disputes: 'النزاعات',
+        guidelines: 'الإرشادات'
+      },
+      noReturns: 'لا توجد طلبات إرجاع',
+      noReturnsDesc: 'لم تقم بتقديم أي طلب إرجاع حالياً',
+      noDisputes: 'لا توجد نزاعات',
+      noDisputesDesc: 'سجلك نظيف خالي من النزاعات'
+    },
+    billing: {
+      title: 'الدفع والفواتير',
+      subtitle: 'إدارة فواتير الطلبات والمدفوعات',
+      tabs: {
+        unpaid: 'فواتير غير مدفوعة',
+        history: 'سجل المدفوعات',
+        methods: 'طرق الدفع'
+      },
+      wallet: 'المحفظة',
+      invoice: {
+        id: 'رقم الفاتورة',
+        date: 'تاريخ الفاتورة',
+        amount: 'المبلغ الإجمالي',
+        status: 'حالة الدفع',
+        view: 'عرض الفاتورة',
+        pay: 'دفع الآن',
+        details: 'تفاصيل الفاتورة',
+        download: 'تحميل PDF',
+        print: 'طباعة',
+        billTo: 'فاتورة إلى',
+        shipTo: 'الشحن إلى',
+        item: 'المنتج',
+        qty: 'الكمية',
+        price: 'السعر',
+        total: 'الإجمالي',
+        vat: 'الضريبة (15%)',
+        subtotal: 'المجموع الفعلي',
+        shipping: 'الشحن',
+        grandTotal: 'المبلغ النهائي',
+        sender: 'المرسل',
+        receiver: 'المستلم',
+        note: 'ملاحظة'
+      },
+      cardForm: {
+        holder: 'اسم حامل البطاقة',
+        number: 'رقم البطاقة',
+        expiry: 'تاريخ الانتهاء (MM/YY)',
+        cvc: 'رمز الأمان (CVC)',
+        save: 'حفظ البطاقة',
+        cancel: 'إلغاء',
+        makeDefault: 'تعيين كافتراضي',
+        default: 'افتراضي',
+        expires: 'تنتهي في',
+        noCards: 'لا توجد بطاقات محفوظة'
+      },
+      empty: {
+        unpaid: 'لا توجد فواتير مستحقة الدفع',
+        history: 'لا يوجد سجل مدفوعات سابق'
+      }
+    },
+    support: {
+      subtitle: 'مركز المساعدة والدعم الفني',
+      createTicket: 'فتح تذكرة جديدة',
+      newTicketTitle: 'تفاصيل التذكرة',
+      subject: 'الموضوع',
+      message: 'الرسالة',
+      myTickets: 'تذاكري',
+      noTickets: 'لا توجد تذاكر دعم سابقة',
+      faq: {
+        q1: 'كيف يمكنني تتبع طلبي؟',
+        a1: 'يمكنك تتبع طلبك من صفحة "الشحنات" أو "طلباتي" بالنقر على زر التتبع.',
+        q2: 'متى يمكنني طلب استرجاع المبلغ؟',
+        a2: 'يمكنك طلب الاسترجاع إذا لم يتم شحن الطلب، أو خلال 48 ساعة من الاستلام في حال وجود عيب.',
+        q3: 'كيف أتواصل مع البائع؟',
+        a3: 'يمكنك استخدام خيار المحادثة المباشرة في صفحة تفاصيل الطلب.'
+      },
+      form: {
+        priority: 'الأولوية',
+        low: 'منخفضة',
+        medium: 'متوسطة',
+        high: 'عالية',
+        summaryPlaceholder: 'ملخص مختصر للمشكلة',
+        descPlaceholder: 'يرجى وصف مشكلتك بالتفصيل...',
+        upload: 'اضغط هنا لرفع صور أو ملفات ذات صلة',
+        error: 'فشل إرسال التذكرة. يرجى المحاولة مرة أخرى.',
+        submitting: 'جاري الإرسال...'
       }
     },
     infoCenter: {
@@ -252,7 +479,8 @@ export const customer = {
       shipped: 'تم الشحن',
       delivered: 'تم التوصيل',
       rateRequest: 'طلب تقييم',
-      disputeUpdate: 'تحديث نزاع'
+      disputeUpdate: 'تحديث نزاع',
+      adminAlert: 'تنبيه إداري'
     }
   },
   en: {
@@ -262,11 +490,61 @@ export const customer = {
       create: 'New Order',
       chats: 'Chats',
       profile: 'Profile',
-      resolution: 'Disputes',
+      resolution: 'Returns & Disputes',
       infoCenter: 'Info Center',
       logout: 'Logout',
       notifications: 'Notifications',
-      settings: 'Settings'
+      settings: 'Settings',
+      shipments: 'Shipments',
+      shippingCart: 'Shipping Cart',
+      billing: 'Billing & Invoices',
+      preferences: 'Preferences',
+      loyalty: 'Loyalty & Rewards',
+      support: 'Support Center',
+      returns: 'Returns'
+    },
+    common: {
+      loading: 'Loading...',
+      select: 'Select...',
+      expired: 'Expired',
+      notFound: 'Not Found',
+      redeem: 'Redeem',
+      history: 'History',
+      earned: 'Earned',
+      rewards: 'Rewards',
+      reviews: 'Reviews'
+    },
+    shipments: {
+      subtitle: 'Track all your incoming and past shipments',
+      noShipments: 'No shipments found',
+      routeDetails: 'Route Details',
+      items: 'Items',
+      quantity: 'Qty'
+    },
+    actions: {
+      viewTracking: 'Track Shipment',
+      hideTracking: 'Hide Tracking'
+    },
+    shippingCart: {
+      subtitle: 'Consolidate your held items into one shipment to save costs',
+      itemsInCart: 'Items in Cart',
+      summary: 'Order Summary',
+      subtotal: 'Subtotal',
+      shippingEst: 'Shipping estimate',
+      calculatedNext: 'Calculated next step',
+      total: 'Total',
+      proceed: 'Proceed to Checkout',
+      timerNote: 'Items added to cart are reserved for 48 hours. Please complete purchase before timer expires.',
+      empty: 'Your shipping cart is empty',
+      emptyDesc: 'Items will appear here after accepting an offer from a vendor. Browse your orders and accept offers to add items to your cart.',
+      store: 'Store',
+      modes: {
+        title: 'Shipping Mode',
+        faster: 'Faster',
+        cheaper: 'Cheaper',
+        fasterDesc: 'Items shipped as they arrive (Faster)',
+        cheaperDesc: 'Items shipped together in one box (Ecofriendly & Cheaper)'
+      }
     },
     dashboardHome: {
       stats: {
@@ -303,6 +581,8 @@ export const customer = {
     createOrder: {
       title: 'Create New Order',
       subtitle: 'Fill in the details below to get the best offers',
+      partSubtitle: 'Enter details for the requested parts',
+      preferencesSubtitle: 'Select your preferences for the part',
       steps: {
         vehicle: 'Vehicle',
         part: 'Part',
@@ -380,7 +660,42 @@ export const customer = {
     },
     offers: {
       incVat: 'Inc. VAT',
-      accept: 'Accept'
+      accept: 'Accept',
+      finalPrice: 'Final Price',
+      shippingIncluded: 'Shipping Included',
+      offerNotes: 'Vendor Notes',
+      conditions: {
+        new: 'New',
+        used: 'Used',
+        used_clean: 'Used - Clean',
+        remanufactured: 'Remanufactured'
+      },
+      warranties: {
+        yes: 'Warranty Available',
+        no: 'No Warranty'
+      },
+      delivery: {
+        d1_3: '1-3 Days',
+        d3_7: '3-7 Days',
+        d7_14: '7-14 Days'
+      },
+      labels: {
+        condition: 'Condition',
+        type: 'Type',
+        warranty: 'Warranty',
+        delivery: 'Delivery',
+        weight: 'Weight',
+        notes: 'Vendor Notes',
+        unitPrice: 'Part Price'
+      },
+      partTypes: {
+        original: 'Original',
+        commercial: 'Aftermarket',
+        aftermarket: 'Aftermarket'
+      },
+      units: {
+        kg: 'Kg'
+      }
     },
     chat: {
       title: 'Chats',
@@ -414,9 +729,41 @@ export const customer = {
         secureNote: 'All passwords encrypted and account protected with advanced security protocols.'
       },
       wallet: { myCards: 'My Cards', addNew: 'Add New Card', savedAddresses: 'Saved Addresses' },
-      settings: { lang: 'Language', notif: 'Notifications', notifDesc: 'Receive updates about your orders', delete: 'Delete Account', danger: 'Danger Zone' },
+      settings: {
+        lang: 'Language',
+        notif: 'Notifications',
+        notifDesc: 'Receive updates about your orders',
+        delete: 'Delete Account',
+        danger: 'Danger Zone',
+        global: 'Global Preferences',
+        currency: 'Currency',
+        theme: 'Appearence',
+        appearance: 'Appearance',
+        langDesc: 'Select your preferred language',
+        currencyDesc: 'Display prices in',
+        themeDesc: 'Choose theme mode',
+        dangerDesc: 'Permanently remove your account and data',
+        save: 'Save Settings',
+        notificationTypes: {
+          email: 'Email Notifications',
+          emailDesc: 'Receive updates about your orders properly',
+          push: 'Push Notifications',
+          pushDesc: 'Get real-time alerts on your device',
+          offers: 'Marketing Offers',
+          offersDesc: 'Receive special discounts and partner offers',
+          sms: 'SMS Alerts',
+          smsDesc: 'Important security and delivery updates via SMS'
+        }
+      },
       addresses: { title: 'Saved Addresses', add: 'Add New Address', default: 'Default', setDefault: 'Set Default', noAddresses: 'No saved addresses', save: 'Save Address' },
-      reviews: { title: 'My Reviews', noReviews: 'You haven\'t written any reviews yet' }
+      reviews: { title: 'My Reviews', noReviews: 'You haven\'t written any reviews yet' },
+      loyalty: {
+        title: 'Loyalty Points',
+        catalog: 'Rewards Catalog',
+        redeem: 'Redeem',
+        insufficient: 'Insufficient Balance',
+        success: 'Redeemed Successfully'
+      }
     },
     tracking: {
       title: 'Track Shipment',
@@ -430,7 +777,8 @@ export const customer = {
         transit: 'In Transit',
         distribution: 'Arrived at Distribution Center',
         out: 'Out for Delivery',
-        delivered: 'Delivered'
+        delivered: 'Delivered',
+        cancelled: 'Cancelled'
       }
     },
     reviews: {
@@ -444,9 +792,10 @@ export const customer = {
       pending: 'Pending Review'
     },
     resolution: {
-      title: 'Disputes',
-      newReturn: 'Return Request',
-      newDispute: 'Open Dispute',
+      billing: 'Billing',
+      loyalty: 'Loyalty Points',
+      return: 'Return Request',
+      dispute: 'Dispute',
       subtitle: 'Manage disputes and returns',
       returnPolicy: 'You can request a return within 48 hours of delivery for defects or mismatch.',
       disputePolicy: 'Funds are frozen immediately upon opening a dispute. Please contact merchant first.',
@@ -455,6 +804,23 @@ export const customer = {
         defective: 'Part defective or damaged',
         delayed: 'Shipping delayed',
         wrong_item: 'Wrong item received'
+      },
+      guidelines: {
+        title: 'Packaging Guidelines',
+        policy: 'Return Policy',
+        packaging: 'Shipping Instructions',
+        steps: [
+          'Use the original packaging if possible to ensure part protection.',
+          'Ensure the part is clean and free of fluids (oil, fuel).',
+          'Use adequate cushioning (bubble wrap) for fragile components.',
+          'Seal the box securely with heavy-duty tape.'
+        ],
+        highlights: [
+          'Returns accepted within 7 days of delivery for defective items.',
+          'Item must be in the same condition as received (markings intact).',
+          'Return shipping fees may apply for non-defective returns.',
+          'Refunds are processed to the original payment method or wallet within 5 days.'
+        ]
       },
       form: {
         reason: 'Reason',
@@ -467,6 +833,96 @@ export const customer = {
       alerts: {
         freeze: 'Warning: Amount will be frozen and held by platform until dispute is resolved.',
         success: 'Request opened successfully. We will review and update you.'
+      }
+    },
+    returns: {
+      subtitle: 'Manage returns and disputes',
+      tabs: {
+        activeReturns: 'Active Returns',
+        disputes: 'Disputes',
+        guidelines: 'Guidelines'
+      },
+      noReturns: 'No active returns',
+      noReturnsDesc: 'You have not requested any returns',
+      noDisputes: 'No disputes',
+      noDisputesDesc: 'Your record is clean'
+    },
+    billing: {
+      title: 'Billing & Invoices',
+      subtitle: 'Manage order invoices and payments',
+      tabs: {
+        unpaid: 'Unpaid Invoices',
+        history: 'Payment History',
+        methods: 'Payment Methods'
+      },
+      wallet: 'Wallet',
+      invoice: {
+        id: 'Invoice #',
+        date: 'Invoice Date',
+        amount: 'Total Amount',
+        status: 'Payment Status',
+        view: 'View Invoice',
+        pay: 'Pay Now',
+        details: 'Invoice Details',
+        download: 'Download PDF',
+        print: 'Print',
+        billTo: 'Bill To',
+        shipTo: 'Ship To',
+        item: 'Item',
+        qty: 'Qty',
+        price: 'Price',
+        total: 'Total',
+        vat: 'VAT (15%)',
+        subtotal: 'Subtotal',
+        shipping: 'Shipping',
+        grandTotal: 'Grand Total',
+        sender: 'Sender',
+        receiver: 'Receiver',
+        note: 'Note'
+      },
+      cardForm: {
+        holder: 'Card Holder Name',
+        number: 'Card Number',
+        expiry: 'Expiry (MM/YY)',
+        cvc: 'CVC',
+        save: 'Save Card',
+        cancel: 'Cancel',
+        makeDefault: 'Make Default',
+        default: 'Default',
+        expires: 'Expires',
+        noCards: 'No saved cards'
+      },
+      empty: {
+        unpaid: 'No unpaid invoices',
+        history: 'No payment history found'
+      }
+    },
+    support: {
+      subtitle: 'Help Center & Support',
+      createTicket: 'Open New Ticket',
+      newTicketTitle: 'Ticket Details',
+      subject: 'Subject',
+      message: 'Message',
+      myTickets: 'My Tickets',
+      noTickets: 'No support tickets found',
+      faq: {
+        q1: 'How can I track my order?',
+        a1: 'You can track your order from "Shipments" or "My Orders" page by clicking track button.',
+        q2: 'When can I request a refund?',
+        a2: 'You can request refund if not shipped, or within 48h of delivery if defective.',
+        q3: 'How to contact seller?',
+        a3: 'Use the live chat option in the order details page.'
+      },
+      form: {
+        priority: 'Priority',
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High',
+        summaryPlaceholder: 'Brief summary of the issue',
+        descPlaceholder: 'Please describe your issue in detail...',
+        upload: 'Click to upload screenshots or relevant files',
+        error: 'Failed to create ticket. Please try again.',
+        submitting: 'Submitting...'
       }
     },
     infoCenter: {

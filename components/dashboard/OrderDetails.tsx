@@ -19,12 +19,13 @@ import { ReturnRequestModal } from './resolution/ReturnRequestModal';
 import { DisputeModal } from './resolution/DisputeModal';
 
 interface OrderDetailsProps {
-    orderId: number | null;
+    orderId: string | null;
     onBack: () => void;
-    onNavigate: (path: string, id?: number) => void;
+    onNavigate: (path: string, id?: any) => void;
 }
 
 const CountdownTimer = ({ targetDate, label }: { targetDate: string, label: string }) => {
+    const { t } = useLanguage();
     const [timeLeft, setTimeLeft] = useState<{ h: number, m: number, s: number } | null>(null);
 
     useEffect(() => {
@@ -46,7 +47,7 @@ const CountdownTimer = ({ targetDate, label }: { targetDate: string, label: stri
         return () => clearInterval(interval);
     }, [targetDate]);
 
-    if (!timeLeft) return <span className="text-red-500 font-bold text-xs">Expired</span>;
+    if (!timeLeft) return <span className="text-red-500 font-bold text-xs">{t.dashboard.common?.expired || 'Expired'}</span>;
 
     return (
         <div className="flex flex-col items-end">
@@ -76,7 +77,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const [showDisputeModal, setShowDisputeModal] = useState(false);
 
     // Fetch Order
-    const order = getOrder(orderId || 0);
+    const order = getOrder(orderId || '');
 
     // Timer Check & Data Refresh
     useEffect(() => {
@@ -85,7 +86,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
         checkSLA();
     }, [orderId]);
 
-    if (!order) return <div className="text-white text-center py-10">Order not found</div>;
+    if (!order) return <div className="text-white text-center py-10">{t.dashboard.common?.notFound || 'Order not found'}</div>;
 
     const BackIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
@@ -125,10 +126,18 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
     // Helper to calculate deadlines
     const getOfferDeadline = () => {
-        const d = new Date(order.createdAt);
+        const d = new Date(order.createdAt || order.date); // Fallback to date if createdAt missing
         d.setHours(d.getHours() + 24);
         return d.toISOString();
     };
+
+    const isOrderExpired = () => {
+        if (order.status !== 'AWAITING_OFFERS') return false;
+        const deadline = new Date(getOfferDeadline()).getTime();
+        return new Date().getTime() > deadline;
+    };
+
+    const isExpired = isOrderExpired();
 
     const getPaymentDeadline = () => {
         if (!order.offerAcceptedAt) return '';
@@ -316,7 +325,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 <div className="lg:col-span-2 space-y-6">
 
                     {/* STATE: AWAITING OFFERS */}
-                    {order.status === 'AWAITING_OFFERS' && (
+                    {order.status === 'AWAITING_OFFERS' && !isExpired && (
                         <GlassCard className="flex flex-col items-center justify-center text-center py-16 border-dashed border-white/10 bg-white/5">
                             <div className="w-20 h-20 bg-[#1A1814] rounded-full flex items-center justify-center mb-6 relative">
                                 <div className="absolute inset-0 bg-gold-500 rounded-full opacity-20 animate-ping" />
@@ -329,34 +338,71 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         </GlassCard>
                     )}
 
+                    {/* STATE: EXPIRED */}
+                    {isExpired && (
+                        <GlassCard className="flex flex-col items-center justify-center text-center py-16 border border-red-500/20 bg-red-500/5">
+                            <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/20">
+                                <AlertTriangle size={32} className="text-red-400" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">{language === 'ar' ? 'انتهت صلاحية الطلب' : 'Request Expired'}</h3>
+                            <p className="text-white/50 max-w-md mx-auto mb-8">
+                                {language === 'ar'
+                                    ? 'لم يتم استلام عروض خلال 24 ساعة. يرجى إنشاء طلب جديد.'
+                                    : 'No offers received within 24 hours. Please create a new request.'}
+                            </p>
+                        </GlassCard>
+                    )}
+
                     {/* STATE: AWAITING PAYMENT (Show Offers) */}
-                    {(order.status === 'AWAITING_PAYMENT' || order.offers.length > 0) && (
+                    {(order.status === 'AWAITING_PAYMENT' || (order.status === 'AWAITING_OFFERS' && order.offers.length > 0)) && (
                         <div>
-                            <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                                <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
-                                {(t.dashboard.orders as any).receivedOffers}
-                            </h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-white font-bold flex items-center gap-2">
+                                    <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
+                                    {(t.dashboard.orders as any).receivedOffers}
+                                </h3>
+                                {isExpired && (
+                                    <span className="px-3 py-1 bg-red-500/10 text-red-400 text-xs font-bold rounded border border-red-500/20">
+                                        {language === 'ar' ? 'منتهى الصلاحية' : 'EXPIRED'}
+                                    </span>
+                                )}
+                            </div>
+
                             <div className="space-y-4">
                                 {/* Render Real Offers from Store */}
                                 {order.offers.map((offer) => (
-                                    <OfferCard
-                                        key={offer.id}
-                                        id={offer.id}
-                                        storeName={offer.merchantName}
-                                        rating={4.8} // Mock for now
-                                        reviewCount={120} // Mock for now
-                                        price={offer.price}
-                                        condition={offer.condition}
-                                        warranty={offer.warranty}
-                                        deliveryTime={offer.deliveryTime}
-                                        offerImage={(offer as any).offerImage} // Pass Image
-                                        isSelected={selectedOffer === offer.id}
-                                        onAccept={() => {
-                                            setSelectedOfferId(offer.id);
-                                            handleAcceptOffer(offer);
-                                        }}
-                                        onChat={() => handleChat(offer)}
-                                    />
+                                    <div key={offer.id} className="relative">
+                                        {isExpired && (
+                                            <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-[1px] rounded-2xl flex items-center justify-center cursor-not-allowed">
+                                                {/* Overlay to block clicks */}
+                                            </div>
+                                        )}
+                                        <OfferCard
+                                            id={offer.id}
+                                            storeName={offer.merchantName}
+                                            rating={(offer as any).storeRating || 0}
+                                            reviewCount={(offer as any).storeReviewCount || 0}
+                                            storeLogo={(offer as any).storeLogo}
+                                            storeCity={(offer as any).storeCity}
+                                            notes={offer.notes}
+                                            isShippingIncluded={(offer as any).isShippingIncluded}
+                                            weight={(offer as any).weight}
+                                            partType={(offer as any).partType}
+                                            price={offer.price}
+                                            unitPrice={(offer as any).unitPrice || offer.price} // Pass unit price, fallback to total if missing
+                                            condition={offer.condition}
+                                            warranty={offer.warranty}
+                                            deliveryTime={offer.deliveryTime}
+                                            offerImage={(offer as any).offerImage} // Pass Image
+                                            isSelected={selectedOffer === offer.id}
+                                            onAccept={() => {
+                                                if (isExpired) return;
+                                                setSelectedOfferId(offer.id);
+                                                handleAcceptOffer(offer);
+                                            }}
+                                            onChat={() => handleChat(offer)}
+                                        />
+                                    </div>
                                 ))}
 
                                 {order.offers.length === 0 && (

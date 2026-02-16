@@ -1,8 +1,8 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Box, Calendar, MapPin, ChevronRight, ChevronLeft, Car, AlertTriangle, FileText } from 'lucide-react';
+import { Search, Box, Calendar, MapPin, ChevronRight, ChevronLeft, Car, AlertTriangle, FileText, Clock } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
@@ -39,8 +39,24 @@ export const MerchantMarketplace: React.FC = () => {
         );
     }
 
+    // Expiration Helper
+    const getHoursLeft = (dateStr: string) => {
+        const created = new Date(dateStr).getTime();
+        const now = new Date().getTime();
+        const expiresAt = created + (24 * 60 * 60 * 1000);
+        const diff = expiresAt - now;
+        if (diff <= 0) return 0;
+        return Math.floor(diff / (1000 * 60 * 60));
+    };
+
+    const isExpired = (dateStr: string) => {
+        return getHoursLeft(dateStr) <= 0;
+    };
+
+    // Filter Logic: Exclude Expired Orders
     const openRequests = orders.filter(o =>
         (o.status === 'AWAITING_OFFERS') &&
+        (!isExpired(o.createdAt || o.date)) && // CRITICAL: 24h Expiration Check
         (activeFilter === 'all' || o.car.toLowerCase().includes(activeFilter.toLowerCase())) &&
         (o.part.toLowerCase().includes(searchQuery.toLowerCase()) || o.id.toString().includes(searchQuery) || o.car.toLowerCase().includes(searchQuery.toLowerCase()))
     );
@@ -73,6 +89,25 @@ export const MerchantMarketplace: React.FC = () => {
         { id: 'Lexus', label: t.dashboard.merchant.marketplace.filters.lexus },
         { id: 'Hyundai', label: t.dashboard.merchant.marketplace.filters.hyundai },
     ];
+
+    // Timer Component for Cards
+    const CardTimer = ({ date }: { date: string }) => {
+        const [hours, setHours] = useState(getHoursLeft(date));
+
+        useEffect(() => {
+            const interval = setInterval(() => {
+                setHours(getHoursLeft(date));
+            }, 60000); // Update every minute
+            return () => clearInterval(interval);
+        }, [date]);
+
+        return (
+            <div className={`text-[10px] font-bold px-2 py-1 rounded animate-pulse flex items-center gap-1 ${hours < 5 ? 'bg-red-500/10 text-red-500' : 'bg-gold-500/10 text-gold-500'}`}>
+                <Clock size={10} />
+                {hours}h {t.common.left || 'left'}
+            </div>
+        );
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
@@ -150,15 +185,23 @@ export const MerchantMarketplace: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="bg-red-500/10 text-red-400 text-[10px] font-bold px-2 py-1 rounded animate-pulse">
-                                                23h {t.common.left}
-                                            </div>
+                                            <CardTimer date={req.createdAt || req.date} />
                                         </div>
 
-                                        <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">{req.part}</h3>
+                                        <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">
+                                            {req.parts && req.parts.length > 0
+                                                ? (req.parts.length > 1 ? `${req.parts[0].name} + ${req.parts.length - 1} ${t.common.others || 'others'}` : req.parts[0].name)
+                                                : req.part}
+                                            {/* Video Indicator */}
+                                            {(req.parts?.some((p: any) => p.video)) && (
+                                                <span className="ml-2 inline-flex items-center justify-center p-1 rounded-full bg-gold-500/10 text-gold-500" title="Video Available">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z" /><rect width="14" height="12" x="2" y="6" rx="2" ry="2" /></svg>
+                                                </span>
+                                            )}
+                                        </h3>
                                         <p className="text-white/60 text-sm mb-4 flex items-center gap-2">
                                             <Car size={14} />
-                                            {req.car}
+                                            {req.vehicle ? `${req.vehicle.make} ${req.vehicle.model} ${req.vehicle.year}` : req.car}
                                         </p>
 
                                         <div className="space-y-2 mb-6">
@@ -166,9 +209,9 @@ export const MerchantMarketplace: React.FC = () => {
                                                 <MapPin size={12} />
                                                 <span>{t.common.location}</span>
                                             </div>
-                                            {req.vin && (
+                                            {(req.vin || req.vehicle?.vin) && (
                                                 <div className="text-[10px] text-white/30 font-mono px-2">
-                                                    VIN: {req.vin}
+                                                    VIN: {req.vehicle?.vin || req.vin}
                                                 </div>
                                             )}
                                         </div>

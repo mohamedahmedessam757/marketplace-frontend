@@ -36,6 +36,7 @@ export interface VendorSettings {
     whatsapp: boolean;
     email: boolean;
   };
+  autoTranslateChat: boolean; // NEW
 }
 
 export interface PerformanceMetrics {
@@ -87,7 +88,7 @@ export interface VendorState {
   updateStoreInfo: (field: string, value: string) => void;
   updateProfile: (data: Partial<StoreProfileData>) => void;
   updateBankDetails: (data: Partial<BankDetails>) => void;
-  updateSettings: (data: Partial<VendorSettings['notifications']>) => void;
+  updateSettings: (data: Partial<VendorSettings>) => void;
 
   setOtpVerified: (verified: boolean) => void;
   setContractAgreed: (agreed: boolean) => void;
@@ -132,7 +133,8 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     notifications: {
       whatsapp: true,
       email: false
-    }
+    },
+    autoTranslateChat: false
   },
 
   performance: {
@@ -167,8 +169,14 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     bankDetails: { ...state.bankDetails, ...data, status: 'pending_review' }
   })),
 
-  updateSettings: (data) => set((state) => ({
-    settings: { notifications: { ...state.settings.notifications, ...data } }
+  updateSettings: (data: Partial<VendorSettings>) => set((state) => ({
+    settings: {
+      ...state.settings,
+      ...data,
+      notifications: data.notifications
+        ? { ...state.settings.notifications, ...data.notifications }
+        : state.settings.notifications
+    }
   })),
 
   setOtpVerified: (verified) => set({ otpVerified: verified }),

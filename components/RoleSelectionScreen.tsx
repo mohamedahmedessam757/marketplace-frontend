@@ -1,0 +1,184 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { User, Store, ShoppingCart, HelpCircle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+
+interface RoleSelectionScreenProps {
+    onCustomerClick: () => void;
+    onMerchantClick: () => void;
+    onWholesaleClick: () => void;
+    onHowWeWorkClick: () => void;
+}
+
+export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
+    onCustomerClick,
+    onMerchantClick,
+    onWholesaleClick,
+    onHowWeWorkClick,
+}) => {
+    const { t, language } = useLanguage();
+    const isAr = language === 'ar';
+    const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
+
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.15,
+                delayChildren: 0.3,
+            },
+        },
+    };
+
+    const itemVariants = {
+        hidden: { opacity: 0, y: 20 },
+        visible: {
+            opacity: 1,
+            y: 0,
+            transition: { type: "spring", stiffness: 300, damping: 24 }
+        },
+    };
+
+    return (
+        <div className="min-h-screen bg-[#1A1814] flex flex-col items-center justify-center p-4 relative overflow-hidden">
+
+            {/* Background Elements */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+                <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-gold-500/5 rounded-full blur-[100px]" />
+                <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-white/5 rounded-full blur-[100px]" />
+                <div
+                    className="absolute inset-0 opacity-[0.03]"
+                    style={{
+                        backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
+                        backgroundSize: '40px 40px'
+                    }}
+                />
+            </div>
+
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="relative z-10 w-full max-w-md flex flex-col items-center gap-8"
+            >
+                {/* Logo Section */}
+                <motion.div variants={itemVariants} className="flex flex-col items-center mb-4">
+                    <div className="relative mb-6 group">
+                        <div className="absolute inset-0 bg-gold-500 blur-2xl opacity-20 group-hover:opacity-30 transition-opacity duration-500" />
+                        <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-2xl relative z-10">
+                            <img
+                                src="/logo.png"
+                                alt="E-Tashleh Logo"
+                                className="w-full h-full object-contain p-4 brightness-0 invert drop-shadow-md"
+                            />
+                        </div>
+                    </div>
+                    <h1 className="text-3xl md:text-4xl font-bold text-white text-center tracking-tight">
+                        {language === 'ar' ? 'إي تشليح' : 'E-TASHLEH'}
+                    </h1>
+                    <p className="text-gold-400 text-sm tracking-[0.2em] uppercase mt-2 opacity-80">
+                        Used Auto Parts
+                    </p>
+                </motion.div>
+
+                {/* Buttons Section */}
+                <div className="w-full space-y-4">
+
+                    {/* Customer Button */}
+                    <motion.button
+                        variants={itemVariants}
+                        onClick={onCustomerClick}
+                        whileHover={{ scale: 1.02, x: isAr ? -5 : 5 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full group relative overflow-hidden rounded-xl p-4 flex items-center justify-between transition-all duration-300"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(156, 138, 90, 0.9), rgba(138, 120, 75, 0.8))',
+                            border: '1px solid rgba(156, 138, 90, 0.5)',
+                            boxShadow: '0 4px 20px rgba(156, 138, 90, 0.2)'
+                        }}
+                    >
+                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white">
+                                <User size={20} />
+                            </div>
+                            <span className="text-lg font-bold text-white">
+                                {t.roleSelection?.customerOrders || 'طلبات القطع للعملاء'}
+                            </span>
+                        </div>
+                        <ArrowIcon className="text-white/80 group-hover:text-white transition-colors" />
+                    </motion.button>
+
+                    {/* Merchant Button */}
+                    <motion.button
+                        variants={itemVariants}
+                        onClick={onMerchantClick}
+                        whileHover={{ scale: 1.02, x: isAr ? -5 : 5 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full group relative overflow-hidden rounded-xl p-4 flex items-center justify-between transition-all duration-300"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(232, 122, 45, 0.9), rgba(200, 100, 35, 0.8))',
+                            border: '1px solid rgba(232, 122, 45, 0.5)',
+                            boxShadow: '0 4px 20px rgba(232, 122, 45, 0.2)'
+                        }}
+                    >
+                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white">
+                                <Store size={20} />
+                            </div>
+                            <span className="text-lg font-bold text-white">
+                                {t.roleSelection?.storeLogin || 'دخول المتاجر'}
+                            </span>
+                        </div>
+                        <ArrowIcon className="text-white/80 group-hover:text-white transition-colors" />
+                    </motion.button>
+
+                    {/* Wholesale Button */}
+                    <motion.button
+                        variants={itemVariants}
+                        onClick={onWholesaleClick}
+                        whileHover={{ scale: 1.02, x: isAr ? -5 : 5 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full group relative overflow-hidden rounded-xl p-4 flex items-center justify-between transition-all duration-300"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(46, 150, 94, 0.9), rgba(35, 120, 75, 0.8))',
+                            border: '1px solid rgba(46, 150, 94, 0.5)',
+                            boxShadow: '0 4px 20px rgba(46, 150, 94, 0.2)'
+                        }}
+                    >
+                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white">
+                                <ShoppingCart size={20} />
+                            </div>
+                            <span className="text-lg font-bold text-white">
+                                {t.roleSelection?.wholesaleOrders || 'دخول طلبات الجملة للشركات'}
+                            </span>
+                        </div>
+                        <ArrowIcon className="text-white/80 group-hover:text-white transition-colors" />
+                    </motion.button>
+
+                </div>
+
+                {/* Divider */}
+                <motion.div variants={itemVariants} className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-2" />
+
+                {/* New Feature Button */}
+                <motion.button
+                    variants={itemVariants}
+                    onClick={onHowWeWorkClick}
+                    whileHover={{ scale: 1.03 }}
+                    className="flex items-center gap-2 group px-6 py-3 rounded-full bg-white/5 border border-white/5 hover:border-gold-500/30 hover:bg-white/10 transition-all"
+                >
+                    <HelpCircle size={16} className="text-gold-400 group-hover:text-gold-300" />
+                    <span className="text-sm text-white/70 group-hover:text-white transition-colors">
+                        {t.roleSelection?.howWeWork || 'تعرّف على طريقة عملنا قبل أن تبدأ معنا'}
+                    </span>
+                </motion.button>
+
+            </motion.div>
+        </div>
+    );
+};

@@ -6,11 +6,17 @@ interface GlassCardProps {
   className?: string;
   delay?: number;
   onClick?: () => void;
+  enableHover?: boolean;
 }
-
-export const GlassCard: React.FC<GlassCardProps> = ({ children, className = '', delay = 0, onClick }) => {
+export const GlassCard: React.FC<GlassCardProps> = ({
+  children,
+  className = '',
+  delay = 0,
+  onClick,
+  enableHover = true
+}) => {
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
@@ -23,8 +29,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({ children, className = '', 
         shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] 
         rounded-2xl 
         p-6 
-        hover:bg-white/10 
-        hover:border-gold-400/30 
+        ${enableHover ? 'hover:bg-white/10 hover:border-gold-400/30' : ''}
         transition-colors 
         duration-300
         ${className}

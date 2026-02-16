@@ -4,6 +4,7 @@ import { User, Mail, Phone, Lock, Loader2, AlertCircle, CheckSquare, Square } fr
 import { useLanguage } from '../../contexts/LanguageContext';
 import { authApi } from '@/services/api/auth';
 import { OTPVerification } from './OTPVerification';
+import { OTPMethodSelection } from './OTPMethodSelection';
 
 interface CustomerRegisterProps {
   onLoginClick: () => void;
@@ -38,7 +39,8 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showOTP, setShowOTP] = useState(false);
+  const [otpStep, setOtpStep] = useState<'none' | 'method' | 'verify'>('none');
+  const [otpMethod, setOtpMethod] = useState<'email' | 'whatsapp'>('email');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +83,7 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
       });
 
       // Show OTP Step
-      setShowOTP(true);
+      setOtpStep('method');
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || t.auth.errors?.registrationFailed);
@@ -94,12 +96,29 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
   };
 
-  if (showOTP) {
+  if (otpStep === 'method') {
+    return (
+      <div className="p-4">
+        <OTPMethodSelection
+          email={formData.email}
+          name={formData.name}
+          onSelect={(method) => {
+            setOtpMethod(method);
+            setOtpStep('verify');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (otpStep === 'verify') {
     return (
       <div className="p-4">
         {/* Using mock verify for now as requested (simulated OTP) */}
         <OTPVerification
           email={formData.email}
+          phone={formData.phone}
+          method={otpMethod}
           onVerify={(code) => {
             // For M1: Accept any code to allow flow completion
             onRegisterSuccess();

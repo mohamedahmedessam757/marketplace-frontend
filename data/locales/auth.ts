@@ -15,6 +15,7 @@ export const auth = {
       titleLine2: 'لقطع الغيارالمستعملة',
       description: 'نربطك بأفضل الموردين الموثوقين عالمياً (اليابان، كوريا، أمريكا، ألمانيا). نضمن لك قطع غيار أصلية شبه جديدة، حماية كاملة للمدفوعات، وخدمات لوجستية متكاملة حتى باب منزلك.',
       dashboardBtn: 'لوحة التحكم',
+      requestNowBtn: 'أطلب الآن',
       discoverBtn: 'اكتشف المزيد',
       security: 'الحماية',
       dashboard: {
@@ -191,7 +192,11 @@ export const auth = {
         resend: 'إعادة إرسال',
         whatsapp: 'عبر واتساب',
         emailAlt: 'عبر البريد',
-        invalidCode: 'الرمز غير صحيح'
+        invalidCode: 'الرمز غير صحيح',
+        selectMethod: {
+          title: 'طريقة التحقق',
+          subtitle: 'كيف تود استلام رمز التحقق؟'
+        }
       },
       vendor: {
         steps: { 1: 'الحساب', 2: 'التحقق', 3: 'المتجر', 4: 'العقد', 5: 'المستندات' },
@@ -289,6 +294,7 @@ export const auth = {
       titleLine2: 'for Used Spare Parts',
       description: 'Connecting you with trusted global suppliers (Japan, Korea, USA, Germany). We guarantee genuine like-new parts, full payment protection, and integrated logistics to your doorstep.',
       dashboardBtn: 'Dashboard',
+      requestNowBtn: 'Order Now',
       discoverBtn: 'Discover More',
       security: 'Security',
       dashboard: {
@@ -465,7 +471,11 @@ export const auth = {
         resend: 'Resend',
         whatsapp: 'Via WhatsApp',
         emailAlt: 'Via Email',
-        invalidCode: 'Invalid Code'
+        invalidCode: 'Invalid Code',
+        selectMethod: {
+          title: 'Verification Method',
+          subtitle: 'How would you like to receive the code?'
+        }
       },
       vendor: {
         steps: { 1: 'Account', 2: 'Verify', 3: 'Store', 4: 'Contract', 5: 'Docs' },
