@@ -106,24 +106,6 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
         onNavigate('chats');
     };
 
-    // Simulate Delivery Action (Triggers Notification)
-    const handleSimulateDelivery = () => {
-        const oId = Number(order.id);
-        updateOrderStatus(oId, 'DELIVERED');
-
-        // TRIGGER NOTIFICATION
-        addNotification({
-            type: 'delivery',
-            titleKey: 'delivered', // You might need to add this key to translations or use a generic one
-            message: language === 'ar'
-                ? `تم توصيل طلبك #${oId}. يرجى فحص القطعة وتأكيد الاستلام.`
-                : `Order #${oId} has been delivered. Please inspect the part.`,
-            orderId: oId,
-            linkTo: 'order-details',
-            priority: 'urgent'
-        });
-    };
-
     // Helper to calculate deadlines
     const getOfferDeadline = () => {
         const d = new Date(order.createdAt || order.date); // Fallback to date if createdAt missing
@@ -132,6 +114,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     };
 
     const isOrderExpired = () => {
+        if (order.status === 'CANCELLED') return true;
         if (order.status !== 'AWAITING_OFFERS') return false;
         const deadline = new Date(getOfferDeadline()).getTime();
         return new Date().getTime() > deadline;
@@ -220,23 +203,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
 
-                            {/* Simulating Merchant Actions (For Demo Purposes) */}
-                            {order.status === 'PREPARATION' && (
-                                <button
-                                    onClick={() => updateOrderStatus(Number(order.id), 'SHIPPED')}
-                                    className="px-3 py-1 bg-white/5 text-xs rounded border border-white/10 text-white/50 hover:text-white"
-                                >
-                                    {t.dashboard.orders.simulateShip}
-                                </button>
-                            )}
-                            {order.status === 'SHIPPED' && (
-                                <button
-                                    onClick={handleSimulateDelivery}
-                                    className="px-3 py-1 bg-white/5 text-xs rounded border border-white/10 text-white/50 hover:text-white"
-                                >
-                                    {t.dashboard.orders.simulateDeliver}
-                                </button>
-                            )}
+                            {/* Simulation buttons removed for production/customer view */}
 
 
                             {/* Review Button */}
@@ -250,8 +217,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
-                            {/* Return Button (Only for DELIVERED + within 48h) */}
-                            {order.status === 'DELIVERED' && (
+                            {/* Return Button (SHIPPED or DELIVERED) */}
+                            {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
                                 <button
                                     onClick={() => setShowReturnModal(true)}
                                     className="flex items-center gap-2 px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-white border border-cyan-500/30 rounded-lg transition-all font-bold text-sm"
@@ -354,7 +321,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     )}
 
                     {/* STATE: AWAITING PAYMENT (Show Offers) */}
-                    {(order.status === 'AWAITING_PAYMENT' || (order.status === 'AWAITING_OFFERS' && order.offers.length > 0)) && (
+                    {(order.status === 'AWAITING_PAYMENT' || ((order.status === 'AWAITING_OFFERS' || order.status === 'CANCELLED') && order.offers.length > 0)) && (
                         <div>
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-white font-bold flex items-center gap-2">
@@ -370,40 +337,55 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
                             <div className="space-y-4">
                                 {/* Render Real Offers from Store */}
-                                {order.offers.map((offer) => (
-                                    <div key={offer.id} className="relative">
-                                        {isExpired && (
-                                            <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-[1px] rounded-2xl flex items-center justify-center cursor-not-allowed">
-                                                {/* Overlay to block clicks */}
+                                {order.offers.map((offer) => {
+                                    // Check if specific offer is expired (>24h) OR Order is expired/cancelled
+                                    const offerTime = new Date(offer.submittedAt).getTime();
+                                    const isOfferOld = (new Date().getTime() - offerTime) > (24 * 60 * 60 * 1000);
+                                    const isOfferExpired = isExpired || order.status === 'CANCELLED' || isOfferOld;
+
+                                    return (
+                                        <div key={offer.id} className="relative">
+                                            {isOfferExpired && (
+                                                <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-[2px] rounded-2xl flex items-center justify-center cursor-not-allowed border border-white/5">
+                                                    <div className="bg-black/80 px-4 py-2 rounded-full border border-white/10 text-white/50 text-xs font-bold flex items-center gap-2">
+                                                        <Clock size={14} />
+                                                        {language === 'ar' ? 'عرض منتهي' : 'Offer Expired'}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className={isOfferExpired ? 'opacity-50 pointer-events-none grayscale-[0.5]' : ''}>
+                                                <OfferCard
+                                                    id={offer.id}
+                                                    storeName={offer.merchantName}
+                                                    rating={(offer as any).storeRating || 0}
+                                                    reviewCount={(offer as any).storeReviewCount || 0}
+                                                    storeLogo={(offer as any).storeLogo}
+                                                    storeCity={(offer as any).storeCity}
+                                                    notes={offer.notes}
+                                                    isShippingIncluded={(offer as any).isShippingIncluded}
+                                                    weight={(offer as any).weight}
+                                                    partType={(offer as any).partType}
+                                                    price={offer.price}
+                                                    unitPrice={(offer as any).unitPrice || offer.price}
+                                                    condition={offer.condition}
+                                                    warranty={offer.warranty}
+                                                    deliveryTime={offer.deliveryTime}
+                                                    offerImage={(offer as any).offerImage}
+                                                    isSelected={selectedOffer === offer.id}
+                                                    onAccept={() => {
+                                                        if (isOfferExpired) return;
+                                                        setSelectedOfferId(offer.id);
+                                                        handleAcceptOffer(offer);
+                                                    }}
+                                                    onChat={() => {
+                                                        if (isOfferExpired) return;
+                                                        handleChat(offer);
+                                                    }}
+                                                />
                                             </div>
-                                        )}
-                                        <OfferCard
-                                            id={offer.id}
-                                            storeName={offer.merchantName}
-                                            rating={(offer as any).storeRating || 0}
-                                            reviewCount={(offer as any).storeReviewCount || 0}
-                                            storeLogo={(offer as any).storeLogo}
-                                            storeCity={(offer as any).storeCity}
-                                            notes={offer.notes}
-                                            isShippingIncluded={(offer as any).isShippingIncluded}
-                                            weight={(offer as any).weight}
-                                            partType={(offer as any).partType}
-                                            price={offer.price}
-                                            unitPrice={(offer as any).unitPrice || offer.price} // Pass unit price, fallback to total if missing
-                                            condition={offer.condition}
-                                            warranty={offer.warranty}
-                                            deliveryTime={offer.deliveryTime}
-                                            offerImage={(offer as any).offerImage} // Pass Image
-                                            isSelected={selectedOffer === offer.id}
-                                            onAccept={() => {
-                                                if (isExpired) return;
-                                                setSelectedOfferId(offer.id);
-                                                handleAcceptOffer(offer);
-                                            }}
-                                            onChat={() => handleChat(offer)}
-                                        />
-                                    </div>
-                                ))}
+                                        </div>
+                                    );
+                                })}
 
                                 {order.offers.length === 0 && (
                                     <div className="text-center text-white/40 py-8">{(t.dashboard.orders as any).noOffers}</div>
@@ -456,6 +438,6 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 </div>
             </div>
 
-        </div>
+        </div >
     );
 };

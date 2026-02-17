@@ -168,49 +168,93 @@ export const ReturnsExchangePage: React.FC<ReturnsExchangePageProps> = ({ onNavi
 
 // Helper Components
 
-const ReturnCard = ({ order, type, onCancel, t, language, ArrowIcon }: any) => (
-    <GlassCard className={`p-6 border-l-4 ${type === 'dispute' ? 'border-l-red-500' : 'border-l-gold-500'}`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${type === 'dispute' ? 'bg-red-500/10 text-red-500' : 'bg-gold-500/10 text-gold-500'}`}>
-                    {type === 'dispute' ? <AlertTriangle size={24} /> : <RotateCcw size={24} />}
-                </div>
-                <div>
-                    <div className="flex items-center gap-3 mb-1">
-                        <span className="font-mono text-xs text-white/40">#{order.order_number}</span>
-                        <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                        <span className="text-xs text-white/40">{new Date(order.updated_at).toLocaleDateString()}</span>
+const ReturnCard = ({ order, type, onCancel, t, language, ArrowIcon }: any) => {
+    // Determine status color
+    const isDispute = type === 'dispute';
+    const statusColor = isDispute ? 'red' : 'gold';
+
+    // Access joined order details
+    // Ensure we handle both potential structures if there's any legacy mix, but standardizing on camelCase now.
+    const orderDetails = order.order || {};
+    // Fallback logic for Part Name: partName -> parts[0].name -> "Unknown Item"
+    const partName = orderDetails.partName || (orderDetails.parts && orderDetails.parts.length > 0 ? orderDetails.parts[0].name : null) || (language === 'ar' ? 'منتج غير معروف' : 'Unknown Item');
+
+    // Evidence files (using camelCase as per new types)
+    const evidenceFiles = order.evidenceFiles || [];
+
+    return (
+        <GlassCard className={`p-6 border-l-4 ${isDispute ? 'border-l-red-500' : 'border-l-gold-500'}`}>
+            <div className="flex flex-col gap-4">
+                {/* Header Row */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isDispute ? 'bg-red-500/10 text-red-500' : 'bg-gold-500/10 text-gold-500'}`}>
+                            {isDispute ? <AlertTriangle size={20} /> : <RotateCcw size={20} />}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="font-mono text-xs text-white/40">#{orderDetails.orderNumber || 'N/A'}</span>
+                                <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                                <span className="text-xs text-white/40">{new Date(order.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <h3 className="font-bold text-white text-lg">{partName}</h3>
+                            <p className="text-sm text-white/60">{orderDetails.vehicleMake} {orderDetails.vehicleModel}</p>
+                        </div>
                     </div>
-                    <h3 className="font-bold text-white text-lg">{order.part_name}</h3>
-                    <p className="text-sm text-white/60">{order.vehicle_make} {order.vehicle_model}</p>
-                </div>
-            </div>
 
-            <div className="flex items-center justify-between md:justify-end gap-6 pl-16 md:pl-0">
-                <div className="text-right">
-                    <Badge status={order.status} />
-                    <p className="text-xs text-white/30 mt-2">
-                        {type === 'dispute' ? 'Under Review' : 'Return Requested'}
-                    </p>
+                    <div className="flex items-center gap-3">
+                        <Badge status={order.status} />
+                        {type === 'return' && onCancel && order.status === 'PENDING' && (
+                            <button
+                                onClick={() => onCancel(order.id)}
+                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-white/60 hover:text-red-400 text-xs transition-colors"
+                            >
+                                {language === 'ar' ? 'إلغاء الطلب' : 'Cancel Request'}
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    {type === 'return' && onCancel && order.status === 'RETURN_REQUESTED' && (
-                        <button
-                            onClick={() => onCancel(order.id)}
-                            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm transition-colors"
-                        >
-                            Cancel Return
-                        </button>
+                {/* Details Section */}
+                <div className="bg-white/5 rounded-xl p-4 space-y-3">
+                    <div>
+                        <span className="text-xs text-white/40 block mb-1">{language === 'ar' ? 'السبب' : 'Reason'}</span>
+                        <p className="text-sm text-white">{order.reason}</p>
+                    </div>
+                    {order.description && (
+                        <div>
+                            <span className="text-xs text-white/40 block mb-1">{language === 'ar' ? 'الوصف' : 'Description'}</span>
+                            <p className="text-sm text-white/80">{order.description}</p>
+                        </div>
                     )}
-                    <button className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-gold-500 hover:text-black transition-colors">
-                        <ArrowIcon size={18} />
-                    </button>
+
+                    {/* Evidence Files */}
+                    {evidenceFiles.length > 0 && (
+                        <div>
+                            <span className="text-xs text-white/40 block mb-2">{language === 'ar' ? 'المرفقات' : 'Evidence'}</span>
+                            <div className="flex gap-2 overflow-x-auto pb-2">
+                                {evidenceFiles.map((url: string, idx: number) => (
+                                    <a
+                                        key={idx}
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-16 h-16 rounded-lg border border-white/10 overflow-hidden hover:border-gold-500/50 transition-colors relative group"
+                                    >
+                                        <img src={url} alt="Evidence" className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                            <Box size={12} className="text-white" />
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
-        </div>
-    </GlassCard>
-);
+        </GlassCard>
+    );
+};
 
 const EmptyState = ({ icon: Icon, title, desc }: any) => (
     <div className="py-20 text-center border border-dashed border-white/10 rounded-2xl bg-white/5">

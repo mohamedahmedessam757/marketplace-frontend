@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { MerchantStatus } from './useVendorStore';
+import { supabase } from '../services/supabase';
 
 // Dynamic API URL - uses environment variable in production
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -99,6 +100,11 @@ export interface AdminState {
   getVendorById: (id: string) => Vendor | undefined;
   updateVendorStatus: (id: string, status: MerchantStatus) => void;
   updateVendorDocStatus: (vendorId: string, docType: 'cr' | 'license', status: 'approved' | 'rejected') => void;
+
+  // Real-time
+  subscription: any;
+  subscribeToStats: () => void;
+  unsubscribeFromStats: () => void;
 }
 
 const MOCK_VENDORS: Vendor[] = [
@@ -265,11 +271,47 @@ export const useAdminStore = create<AdminState>()(
             docs: { ...v.docs, [docType]: status } as any
           };
         })
-      }))
+      })),
+
+      subscription: null,
+
+      subscribeToStats: () => {
+        const { subscription } = get();
+        if (subscription) return;
+
+        const channel = supabase.channel('admin-stats-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'orders' },
+            () => {
+              console.log('🔔 Admin Stats Update Recieved');
+              get().fetchDashboardStats();
+            }
+          )
+          .subscribe();
+
+        set({ subscription: channel });
+      },
+
+      unsubscribeFromStats: () => {
+        const { subscription } = get();
+        if (subscription) {
+          supabase.removeChannel(subscription);
+          set({ subscription: null });
+        }
+      }
     }),
     {
       name: 'etashleh-admin-storage',
       storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        currentAdmin: state.currentAdmin,
+        commissionRate: state.commissionRate,
+        systemStatus: state.systemStatus,
+        vendorsList: state.vendorsList,
+        systemConfig: state.systemConfig,
+        // Exclude subscription and others
+      }),
     }
   )
 );

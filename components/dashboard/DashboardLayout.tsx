@@ -4,10 +4,12 @@ import { motion } from 'framer-motion';
 import { Home, Package, PlusCircle, MessageSquare, User, Bell, LogOut, Menu, Scale, Info, ChevronDown, Search, Wallet, Grid, Users, ShieldAlert, BarChart3, Settings, ShoppingBag, ListChecks, Truck, FileText, BadgeDollarSign, Store, Star, Database, Headset, ShieldCheck, Lock, CreditCard, RotateCcw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotificationStore } from '../../stores/useNotificationStore';
+import { useProfileStore } from '../../stores/useProfileStore';
 import { useVendorStore } from '../../stores/useVendorStore';
 import { useAdminStore } from '../../stores/useAdminStore';
 import { useOrderStore } from '../../stores/useOrderStore'; // Added Import
 import { NotificationDrawer } from './notifications/NotificationDrawer';
+import { getCurrentUserId } from '../../utils/auth';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -26,11 +28,24 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 }) => {
   const { t, language } = useLanguage();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const { unreadCount, fetchNotifications } = useNotificationStore(); // Added fetchNotifications
+  const { unreadCount, fetchNotifications, subscribeToNotifications, unsubscribeFromNotifications } = useNotificationStore(); // Added fetchNotifications
   const { checkLicenseStatus, vendorStatus } = useVendorStore();
   const { currentAdmin } = useAdminStore();
   const { startPolling, stopPolling, fetchOrders } = useOrderStore();
+  const { user, fetchProfile } = useProfileStore();
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const userId = getCurrentUserId();
+    if (userId) {
+      fetchProfile();
+      fetchNotifications(userId);
+      subscribeToNotifications(userId);
+    }
+    return () => {
+      unsubscribeFromNotifications();
+    };
+  }, []);
 
   const isAr = language === 'ar';
 
@@ -294,14 +309,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                     {getRoleBadge()}
                   </div>
                   <div className="text-xs font-bold text-white group-hover:text-gold-200 transition-colors">
-                    {role === 'admin' ? currentAdmin?.name : 'User Account'}
+                    {role === 'admin' ? currentAdmin?.name : (user?.name || 'User Account')}
                   </div>
                 </div>
 
                 <div className="relative">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-gold-600 to-gold-400 p-[1px]">
-                    <div className="w-full h-full rounded-full bg-[#1A1814] flex items-center justify-center">
-                      <User size={16} className="text-gold-400" />
+                    <div className="w-full h-full rounded-full bg-[#1A1814] flex items-center justify-center overflow-hidden">
+                      {user?.avatar ? (
+                        <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={16} className="text-gold-400" />
+                      )}
                     </div>
                   </div>
                   <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-[#151310] rounded-full"></div>

@@ -310,22 +310,24 @@ function AppContent() {
             ) : currentView === 'role-selection' ? (
               <RoleSelectionScreen
                 onCustomerClick={() => {
-                  setLoginInitialTab('customer');
-                  setCurrentView('login');
+                  setCurrentView('how-we-work');
                 }}
                 onMerchantClick={() => {
                   setLoginInitialTab('merchant');
                   setCurrentView('login');
                 }}
                 onWholesaleClick={() => setCurrentView('wholesale')}
-                onHowWeWorkClick={() => setCurrentView('how-we-work')}
+                onHowWeWorkClick={() => setCurrentView('landing')}
               />
             ) : currentView === 'wholesale' ? (
               <WholesaleScreen onBack={() => setCurrentView('role-selection')} />
             ) : currentView === 'how-we-work' ? (
               <HowWeWorkScreen
-                onComplete={() => setCurrentView('role-selection')}
-                onBack={() => setCurrentView('landing')}
+                onComplete={() => {
+                  setLoginInitialTab('customer');
+                  setCurrentView('login');
+                }}
+                onBack={() => setCurrentView('role-selection')}
                 onTermsClick={() => setCurrentView('terms')}
               />
             ) : currentView === 'landing' ? (

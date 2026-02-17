@@ -46,7 +46,7 @@ export const common = {
       SHIPPED: 'تم الشحن',
       DELIVERED: 'تم التوصيل',
       COMPLETED: 'مكتمل',
-      CANCELLED: 'ملغي',
+      CANCELLED: 'منتهي',
       RETURNED: 'مرتجع',
       DISPUTED: 'نزاع',
       REFUNDED: 'تم الاسترداد',
@@ -71,7 +71,7 @@ export const common = {
         documentation: 'نوثّق المعاينة ونراجعها قبل الشحن لضمان التطابق',
         guarantee: 'ضمان الشحن في الوقت المحدد وسياسة إرجاع سهلة',
         terms: 'تُطبق الشروط والأحكام',
-        orderNow: 'انتقل للطلب الآن',
+        orderNow: 'متابعة الطلب',
         back: 'كيف نعمل'
       }
     },
@@ -139,7 +139,7 @@ export const common = {
       SHIPPED: 'Shipped',
       DELIVERED: 'Delivered',
       COMPLETED: 'Completed',
-      CANCELLED: 'Cancelled',
+      CANCELLED: 'Expired',
       RETURNED: 'Returned',
       DISPUTED: 'Disputed',
       REFUNDED: 'Refunded',
@@ -162,8 +162,25 @@ export const common = {
         documentation: 'We document inspection and review before shipping to ensure matching',
         guarantee: 'On-time shipping guarantee and easy return policy',
         terms: 'Terms and Conditions apply',
-        orderNow: 'Order Now',
+        orderNow: 'Continue Order',
         back: 'How We Work'
+      }
+    },
+    auth: {
+      errors: {
+        fillAll: 'Please fill all required fields',
+        invalidEmail: 'Please enter a valid email address',
+        passwordShort: 'Password must be at least 6 characters',
+        passwordMismatch: 'Passwords do not match',
+        invalidCode: 'Invalid verification code',
+        contractError: 'You must agree to the contract terms to proceed',
+        docsError: 'Please upload all required documents',
+        registrationFailed: 'Registration failed. Please try again.',
+        loginFailed: 'Login failed. Please check your credentials.',
+        invalidCredentials: 'Invalid email or password',
+        wrongAccountType: 'Incorrect account type for this login',
+        accountNotFound: 'Account not found. Please register.',
+        phoneExists: 'This phone number is already registered. Please login or use a different number.'
       }
     },
     wholesale: {

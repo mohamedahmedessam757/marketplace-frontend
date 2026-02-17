@@ -41,37 +41,46 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'RESOLVED';
 
+export interface OrderPart {
+  id: string;
+  name: string;
+  description?: string;
+  quantity: number;
+  images: string[];
+}
+
 export interface Order {
   id: string; // UUID
-  order_number: string;
-  customer_id: string; // UUID
-  store_id?: string; // UUID
+  orderNumber: string;
+  customerId: string; // UUID
+  storeId?: string; // UUID
   status: OrderStatus;
 
   // Vehicle
-  vehicle_make: string;
-  vehicle_model: string;
-  vehicle_year: number;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleYear: number;
   vin?: string;
 
   // Part
-  part_name: string;
-  part_description?: string;
-  part_images?: string[]; // JSONB
+  partName: string;
+  partDescription?: string;
+  partImages?: string[]; // JSONB
+  parts?: OrderPart[]; // Joined relation
 
   // Preferences
-  condition_pref?: string;
-  warranty_preferred?: boolean;
+  conditionPref?: string;
+  warrantyPreferred?: boolean;
 
   // Financial
-  total_amount?: number;
-  offer_id?: string; // Accepted Offer UUID
+  totalAmount?: number;
+  acceptedOfferId?: string; // Accepted Offer UUID
 
   // Timestamps
-  offers_deadline_at?: string;
-  payment_deadline_at?: string;
-  created_at: string;
-  updated_at: string;
+  offersDeadlineAt?: string;
+  paymentDeadlineAt?: string;
+  createdAt: string;
+  updatedAt: string;
 
   // Joined fields (optional)
   offers?: Offer[];
@@ -80,29 +89,60 @@ export interface Order {
 
 export interface Offer {
   id: string; // UUID
-  order_id: string;
-  store_id: string;
-  unit_price: number;
-  weight_kg: number;
-  shipping_cost: number;
-  has_warranty: boolean;
-  delivery_days?: string;
+  orderId: string;
+  storeId: string;
+  unitPrice: number;
+  weightKg: number;
+  shippingCost: number;
+  hasWarranty: boolean;
+  deliveryDays?: string;
   condition?: string;
   notes?: string;
+  offerImage?: string;
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
-  created_at: string;
+  createdAt: string;
 
   // Computed/Joined
-  final_price?: number; // unit_price + shipping_cost
-  dealer_name?: string; // from joined store
-  dealer_number?: string; // from joined store metadata if exists
+  finalPrice?: number; // unit_price + shipping_cost
+  dealerName?: string; // from joined store
+  dealerNumber?: string; // from joined store metadata if exists
 }
 
 export interface Store {
   id: string;
-  owner_id: string;
+  ownerId: string;
   name: string;
   slug?: string;
   description?: string;
-  currrent_rating?: number;
+  currentRating?: number;
+}
+
+export interface Return {
+  id: string;
+  orderId: string;
+  customerId: string;
+  reason: string;
+  description: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  evidenceFiles: string[];
+  createdAt: string;
+  updatedAt: string;
+
+  // Joined
+  order?: Order;
+}
+
+export interface Dispute {
+  id: string;
+  orderId: string;
+  customerId: string;
+  reason: string;
+  description: string;
+  status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'CLOSED';
+  evidenceFiles: string[];
+  createdAt: string;
+  updatedAt: string;
+
+  // Joined
+  order?: Order;
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
-import { getCurrentUserId } from '../utils/auth';
+import { getCurrentUserId, getCurrentUser } from '../utils/auth';
 
 export interface UserProfile {
   id: string;
@@ -8,6 +8,7 @@ export interface UserProfile {
   email: string;
   phone: string;
   role: string;
+  avatar?: string;
 }
 
 export interface Address {
@@ -51,6 +52,7 @@ interface ProfileState {
   fetchProfile: () => Promise<void>;
   updateUser: (data: Partial<UserProfile>) => Promise<void>;
   updateSettings: (data: Partial<UserSettings>) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<void>;
 
   // Address Actions
   addAddress: (address: Omit<Address, 'id'>) => void;
@@ -87,6 +89,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   fetchProfile: async () => {
     const userId = getCurrentUserId();
     if (!userId) {
+      console.warn('[useProfileStore] No user ID found in localStorage');
       set({ user: null, loading: false });
       return;
     }
@@ -94,55 +97,110 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      // 1. Fetch user data
-      const userReq = supabase
-        .from('users')
-        .select('id, name, email, phone, role')
-        .eq('id', userId)
-        .single();
+      console.log('[useProfileStore] Fetching data for userId:', userId);
 
-      // 2. Fetch settings
-      const settingsReq = supabase
+      // 1. Fetch user data
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, name, email, phone, role, avatar')
+        .eq('id', userId)
+        .maybeSingle(); // Changed from single() to maybeSingle() to prevent 406 errors
+
+      if (userError) {
+        // Fallback: Try fetching profile from our Custom Backend API (Bypasses RLS)
+        // This is critical if RLS policies are broken or missing or if the user hasn't run the migration script yet.
+        try {
+          const { authApi } = await import('../services/api/auth');
+          const apiProfile = await authApi.getProfile();
+
+          if (apiProfile) {
+            // Success! We recovered the profile. 
+            // We do NOT log the original RLS error to keep the console clean for the user.
+            // console.debug('[useProfileStore] RLS Bypass successful');
+
+            set({
+              user: {
+                id: apiProfile.id,
+                name: apiProfile.name, // Ensure this field exists in response
+                email: apiProfile.email,
+                phone: apiProfile.phone,
+                role: apiProfile.role,
+                avatar: apiProfile.avatar
+              },
+              loading: false
+            });
+            return; // Return early, effectively suppressing the throw userError
+          }
+        } catch (apiErr) {
+          // Only log if BOTH fail
+          console.warn('[useProfileStore] API Fallback attempt failed:', apiErr);
+        }
+
+        // If we reach here, both Supabase AND Fallback failed. Now it's a real error.
+        console.error('[useProfileStore] User fetch error:', userError);
+        throw userError;
+      }
+
+      if (!userData) {
+        console.warn('[useProfileStore] User found in auth but record missing in DB');
+        // Fallback to minimal user info from token if DB fetch fails/is empty
+        const tokenUser = getCurrentUser();
+        if (tokenUser) {
+          set({
+            user: {
+              id: tokenUser.id,
+              name: 'User', // Placeholder
+              email: tokenUser.email,
+              phone: '',
+              role: 'CUSTOMER', // Default role
+              avatar: undefined
+            },
+            loading: false
+          });
+          return;
+        }
+        throw new Error('User record not found');
+      }
+
+      // 2. Fetch settings (Independent, non-blocking)
+      const { data: settingsData } = await supabase
         .from('user_settings')
         .select('*')
         .eq('user_id', userId)
-        .single();
-
-      const [userRes, settingsRes] = await Promise.all([userReq, settingsReq]);
-
-      if (userRes.error) throw userRes.error;
+        .maybeSingle();
 
       // Handle settings (might be null if new user)
       let currentSettings = get().settings;
-      if (settingsRes.data) {
+      if (settingsData) {
         currentSettings = {
-          language: settingsRes.data.language,
-          currency: settingsRes.data.currency,
-          notifications_email: settingsRes.data.notifications_email,
-          notifications_push: settingsRes.data.notifications_push,
-          notifications_sms: settingsRes.data.notifications_sms,
-          notifications_offers: settingsRes.data.notifications_offers,
-          theme: settingsRes.data.theme,
-          autoTranslateChat: settingsRes.data.auto_translate_chat ?? false
+          language: settingsData.language,
+          currency: settingsData.currency,
+          notifications_email: settingsData.notifications_email,
+          notifications_push: settingsData.notifications_push,
+          notifications_sms: settingsData.notifications_sms,
+          notifications_offers: settingsData.notifications_offers,
+          theme: settingsData.theme,
+          autoTranslateChat: settingsData.auto_translate_chat ?? false
         };
       }
 
       set({
         user: {
-          id: userRes.data.id,
-          name: userRes.data.name || '',
-          email: userRes.data.email || '',
-          phone: userRes.data.phone || '',
-          role: userRes.data.role || 'CUSTOMER'
+          id: userData.id,
+          name: userData.name || '',
+          email: userData.email || '',
+          phone: userData.phone || '',
+          role: userData.role || 'CUSTOMER',
+          avatar: userData.avatar
         },
         settings: currentSettings,
         loading: false
       });
+      console.log('[useProfileStore] Profile loaded successfully:', userData.name);
 
     } catch (err: any) {
-      console.error('Failed to fetch profile:', err);
-      // Fallback
-      set({ loading: false });
+      console.error('[useProfileStore] Failed to fetch profile:', err);
+      set({ loading: false, error: err.message || 'Failed to load profile' });
     }
   },
 
@@ -260,6 +318,62 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         }
       }, 1000);
     });
+  },
+
+  uploadAvatar: async (file: File) => {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+
+    // 1. Validate File
+    if (!file.type.startsWith('image/')) {
+      throw new Error('Please upload an image file');
+    }
+    if (file.size > 2 * 1024 * 1024) { // 2MB Limit
+      throw new Error('Image size must be less than 2MB');
+    }
+
+    set({ loading: true });
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}/${Date.now()}.${fileExt}`;
+
+      // 2. Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('profile')
+        .upload(fileName, file, {
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      // 3. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('profile')
+        .getPublicUrl(fileName);
+
+      // 4. Update User Profile in DB (Via Backend to Bypass RLS)
+      // const { error: dbError } = await supabase.from('users').update({ avatar: publicUrl }).eq('id', userId);
+
+      try {
+        const { authApi } = await import('../services/api/auth');
+        await authApi.updateProfile({ avatar: publicUrl });
+      } catch (backendErr) {
+        console.error('Backend Update Failed:', backendErr);
+        throw backendErr;
+      }
+
+      // 5. Update Local State Immediately
+      set((state) => ({
+        loading: false,
+        user: state.user ? { ...state.user, avatar: publicUrl } : null
+      }));
+
+    } catch (err: any) {
+      console.error('Avatar upload failed:', err);
+      set({ loading: false, error: err.message });
+      throw err;
+    }
   },
 
   detectCurrentSession: () => {

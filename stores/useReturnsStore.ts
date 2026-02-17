@@ -1,19 +1,18 @@
-
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
-import { Order } from '../types';
+import { Return, Dispute } from '../types';
 import { getCurrentUserId } from '../utils/auth';
 
 interface ReturnsState {
-    returns: Order[];
-    disputes: Order[];
+    returns: Return[];
+    disputes: Dispute[];
     loading: boolean;
     error: string | null;
 
     fetchReturnsAndDisputes: () => Promise<void>;
-    requestReturn: (orderId: string, reason: string) => Promise<boolean>;
+    requestReturn: (orderId: string, reason: string, description: string, files: File[]) => Promise<boolean>;
     cancelReturn: (orderId: string) => Promise<boolean>;
-    escalateDispute: (orderId: string, reason: string) => Promise<boolean>;
+    escalateDispute: (orderId: string, reason: string, description: string, files: File[]) => Promise<boolean>;
 }
 
 export const useReturnsStore = create<ReturnsState>((set, get) => ({
@@ -25,99 +24,87 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
     fetchReturnsAndDisputes: async () => {
         set({ loading: true, error: null });
         try {
-            const userId = getCurrentUserId();
-            if (!userId) {
-                set({ returns: [], disputes: [], loading: false });
-                return;
-            }
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
 
-            // Fetch all orders related to returns and disputes
-            const { data, error } = await supabase
-                .from('orders')
-                .select(`
-            *,
-            offers!offers_order_id_fkey(*),
-            store:stores(*)
-        `)
-                .in('status', ['RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'DISPUTED', 'REFUNDED'])
-                .eq('customer_id', userId)
-                .order('updated_at', { ascending: false });
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-            if (error) throw error;
-
-            const returns: Order[] = [];
-            const disputes: Order[] = [];
-
-            (data || []).forEach((order: any) => {
-                const mappedOrder = {
-                    ...order,
-                    offers: order.offers || [],
-                    store: order.store || undefined
-                };
-
-                if (order.status === 'DISPUTED') {
-                    disputes.push(mappedOrder);
-                } else {
-                    returns.push(mappedOrder);
+            const response = await fetch(`${API_URL}/returns/my-requests`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
                 }
             });
 
-            set({ returns, disputes, loading: false });
+            if (!response.ok) {
+                throw new Error('Failed to fetch returns history');
+            }
+
+            const data = await response.json();
+
+            set({
+                returns: data.returns || [],
+                disputes: data.disputes || [],
+                loading: false
+            });
         } catch (err: any) {
-            console.error('Error fetching returns:', err);
+            console.error('Error fetching returns/disputes:', err);
             set({ error: err.message });
         } finally {
             set({ loading: false });
         }
     },
 
-    requestReturn: async (orderId: string, reason: string) => {
+    requestReturn: async (orderId: string, reason: string, description: string, files: File[]) => {
+        set({ loading: true, error: null });
         try {
-            const userId = getCurrentUserId();
-            const { error } = await supabase
-                .from('orders')
-                .update({ status: 'RETURN_REQUESTED' })
-                .eq('id', orderId);
+            const token = localStorage.getItem('access_token');
+            if (!token) throw new Error('No authentication token found');
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-            if (error) throw error;
+            const formData = new FormData();
+            formData.append('orderId', orderId);
+            formData.append('reason', reason);
+            formData.append('description', description);
 
-            // Log the reason in audit_logs
-            await supabase.from('audit_logs').insert({
-                order_id: orderId,
-                action: 'RETURN_REQUESTED',
-                entity: 'ORDER',
-                actor_type: 'CUSTOMER',
-                actor_id: userId,
-                reason: reason,
-                new_state: 'RETURN_REQUESTED'
+            if (files && files.length > 0) {
+                files.forEach((file) => {
+                    formData.append('files', file);
+                });
+            }
+
+            const response = await fetch(`${API_URL}/returns/request`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
             });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to request return');
+            }
 
             await get().fetchReturnsAndDisputes();
             return true;
-        } catch (err) {
-            console.error('Failed to request return:', err);
+        } catch (error: any) {
+            console.error('Failed to request return:', error);
+            const errorMessage = typeof error === 'object' && error.message ? error.message : 'Failed to request return';
+            set({ error: errorMessage });
             return false;
+        } finally {
+            set({ loading: false });
         }
     },
 
     cancelReturn: async (orderId: string) => {
         try {
-            const userId = getCurrentUserId();
             const { error } = await supabase
                 .from('orders')
-                .update({ status: 'DELIVERED' }) // Revert to delivered (simplified)
+                .update({ status: 'DELIVERED' })
                 .eq('id', orderId);
 
             if (error) throw error;
-
-            await supabase.from('audit_logs').insert({
-                order_id: orderId,
-                action: 'RETURN_CANCELLED',
-                entity: 'ORDER',
-                actor_type: 'CUSTOMER',
-                actor_id: userId,
-                new_state: 'DELIVERED'
-            });
 
             await get().fetchReturnsAndDisputes();
             return true;
@@ -127,31 +114,46 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
         }
     },
 
-    escalateDispute: async (orderId: string, reason: string) => {
+    escalateDispute: async (orderId: string, reason: string, description: string, files: File[]) => {
+        set({ loading: true, error: null });
         try {
-            const userId = getCurrentUserId();
-            const { error } = await supabase
-                .from('orders')
-                .update({ status: 'DISPUTED' })
-                .eq('id', orderId);
+            const token = localStorage.getItem('access_token');
+            if (!token) throw new Error('No authentication token found');
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-            if (error) throw error;
+            const formData = new FormData();
+            formData.append('orderId', orderId);
+            formData.append('reason', reason);
+            formData.append('description', description);
 
-            await supabase.from('audit_logs').insert({
-                order_id: orderId,
-                action: 'DISPUTE_ESCALATED',
-                entity: 'ORDER',
-                actor_type: 'CUSTOMER',
-                actor_id: userId,
-                reason: reason,
-                new_state: 'DISPUTED'
+            if (files && files.length > 0) {
+                files.forEach((file) => {
+                    formData.append('files', file);
+                });
+            }
+
+            const response = await fetch(`${API_URL}/returns/dispute`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
             });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to escalate dispute');
+            }
 
             await get().fetchReturnsAndDisputes();
             return true;
-        } catch (err) {
-            console.error('Failed to escalate dispute:', err);
+        } catch (error: any) {
+            console.error('Failed to escalate dispute:', error);
+            const errorMessage = typeof error === 'object' && error.message ? error.message : 'Failed to escalate dispute';
+            set({ error: errorMessage });
             return false;
+        } finally {
+            set({ loading: false });
         }
     }
 }));

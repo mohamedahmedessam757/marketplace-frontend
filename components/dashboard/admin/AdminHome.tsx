@@ -36,7 +36,7 @@ interface AdminHomeProps {
 
 export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     const { t, language } = useLanguage();
-    const { currentAdmin, commissionRate, fetchDashboardStats, dashboardStats } = useAdminStore();
+    const { currentAdmin, commissionRate, fetchDashboardStats, dashboardStats, subscribeToStats, unsubscribeFromStats } = useAdminStore();
     const { orders } = useOrderStore(); // Still kept for table, but stats come from backend now
     const { cases } = useResolutionStore();
     const { isRunning } = useSystemAutomation();
@@ -46,6 +46,11 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     // Fetch Real-time Stats on Mount
     React.useEffect(() => {
         fetchDashboardStats();
+        subscribeToStats();
+
+        return () => {
+            unsubscribeFromStats();
+        };
     }, []);
 
     // Helper for internal nav bubbling

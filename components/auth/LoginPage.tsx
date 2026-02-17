@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Lock, User, Store, Chrome, Smartphone } from 'lucide-react';
+import { User, Store, Phone, ArrowRight, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { OTPVerification } from './OTPVerification';
 import { OTPMethodSelection } from './OTPMethodSelection';
@@ -14,15 +14,14 @@ interface LoginPageProps {
   initialTab?: 'customer' | 'merchant';
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustomerRegisterClick, onLoginSuccess, onForgotPasswordClick, initialTab = 'customer' }) => {
-  const { t } = useLanguage();
+export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustomerRegisterClick, onLoginSuccess, initialTab = 'customer' }) => {
+  const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState<'customer' | 'merchant'>(initialTab);
   const [otpStep, setOtpStep] = useState<'none' | 'method' | 'verify'>('none');
   const [otpMethod, setOtpMethod] = useState<'email' | 'whatsapp'>('email');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [userName, setUserName] = useState('');
-  const [userPhone, setUserPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const [userEmail, setUserEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,42 +31,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustome
     setError(null);
 
     try {
-      // 1. Authenticate
-      const data = await authApi.login(email, password);
+      // 1. Initiate Mobile Login
+      const data = await authApi.initiateMobileLogin(phone);
 
-      // Store Token
-      localStorage.setItem('access_token', data.access_token);
+      // Access user data from response structure { exists: true, user: { ... } }
+      const user = data.user;
+      const backendRole = user.role;
 
       // 2. Role Verification (Strict)
-      const backendRole = data.user.role;
-
       if (activeTab === 'customer' && backendRole !== 'CUSTOMER') {
-        throw new Error(t.auth.errors?.wrongAccountType);
+        throw new Error(t.auth.errors?.wrongAccountType || 'Incorrect account type');
       }
 
       if (activeTab === 'merchant' && backendRole !== 'VENDOR') {
-        throw new Error(t.auth.errors?.wrongAccountType);
+        throw new Error(t.auth.errors?.wrongAccountType || 'Incorrect account type');
       }
 
-      // Store user details for OTP display
-      setUserName(data.user.name || '');
-      setUserPhone(data.user.phone || '');
+      // Store details for OTP flow
+      setUserName(user.name);
+      setUserEmail(user.email);
 
-      // 2. OTP Verification (Mock for M1)
-      // The user requested OTP method selection first.
+      // 3. Move to Method Selection
       setOtpStep('method');
 
-      // We do NOT call onLoginSuccess yet. It will be called by OTPVerification onVerify.
-      // Store temp data if needed, or rely on token being in localStorage already.
-
     } catch (err: any) {
-      console.error('Login Failed', err);
-      if (err.message && (err.message.includes('Merchant') || err.message.includes('Customer'))) {
+      console.error('Login Init Failed', err);
+      if (err.response?.status === 401 || err.response?.status === 404) {
+        setError(t.auth.errors?.accountNotFound || 'Account not found');
+      } else if (err.message && (err.message.includes('Incorrect account type'))) {
         setError(err.message);
-      } else if (err.response?.status === 401) {
-        setError(t.auth.errors?.invalidCredentials);
       } else {
-        setError(t.auth.errors?.loginFailed);
+        setError(t.auth.errors?.loginFailed || 'Login failed');
       }
     } finally {
       setIsLoading(false);
@@ -78,7 +72,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustome
     return (
       <div className="p-4">
         <OTPMethodSelection
-          email={email}
+          email={userEmail} // User's email from backend
           name={userName}
           onSelect={(method) => {
             setOtpMethod(method);
@@ -92,25 +86,41 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustome
   if (otpStep === 'verify') {
     return (
       <div className="p-4">
-        {/* 
-                  Passing email for display. 
-                  In a real app, verify OTP against backend here.
-                  For M1, we accept valid code and proceed.
-               */}
         <OTPVerification
-          email={email}
-          phone={userPhone}
+          email={userEmail}
+          phone={phone}
           method={otpMethod}
-          onVerify={(code) => {
-            // On success, finalize login
-            let frontendRole: 'customer' | 'merchant' = activeTab;
-            // (We already validated the role matches the tab)
-            onLoginSuccess(frontendRole);
+          onVerify={async (code) => {
+            try {
+              setIsLoading(true);
+              const response = await authApi.verifyMobileLogin(phone, code);
+
+              // Store Token
+              localStorage.setItem('access_token', response.access_token);
+
+              // Store User Info
+              if (response.user) {
+                localStorage.setItem('user', JSON.stringify(response.user));
+              }
+
+              // Proceed to Dashboard
+              onLoginSuccess(activeTab);
+            } catch (err: any) {
+              console.error('Verify Failed', err);
+              // Handle error (maybe show it in the OTP component, but for now we log it or set global error)
+              // Ideally OTPVerification should handle async errors if we pass a promise.
+              // For this fix, we will alert or set state if possible, but OTP verification component might be unmounted on success.
+              alert(t.auth.errors?.invalidCode || 'Invalid verification code');
+            } finally {
+              setIsLoading(false);
+            }
           }}
         />
       </div>
     );
   }
+
+  const ArrowIcon = language === 'ar' ? ArrowRight : ArrowRight; // OTP component manages direction internally usually, keeping simple here.
 
   return (
     <div className="space-y-6">
@@ -136,101 +146,66 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onRegisterClick, onCustome
 
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-white mb-2">{t.auth.login.title}</h2>
-        <p className="text-white/60 text-sm">{t.auth.login.subtitle}</p>
+        <p className="text-white/60 text-sm">
+          {activeTab === 'customer'
+            ? (t.auth.login.subtitle || 'Enter your mobile number to continue')
+            : (t.auth.login.subtitle || 'Enter your registered mobile number')}
+        </p>
       </div>
 
-      <form onSubmit={handleLoginSubmit} className="space-y-4">
+      <form onSubmit={handleLoginSubmit} className="space-y-6">
         {error && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-3 rounded-lg text-sm text-center">
+          <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-sm text-center flex items-center justify-center gap-2">
+            <AlertCircle size={18} />
             {error}
           </div>
         )}
 
         <div>
-          <label className="block text-sm text-gold-200 mb-2">{t.auth.login.email}</label>
-          <div className="relative group">
-            <Mail className="absolute top-3.5 right-3.5 w-5 h-5 text-white/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
-            <input
-              type="email"
-              required
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-10 text-white focus:border-gold-500 outline-none transition-all placeholder-white/20"
-              placeholder="name@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm text-gold-200 mb-2">{t.auth.login.password}</label>
-          <div className="relative group">
-            <Lock className="absolute top-3.5 right-3.5 w-5 h-5 text-white/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
-            <input
-              type="password"
-              required
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-10 text-white focus:border-gold-500 outline-none transition-all placeholder-white/20"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between text-xs md:text-sm">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="rounded bg-white/10 border-white/20 text-gold-500 focus:ring-gold-500" />
-            <span className="text-white/70">{t.auth.login.rememberMe}</span>
+          <label className="block text-sm text-gold-200 mb-2 font-medium">
+            {t.auth.register?.phone || 'Mobile Number'}
           </label>
-          <button type="button" onClick={onForgotPasswordClick} className="text-gold-400 hover:text-gold-300 transition-colors">
-            {t.auth.login.forgotPassword}
-          </button>
+          <div className="relative group">
+            <div className="absolute top-1/2 -translate-y-1/2 left-3 flex items-center gap-2 border-r border-white/10 pr-3 pointer-events-none">
+              <Phone className="w-5 h-5 text-gold-500" />
+            </div>
+            <input
+              type="tel"
+              required
+              className="w-full bg-white/5 border border-white/10 rounded-xl pl-14 pr-4 py-4 text-white focus:border-gold-500 outline-none transition-all placeholder-white/20 text-lg tracking-wide"
+              placeholder="+966 50 000 0000"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              dir="ltr"
+            />
+          </div>
         </div>
 
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full py-3.5 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] disabled:opacity-50"
+          className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold text-lg shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {isLoading ? 'Wait...' : t.auth.login.submit}
+          {isLoading ? (
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <>
+              {t.auth.login.submit}
+            </>
+          )}
         </button>
       </form>
 
-      {activeTab === 'customer' && (
-        <>
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-white/10"></div>
-            <span className="flex-shrink-0 mx-4 text-white/30 text-xs uppercase">{t.auth.login.or}</span>
-            <div className="flex-grow border-t border-white/10"></div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button className="flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-colors">
-              <Chrome size={18} className="text-red-500" />
-              <span className="text-sm font-medium">Google</span>
-            </button>
-            <button className="flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-colors">
-              <Smartphone size={18} className="text-blue-400" />
-              <span className="text-sm font-medium">Microsoft</span>
-            </button>
-          </div>
-
-          <div className="text-center pt-4 border-t border-white/5 mt-4">
-            <span className="text-white/50 text-sm">{t.auth.login.noAccount} </span>
-            <button onClick={onCustomerRegisterClick} className="text-gold-400 font-bold hover:underline">
-              {t.auth.login.registerNow}
-            </button>
-          </div>
-        </>
-      )}
-
-      {activeTab === 'merchant' && (
-        <div className="text-center pt-4 border-t border-white/5">
-          <span className="text-white/50 text-sm">{t.auth.login.noAccount} </span>
-          <button onClick={onRegisterClick} className="text-gold-400 font-bold hover:underline">
-            {t.auth.login.registerNow}
-          </button>
-        </div>
-      )}
+      {/* Registration Links Only - No more social or forgot password */}
+      <div className="text-center pt-6 border-t border-white/5">
+        <span className="text-white/50 text-sm block mb-2">{t.auth.login.noAccount}</span>
+        <button
+          onClick={activeTab === 'customer' ? onCustomerRegisterClick : onRegisterClick}
+          className="text-gold-400 font-bold hover:text-gold-300 transition-colors uppercase tracking-wider text-sm border border-gold-500/30 px-6 py-2 rounded-full hover:bg-gold-500/10"
+        >
+          {t.auth.login.registerNow}
+        </button>
+      </div>
     </div>
   );
 };

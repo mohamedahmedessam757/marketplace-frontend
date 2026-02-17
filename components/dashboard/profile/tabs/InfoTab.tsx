@@ -4,6 +4,7 @@ import { useProfileStore } from '../../../../stores/useProfileStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 
+// 7. Input Group Component
 const InputGroup = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }: any) => (
     <div className="space-y-2">
         <label className="text-xs text-white/40 uppercase tracking-wider">{label}</label>
@@ -19,11 +20,13 @@ const InputGroup = ({ label, value, onChange, type = "text", placeholder = "", d
 );
 
 export const InfoTab: React.FC = () => {
-    const { user, loading, fetchProfile, updateUser } = useProfileStore();
+    const { user, loading, fetchProfile, updateUser, uploadAvatar } = useProfileStore();
     const { t, language } = useLanguage();
     const [success, setSuccess] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
+    // Initial Fetch
     useEffect(() => {
         fetchProfile();
     }, [fetchProfile]);
@@ -42,35 +45,91 @@ export const InfoTab: React.FC = () => {
         }
     };
 
+    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            await uploadAvatar(file);
+        } catch (err: any) {
+            console.error(err);
+            alert(err.message || "Failed to upload");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    // 1. Loading State - Active Spinner
     if (loading && !user) {
         return (
-            <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                <Loader2 className="w-10 h-10 text-gold-500 animate-spin" />
+                <p className="text-white/40 text-sm">Loading Profile...</p>
             </div>
         );
     }
 
+    // 2. Error/Empty State - Retry Button (Prevents Blank Screen)
     if (!user) {
         return (
-            <div className="text-center py-10 text-white/50">
-                {t.dashboard.common?.notFound || 'User not found'}
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                <div className="text-white/50 text-lg">
+                    {t.dashboard.common?.notFound || 'User profile could not be loaded.'}
+                </div>
+                <button
+                    onClick={() => fetchProfile()}
+                    className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white transition-colors"
+                >
+                    Retry
+                </button>
             </div>
         );
     }
 
+    // 3. Main Content
     return (
         <motion.div key="info" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
-            <div className="flex items-center gap-4 mb-8">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-gold-600 to-gold-400 p-[2px]">
-                    <div className="w-full h-full rounded-full bg-[#1A1814] flex items-center justify-center">
-                        <span className="text-2xl font-bold text-white">
-                            {user.name ? user.name.substring(0, 2).toUpperCase() : 'US'}
-                        </span>
+            <div className="flex items-center gap-6 mb-8">
+                <div className="relative group cursor-pointer w-24 h-24">
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-gold-600 to-gold-400 p-[2px]">
+                        <div className="w-full h-full rounded-full bg-[#1A1814] flex items-center justify-center overflow-hidden relative">
+                            {user.avatar ? (
+                                <img src={user.avatar} alt="Profile" className={`w-full h-full object-cover transition-all ${isUploading ? 'opacity-50' : 'group-hover:opacity-50'}`} />
+                            ) : (
+                                <span className="text-3xl font-bold text-white transition-all">
+                                    {user.name ? user.name.substring(0, 2).toUpperCase() : 'US'}
+                                </span>
+                            )}
+
+                            {/* Upload Overlay & Loading */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${isUploading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                {isUploading ? (
+                                    <div className="bg-black/50 absolute inset-0 flex items-center justify-center">
+                                        <Loader2 className="animate-spin text-white w-8 h-8" />
+                                    </div>
+                                ) : (
+                                    <span className="text-xs font-bold text-white bg-black/50 px-2 py-1 rounded backdrop-blur-sm">Upload</span>
+                                )}
+                            </div>
+                        </div>
                     </div>
+                    {/* Hidden Input */}
+                    <input
+                        type="file"
+                        accept="image/*"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        onChange={handleAvatarUpload}
+                        disabled={isUploading}
+                    />
                 </div>
+
                 <div>
-                    <h2 className="text-xl font-bold text-white">{user.name || user.email}</h2>
-                    <p className="text-white/40 text-sm">{user.role}</p>
+                    <h2 className="text-2xl font-bold text-white">{user.name || user.email}</h2>
+                    <p className="text-white/40 text-sm flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                        {user.role}
+                    </p>
                 </div>
             </div>
 

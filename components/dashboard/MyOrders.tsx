@@ -92,6 +92,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
 
     // Helper for Expiration
     const isOrderExpired = (order: Order) => {
+        if (order.status === 'CANCELLED') return true;
         if (order.status !== 'AWAITING_OFFERS') return false;
         const created = new Date(order.created_at).getTime();
         const now = new Date().getTime();
@@ -127,7 +128,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                 // I will include both for better UX, or just Expired. Let's stick to Expired + Cancelled to be safe, or just Expired?
                 // "Expired" usually implies "Time run out". "Cancelled" implies user action.
                 // I will strictly check for Expired (Time) OR Cancelled (Status) to show in this tab, as "Cancelled" tab is gone.
-                if (!expired && !['CANCELLED', 'RETURNED'].includes(order.status)) return false;
+                if (!expired && !['CANCELLED'].includes(order.status)) return false;
             } else if (statusFilter === 'PENDING') {
                 if (expired) return false;
                 if (order.status !== 'AWAITING_OFFERS') return false;

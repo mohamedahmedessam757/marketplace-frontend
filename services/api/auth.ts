@@ -21,6 +21,11 @@ export const authApi = {
         return response.data;
     },
 
+    initiateMobileLogin: async (phone: string) => {
+        const response = await client.post('/auth/mobile-login-init', { phone });
+        return response.data;
+    },
+
     sendOTP: async (email: string) => {
         const response = await client.post('/auth/otp/send', { email });
         return response.data;
@@ -29,5 +34,17 @@ export const authApi = {
     verifyOTP: async (email: string, code: string) => {
         const response = await client.post('/auth/otp/verify', { email, code });
         return response.data;
+    },
+
+    verifyMobileLogin: async (phone: string, code: string) => {
+        const response = await client.post('/auth/mobile-login-verify', { phone, code });
+        return response.data;
+    },
+
+    updateProfile: async (data: any) => {
+        const response = await client.post('/users/profile/update', data);
+        return response.data;
     }
+
+
 };

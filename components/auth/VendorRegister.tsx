@@ -204,7 +204,11 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete }) =>
 
     } catch (err: any) {
       console.error('Vendor Registration Error', err);
-      setError(err.response?.data?.message || t.auth.errors?.registrationFailed);
+      if (err.response?.status === 409) {
+        setError(t.auth.errors?.phoneExists || 'Phone number already exists');
+      } else {
+        setError(err.response?.data?.message || t.auth.errors?.registrationFailed);
+      }
       setIsSubmitting(false);
     }
   };

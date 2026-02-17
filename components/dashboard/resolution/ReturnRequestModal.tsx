@@ -6,6 +6,8 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 
+import { FileUploader } from '../../ui/FileUploader';
+
 interface ReturnRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -22,6 +24,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ isOpen, 
 
     const [reason, setReason] = useState('');
     const [description, setDescription] = useState('');
+    const [files, setFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async () => {
@@ -29,20 +32,22 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ isOpen, 
         setIsSubmitting(true);
 
         // Call Real Store Logic
-        const success = await requestReturn(String(orderId), reason);
+        const success = await requestReturn(String(orderId), reason, description, files);
 
         if (success) {
             // TRIGGER NOTIFICATION FOR MERCHANT (Simulated local notification for now)
             addNotification({
-                type: 'dispute',
-                titleKey: 'disputeUpdate',
-                message: language === 'ar'
-                    ? `طلب إرجاع جديد للطلب #${orderId}. السبب: ${t.dashboard.resolution.reasons[reason as keyof typeof t.dashboard.resolution.reasons]}`
-                    : `New Return Request for Order #${orderId}. Reason: ${reason}`,
-                orderId: orderId,
-                linkTo: 'dispute-details', // Merchant link
-                priority: 'urgent',
-                channels: ['app', 'email']
+                type: 'DISPUTE',
+                titleEn: 'New Return Request',
+                titleAr: 'طلب إرجاع جديد',
+                messageEn: `New Return Request for Order #${orderId}. Reason: ${reason}`,
+                messageAr: `طلب إرجاع جديد للطلب #${orderId}. السبب: ${t.dashboard.resolution.reasons[reason as keyof typeof t.dashboard.resolution.reasons]}`,
+                link: `/dashboard/orders/${orderId}`,
+                metadata: {
+                    orderId: orderId,
+                    fileCount: files.length,
+                    hasVideo: files.some(f => f.type.startsWith('video'))
+                }
             });
 
             onSuccess();
@@ -81,7 +86,12 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ isOpen, 
                     <div className="space-y-4 mb-6">
                         <div className="p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-xl flex items-start gap-3">
                             <AlertCircle className="text-cyan-400 shrink-0 mt-0.5" size={18} />
-                            <p className="text-xs text-cyan-200 leading-relaxed">{t.dashboard.resolution.returnPolicy}</p>
+                            <p className="text-xs text-cyan-200 leading-relaxed">
+                                {language === 'ar'
+                                    ? 'يرجى إرفاق صورة واضحة للطلب كمرجع رسمي عند أي نزاع مع التاجر. إذا لم تتوفر صورة، يمكن رفع صورة فارغة، مع العلم أن العميل يتحمل المسؤولية بذلك.'
+                                    : 'Please attach a clear image of the order as an official reference. If no image is available, you may upload a blank image, but you bear full responsibility.'
+                                }
+                            </p>
                         </div>
 
                         {/* Reason Select */}
@@ -110,10 +120,16 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ isOpen, 
                         </div>
 
                         {/* Evidence Upload */}
-                        <div className="border border-dashed border-white/10 rounded-xl p-6 flex flex-col items-center justify-center text-white/30 hover:bg-white/5 hover:border-cyan-500/30 cursor-pointer transition-colors group">
-                            <UploadCloud size={32} className="mb-2 group-hover:text-cyan-400 transition-colors" />
-                            <span className="text-xs font-bold text-white/50">{t.dashboard.resolution.form.evidence}</span>
-                            <span className="text-[10px] mt-1">{t.dashboard.resolution.form.upload}</span>
+                        <div className="space-y-2">
+                            <label className="block text-xs text-white/40 mb-2">{t.dashboard.resolution.form.evidence} ({t.dashboard.resolution.form.optional})</label>
+                            <FileUploader
+                                onFilesSelected={(files) => setFiles(files)}
+                                accept={{
+                                    'image/*': ['.png', '.jpg', '.jpeg', '.webp'],
+                                    'video/*': ['.mp4', '.mov', '.webm']
+                                }}
+                                maxFiles={5}
+                            />
                         </div>
                     </div>
 

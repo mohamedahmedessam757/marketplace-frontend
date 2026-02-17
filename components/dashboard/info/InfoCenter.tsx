@@ -11,7 +11,7 @@ export const InfoCenter: React.FC = () => {
   const { createTicket } = useSupportStore();
   const [activeTab, setActiveTab] = useState('about');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
-  
+
   // Contact Form State
   const [message, setMessage] = useState('');
   const [subject, setSubject] = useState('');
@@ -38,14 +38,7 @@ export const InfoCenter: React.FC = () => {
 
     setIsSending(true);
     setTimeout(() => {
-      createTicket({
-        userId: 'CURRENT_USER', // In real app, get from auth context
-        userType: 'customer',
-        userName: 'Current User',
-        email: 'user@example.com',
-        subject: subject,
-        priority: 'MEDIUM',
-      });
+      createTicket(subject, message, 'MEDIUM');
       setIsSending(false);
       setShowSuccess(true);
       setMessage('');
@@ -72,8 +65,8 @@ export const InfoCenter: React.FC = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`
                 w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-                ${activeTab === tab.id 
-                  ? 'bg-gold-500 text-white shadow-lg shadow-gold-500/20' 
+                ${activeTab === tab.id
+                  ? 'bg-gold-500 text-white shadow-lg shadow-gold-500/20'
                   : 'text-white/50 hover:bg-white/5 hover:text-white'}
               `}
             >
@@ -87,27 +80,27 @@ export const InfoCenter: React.FC = () => {
         <div className="lg:col-span-3">
           <GlassCard className="min-h-[500px] p-6 md:p-10 bg-[#1A1814]/80">
             <AnimatePresence mode="wait">
-              
+
               {/* ABOUT */}
               {activeTab === 'about' && (
                 <motion.div key="about" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                   <h2 className="text-2xl font-bold text-white mb-6">{t.about.title}</h2>
                   <div className="prose prose-invert max-w-none text-white/80">
-                     <p className="mb-4 text-white/90 font-medium">{t.about.description}</p>
-                     
-                     <div className="grid md:grid-cols-2 gap-6 my-8">
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                            <h3 className="text-gold-400 font-bold mb-2">{t.about.missionTitle}</h3>
-                            <p className="text-sm">{t.about.missionDesc1}</p>
-                        </div>
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                            <h3 className="text-gold-400 font-bold mb-2">{t.about.philosophyTitle}</h3>
-                            <ul className="text-sm list-disc list-inside space-y-1">
-                                {t.about.values.map((v, i) => <li key={i}>{v}</li>)}
-                            </ul>
-                        </div>
-                     </div>
-                     <p className="text-sm text-white/60">{t.about.missionDesc2}</p>
+                    <p className="mb-4 text-white/90 font-medium">{t.about.description}</p>
+
+                    <div className="grid md:grid-cols-2 gap-6 my-8">
+                      <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                        <h3 className="text-gold-400 font-bold mb-2">{t.about.missionTitle}</h3>
+                        <p className="text-sm">{t.about.missionDesc1}</p>
+                      </div>
+                      <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                        <h3 className="text-gold-400 font-bold mb-2">{t.about.philosophyTitle}</h3>
+                        <ul className="text-sm list-disc list-inside space-y-1">
+                          {t.about.values.map((v, i) => <li key={i}>{v}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                    <p className="text-sm text-white/60">{t.about.missionDesc2}</p>
                   </div>
                 </motion.div>
               )}
@@ -120,7 +113,20 @@ export const InfoCenter: React.FC = () => {
                     {t.legal.privacyContent.map((item, idx) => (
                       <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/5">
                         <h3 className="font-bold text-white mb-2">{item.title}</h3>
-                        <p className="text-sm text-white/70 leading-relaxed">{item.content}</p>
+                        <div className="text-sm text-white/70 leading-relaxed">
+                          {Array.isArray(item.content) ? (
+                            <ul className="space-y-2">
+                              {item.content.map((line, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="text-gold-500 mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-current" />
+                                  <span>{line.replace(/^•\s*/, '')}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            item.content
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -129,17 +135,30 @@ export const InfoCenter: React.FC = () => {
 
               {/* TERMS */}
               {activeTab === 'terms' && (
-                 <motion.div key="terms" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                 <h2 className="text-2xl font-bold text-white mb-6">{t.legal.tabs.terms}</h2>
-                 <div className="space-y-4">
-                   {t.legal.termsContent.map((item, idx) => (
-                     <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/5">
-                       <h3 className="font-bold text-white mb-2">{item.title}</h3>
-                       <p className="text-sm text-white/70 leading-relaxed">{item.content}</p>
-                     </div>
-                   ))}
-                 </div>
-               </motion.div>
+                <motion.div key="terms" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                  <h2 className="text-2xl font-bold text-white mb-6">{t.legal.tabs.terms}</h2>
+                  <div className="space-y-4">
+                    {t.legal.termsContent.map((item, idx) => (
+                      <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/5">
+                        <h3 className="font-bold text-white mb-2">{item.title}</h3>
+                        <div className="text-sm text-white/70 leading-relaxed">
+                          {Array.isArray(item.content) ? (
+                            <ul className="space-y-2">
+                              {item.content.map((line, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="text-gold-500 mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-current" />
+                                  <span>{line.replace(/^•\s*/, '')}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            item.content
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
               )}
 
               {/* FAQ */}
@@ -149,7 +168,7 @@ export const InfoCenter: React.FC = () => {
                   <div className="space-y-3">
                     {faqs.map((faq, idx) => (
                       <div key={idx} className="border border-white/10 rounded-xl overflow-hidden">
-                        <button 
+                        <button
                           onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
                           className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 transition-colors text-left"
                         >
@@ -158,9 +177,9 @@ export const InfoCenter: React.FC = () => {
                         </button>
                         <AnimatePresence>
                           {expandedFaq === idx && (
-                            <motion.div 
-                              initial={{ height: 0 }} 
-                              animate={{ height: 'auto' }} 
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{ height: 'auto' }}
                               exit={{ height: 0 }}
                               className="bg-[#151310] overflow-hidden"
                             >
@@ -180,23 +199,23 @@ export const InfoCenter: React.FC = () => {
               {activeTab === 'contact' && (
                 <motion.div key="contact" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                   <h2 className="text-2xl font-bold text-white mb-6">{t.dashboard.infoCenter.tabs.contact}</h2>
-                  
+
                   {/* Contact Info Cards */}
                   <div className="grid grid-cols-2 gap-4 mb-8">
-                      <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex items-center gap-3">
-                          <div className="p-2 bg-gold-500/20 text-gold-400 rounded-lg"><Mail size={20} /></div>
-                          <div>
-                              <div className="text-[10px] text-white/40 uppercase">Email</div>
-                              <div className="text-sm font-bold text-white">cs@e-tashleh.net</div>
-                          </div>
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex items-center gap-3">
+                      <div className="p-2 bg-gold-500/20 text-gold-400 rounded-lg"><Mail size={20} /></div>
+                      <div>
+                        <div className="text-[10px] text-white/40 uppercase">Email</div>
+                        <div className="text-sm font-bold text-white">cs@e-tashleh.net</div>
                       </div>
-                      <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex items-center gap-3">
-                          <div className="p-2 bg-gold-500/20 text-gold-400 rounded-lg"><Phone size={20} /></div>
-                          <div>
-                              <div className="text-[10px] text-white/40 uppercase">Phone</div>
-                              <div className="text-sm font-bold text-white">0525700525</div>
-                          </div>
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex items-center gap-3">
+                      <div className="p-2 bg-gold-500/20 text-gold-400 rounded-lg"><Phone size={20} /></div>
+                      <div>
+                        <div className="text-[10px] text-white/40 uppercase">Phone</div>
+                        <div className="text-sm font-bold text-white">0525700525</div>
                       </div>
+                    </div>
                   </div>
 
                   {showSuccess ? (
@@ -210,11 +229,11 @@ export const InfoCenter: React.FC = () => {
                       <div className="bg-gradient-to-br from-gold-600/20 to-transparent p-6 rounded-2xl border border-gold-500/20 mb-6">
                         <p className="text-white">Need help? Open a support ticket directly.</p>
                       </div>
-                      
+
                       <div>
                         <label className="block text-white/60 text-sm mb-2">Subject</label>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           required
                           value={subject}
                           onChange={(e) => setSubject(e.target.value)}
@@ -225,7 +244,7 @@ export const InfoCenter: React.FC = () => {
 
                       <div>
                         <label className="block text-white/60 text-sm mb-2">Message</label>
-                        <textarea 
+                        <textarea
                           rows={4}
                           required
                           value={message}
@@ -235,7 +254,7 @@ export const InfoCenter: React.FC = () => {
                         />
                       </div>
 
-                      <button 
+                      <button
                         type="submit"
                         disabled={isSending}
                         className="w-full py-3 bg-gold-500 hover:bg-gold-600 disabled:opacity-70 text-white rounded-xl font-bold flex items-center justify-center gap-2"

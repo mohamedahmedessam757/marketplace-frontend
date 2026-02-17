@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { GlassCard } from '../ui/GlassCard';
 import { Button } from '../ui/Button';
 import { Badge, StatusType } from '../ui/Badge';
-import { Plus, Search, Car, ArrowRight, ArrowLeft, Clock, CheckCircle2, TrendingUp, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Plus, Search, Car, ArrowRight, ArrowLeft, Clock, CheckCircle2, TrendingUp, ChevronRight, ChevronLeft, Activity } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useOrderStore } from '../../stores/useOrderStore';
 
@@ -207,53 +207,82 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                     )}
                 </motion.div>
 
-                {/* 4. Recent History (Right Col - Span 1) */}
+                {/* 4. Recent Activity (Right Col - Span 1) */}
                 <motion.div variants={itemVariants} className="space-y-6">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                        <span className="w-1.5 h-6 bg-white/20 rounded-full"></span>
-                        {(t.dashboard as any).dashboardHome?.headers.recentActivity}
-                    </h3>
+                    <GlassCard className="h-full flex flex-col min-h-[400px]">
+                        <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                            <h3 className="font-bold text-white flex items-center gap-2">
+                                <Activity size={18} className="text-gold-500" />
+                                {(t.dashboard as any).dashboardHome?.headers.recentActivity || 'Activity'}
+                            </h3>
+                            <button onClick={() => onNavigate('orders')} className="text-xs text-gold-500 hover:text-gold-400 transition-colors">
+                                {t.common.viewAll}
+                            </button>
+                        </div>
 
-                    <div className="space-y-3">
-                        {orders.slice(0, 3).map((order, i) => (
-                            <GlassCard
-                                key={i}
-                                className="p-4 flex items-center gap-4 bg-[#1A1814] border-white/5 hover:border-gold-500/30 hover:bg-white/5 transition-all cursor-pointer group"
-                                onClick={() => onNavigate('order-details', order.id)}
+                        {/* Changed h-64 to min-h-[100px] max-h-[300px] h-auto to fit content tightly */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar min-h-[100px] max-h-[300px] h-auto">
+                            {orders.filter(o => !['COMPLETED', 'CANCELLED', 'RETURNED', 'REFUNDED', 'RESOLVED', 'DELIVERED'].includes(o.status)).length === 0 ? (
+                                <div className="flex flex-col items-center justify-center text-white/30 space-y-2 py-8">
+                                    <Activity size={32} />
+                                    <span className="text-sm">{t.common.noData}</span>
+                                </div>
+                            ) : (
+                                orders
+                                    .filter(o => !['COMPLETED', 'CANCELLED', 'RETURNED', 'REFUNDED', 'RESOLVED', 'DELIVERED'].includes(o.status))
+                                    .slice(0, 3) // STRICTLY LIMIT TO 3
+                                    .map((order, i) => (
+                                        <motion.div
+                                            key={order.id}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: i * 0.1 }}
+                                            onClick={() => onNavigate('order-details', order.id)}
+                                            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-gold-500/30 transition-all cursor-pointer group"
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <div className="font-bold text-white text-sm group-hover:text-gold-400 transition-colors">
+                                                        {order.car}
+                                                    </div>
+                                                    <div className="text-xs text-white/50">{order.part}</div>
+                                                </div>
+                                                <span className="text-[10px] text-white/30 font-mono">{order.date}</span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                                    <span className="text-xs text-white/60 font-medium">Active</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 text-xs font-medium">
+                                                    {order.offersCount > 0 ? (
+                                                        <span className="text-gold-400 bg-gold-500/10 px-3 py-1 rounded-lg border border-gold-500/20 flex items-center gap-1.5 font-bold">
+                                                            <span>{order.offersCount}</span>
+                                                            <span>{language === 'ar' ? 'عرض' : 'Offers'}</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-white/30 px-2 py-0.5">{language === 'ar' ? 'بانتظار العروض' : 'Awaiting Offers'}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                            )}
+                        </div>
+
+                        {/* Integrated Footer Button */}
+                        <div className="p-4 border-t border-white/5 bg-white/5">
+                            <button
+                                onClick={() => onNavigate('orders')}
+                                className="w-full py-2.5 rounded-lg bg-gold-500/10 text-gold-400 font-bold text-sm hover:bg-gold-500 hover:text-black transition-all border border-gold-500/20"
                             >
-                                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/30 border border-white/10 group-hover:text-gold-400 group-hover:border-gold-500/30 transition-colors">
-                                    <Car size={16} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-center mb-0.5">
-                                        <h4 className="font-bold text-white text-sm truncate">{order.part}</h4>
-                                        <span className="text-[10px] text-white/40">{order.date}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <div className="text-xs text-white/50 truncate">{order.car}</div>
-                                        <div className={`text-xs font-bold ${order.status === 'COMPLETED' ? 'text-green-400' : 'text-gold-400'}`}>
-                                            {order.price || '---'}
-                                        </div>
-                                    </div>
-                                </div>
-                            </GlassCard>
-                        ))}
-
-                        {orders.length === 0 && (
-                            <div className="text-center text-white/30 text-sm py-4">
-                                {(t.dashboard as any).dashboardHome?.empty.noHistory}
-                            </div>
-                        )}
-
-                        <button
-                            onClick={() => onNavigate('orders')}
-                            className="w-full py-3 rounded-xl border border-dashed border-white/10 text-white/40 text-sm hover:text-white hover:border-white/20 hover:bg-white/5 transition-all"
-                        >
-                            {(t.dashboard as any).dashboardHome?.actions.viewHistory}
-                        </button>
-                    </div>
+                                {(t.dashboard as any).dashboardHome?.actions.viewHistory}
+                            </button>
+                        </div>
+                    </GlassCard>
                 </motion.div>
-
             </div>
         </motion.div>
     );

@@ -6,6 +6,8 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 
+import { FileUploader } from '../../ui/FileUploader';
+
 interface DisputeModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -22,6 +24,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({ isOpen, onClose, ord
 
     const [reason, setReason] = useState('');
     const [description, setDescription] = useState('');
+    const [files, setFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async () => {
@@ -29,17 +32,22 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({ isOpen, onClose, ord
         setIsSubmitting(true);
 
         // Real API Call
-        const success = await escalateDispute(String(orderId), reason);
+        const success = await escalateDispute(String(orderId), reason, description, files);
 
         if (success) {
             // 2. Trigger Notification for Merchant
             addNotification({
-                type: 'dispute',
-                titleKey: 'disputeUpdate',
-                message: `New dispute opened for Order #${orderId}. Reason: ${reason}`,
-                orderId: orderId,
-                linkTo: 'dispute-details',
-                priority: 'urgent'
+                type: 'DISPUTE',
+                titleEn: 'New Dispute Opened',
+                titleAr: 'تم فتح نزاع جديد',
+                messageEn: `New dispute opened for Order #${orderId}. Reason: ${reason}`,
+                messageAr: `تم فتح نزاع جديد للطلب #${orderId}. السبب: ${reason}`,
+                link: `/dashboard/orders/${orderId}`,
+                metadata: {
+                    orderId: orderId,
+                    fileCount: files.length,
+                    hasVideo: files.some(f => f.type.startsWith('video'))
+                }
             });
 
             onSuccess();
@@ -77,7 +85,12 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({ isOpen, onClose, ord
                         {/* Warning Banner */}
                         <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
                             <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={20} />
-                            <p className="text-xs text-red-200 leading-relaxed font-bold">{t.dashboard.resolution.alerts.freeze}</p>
+                            <p className="text-xs text-red-200 leading-relaxed font-bold">
+                                {language === 'ar'
+                                    ? 'يرجى إرفاق صورة واضحة للطلب كمرجع رسمي عند أي نزاع مع التاجر. إذا لم تتوفر صورة، يمكن رفع صورة فارغة، مع العلم أن العميل يتحمل المسؤولية بذلك.'
+                                    : 'Please attach a clear image of the order as an official reference. If no image is available, you may upload a blank image, but you bear full responsibility.'
+                                }
+                            </p>
                         </div>
 
                         <p className="text-xs text-white/50 px-1">{t.dashboard.resolution.disputePolicy}</p>
@@ -108,10 +121,17 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({ isOpen, onClose, ord
                         </div>
 
                         {/* Evidence Upload */}
-                        <div className="border border-dashed border-white/10 rounded-xl p-6 flex flex-col items-center justify-center text-white/30 hover:bg-white/5 hover:border-red-500/30 cursor-pointer transition-colors group">
-                            <UploadCloud size={32} className="mb-2 group-hover:text-red-400 transition-colors" />
-                            <span className="text-xs font-bold text-white/50">{t.dashboard.resolution.form.evidence}</span>
-                            <span className="text-[10px] mt-1">{t.dashboard.resolution.form.upload}</span>
+                        {/* Evidence Upload */}
+                        <div className="space-y-2">
+                            <label className="block text-xs text-white/40 mb-2">{t.dashboard.resolution.form.evidence} ({t.dashboard.resolution.form.optional})</label>
+                            <FileUploader
+                                onFilesSelected={(files) => setFiles(files)}
+                                accept={{
+                                    'image/*': ['.png', '.jpg', '.jpeg', '.webp'],
+                                    'video/*': ['.mp4', '.mov', '.webm']
+                                }}
+                                maxFiles={5}
+                            />
                         </div>
                     </div>
 

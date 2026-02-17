@@ -84,9 +84,14 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
 
       // Show OTP Step
       setOtpStep('method');
+      setOtpStep('method');
     } catch (err: any) {
       console.error(err);
-      setError(err.response?.data?.message || t.auth.errors?.registrationFailed);
+      if (err.response?.status === 409) {
+        setError(t.auth.errors?.phoneExists || 'Phone number already exists');
+      } else {
+        setError(err.response?.data?.message || t.auth.errors?.registrationFailed);
+      }
     } finally {
       setIsLoading(false);
     }

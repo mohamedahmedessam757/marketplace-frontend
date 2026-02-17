@@ -98,22 +98,14 @@ export const HowWeWorkScreen: React.FC<HowWeWorkScreenProps> = ({ onComplete, on
                     transition={{ delay: 0.8 }}
                     className="flex flex-col gap-4"
                 >
-                    {/* Order Now -> Role Selection (reusing validation flow logic from User Request) */}
+                    {/* Continue Order -> Login */}
                     <button
                         onClick={onComplete}
                         className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                         {language === 'ar' && <ArrowIcon size={20} />}
-                        {roleSelection?.features?.orderNow || 'انتقل للطلب الآن'}
+                        {roleSelection?.features?.orderNow || 'متابعة الطلب'}
                         {language !== 'ar' && <ArrowIcon size={20} />}
-                    </button>
-
-                    {/* How We Work -> Landing Page */}
-                    <button
-                        onClick={onBack}
-                        className="w-full py-3 bg-white/5 hover:bg-white/10 border border-gold-500/30 text-gold-400 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                    >
-                        {roleSelection?.features?.back || 'كيف نعمل'}
                     </button>
                 </motion.div>
             </div>
