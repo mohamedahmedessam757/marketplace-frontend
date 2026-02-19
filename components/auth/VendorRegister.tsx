@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store, Mail, Phone, Lock, User, CheckCircle2, UploadCloud,
   ChevronRight, ChevronLeft, Loader2, AlertCircle, FileCheck, Check,
-  FileText, Eye, MapPin
+  FileText, Eye, MapPin, ArrowLeft
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useVendorStore } from '../../stores/useVendorStore';
@@ -14,9 +14,10 @@ import { authApi } from '@/services/api/auth';
 
 interface VendorRegisterProps {
   onComplete: () => void;
+  onBack?: () => void;
 }
 
-export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete }) => {
+export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBack }) => {
   const { t, language } = useLanguage();
   const store = useVendorStore();
   const { systemConfig } = useAdminStore(); // Fetch system config
@@ -282,9 +283,25 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete }) =>
   return (
     <div className="w-full">
       {store.step < 6 && (
-        <div className="text-center mb-8">
+        <div className="text-center mb-8 relative">
+          {/* Back Button for Step 1 */}
+          {store.step === 1 && onBack && (
+            <button
+              onClick={onBack}
+              className={`absolute top-0 ${language === 'ar' ? 'right-0' : 'left-0'} p-2 text-white/50 hover:text-white transition-colors`}
+            >
+              <ArrowLeft size={24} className={language === 'ar' ? 'rotate-180' : ''} />
+            </button>
+          )}
+
           <h2 className="text-3xl font-bold text-white mb-2">{t.merchants.cta}</h2>
-          <p className="text-white/50 text-sm">{t.merchants.desc}</p>
+          <p className="text-white/50 text-sm mb-4">{t.merchants.desc}</p>
+
+          {store.step === 1 && onBack && (
+            <button onClick={onBack} className="text-gold-400 hover:text-gold-300 text-sm underline underline-offset-4">
+              {t.auth.login.title || "Already have an account? Login"}
+            </button>
+          )}
         </div>
       )}
 

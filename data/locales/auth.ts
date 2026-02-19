@@ -16,6 +16,7 @@ export const auth = {
       description: 'نربطك بأفضل الموردين الموثوقين عالمياً (اليابان، كوريا، أمريكا، ألمانيا). نضمن لك قطع غيار أصلية شبه جديدة، حماية كاملة للمدفوعات، وخدمات لوجستية متكاملة حتى باب منزلك.',
       dashboardBtn: 'لوحة التحكم',
       requestNowBtn: 'أطلب الآن',
+      enterPartsRequests: 'الدخول لطلبات القطع',
       discoverBtn: 'اكتشف المزيد',
       security: 'الحماية',
       dashboard: {
@@ -289,32 +290,29 @@ export const auth = {
       login: {
         title: 'تسجيل الدخول',
         subtitle: 'أهلاً بك مجدداً',
-        email: 'البريد الإلكتروني',
-        password: 'كلمة المرور',
-        rememberMe: 'تذكرني',
-        forgotPassword: 'نسيت كلمة المرور؟',
         submit: 'دخول',
-        or: 'أو',
+        registerNow: 'سجل الآن',
         noAccount: 'ليس لديك حساب؟',
-        registerNow: 'سجل الآن'
+        activationMethod: 'اختر وسيلة استلام كود التفعيل:',
+        methods: {
+          whatsapp: 'استلام الكود عبر واتساب',
+          email: 'استلام الكود عبر الإيميل'
+        },
+        country: 'الدولة',
+        phoneInfo: 'رقم الجوال',
+        phonePlaceholder: '5 XX XX XX XX',
+        phoneHint: 'يجب أن يبدأ الرقم بـ 5 ويتكون من 9 أرقام'
       },
       register: {
-        title: 'إنشاء حساب جديد',
-        subtitle: 'انضم إلينا اليوم',
+        title: 'تسجيل حساب جديد',
+        subtitle: 'أنشئ حسابك الآن واستمتع بخدماتنا',
+        submit: 'تسجيل',
+        loginLink: 'لديك حساب بالفعل؟',
         name: 'الاسم الكامل',
+        email: 'البريد الإلكتروني',
         phone: 'رقم الجوال',
         password: 'كلمة المرور',
-        confirmPassword: 'تأكيد كلمة المرور',
-        agreeToTerms: 'أوافق على',
-        termsLink: 'الشروط والأحكام',
-        termsError: 'يجب الموافقة على الشروط',
-        fillAll: 'يرجى تعبئة جميع الحقول المطلوبة',
-        invalidEmail: 'البريد الإلكتروني غير صحيح',
-        shortPass: 'كلمة المرور قصيرة جداً',
-        passMismatch: 'كلمة المرور غير متطابقة',
-        submit: 'تسجيل',
-        hasAccount: 'لديك حساب بالفعل؟',
-        login: 'تسجيل الدخول'
+        confirmPassword: 'تأكيد كلمة المرور'
       },
       otp: {
         title: 'التحقق',
@@ -406,7 +404,10 @@ export const auth = {
         loginFailed: 'فشل في تسجيل الدخول. يرجى المحاولة مرة أخرى.',
         unauthorized: 'غير مصرح لك بالوصول لهذا القسم',
         accessDenied: 'تم رفض الوصول',
-        serverError: 'حدث خطأ في الخادم'
+        serverError: 'حدث خطأ في الخادم',
+        invalidPhone: 'رقم الجوال مطلوب',
+        invalidPhoneStart: 'رقم الجوال يجب أن يبدأ بـ 5',
+        invalidPhoneLength: 'رقم الجوال يجب أن يكون 9 أرقام'
       }
     }
   },
@@ -425,7 +426,8 @@ export const auth = {
       titleLine2: 'for Used Spare Parts',
       description: 'Connecting you with trusted global suppliers (Japan, Korea, USA, Germany). We guarantee genuine like-new parts, full payment protection, and integrated logistics to your doorstep.',
       dashboardBtn: 'Dashboard',
-      requestNowBtn: 'Order Now',
+      requestNowBtn: 'Request Now',
+      enterPartsRequests: 'Enter Parts Requests',
       discoverBtn: 'Discover More',
       security: 'Security',
       dashboard: {
@@ -698,15 +700,23 @@ export const auth = {
       tabs: { customer: 'Customer', merchant: 'Merchant' },
       login: {
         title: 'Login',
-        subtitle: 'Welcome back',
+        subtitle: 'Welcome Back',
+        submit: 'Login',
+        registerNow: 'Register Now',
+        noAccount: 'Don\'t have an account?',
+        activationMethod: 'Choose verification method:',
+        methods: {
+          whatsapp: 'Receive code via WhatsApp',
+          email: 'Receive code via Email'
+        },
+        country: 'Country',
+        phoneInfo: 'Mobile Number',
+        phonePlaceholder: '5 XX XX XX XX',
+        phoneHint: 'Number must start with 5 and be 9 digits',
         email: 'Email',
         password: 'Password',
         rememberMe: 'Remember me',
-        forgotPassword: 'Forgot Password?',
-        submit: 'Login',
-        or: 'OR',
-        noAccount: 'Don\'t have an account?',
-        registerNow: 'Register Now'
+        forgotPassword: 'Forgot Password?'
       },
       register: {
         title: 'Create New Account',
@@ -719,12 +729,25 @@ export const auth = {
         termsLink: 'Terms & Conditions',
         termsError: 'You must agree to terms',
         fillAll: 'Please fill all required fields',
-        invalidEmail: 'Invalid email address',
-        shortPass: 'Password is too short',
-        passMismatch: 'Passwords do not match',
         submit: 'Register',
         hasAccount: 'Already have an account?',
-        login: 'Login'
+        login: 'Login',
+        email: 'Email Address'
+      },
+      errors: {
+        invalidPhone: 'Invalid phone number',
+        invalidPhoneStart: 'Number must start with 5',
+        invalidPhoneLength: 'Number must be 9 digits',
+        passwordsDontMatch: 'Passwords do not match',
+        accountNotFound: 'Account not found',
+        wrongAccountType: 'Incorrect Account Type (Try switching Customer/Merchant)',
+        loginFailed: 'Login failed. Please try again.',
+        invalidCode: 'Invalid verification code',
+        shortPass: 'Password is too short',
+        passMismatch: 'Passwords do not match',
+        unauthorized: 'Unauthorized access',
+        accessDenied: 'Access Denied',
+        serverError: 'Server error'
       },
       otp: {
         title: 'Verification',
@@ -810,14 +833,18 @@ export const auth = {
         authenticating: 'Authenticating...',
         availableRoles: 'Available Roles (Demo)'
       },
-      errors: {
-        wrongAccountType: 'Incorrect Account Type (Try switching Customer/Merchant)',
-        invalidCredentials: 'Invalid email or password',
-        loginFailed: 'Login failed. Please try again.',
-        unauthorized: 'Unauthorized access',
-        accessDenied: 'Access Denied',
-        serverError: 'Server error'
-      }
+    },
+    errors: {
+      invalidCredentials: 'Invalid email or password',
+      accessDenied: 'Access Denied',
+      serverError: 'Server error',
+      wrongAccountType: 'Incorrect Account Type',
+      accountNotFound: 'Account not found',
+      loginFailed: 'Login failed',
+      invalidCode: 'Invalid verification code',
+      invalidPhone: 'Mobile number is required',
+      invalidPhoneStart: 'Mobile number must start with 5',
+      invalidPhoneLength: 'Mobile number must be 9 digits'
     }
   }
 };

@@ -49,9 +49,9 @@ export const Hero: React.FC<HeroProps> = ({ onLogin, onRequestNow }) => {
                             <div className={`flex flex-col sm:flex-row flex-wrap gap-4 ${language === 'ar' ? 'justify-start lg:justify-start' : 'justify-start'}`}>
                                 <button
                                     onClick={onRequestNow}
-                                    className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gold-500 hover:bg-gold-600 text-white font-semibold transition-all shadow-[0_0_20px_rgba(168,139,62,0.3)] hover:shadow-[0_0_30px_rgba(168,139,62,0.5)] flex items-center justify-center gap-2 group active:scale-[0.98]"
+                                    className="w-full sm:w-auto px-8 py-4 rounded-xl bg-[#E31B23] hover:bg-[#C41219] text-white font-semibold transition-all shadow-[0_0_20px_rgba(227,27,35,0.3)] hover:shadow-[0_0_30px_rgba(227,27,35,0.5)] flex items-center justify-center gap-2 group active:scale-[0.98]"
                                 >
-                                    <span>{t.hero.requestNowBtn}</span>
+                                    <span>{t.hero.enterPartsRequests}</span>
                                     <ArrowIcon className={`w-5 h-5 ${language === 'ar' ? 'group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform`} />
                                 </button>
                                 <button

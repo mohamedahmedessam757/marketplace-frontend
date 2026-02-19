@@ -90,6 +90,19 @@ export const common = {
       howItWorks: 'كيفية العمل',
       howItWorksDesc: 'بعد إرسال خطاب الشركة، سيتواصل معكم أحد مدراء المبيعات خلال 24-48 ساعة لمناقشة تفاصيل طلبكم'
     },
+    footer: {
+      privacy: 'سياسة الخصوصية',
+      terms: 'شروط الاستخدام',
+      contact: 'تواصل معنا',
+      about: 'من نحن',
+      howWeWork: 'كيف نعمل',
+      whatsappBusiness: 'واتساب اعمال',
+      location: 'الإمارات العربية المتحدة - رأس الخيمة',
+      cr: 'سجل تجاري: 0000004036902',
+      businessCenter: 'مركز كومباس للاعمال',
+      capital: 'رأس المال المدفوع: 386,000,000.00 درهم اماراتي',
+      copyright: '© جميع الحقوق محفوظة لشركة إليب 2026'
+    },
   },
   en: {
     sar: 'SAR',
@@ -197,6 +210,19 @@ export const common = {
       contactDesc: 'You can contact us via email or visit our website for more information about our services',
       howItWorks: 'How it Works',
       howItWorksDesc: 'After sending the company letter, a sales manager will contact you within 24-48 hours to discuss your order details'
+    },
+    footer: {
+      privacy: 'Privacy Policy',
+      terms: 'Terms of Use',
+      contact: 'Contact Us',
+      about: 'About Us',
+      howWeWork: 'How We Work',
+      whatsappBusiness: 'WhatsApp Business',
+      location: 'UAE - Ras Al Khaimah',
+      cr: 'Commercial Registration: 0000004036902',
+      businessCenter: 'Compass Business Center',
+      capital: 'Paid Capital: 386,000,000.00 AED',
+      copyright: '© All rights reserved to Elip 2026'
     }
   }
 };

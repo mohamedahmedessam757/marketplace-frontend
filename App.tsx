@@ -73,7 +73,9 @@ const TermsView = lazy(() => import('./components/auth/TermsView').then(module =
 
 type ViewState =
   | 'landing'
-  | 'login'
+  | 'login' // Keep for generic fallback if needed
+  | 'customer-login' // NEW
+  | 'merchant-login' // NEW
   | 'vendor-register'
   | 'customer-register'
   | 'admin-login'
@@ -89,6 +91,21 @@ type UserRole = 'customer' | 'merchant' | 'admin' | null;
 function AppContent() {
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<ViewState>('landing');
+  const [legalInitialSection, setLegalInitialSection] = useState<'terms' | 'privacy'>('terms');
+  const [landingInitialSection, setLandingInitialSection] = useState<string | null>(null);
+
+  // Handle Scrolling to Landing Section
+  useEffect(() => {
+    if (currentView === 'landing' && landingInitialSection) {
+      setTimeout(() => {
+        const element = document.getElementById(landingInitialSection);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+        setLandingInitialSection(null); // Reset after scrolling attempt
+      }, 500); // Slight delay to ensure DOM is ready
+    }
+  }, [currentView, landingInitialSection]);
 
   const [previousView, setPreviousView] = useState<ViewState>('login');
   const [loginInitialTab, setLoginInitialTab] = useState<'customer' | 'merchant'>('customer');
@@ -145,11 +162,28 @@ function AppContent() {
   };
 
   const handleBackToHome = () => setCurrentView('role-selection');
-  const handleBackToLogin = () => setCurrentView('login');
+  const handleBackToLogin = () => {
+    // Intelligent back navigation
+    if (previousView === 'customer-login' || currentView === 'customer-register') return setCurrentView('customer-login');
+    if (previousView === 'merchant-login' || currentView === 'vendor-register') return setCurrentView('merchant-login');
+    setCurrentView('role-selection');
+  };
 
   const handleNavigateToTerms = () => {
     setPreviousView(currentView);
+    setLegalInitialSection('terms');
     setCurrentView('terms');
+  };
+
+  const handleNavigateToLegal = (section: 'terms' | 'privacy') => {
+    setPreviousView(currentView);
+    setLegalInitialSection(section);
+    setCurrentView('terms');
+  };
+
+  const handleNavigateToLandingSection = (section: string) => {
+    setLandingInitialSection(section);
+    setCurrentView('landing');
   };
 
   const handleBackFromTerms = () => {
@@ -310,25 +344,27 @@ function AppContent() {
             ) : currentView === 'role-selection' ? (
               <RoleSelectionScreen
                 onCustomerClick={() => {
-                  setCurrentView('how-we-work');
+                  setCurrentView('customer-login');
                 }}
                 onMerchantClick={() => {
-                  setLoginInitialTab('merchant');
-                  setCurrentView('login');
+                  setCurrentView('merchant-login');
                 }}
                 onWholesaleClick={() => setCurrentView('wholesale')}
                 onHowWeWorkClick={() => setCurrentView('landing')}
+                onOpenSupport={() => setIsSupportOpen(true)}
+                onAdminClick={() => setCurrentView('admin-login')}
+                onNavigateToLegal={handleNavigateToLegal}
+                onNavigateToLandingSection={handleNavigateToLandingSection}
               />
             ) : currentView === 'wholesale' ? (
               <WholesaleScreen onBack={() => setCurrentView('role-selection')} />
             ) : currentView === 'how-we-work' ? (
               <HowWeWorkScreen
                 onComplete={() => {
-                  setLoginInitialTab('customer');
-                  setCurrentView('login');
+                  setCurrentView('customer-login');
                 }}
                 onBack={() => setCurrentView('role-selection')}
-                onTermsClick={() => setCurrentView('terms')}
+                onTermsClick={() => handleNavigateToLegal('terms')}
               />
             ) : currentView === 'landing' ? (
 
@@ -341,7 +377,10 @@ function AppContent() {
                 transition={{ duration: 0.5 }}
                 className="relative will-change-opacity"
               >
-                <Navbar onLoginClick={() => setCurrentView('role-selection')} />
+                <Navbar
+                  onLoginClick={() => setCurrentView('role-selection')}
+                  onHomeClick={() => setCurrentView('role-selection')}
+                />
                 <Hero
                   onLogin={() => setCurrentView('login')}
                   onRequestNow={() => setCurrentView('role-selection')}
@@ -384,15 +423,38 @@ function AppContent() {
                       />
                     )}
 
+                    {currentView === 'customer-login' && (
+                      <LoginPage
+                        forcedRole="customer"
+                        onRegisterClick={() => { /* Should not happen in forced mode usually */ }}
+                        onCustomerRegisterClick={() => setCurrentView('customer-register')}
+                        onLoginSuccess={handleLoginSuccess}
+                        onForgotPasswordClick={() => setCurrentView('forgot-password')}
+                      />
+                    )}
+
+                    {currentView === 'merchant-login' && (
+                      <LoginPage
+                        forcedRole="merchant"
+                        onRegisterClick={() => setCurrentView('vendor-register')}
+                        onCustomerRegisterClick={() => { /* Should not happen */ }}
+                        onLoginSuccess={handleLoginSuccess}
+                        onForgotPasswordClick={() => setCurrentView('forgot-password')}
+                      />
+                    )}
+
                     {currentView === 'vendor-register' && (
-                      <VendorRegister onComplete={() => handleLoginSuccess('merchant')} />
+                      <VendorRegister
+                        onComplete={() => handleLoginSuccess('merchant')}
+                        onBack={() => setCurrentView('merchant-login')} // NEW
+                      />
                     )}
 
                     {currentView === 'customer-register' && (
                       <CustomerRegister
                         onLoginClick={handleBackToLogin}
                         onRegisterSuccess={() => handleLoginSuccess('customer')}
-                        onTermsClick={handleNavigateToTerms}
+                        onTermsClick={() => handleNavigateToLegal('terms')}
                       />
                     )}
 
@@ -412,7 +474,7 @@ function AppContent() {
                     )}
 
                     {currentView === 'terms' && (
-                      <TermsView />
+                      <TermsView initialSection={legalInitialSection} />
                     )}
                   </Suspense>
                 </AuthLayout>

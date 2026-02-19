@@ -6,9 +6,10 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 interface NavbarProps {
   onLoginClick: () => void;
+  onHomeClick: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onLoginClick }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onLoginClick, onHomeClick }) => {
   const { scrollY } = useScroll();
   const [hidden, setHidden] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -46,6 +47,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onLoginClick }) => {
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault();
+
+    if (href === '#home') {
+      onHomeClick();
+      setMobileMenuOpen(false);
+      return;
+    }
+
     const targetId = href.replace('#', '');
     const element = document.getElementById(targetId);
 

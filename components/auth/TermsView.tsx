@@ -3,9 +3,29 @@ import { motion } from 'framer-motion';
 import { FileText, Shield, ChevronDown } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
-export const TermsView: React.FC = () => {
+export const TermsView: React.FC<{ initialSection?: 'terms' | 'privacy' }> = ({ initialSection = 'terms' }) => {
     const { t, language } = useLanguage();
+    // Default to first item if terms, or first privacy item if privacy.
+    // Logic below will handle valid setting.
     const [expandedIndex, setExpandedIndex] = React.useState<number | null>(0);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+    const privacyRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        if (initialSection === 'privacy') {
+            // Expand first privacy item (index 100)
+            setExpandedIndex(100);
+            // Scroll to Privacy Section
+            setTimeout(() => {
+                privacyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300); // 300ms delay to allow animation/rendering
+        } else {
+            // Expand first terms item
+            setExpandedIndex(0);
+            // Scroll to top
+            if (containerRef.current) containerRef.current.scrollTop = 0;
+        }
+    }, [initialSection]);
 
     const toggleAccordion = (index: number) => {
         setExpandedIndex(expandedIndex === index ? null : index);
@@ -21,7 +41,7 @@ export const TermsView: React.FC = () => {
                 <p className="text-white/60 text-sm">{t.legal.summary.termsTitle}</p>
             </div>
 
-            <div className="h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gold-500/30 scrollbar-track-white/5 space-y-4">
+            <div ref={containerRef} className="h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gold-500/30 scrollbar-track-white/5 space-y-4">
                 {/* Terms Content */}
                 {t.legal.termsContent.map((item, idx) => (
                     <motion.div
@@ -62,7 +82,7 @@ export const TermsView: React.FC = () => {
                 ))}
 
                 {/* Privacy Content appended for completeness in this view */}
-                <div className="pt-6 border-t border-white/10 mt-6">
+                <div ref={privacyRef} className="pt-6 border-t border-white/10 mt-6">
                     <div className="flex items-center gap-2 mb-4 text-white/80 font-bold">
                         <Shield className="w-5 h-5 text-gold-500" />
                         <span>{t.legal.tabs.privacy}</span>
