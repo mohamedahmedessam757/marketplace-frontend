@@ -131,14 +131,13 @@ interface OrderState {
     orders: Order[];
     isLoading: boolean;
     error: string | null;
-    pollingInterval: any;
     subscription: any;
     lastFetchRole: string | null; // Track which role fetched the current data
 
     fetchOrders: () => Promise<void>;
     silentFetch: () => Promise<void>;
-    startPolling: () => void;
-    stopPolling: () => void;
+    startRealtime: (userId?: string, role?: string) => void;
+    stopRealtime: () => void;
     clearOrders: () => void; // Clear orders when switching roles
     resetForRole: (role: string) => void; // Reset store if role changed
     addOrder: (order: Omit<Order, 'id' | 'date' | 'status' | 'offersCount' | 'createdAt' | 'updatedAt' | 'offers'>) => Promise<void>;
@@ -157,7 +156,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     orders: [],
     isLoading: false,
     error: null,
-    pollingInterval: null as any, // Store interval ID
     subscription: null,
     lastFetchRole: null,
 
@@ -166,27 +164,34 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     },
 
     resetForRole: (role: string) => {
-        const { lastFetchRole, stopPolling, clearOrders } = get();
+        const { lastFetchRole, stopRealtime, clearOrders } = get();
         // If role changed, reset everything
         if (lastFetchRole && lastFetchRole !== role) {
-            stopPolling();
+            stopRealtime();
             clearOrders();
         }
         // Always set the current role for tracking
         set({ lastFetchRole: role });
     },
 
-    startPolling: () => {
-        const { pollingInterval } = get();
-        if (pollingInterval) return; // Already polling
+    startRealtime: (userId?: string, role?: string) => {
+        const { subscription } = get();
+        if (subscription) return; // Already listening
+
+        let filterString: string | undefined = undefined;
+        if (userId && role === 'customer') {
+            filterString = `customer_id=eq.${userId}`;
+        }
+        // For admin and merchants, we listen globally or via backend API constraints, 
+        // relying on the API fetch to securely filter the records after the ping.
 
         // 1. Setup Realtime Subscription first
-        const channel = supabase.channel('orders-realtime-channel')
+        const channel = supabase.channel(`orders-realtime-${userId || 'global'}`)
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'orders' },
+                { event: '*', schema: 'public', table: 'orders', filter: filterString },
                 () => {
-                    console.log('🔔 Realtime Order Update Recieved');
+                    console.log('⚡ Realtime Update: orders table changed (0ms latency)');
                     get().silentFetch();
                 }
             )
@@ -195,26 +200,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         // 2. Initial Fetch immediately
         get().fetchOrders();
 
-        // 3. Start Polling (Redundancy/Backup)
-        const interval = setInterval(() => {
-            get().silentFetch();
-        }, 10000);
-
-        set({ pollingInterval: interval, subscription: channel });
+        set({ subscription: channel });
     },
 
-    stopPolling: () => {
-        const { pollingInterval, subscription } = get();
-
-        if (pollingInterval) {
-            clearInterval(pollingInterval);
-        }
+    stopRealtime: () => {
+        const { subscription } = get();
 
         if (subscription) {
             supabase.removeChannel(subscription);
         }
 
-        set({ pollingInterval: null, subscription: null });
+        set({ subscription: null });
     },
 
     silentFetch: async () => {

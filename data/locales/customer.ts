@@ -231,7 +231,7 @@ export const customer = {
       success: { title: 'تم الدفع بنجاح', desc: 'تم استلام طلبك وجاري العمل على تجهيزه.', back: 'العودة للطلبات' }
     },
     profile: {
-      tabs: { info: 'البيانات الشخصية', security: 'الأمان والجلسات', wallet: 'المحفظة', settings: 'الإعدادات', addresses: 'العناوين', reviews: 'التقييمات' },
+      tabs: { info: 'البيانات الشخصية', security: 'الأمان والجلسات', wallet: 'المحفظة', settings: 'التفضيلات والإشعارات', addresses: 'العناوين', reviews: 'التقييمات' },
       info: { name: 'الاسم الكامل', email: 'البريد الإلكتروني', phone: 'رقم الجوال', save: 'حفظ التغييرات' },
       accountType: 'حساب عميل',
       security: {
@@ -714,7 +714,7 @@ export const customer = {
       success: { title: 'Payment Successful', desc: 'Order received and being processed.', back: 'Back to Orders' }
     },
     profile: {
-      tabs: { info: 'Personal Info', security: 'Security & Sessions', wallet: 'Wallet', settings: 'Settings', addresses: 'Addresses', reviews: 'Reviews' },
+      tabs: { info: 'Personal Info', security: 'Security & Sessions', wallet: 'Wallet', settings: 'Preferences & Notifications', addresses: 'Addresses', reviews: 'Reviews' },
       info: { name: 'Full Name', email: 'Email', phone: 'Phone', save: 'Save Changes' },
       accountType: 'Customer Account',
       security: {

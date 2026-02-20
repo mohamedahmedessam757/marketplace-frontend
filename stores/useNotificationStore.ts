@@ -6,6 +6,7 @@ export type NotificationType = 'ORDER' | 'SYSTEM' | 'OFFER' | 'PAYMENT' | 'SHIPP
 export interface Notification {
   id: string;
   recipientId: string;
+  recipientRole: string; // CUSTOMER | MERCHANT | ADMIN
   titleAr: string;
   titleEn: string;
   messageAr: string;
@@ -15,6 +16,14 @@ export interface Notification {
   link?: string;
   metadata?: any;
   createdAt: string;
+
+  // App-specific legacy UI properties
+  titleKey?: string;
+  message?: string;
+  orderId?: number;
+  linkTo?: string;
+  priority?: string;
+  channels?: string[];
 }
 
 interface NotificationState {
@@ -22,10 +31,10 @@ interface NotificationState {
   unreadCount: number;
   isLoading: boolean;
 
-  fetchNotifications: (userId: string) => Promise<void>;
+  fetchNotifications: (userId: string, role: string) => Promise<void>;
   markAsRead: (id: string, userId: string) => Promise<void>;
-  markAllAsRead: (userId: string) => Promise<void>;
-  subscribeToNotifications: (userId: string) => void;
+  markAllAsRead: (userId: string, role: string) => Promise<void>;
+  subscribeToNotifications: (userId: string, role: string) => void;
   unsubscribeFromNotifications: () => void;
   addNotification: (notification: Partial<Notification>) => Promise<void>;
 }
@@ -35,14 +44,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   unreadCount: 0,
   isLoading: false,
 
-  fetchNotifications: async (userId: string) => {
-    if (!userId) return;
+  fetchNotifications: async (userId: string, role: string) => {
+    if (!userId || !role) return;
     set({ isLoading: true });
     try {
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('recipient_id', userId)
+        .eq('recipient_role', role.toUpperCase())
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -57,6 +67,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const mappedNotifications = (data || []).map((n: any) => ({
         id: n.id,
         recipientId: n.recipient_id,
+        recipientRole: n.recipient_role,
         titleAr: n.title_ar,
         titleEn: n.title_en,
         messageAr: n.message_ar,
@@ -100,7 +111,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
   },
 
-  markAllAsRead: async (userId: string) => {
+  markAllAsRead: async (userId: string, role: string) => {
     // Optimistic
     set(state => ({
       notifications: state.notifications.map(n => ({ ...n, isRead: true })),
@@ -112,6 +123,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .from('notifications')
         .update({ is_read: true })
         .eq('recipient_id', userId)
+        .eq('recipient_role', role.toUpperCase())
         .eq('is_read', false);
     } catch (error) {
       console.error('Error marking all as read:', error);
@@ -123,12 +135,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const recipientId = notification.recipientId || user?.id;
     if (!recipientId) return;
 
+    const recipientRole = notification.recipientRole || 'CUSTOMER';
+
     const newNotif = {
       recipient_id: recipientId,
+      recipient_role: recipientRole.toUpperCase(),
       title_ar: notification.titleAr || 'إشعار جديد',
       title_en: notification.titleEn || 'New Notification',
-      message_ar: notification.messageAr || notification.messageEn || '',
-      message_en: notification.messageEn || notification.messageAr || '',
+      message_ar: notification.messageAr || notification.message || notification.messageEn || '',
+      message_en: notification.messageEn || notification.message || notification.messageAr || '',
       type: notification.type || 'SYSTEM',
       link: notification.link,
       metadata: notification.metadata,
@@ -139,6 +154,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const optimistic: Notification = {
       id: Math.random().toString(),
       recipientId,
+      recipientRole: newNotif.recipient_role,
       titleAr: newNotif.title_ar,
       titleEn: newNotif.title_en,
       messageAr: newNotif.message_ar,
@@ -163,25 +179,28 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
   },
 
-  subscribeToNotifications: (userId: string) => {
+  subscribeToNotifications: (userId: string, role: string) => {
     // Unsubscribe existing if any (handled by component unmount usually, but safety check)
     // We can store subscription in a variable outside or in store? Store is better but simple var here works if singleton.
     // Using supabase.channel returns a subscription.
 
-    const channel = supabase.channel('public:notifications')
+    const channel = supabase.channel(`public:notifications:${userId}:${role}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `recipient_id=eq.${userId}`
+          filter: `recipient_id=eq.${userId}` // Supabase realtime filter only allows 1 equality filter currently, so we filter by role locally in the callback
         },
         (payload) => {
           const newNotif = payload.new as any;
+          if (newNotif.recipient_role !== role.toUpperCase()) return; // Isolate roles
+
           const mapped: Notification = {
             id: newNotif.id,
             recipientId: newNotif.recipient_id,
+            recipientRole: newNotif.recipient_role,
             titleAr: newNotif.title_ar,
             titleEn: newNotif.title_en,
             messageAr: newNotif.message_ar,
@@ -207,6 +226,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   unsubscribeFromNotifications: () => {
-    supabase.removeChannel(supabase.channel('public:notifications'));
+    supabase.getChannels().forEach(ch => {
+      if (ch.topic.startsWith('realtime:public:notifications')) {
+        supabase.removeChannel(ch);
+      }
+    });
   }
 }));

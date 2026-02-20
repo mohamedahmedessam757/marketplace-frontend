@@ -5,6 +5,7 @@ import { X, UploadCloud, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
+import { useOrderStore } from '../../../stores/useOrderStore';
 
 import { FileUploader } from '../../ui/FileUploader';
 
@@ -21,6 +22,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ isOpen, 
     const { t, language } = useLanguage();
     const { requestReturn } = useReturnsStore();
     const { addNotification } = useNotificationStore();
+    const { getOrder } = useOrderStore();
 
     const [reason, setReason] = useState('');
     const [description, setDescription] = useState('');
@@ -36,19 +38,24 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ isOpen, 
 
         if (success) {
             // TRIGGER NOTIFICATION FOR MERCHANT (Simulated local notification for now)
-            addNotification({
-                type: 'DISPUTE',
-                titleEn: 'New Return Request',
-                titleAr: 'طلب إرجاع جديد',
-                messageEn: `New Return Request for Order #${orderId}. Reason: ${reason}`,
-                messageAr: `طلب إرجاع جديد للطلب #${orderId}. السبب: ${t.dashboard.resolution.reasons[reason as keyof typeof t.dashboard.resolution.reasons]}`,
-                link: `/dashboard/orders/${orderId}`,
-                metadata: {
-                    orderId: orderId,
-                    fileCount: files.length,
-                    hasVideo: files.some(f => f.type.startsWith('video'))
-                }
-            });
+            const orderData = getOrder(orderId);
+            if (orderData?.merchantId) {
+                addNotification({
+                    recipientId: orderData.merchantId,
+                    recipientRole: 'MERCHANT',
+                    type: 'DISPUTE',
+                    titleEn: 'New Return Request',
+                    titleAr: 'طلب إرجاع جديد',
+                    messageEn: `New Return Request for Order #${orderId}. Reason: ${reason}`,
+                    messageAr: `طلب إرجاع جديد للطلب #${orderId}. السبب: ${t.dashboard.resolution.reasons[reason as keyof typeof t.dashboard.resolution.reasons]}`,
+                    link: `/dashboard/orders/${orderId}`,
+                    metadata: {
+                        orderId: orderId,
+                        fileCount: files.length,
+                        hasVideo: files.some(f => f.type.startsWith('video'))
+                    }
+                });
+            }
 
             onSuccess();
             onClose();

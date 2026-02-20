@@ -10,9 +10,10 @@ interface NotificationDrawerProps {
     isOpen: boolean;
     onClose: () => void;
     onNavigate: (path: string, id?: number) => void;
+    role: 'customer' | 'merchant' | 'admin' | string;
 }
 
-export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose, onNavigate }) => {
+export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose, onNavigate, role }) => {
     const { t, language } = useLanguage();
     const { notifications, markAsRead, markAllAsRead } = useNotificationStore();
 
@@ -68,7 +69,10 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
 
                         <div className="p-3 border-b border-white/5 bg-white/5 flex justify-end">
                             <button
-                                onClick={markAllAsRead}
+                                onClick={() => {
+                                    const uid = getCurrentUserId();
+                                    if (uid) markAllAsRead(uid, role);
+                                }}
                                 className="text-xs text-gold-400 hover:text-gold-300 font-medium"
                             >
                                 {t.dashboard.notifications.markAllRead}

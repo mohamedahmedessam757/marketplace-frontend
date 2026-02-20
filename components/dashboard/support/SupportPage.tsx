@@ -86,7 +86,13 @@ export const SupportPage: React.FC<SupportPageProps> = ({ onNavigate }) => {
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: 20 }}
                                 >
-                                    <TicketList onNewClick={() => setView('new')} />
+                                    <TicketList
+                                        onNewClick={() => setView('new')}
+                                        onNavigate={(ticketId) => {
+                                            // Handle navigation to chat
+                                            if (onNavigate) onNavigate('chats', ticketId);
+                                        }}
+                                    />
                                 </motion.div>
                             ) : (
                                 <motion.div

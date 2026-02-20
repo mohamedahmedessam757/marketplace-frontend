@@ -5,6 +5,7 @@ import { X, UploadCloud, AlertTriangle, ShieldAlert, Loader2 } from 'lucide-reac
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
+import { useOrderStore } from '../../../stores/useOrderStore';
 
 import { FileUploader } from '../../ui/FileUploader';
 
@@ -21,6 +22,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({ isOpen, onClose, ord
     const { t, language } = useLanguage();
     const { escalateDispute } = useReturnsStore();
     const { addNotification } = useNotificationStore(); // Import Notification Store
+    const { getOrder } = useOrderStore();
 
     const [reason, setReason] = useState('');
     const [description, setDescription] = useState('');
@@ -36,19 +38,25 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({ isOpen, onClose, ord
 
         if (success) {
             // 2. Trigger Notification for Merchant
-            addNotification({
-                type: 'DISPUTE',
-                titleEn: 'New Dispute Opened',
-                titleAr: 'تم فتح نزاع جديد',
-                messageEn: `New dispute opened for Order #${orderId}. Reason: ${reason}`,
-                messageAr: `تم فتح نزاع جديد للطلب #${orderId}. السبب: ${reason}`,
-                link: `/dashboard/orders/${orderId}`,
-                metadata: {
-                    orderId: orderId,
-                    fileCount: files.length,
-                    hasVideo: files.some(f => f.type.startsWith('video'))
-                }
-            });
+            const orderData = getOrder(orderId);
+
+            if (orderData?.merchantId) {
+                addNotification({
+                    recipientId: orderData.merchantId,
+                    recipientRole: 'MERCHANT',
+                    type: 'DISPUTE',
+                    titleEn: 'New Dispute Opened',
+                    titleAr: 'تم فتح نزاع جديد',
+                    messageEn: `New dispute opened for Order #${orderId}. Reason: ${reason}`,
+                    messageAr: `تم فتح نزاع جديد للطلب #${orderId}. السبب: ${reason}`,
+                    link: `/dashboard/orders/${orderId}`,
+                    metadata: {
+                        orderId: orderId,
+                        fileCount: files.length,
+                        hasVideo: files.some(f => f.type.startsWith('video'))
+                    }
+                });
+            }
 
             onSuccess();
             onClose();

@@ -8,9 +8,7 @@ import { User, Star, MapPin, CreditCard, Shield, Settings } from 'lucide-react';
 import { InfoTab } from './tabs/InfoTab';
 import { SecurityTab } from './tabs/SecurityTab';
 import { AddressesTab } from './tabs/AddressesTab';
-import { SettingsTab } from './tabs/SettingsTab';
 import { BillingTab } from './tabs/BillingTab';
-import { LoyaltyTab } from './tabs/LoyaltyTab';
 
 import { SavedCards } from '../wallet/SavedCards';
 
@@ -22,11 +20,9 @@ export const ProfileView: React.FC = () => {
     // Consolidated Tabs Configuration
     const tabs = [
         { id: 'info', icon: User, label: t.dashboard.profile.tabs.info },
-        { id: 'loyalty', icon: Star, label: t.dashboard.menu.loyalty },
         { id: 'addresses', icon: MapPin, label: t.dashboard.profile.tabs.addresses },
-        { id: 'methods', icon: CreditCard, label: t.dashboard.billing?.wallet || 'Payment Methods' }, // New Tab
+        { id: 'methods', icon: CreditCard, label: t.dashboard.billing?.wallet || 'Payment Methods' },
         { id: 'security', icon: Shield, label: t.dashboard.profile.tabs.security },
-        { id: 'settings', icon: Settings, label: t.dashboard.profile.tabs.settings },
     ];
 
     const handleNavigate = (path: string, id?: any) => {
@@ -57,7 +53,6 @@ export const ProfileView: React.FC = () => {
                 <GlassCard className="min-h-[500px] p-6 md:p-10">
                     <AnimatePresence mode="wait">
                         {activeTab === 'info' && <InfoTab />}
-                        {activeTab === 'loyalty' && <LoyaltyTab />}
                         {activeTab === 'addresses' && <AddressesTab />}
                         {activeTab === 'methods' && (
                             <motion.div key="methods" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
@@ -65,7 +60,6 @@ export const ProfileView: React.FC = () => {
                             </motion.div>
                         )}
                         {activeTab === 'security' && <SecurityTab />}
-                        {activeTab === 'settings' && <SettingsTab />}
                     </AnimatePresence>
                 </GlassCard>
             </div>

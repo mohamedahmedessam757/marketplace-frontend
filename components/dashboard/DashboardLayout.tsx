@@ -7,8 +7,11 @@ import { useNotificationStore } from '../../stores/useNotificationStore';
 import { useProfileStore } from '../../stores/useProfileStore';
 import { useVendorStore } from '../../stores/useVendorStore';
 import { useAdminStore } from '../../stores/useAdminStore';
-import { useOrderStore } from '../../stores/useOrderStore'; // Added Import
+import { useOrderStore } from '../../stores/useOrderStore';
+import { useBillingStore } from '../../stores/useBillingStore';
+import { useMerchantWalletStore } from '../../stores/useMerchantWalletStore';
 import { NotificationDrawer } from './notifications/NotificationDrawer';
+import { NavigationDrawer } from './NavigationDrawer';
 import { getCurrentUserId } from '../../utils/auth';
 
 interface DashboardLayoutProps {
@@ -28,24 +31,36 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 }) => {
   const { t, language } = useLanguage();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { unreadCount, fetchNotifications, subscribeToNotifications, unsubscribeFromNotifications } = useNotificationStore(); // Added fetchNotifications
   const { checkLicenseStatus, vendorStatus } = useVendorStore();
   const { currentAdmin } = useAdminStore();
-  const { startPolling, stopPolling, fetchOrders } = useOrderStore();
+  const { startRealtime, stopRealtime } = useOrderStore();
+  const { fetchInvoices, fetchCards } = useBillingStore();
+  const { fetchWallet } = useMerchantWalletStore();
   const { user, fetchProfile } = useProfileStore();
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const userId = getCurrentUserId();
-    if (userId) {
+    if (userId && role) {
+      // 1. Core Profile & Notification Init
       fetchProfile();
-      fetchNotifications(userId);
-      subscribeToNotifications(userId);
+      fetchNotifications(userId, role);
+      subscribeToNotifications(userId, role);
+
+      // 2. Global Pre-fetching (Zero-Loading Architecture)
+      // We pull background data based on role so navigating to /wallet or /billing is 0ms
+      Promise.all([
+        role === 'customer' ? fetchInvoices() : Promise.resolve(),
+        role === 'customer' ? fetchCards() : Promise.resolve(),
+        role === 'merchant' ? fetchWallet() : Promise.resolve(),
+      ]).catch(err => console.warn('Background global pre-fetch warning:', err));
     }
     return () => {
       unsubscribeFromNotifications();
     };
-  }, []);
+  }, [role]);
 
   const isAr = language === 'ar';
 
@@ -93,11 +108,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     const orderStore = useOrderStore.getState();
     orderStore.resetForRole(role);
 
-    // Start polling - it handles initial fetch internally
-    startPolling();
+    // Start Realtime WebSockets for zero-latency sync (replaces legacy polling)
+    startRealtime(getCurrentUserId() || undefined, role);
 
-    return () => stopPolling();
-  }, [role, startPolling, stopPolling]);
+    return () => stopRealtime();
+  }, [role, startRealtime, stopRealtime]);
 
   // Define Menu Items per Role
   const customerNavItems = [
@@ -106,14 +121,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'orders', icon: Package, label: t.dashboard.menu.orders },
     { id: 'shipping-cart', icon: ShoppingBag, label: t.dashboard.menu.shippingCart },
     { id: 'create', icon: PlusCircle, label: t.dashboard.menu.create, isAction: true },
-    { id: 'billing', icon: CreditCard, label: t.dashboard.menu.billing },
     { id: 'resolution', icon: RotateCcw, label: t.dashboard.menu.resolution },
-    { id: 'chats', icon: MessageSquare, label: t.dashboard.menu.chats },
     { id: 'profile', icon: User, label: t.dashboard.menu.profile },
+    { id: 'billing', icon: CreditCard, label: t.dashboard.menu.billing },
+    { id: 'chats', icon: MessageSquare, label: t.dashboard.menu.chats },
     { id: 'support', icon: Headset, label: t.dashboard.menu.support },
-    // { id: 'preferences', icon: Settings, label: t.dashboard.menu.preferences }, // Moved to Profile
-    // { id: 'loyalty', icon: Star, label: t.dashboard.menu.loyalty }, // Moved to Profile
-  ]; // Billing restored
+    { id: 'preferences', icon: Settings, label: t.dashboard.profile.tabs.settings }, // New
+    { id: 'loyalty', icon: Star, label: t.dashboard.menu.loyalty }, // New
+  ];
 
 
 
@@ -188,98 +203,51 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
   };
 
+
+
   return (
-    <div className="min-h-screen bg-[#0F0E0C] text-white font-sans selection:bg-gold-500 selection:text-white flex">
+    <div className="min-h-screen bg-[#0F0E0C] text-white font-sans selection:bg-gold-500 selection:text-white flex flex-col">
+
+      <NavigationDrawer
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onNavigate={onNavigate}
+        currentPath={currentPath}
+        navItems={navItems}
+        onLogout={onLogout}
+        role={role}
+        adminRole={adminRole}
+      />
 
       <NotificationDrawer
         isOpen={isNotifOpen}
         onClose={() => setIsNotifOpen(false)}
         onNavigate={onNavigate}
+        role={role}
       />
 
-      {/* 1. Desktop Sidebar */}
-      <aside className={`hidden md:flex flex-col w-64 h-screen fixed top-0 ${language === 'ar' ? 'right-0 border-l' : 'left-0 border-r'} border-white/5 bg-[#151310]/80 backdrop-blur-xl z-50`}>
-        {/* Logo Area */}
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/10">
-            <img
-              src="/logo.png"
-              alt="Logo"
-              className="w-6 h-6 object-contain brightness-0 invert"
-            />
-          </div>
-          <div>
-            <span className="font-bold text-lg tracking-wide block leading-none">E-TASHLEH</span>
-            <span className="text-[10px] text-white/30 uppercase tracking-widest">{role.toUpperCase()} PANEL</span>
-          </div>
-        </div>
-
-        {/* Navigation Links */}
-        <div className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
-          {navItems.map((item: any) => {
-            const isLocked = role === 'admin' && item.allowed && !item.allowed.includes(adminRole);
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => !isLocked && onNavigate(item.id)}
-                disabled={isLocked}
-                className={`
-                w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden
-                ${currentPath === item.id
-                    ? 'bg-gold-500/10 text-gold-400 border border-gold-500/20 shadow-[inset_0_0_10px_rgba(168,139,62,0.1)]'
-                    : isLocked
-                      ? 'opacity-50 cursor-not-allowed bg-black/20 border border-transparent grayscale'
-                      : 'text-white/60 hover:text-white hover:bg-white/5'}
-              `}
-              >
-                <div className={`relative flex items-center gap-3 z-10 ${isLocked ? 'blur-[1px]' : ''}`}>
-                  <item.icon size={20} className={currentPath === item.id ? 'text-gold-400' : 'text-white/40 group-hover:text-white'} />
-                  <span className="font-medium">{item.label}</span>
-                </div>
-
-                {isLocked && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-20">
-                    <Lock size={14} className="text-white/40" />
-                  </div>
-                )}
-
-                {currentPath === item.id && !isLocked && (
-                  <motion.div layoutId="active-indicator" className={`w-1.5 h-1.5 rounded-full bg-gold-400 ${language === 'ar' ? 'mr-auto' : 'ml-auto'}`} />
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* User Profile / Logout */}
-        <div className="p-4 border-t border-white/5">
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <LogOut size={20} />
-            <span className="font-medium">{t.dashboard.menu.logout}</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* 2. Main Content Area */}
-      <main className={`flex-1 flex flex-col min-h-screen ${language === 'ar' ? 'md:mr-64' : 'md:ml-64'} transition-all duration-300`}>
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-h-screen w-full transition-all duration-300">
 
         {/* Top Header */}
-        <header className="sticky top-0 z-40 px-6 py-4 bg-[#0F0E0C]/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between">
-          {/* Mobile Menu Trigger (Visual Only) */}
-          <div className="md:hidden">
-            <img
-              src="/logo.png"
-              alt="Logo"
-              className="w-8 h-8 object-contain brightness-0 invert"
-            />
-          </div>
+        <header className="sticky top-0 z-40 px-4 md:px-6 py-4 bg-[#0F0E0C]/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between">
 
-          {/* Empty spacer */}
-          <div className="flex-1 md:flex-none"></div>
+          {/* Hamburger Menu & Brand */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsMenuOpen(true)}
+              className="p-2 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+            >
+              <Menu size={24} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gold-500/10 rounded-xl flex items-center justify-center border border-gold-500/20 hidden md:flex">
+                <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain brightness-0 invert" />
+              </div>
+              <span className="font-bold text-xl tracking-wide hidden md:block">E-TASHLEH</span>
+            </div>
+          </div>
 
           {/* User Capsule Area */}
           <div className="flex justify-end items-center gap-4">
@@ -289,11 +257,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               {/* Notification Button */}
               <button
                 onClick={() => setIsNotifOpen(true)}
-                className="relative p-2.5 rounded-full hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+                className="relative p-2.5 rounded-full hover:bg-white/10 transition-colors text-white/60 hover:text-white group"
               >
-                <Bell size={20} />
+                <Bell size={20} className={unreadCount > 0 ? "text-gold-400 group-hover:text-gold-300 transition-colors" : ""} />
+
                 {unreadCount > 0 && (
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 border border-[#151310]"></span>
+                  <span className="absolute top-0 right-0 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-[10px] font-bold text-white bg-red-500 border-2 border-[#151310] rounded-full shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-in zoom-in duration-300">
+                    {unreadCount > 99 ? '+99' : unreadCount}
+                  </span>
                 )}
               </button>
 
@@ -325,8 +296,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   </div>
                   <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-[#151310] rounded-full"></div>
                 </div>
-
-                <ChevronDown size={14} className="text-white/30 group-hover:text-white transition-colors" />
               </button>
             </div>
 
@@ -346,41 +315,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </div>
 
       </main>
-
-      {/* 3. Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#151310]/90 backdrop-blur-xl border-t border-white/10 z-50 pb-safe">
-        <div className="flex items-center justify-around p-2">
-          {navItems.slice(0, 5).map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`
-                   relative flex flex-col items-center justify-center p-2 transition-all
-                   ${item.isAction ? '-mt-8' : ''}
-                `}
-            >
-              {item.isAction ? (
-                <div className="w-14 h-14 rounded-full bg-gradient-to-r from-gold-600 to-gold-400 flex items-center justify-center shadow-[0_4px_20px_rgba(168,139,62,0.4)] border-4 border-[#0F0E0C]">
-                  <item.icon size={24} className="text-white" />
-                </div>
-              ) : (
-                <>
-                  <item.icon
-                    size={24}
-                    className={`mb-1 transition-colors ${currentPath === item.id ? 'text-gold-400' : 'text-white/40'}`}
-                  />
-                  <span className={`text-[10px] font-medium transition-colors ${currentPath === item.id ? 'text-white' : 'text-white/40'}`}>
-                    {item.label}
-                  </span>
-                  {currentPath === item.id && (
-                    <motion.div layoutId="mobile-indicator" className="absolute -bottom-2 w-1 h-1 rounded-full bg-gold-400" />
-                  )}
-                </>
-              )}
-            </button>
-          ))}
-        </div>
-      </nav>
 
     </div>
   );

@@ -6,7 +6,7 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export const storageApi = {
-    upload: async (file: File, bucket: 'store_documents' | 'marketplace-uploads', folder: string = '') => {
+    upload: async (file: File, bucket: 'store_documents' | 'marketplace-uploads' | 'support-files', folder: string = '') => {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
         const filePath = folder ? `${folder}/${fileName}` : fileName;

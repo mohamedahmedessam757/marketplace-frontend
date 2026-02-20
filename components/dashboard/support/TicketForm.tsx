@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSupportStore } from '../../../stores/useSupportStore';
+import { storageApi } from '../../../services/api/storage';
 import { Send, Upload, X } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 
@@ -11,6 +12,7 @@ export const TicketForm: React.FC<{ onSuccess: () => void, onCancel: () => void 
     const [priority, setPriority] = useState('MEDIUM');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [attachment, setAttachment] = useState<{ url: string; type: string } | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -18,7 +20,14 @@ export const TicketForm: React.FC<{ onSuccess: () => void, onCancel: () => void 
         setError(null);
 
         try {
-            const success = await createTicket(subject, description, priority);
+            // Pass attachment if exists
+            const success = await createTicket(
+                subject,
+                description,
+                priority,
+                attachment?.url,
+                attachment?.type as 'image' | 'video'
+            );
             if (success) {
                 onSuccess();
             } else {
@@ -96,10 +105,43 @@ export const TicketForm: React.FC<{ onSuccess: () => void, onCancel: () => void 
                     />
                 </div>
 
-                {/* Attachments Placeholder */}
-                <div className="border border-dashed border-white/20 rounded-xl p-6 text-center hover:bg-white/5 transition-colors cursor-pointer">
-                    <Upload className="mx-auto text-white/30 mb-2" size={24} />
-                    <p className="text-sm text-white/50">{t.dashboard.support.form?.upload || 'Click to upload screenshots or relevant files'}</p>
+                {/* Attachments */}
+                <div>
+                    <input
+                        type="file"
+                        id="file-upload"
+                        className="hidden"
+                        onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                                try {
+                                    setIsSubmitting(true);
+                                    // Upload to 'support-files'
+                                    const url = await storageApi.upload(file, 'support-files', 'tickets');
+                                    // Store URL and determine type
+                                    const type = file.type.startsWith('image/') ? 'image' : 'video'; // Simple check
+                                    // We need to pass these to createTicket, so strictly we should state them
+                                    // But createTicket is called on submit. So let's store them in state.
+                                    setAttachment({ url, type });
+                                    setIsSubmitting(false);
+                                } catch (err) {
+                                    console.error('Upload failed', err);
+                                    setError('Failed to upload file');
+                                    setIsSubmitting(false);
+                                }
+                            }
+                        }}
+                        accept="image/*,video/*,application/pdf"
+                    />
+                    <label
+                        htmlFor="file-upload"
+                        className={`border border-dashed border-white/20 rounded-xl p-6 text-center hover:bg-white/5 transition-colors cursor-pointer block ${attachment ? 'border-gold-500/50 bg-gold-500/10' : ''}`}
+                    >
+                        <Upload className={`mx-auto mb-2 ${attachment ? 'text-gold-500' : 'text-white/30'}`} size={24} />
+                        <p className="text-sm text-white/50">
+                            {attachment ? 'File uploaded successfully' : (t.dashboard.support.form?.upload || 'Click to upload screenshots or relevant files')}
+                        </p>
+                    </label>
                 </div>
             </div>
 

@@ -17,11 +17,13 @@ export interface Message {
 }
 
 export interface Chat {
-  id: number;
+  id: string;
   merchantName: string;
+  merchantId?: string; // NEW
   customerName: string;
+  customerId?: string; // NEW
   customerPhone: string;
-  orderId: number;
+  orderId: string;
   partName: string;
   lastMessage: string;
   lastMessageTime: string;
@@ -35,59 +37,21 @@ export type ChatStatus = 'active' | 'expired' | 'closed_others';
 
 interface ChatState {
   chats: Chat[];
-  activeChatId: number | null;
-  acceptedChats: Record<number, number>; // orderId -> chatId
-  setActiveChat: (id: number) => void;
-  sendMessage: (chatId: number, text: string, attachment?: { mediaUrl: string; mediaType: 'image' | 'video' }) => void;
-  openChatForOrder: (orderId: number, merchantName: string, partName?: string) => void;
+  activeChatId: string | null;
+  acceptedChats: Record<string, string>; // orderId -> chatId
+  setActiveChat: (id: string) => void;
+  sendMessage: (chatId: string, text: string, attachment?: { mediaUrl: string; mediaType: 'image' | 'video' }) => void;
+  openChatForOrder: (orderId: string, merchantName: string, partName?: string) => void;
   syncSupportTickets: () => void;
-  acceptOffer: (orderId: number, chatId: number) => void; // NEW
-  getChatStatus: (chatId: number) => ChatStatus; // NEW
+  acceptOffer: (orderId: string, chatId: string) => void; // NEW
+  getChatStatus: (chatId: string) => ChatStatus; // NEW
 }
 
 // Helper to generate past dates
 const hoursAgo = (h: number) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
 
-const MOCK_CHATS: Chat[] = [
-  {
-    id: 1,
-    merchantName: 'Al-Jazira Parts',
-    customerName: 'Mohammed A.',
-    customerPhone: '0551234567',
-    orderId: 1002,
-    partName: 'Front Bumper Kit',
-    lastMessage: 'Here are the photos of the bumper.',
-    lastMessageTime: '10:30 AM',
-    unreadCount: 2,
-    type: 'merchant',
-    createdAt: hoursAgo(25), // 25 Hours ago -> Should be EXPIRED if not accepted
-    messages: [
-      { id: '1', sender: 'merchant', text: 'Hello, I have the bumper you requested.', timestamp: '10:28 AM' },
-      { id: '2', sender: 'merchant', text: 'It is clean, no scratches.', timestamp: '10:29 AM' },
-      { id: '3', sender: 'merchant', text: 'Here are the photos of the bumper.', timestamp: '10:30 AM', isOffer: true, offerDetails: { price: '450 SAR', description: 'Original Used - Like New' } },
-    ]
-  },
-  {
-    id: 2,
-    merchantName: 'Seoul Auto',
-    customerName: 'Khalid O.',
-    customerPhone: '0569876543',
-    orderId: 1003,
-    partName: 'Headlights (Pair)',
-    lastMessage: 'Can you ship to Riyadh?',
-    lastMessageTime: 'Yesterday',
-    unreadCount: 0,
-    type: 'merchant',
-    createdAt: hoursAgo(2), // 2 Hours ago -> ACTIVE
-    messages: [
-      { id: '1', sender: 'user', text: 'Is this original?', timestamp: 'Yesterday' },
-      { id: '2', sender: 'merchant', text: 'Yes, genuine parts from Korea.', timestamp: 'Yesterday' },
-    ]
-  }
-];
-
 export const useChatStore = create<ChatState>((set, get) => ({
-  chats: MOCK_CHATS,
+  chats: [],
   activeChatId: null,
   acceptedChats: {}, // Initial state: No offers accepted
 
@@ -105,13 +69,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const chat = state.chats.find(c => c.id === chatId);
 
     if (chat?.type === 'support') {
-      useSupportStore.getState().addMessage(chatId, {
-        senderId: 'user',
-        senderRole: 'user',
+      useSupportStore.getState().addMessage(
+        chatId,
         text,
-        mediaUrl: attachment?.mediaUrl,
-        mediaType: attachment?.mediaType
-      });
+        attachment?.mediaUrl,
+        attachment?.mediaType
+      );
       get().syncSupportTickets();
       return;
     }
@@ -147,7 +110,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ activeChatId: existingChat.id });
     } else {
       const newChat: Chat = {
-        id: Date.now(),
+        id: Date.now().toString(),
         merchantName,
         customerName: 'Customer',
         customerPhone: '05XXXXXXXX',
@@ -173,14 +136,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       merchantName: 'Customer Support',
       customerName: t.userName || 'User',
       customerPhone: '',
-      orderId: 0,
+      orderId: '0',
       partName: t.subject,
-      lastMessage: t.messages[t.messages.length - 1]?.text || (t.messages[t.messages.length - 1]?.mediaUrl ? '[Attachment]' : t.message),
-      lastMessageTime: new Date(t.lastUpdate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      lastMessage: t.messages && t.messages.length > 0
+        ? (t.messages[t.messages.length - 1]?.text || (t.messages[t.messages.length - 1]?.mediaUrl ? '[Attachment]' : t.message))
+        : t.message,
+      lastMessageTime: new Date(t.lastUpdate || t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       unreadCount: t.status === 'RESOLVED' ? 0 : 1,
       type: 'support',
       createdAt: t.created_at || new Date().toISOString(),
-      messages: t.messages.map(m => ({
+      messages: (t.messages || []).map(m => ({
         id: m.id,
         sender: m.senderRole === 'user' ? 'user' : 'merchant',
         text: m.text,

@@ -280,7 +280,7 @@ function AppContent() {
                       {dashboardPath === 'shipping-cart' && <ShippingCartPage />}
                       {dashboardPath === 'create' && <CreateOrderWizard onComplete={() => handleDashboardNavigate('orders')} />}
                       {dashboardPath === 'order-details' && <OrderDetails orderId={viewId} onBack={() => handleDashboardNavigate('orders')} onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'chats' && <ChatLayout onNavigateToCheckout={() => handleDashboardNavigate('checkout')} />}
+                      {dashboardPath === 'chats' && <ChatLayout onNavigateToCheckout={() => handleDashboardNavigate('checkout')} viewId={viewId} />}
                       {dashboardPath === 'checkout' && <CheckoutWizard onComplete={() => { alert('Order Success!'); handleDashboardNavigate('orders'); }} />}
                       {dashboardPath === 'profile' && <ProfileView />}
                       {dashboardPath === 'billing' && <BillingPage onNavigate={handleDashboardNavigate} />}

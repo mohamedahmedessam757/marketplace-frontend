@@ -3,7 +3,7 @@ import { useSupportStore } from '../../../stores/useSupportStore';
 import { MessageSquare, Clock, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 
-export const TicketList: React.FC<{ onNewClick: () => void }> = ({ onNewClick }) => {
+export const TicketList: React.FC<{ onNewClick: () => void; onNavigate?: (ticketId: string) => void }> = ({ onNewClick, onNavigate }) => {
     const { t } = useLanguage();
     const { tickets, loading, fetchTickets } = useSupportStore();
 
@@ -45,6 +45,7 @@ export const TicketList: React.FC<{ onNewClick: () => void }> = ({ onNewClick })
             {tickets.map((ticket) => (
                 <div
                     key={ticket.id}
+                    onClick={() => onNavigate && onNavigate(ticket.id)}
                     className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-gold-500/50 transition-colors cursor-pointer group"
                 >
                     <div className="flex items-center justify-between">
@@ -57,7 +58,7 @@ export const TicketList: React.FC<{ onNewClick: () => void }> = ({ onNewClick })
                                     {ticket.subject}
                                 </h4>
                                 <div className="flex items-center gap-3 text-xs text-white/40 mt-1">
-                                    <span>#{ticket.ticket_number || ticket.id.slice(0, 8)}</span>
+                                    <span>#{ticket.ticket_number || ticket.id.toString().slice(0, 8)}</span>
                                     <span>•</span>
                                     <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
                                 </div>

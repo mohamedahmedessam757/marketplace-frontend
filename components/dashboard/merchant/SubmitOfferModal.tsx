@@ -6,6 +6,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useChatStore } from '../../../stores/useChatStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { useAdminStore } from '../../../stores/useAdminStore'; // Import AdminStore
+import { useOrderStore } from '../../../stores/useOrderStore'; // Import for customerId
 import { offersApi } from '../../../services/api/offers';
 import { supabase } from '../../../services/supabase';
 
@@ -33,6 +34,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     const { openChatForOrder } = useChatStore();
     const { addNotification } = useNotificationStore();
     const { systemConfig } = useAdminStore(); // Get Dynamic Config
+    const { getOrder, addOfferToOrder } = useOrderStore();
 
     // Form State
     const [basePrice, setBasePrice] = useState<string>('');
@@ -131,6 +133,27 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         setIsSubmitting(true);
 
         try {
+            // 0. OPTIMISTIC UI UPDATE: Instant 0ms visual feedback
+            if (requestDetails?.id) {
+                addOfferToOrder(requestDetails.id, {
+                    storeId: 'my-store-session', // Mocked currently
+                    merchantName: 'My Store', // Replaced via auth/profile in future
+                    storeRating: 5,
+                    storeReviewCount: 0,
+                    price: calculations.finalPrice,
+                    unitPrice: parseFloat(basePrice),
+                    shippingCost: calculations.shipping,
+                    isShippingIncluded: calculations.shipping === 0,
+                    condition,
+                    warranty: hasWarranty ? warrantyDuration : 'No',
+                    deliveryTime,
+                    notes,
+                    offerImage: imageUrl || undefined,
+                    weight: parseFloat(weight || '0'),
+                    partType
+                });
+            }
+
             // 1. Submit Offer Data to Backend
             await offersApi.create({
                 orderId: requestDetails?.id,
@@ -142,23 +165,29 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                 warrantyDuration: hasWarranty ? warrantyDuration : undefined,
                 deliveryDays: deliveryTime,
                 notes,
-                offerImage: imageUrl
+                offerImage: imageUrl || undefined
             });
 
             // 2. AUTO-OPEN CHAT LOGIC
             if (requestDetails) {
                 openChatForOrder(requestDetails.id, 'My Store', requestDetails.part);
 
-                addNotification({
-                    type: 'offer',
-                    titleKey: 'newOffer',
-                    message: language === 'ar'
-                        ? `عرض سعر جديد: ${calculations.finalPrice.toLocaleString()} ريال لطلبك #${requestDetails.id}`
-                        : `New Offer: ${calculations.finalPrice.toLocaleString()} SAR for Order #${requestDetails.id}`,
-                    orderId: requestDetails.id,
-                    linkTo: 'order-details',
-                    priority: 'normal'
-                });
+                const orderData = getOrder(requestDetails.id);
+
+                if (orderData?.customer?.id) {
+                    addNotification({
+                        recipientId: orderData.customer.id,
+                        recipientRole: 'CUSTOMER',
+                        type: 'offer',
+                        titleKey: 'newOffer',
+                        message: language === 'ar'
+                            ? `عرض سعر جديد: ${calculations.finalPrice.toLocaleString()} ريال لطلبك #${requestDetails.id}`
+                            : `New Offer: ${calculations.finalPrice.toLocaleString()} SAR for Order #${requestDetails.id}`,
+                        orderId: requestDetails.id,
+                        linkTo: 'order-details',
+                        priority: 'normal'
+                    });
+                }
             }
 
             onSubmit({}); // Close Modal/Callback
