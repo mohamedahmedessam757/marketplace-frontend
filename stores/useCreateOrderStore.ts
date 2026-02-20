@@ -30,10 +30,10 @@ export interface OrderState {
   // Phase 3 & 4
   preferences: {
     condition: 'new' | 'used' | null;
-    warranty: boolean;
   };
 
   isSubmitting: boolean;
+  showErrors: boolean; // Controls visual validation display
 
   // Actions
   setStep: (step: number) => void;
@@ -51,6 +51,7 @@ export interface OrderState {
   updatePreferences: (field: string, value: any) => void;
   reset: () => void;
   submitOrder: () => Promise<void>;
+  setShowErrors: (show: boolean) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -81,13 +82,13 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
   parts: [initialPart],
 
   preferences: {
-    condition: null,
-    warranty: false
+    condition: null
   },
 
   isSubmitting: false,
+  showErrors: false,
 
-  setStep: (step) => set({ step }),
+  setStep: (step) => set({ step, showErrors: false }), // Reset errors on step change
 
   updateVehicle: (updates) =>
     set((state) => ({ vehicle: { ...state.vehicle, ...updates } })),
@@ -148,10 +149,12 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
     vehicle: { make: '', model: '', year: '', vin: '', vinImage: null },
     requestType: 'single',
     shippingType: 'separate',
-    parts: [{ ...initialPart, id: generateId() }],
-    preferences: { condition: null, warranty: false },
-    isSubmitting: false
+    preferences: { condition: null },
+    isSubmitting: false,
+    showErrors: false
   }),
+
+  setShowErrors: (show) => set({ showErrors: show }),
 
   submitOrder: async () => {
     set({ isSubmitting: true });
@@ -215,8 +218,7 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
         partDescription: state.parts[0].description,
         partImages: processedParts[0].images,
 
-        conditionPref: state.preferences.condition,
-        warrantyPreferred: state.preferences.warranty
+        conditionPref: state.preferences.condition
       };
 
       // 4. Call Backend API

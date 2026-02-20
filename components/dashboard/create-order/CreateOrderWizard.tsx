@@ -17,7 +17,7 @@ interface CreateOrderWizardProps {
 }
 
 export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete }) => {
-  const { step, setStep, submitOrder, reset, vehicle, parts, preferences } = useCreateOrderStore();
+  const { step, setStep, submitOrder, reset, vehicle, parts, preferences, setShowErrors } = useCreateOrderStore();
   const { systemConfig } = useAdminStore(); // Hook into admin config
   const { addNotification } = useNotificationStore();
   const { t, language } = useLanguage();
@@ -26,6 +26,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
   const PrevIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
   const [isReady, setIsReady] = React.useState(false);
+  const [shake, setShake] = React.useState(false);
 
   useEffect(() => {
     reset(); // Clear store on mount
@@ -54,30 +55,41 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
   };
 
   const handleNext = () => {
-    // Validation
+    // Validation Setup
+    setShowErrors(true);
+    let hasError = false;
+
     if (step === 1) {
       if (!vehicle.make || !vehicle.model || !vehicle.year) {
-        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى تعبئة جميع بيانات المركبة' : 'Please fill all vehicle details', priority: 'urgent' });
-        return;
+        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى تعبئة جميع بيانات المركبة الإلزامية' : 'Please fill all mandatory vehicle details', priority: 'urgent' });
+        hasError = true;
       }
     }
 
-    if (step === 2) {
+    if (step === 2 && !hasError) {
       // Validate ALL parts
       const isValid = parts.every(p => p.name && p.description && p.images.length > 0);
       if (!isValid) {
-        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى تعبئة البيانات وصورة واحدة على الأقل لكل قطعة' : 'Please fill details and at least one image for all parts', priority: 'urgent' });
-        return;
+        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى تعبئة جميع البيانات الإلزامية وإرفاق صورة واحدة على الأقل لكل قطعة' : 'Please fill all mandatory details and attach at least one image for all parts', priority: 'urgent' });
+        hasError = true;
       }
     }
 
-    if (step === 3 && SHOW_PREFERENCES_STEP) {
+    if (step === 3 && SHOW_PREFERENCES_STEP && !hasError) {
       if (!preferences.condition) {
         addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى اختيار حالة القطعة' : 'Please select part condition', priority: 'urgent' });
-        return;
+        hasError = true;
       }
     }
 
+    if (hasError) {
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+
+    // Success (Move Next)
+    setShowErrors(false);
     setStep(getNextStep(step));
   };
 
@@ -179,7 +191,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
 
             <button
               onClick={handleNext}
-              className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98]"
+              className={`flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
             >
               {t.dashboard.createOrder.next}
               <NextIcon size={20} />

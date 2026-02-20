@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, DollarSign, UploadCloud, Car, Settings, Loader2, Calculator, Info, Scale, ShieldCheck, PlayCircle } from 'lucide-react';
+import { X, DollarSign, UploadCloud, Car, Settings, Loader2, Calculator, Info, Scale, ShieldCheck, PlayCircle, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useChatStore } from '../../../stores/useChatStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
@@ -58,6 +58,8 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [shake, setShake] = useState(false);
 
     // --- BUSINESS LOGIC: Pricing Engine (DYNAMIC) ---
     useEffect(() => {
@@ -126,9 +128,24 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         }
     };
 
+    const triggerError = (msg: string) => {
+        setError(msg);
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!basePrice || (!weight && partType === 'normal')) return;
+        setError(null);
+
+        if (!basePrice) {
+            triggerError(t.auth.errors?.fillAll || 'Please enter the Base Price');
+            return;
+        }
+        if (!weight && partType === 'normal') {
+            triggerError(t.auth.errors?.fillAll || 'Please enter the Weight');
+            return;
+        }
 
         setIsSubmitting(true);
 
@@ -199,6 +216,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             setHasWarranty(false);
             setNotes('');
             setImageUrl(null);
+            setError(null);
 
         } catch (error) {
             console.error('Offer submission failed:', error);
@@ -366,8 +384,11 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                             required
                                             min="1"
                                             value={basePrice}
-                                            onChange={(e) => setBasePrice(e.target.value)}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white font-bold text-lg focus:border-gold-500 outline-none transition-all placeholder-white/10"
+                                            onChange={(e) => {
+                                                setBasePrice(e.target.value);
+                                                if (error) setError(null);
+                                            }}
+                                            className={`w-full bg-black/40 border rounded-xl py-3 pl-12 pr-4 text-white font-bold text-lg outline-none transition-all placeholder-white/10 ${error && !basePrice ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
                                             placeholder="0.00"
                                         />
                                     </div>
@@ -409,8 +430,11 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                 min="0.1"
                                                 step="0.1"
                                                 value={weight}
-                                                onChange={(e) => setWeight(e.target.value)}
-                                                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white font-mono focus:border-gold-500 outline-none transition-all placeholder-white/10"
+                                                onChange={(e) => {
+                                                    setWeight(e.target.value);
+                                                    if (error) setError(null);
+                                                }}
+                                                className={`w-full bg-white/5 border rounded-xl py-3 px-4 text-white font-mono outline-none transition-all placeholder-white/10 ${error && !weight ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
                                                 placeholder="0.0"
                                             />
                                             <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-white/30 text-xs">
@@ -540,6 +564,19 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                 )}
                             </div>
                             {/* 7. Action Buttons (Moved inside form for guaranteed scrolling) */}
+                            <AnimatePresence>
+                                {error && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0 }}
+                                        className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-400 text-sm justify-center"
+                                    >
+                                        <AlertCircle size={16} />
+                                        <span>{error}</span>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                             <div className="pt-4 mt-4 border-t border-white/10 flex gap-3">
                                 <button
                                     type="button"
@@ -550,8 +587,8 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                 </button>
                                 <button
                                     onClick={handleSubmit}
-                                    disabled={isSubmitting || !basePrice || (!weight && partType === 'normal')}
-                                    className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white font-bold text-sm shadow-lg shadow-gold-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                                    disabled={isSubmitting}
+                                    className={`flex-[2] py-3 rounded-xl bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white font-bold text-sm shadow-lg shadow-gold-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
                                 >
                                     {isSubmitting ? (
                                         <Loader2 className="animate-spin" size={20} />

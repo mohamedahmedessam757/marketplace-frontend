@@ -23,6 +23,7 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
   const { systemConfig } = useAdminStore(); // Fetch system config
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [shake, setShake] = React.useState(false);
 
   // Local OTP State
   const [otpStep, setOtpStep] = React.useState<'method' | 'verify'>('method');
@@ -54,37 +55,43 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
   };
 
   // Validation Logic
+  const triggerError = (msg: string) => {
+    setError(msg);
+    setShake(true);
+    setTimeout(() => setShake(false), 500);
+  };
+
   const validateStep = (currentStep: number): boolean => {
     setError(null);
     if (currentStep === 1) {
       if (!store.account.name || !store.account.email || !store.account.phone || !store.account.password) {
-        setError(t.auth.errors?.fillAll);
+        triggerError(t.auth.errors?.fillAll || 'Please fill in all mandatory fields');
         return false;
       }
       if (!store.account.email.includes('@')) {
-        setError(t.auth.errors?.invalidEmail);
+        triggerError(t.auth.errors?.invalidEmail || 'Invalid Email Format');
         return false;
       }
       if (store.account.password.length < 6) {
-        setError(t.auth.errors?.passwordShort);
+        triggerError(t.auth.errors?.passwordShort || 'Password must be at least 6 characters');
         return false;
       }
     }
     if (currentStep === 2) {
       if (!store.otpVerified) {
-        setError(t.auth.errors?.verifyOTP);
+        triggerError(t.auth.errors?.verifyOTP || 'Please verify your OTP first');
         return false;
       }
     }
     if (currentStep === 3) {
-      if (!store.storeInfo.storeName || !store.storeInfo.category) {
-        setError(t.auth.vendor.info.enterDetails);
+      if (!store.storeInfo.storeName || !store.storeInfo.category || !store.storeInfo.address) {
+        triggerError(t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details');
         return false;
       }
     }
     if (currentStep === 4) {
       if (!store.contractAgreed) {
-        setError(t.auth.errors?.contractError);
+        triggerError(t.auth.errors?.contractError || 'You must agree to the contract before proceeding');
         return false;
       }
     }
@@ -160,7 +167,7 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
     const allUploaded = [cr, license, id, iban, authLetter].every(d => d.status === 'completed' || d.status === 'pending');
 
     if (!allUploaded) {
-      setError(t.auth.errors?.docsError);
+      triggerError(t.auth.errors?.docsError || 'Please completely upload all 5 mandatory documents');
       return;
     }
 
@@ -323,12 +330,15 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                 <div>
                   <label className="block text-sm font-medium text-gold-200 mb-2">{t.auth.vendor.account.name}</label>
                   <div className="relative group">
-                    <User className="absolute top-4 right-4 w-5 h-5 text-white/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
+                    <User className={`absolute top-4 right-4 w-5 h-5 transition-colors pointer-events-none ${error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields') && !store.account.name ? 'text-red-500' : 'text-white/40 group-focus-within:text-gold-500'}`} />
                     <input
                       type="text"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 pr-12 text-white focus:border-gold-500 focus:bg-white/10 outline-none transition-all placeholder-white/20"
+                      className={`w-full bg-white/5 border rounded-xl px-5 py-4 pr-12 text-white outline-none transition-all placeholder-white/20 ${error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields') && !store.account.name ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:bg-white/10'}`}
                       value={store.account.name}
-                      onChange={e => store.updateAccount('name', e.target.value)}
+                      onChange={e => {
+                        store.updateAccount('name', e.target.value);
+                        if (error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields')) setError(null);
+                      }}
                     />
                   </div>
                 </div>
@@ -336,13 +346,16 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                 <div>
                   <label className="block text-sm font-medium text-gold-200 mb-2">{t.auth.vendor.account.phone}</label>
                   <div className="relative group">
-                    <Phone className="absolute top-4 right-4 w-5 h-5 text-white/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
+                    <Phone className={`absolute top-4 right-4 w-5 h-5 transition-colors pointer-events-none ${error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields') && !store.account.phone ? 'text-red-500' : 'text-white/40 group-focus-within:text-gold-500'}`} />
                     <input
                       type="tel"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 pr-12 text-white focus:border-gold-500 focus:bg-white/10 outline-none transition-all placeholder-white/20"
+                      className={`w-full bg-white/5 border rounded-xl px-5 py-4 pr-12 text-white outline-none transition-all placeholder-white/20 ${error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields') && !store.account.phone ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:bg-white/10'}`}
                       placeholder="05xxxxxxxx"
                       value={store.account.phone}
-                      onChange={e => store.updateAccount('phone', e.target.value)}
+                      onChange={e => {
+                        store.updateAccount('phone', e.target.value);
+                        if (error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields')) setError(null);
+                      }}
                     />
                   </div>
                 </div>
@@ -350,12 +363,15 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                 <div>
                   <label className="block text-sm font-medium text-gold-200 mb-2">{t.auth.vendor.account.email}</label>
                   <div className="relative group">
-                    <Mail className="absolute top-4 right-4 w-5 h-5 text-white/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
+                    <Mail className={`absolute top-4 right-4 w-5 h-5 transition-colors pointer-events-none ${(error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields') && !store.account.email) || error === (t.auth.errors?.invalidEmail || 'Invalid Email Format') ? 'text-red-500' : 'text-white/40 group-focus-within:text-gold-500'}`} />
                     <input
                       type="email"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 pr-12 text-white focus:border-gold-500 focus:bg-white/10 outline-none transition-all placeholder-white/20"
+                      className={`w-full bg-white/5 border rounded-xl px-5 py-4 pr-12 text-white outline-none transition-all placeholder-white/20 ${(error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields') && !store.account.email) || error === (t.auth.errors?.invalidEmail || 'Invalid Email Format') ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:bg-white/10'}`}
                       value={store.account.email}
-                      onChange={e => store.updateAccount('email', e.target.value)}
+                      onChange={e => {
+                        store.updateAccount('email', e.target.value);
+                        if (error) setError(null);
+                      }}
                     />
                   </div>
                 </div>
@@ -363,12 +379,15 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                 <div>
                   <label className="block text-sm font-medium text-gold-200 mb-2">{t.auth.vendor.account.password}</label>
                   <div className="relative group">
-                    <Lock className="absolute top-4 right-4 w-5 h-5 text-white/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
+                    <Lock className={`absolute top-4 right-4 w-5 h-5 transition-colors pointer-events-none ${(error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields') && !store.account.password) || error === (t.auth.errors?.passwordShort || 'Password must be at least 6 characters') ? 'text-red-500' : 'text-white/40 group-focus-within:text-gold-500'}`} />
                     <input
                       type="password"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 pr-12 text-white focus:border-gold-500 focus:bg-white/10 outline-none transition-all placeholder-white/20"
+                      className={`w-full bg-white/5 border rounded-xl px-5 py-4 pr-12 text-white outline-none transition-all placeholder-white/20 ${(error === (t.auth.errors?.fillAll || 'Please fill in all mandatory fields') && !store.account.password) || error === (t.auth.errors?.passwordShort || 'Password must be at least 6 characters') ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:bg-white/10'}`}
                       value={store.account.password}
-                      onChange={e => store.updateAccount('password', e.target.value)}
+                      onChange={e => {
+                        store.updateAccount('password', e.target.value);
+                        if (error) setError(null);
+                      }}
                     />
                   </div>
                 </div>
@@ -417,12 +436,15 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
               <div>
                 <label className="block text-sm font-medium text-gold-200 mb-2">{t.auth.vendor.info.storeName}</label>
                 <div className="relative group">
-                  <Store className="absolute top-4 right-4 w-5 h-5 text-white/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
+                  <Store className={`absolute top-4 right-4 w-5 h-5 transition-colors pointer-events-none ${error === (t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details') && !store.storeInfo.storeName ? 'text-red-500' : 'text-white/40 group-focus-within:text-gold-500'}`} />
                   <input
                     type="text"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 pr-12 text-white focus:border-gold-500 focus:bg-white/10 outline-none transition-all placeholder-white/20"
+                    className={`w-full bg-white/5 border rounded-xl px-5 py-4 pr-12 text-white outline-none transition-all placeholder-white/20 ${error === (t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details') && !store.storeInfo.storeName ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:bg-white/10'}`}
                     value={store.storeInfo.storeName}
-                    onChange={e => store.updateStoreInfo('storeName', e.target.value)}
+                    onChange={e => {
+                      store.updateStoreInfo('storeName', e.target.value);
+                      if (error === (t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details')) setError(null);
+                    }}
                   />
                 </div>
               </div>
@@ -432,13 +454,16 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                 <label className="block text-sm font-medium text-gold-200 mb-2">Store Address & Location</label>
                 <div className="relative group flex gap-2">
                   <div className="relative flex-1">
-                    <MapPin className="absolute top-4 right-4 w-5 h-5 text-white/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
+                    <MapPin className={`absolute top-4 right-4 w-5 h-5 transition-colors pointer-events-none ${error === (t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details') && !store.storeInfo.address ? 'text-red-500' : 'text-white/40 group-focus-within:text-gold-500'}`} />
                     <input
                       type="text"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 pr-12 text-white focus:border-gold-500 focus:bg-white/10 outline-none transition-all placeholder-white/20"
+                      className={`w-full bg-white/5 border rounded-xl px-5 py-4 pr-12 text-white outline-none transition-all placeholder-white/20 ${error === (t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details') && !store.storeInfo.address ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:bg-white/10'}`}
                       placeholder="Enter Address or Click GPS"
                       value={store.storeInfo.address}
-                      onChange={e => store.updateStoreInfo('address', e.target.value)}
+                      onChange={e => {
+                        store.updateStoreInfo('address', e.target.value);
+                        if (error === (t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details')) setError(null);
+                      }}
                     />
                   </div>
                   <button
@@ -457,12 +482,15 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                 )}
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-medium text-gold-200 mb-2">{t.auth.vendor.info.category}</label>
                 <select
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:border-gold-500 focus:bg-white/10 outline-none transition-all appearance-none"
+                  className={`w-full bg-white/5 border rounded-xl px-5 py-4 text-white outline-none transition-all appearance-none cursor-pointer ${error === (t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details') && !store.storeInfo.category ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:bg-white/10'}`}
                   value={store.storeInfo.category}
-                  onChange={e => store.updateStoreInfo('category', e.target.value)}
+                  onChange={e => {
+                    store.updateStoreInfo('category', e.target.value);
+                    if (error === (t.auth.vendor.info.enterDetails || 'Please fill in all mandatory store details')) setError(null);
+                  }}
                 >
                   <option value="" className="bg-[#1A1814]">{t.common?.selectCategory || 'Select...'}</option>
                   <option value="parts" className="bg-[#1A1814]">{t.auth.vendor.info.categories.parts}</option>
@@ -620,7 +648,7 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
           <button
             onClick={store.step === 5 ? handleSubmit : handleNext}
             disabled={isSubmitting}
-            className={`flex-1 py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-gold-500/20 transition-all active:scale-[0.98] ${isSubmitting ? 'opacity-80 cursor-not-allowed' : ''}`}
+            className={`flex-1 py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-gold-500/20 transition-all active:scale-[0.98] ${isSubmitting ? 'opacity-80 cursor-not-allowed' : ''} ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
           >
             {isSubmitting ? (
               <>

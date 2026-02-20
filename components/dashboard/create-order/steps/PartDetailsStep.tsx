@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Package, FileText, UploadCloud, X, Plus, Trash2, AlertTriangle, Info, Truck, Video } from 'lucide-react';
+import { Package, FileText, UploadCloud, X, Plus, Trash2, AlertTriangle, Info, Truck, Video, AlertCircle, Camera } from 'lucide-react';
 import { useCreateOrderStore, PartItem } from '../../../../stores/useCreateOrderStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { GlassCard } from '../../../ui/GlassCard';
@@ -16,7 +16,8 @@ export const PartDetailsStep: React.FC = () => {
     removePart,
     updatePart,
     addPartImage,
-    removePartImage
+    removePartImage,
+    showErrors
   } = useCreateOrderStore();
   const { t, language } = useLanguage();
   const isRTL = language === 'ar';
@@ -132,9 +133,15 @@ export const PartDetailsStep: React.FC = () => {
                   type="text"
                   value={part.name}
                   onChange={(e) => updatePart(part.id, 'name', e.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none transition-all placeholder-white/20"
+                  className={`w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none transition-all placeholder-white/20 ${showErrors && !part.name ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
                   placeholder={t.dashboard.createOrder.part.namePlaceholder}
                 />
+                {showErrors && !part.name && (
+                  <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-500 text-xs flex items-center gap-1 mt-2 font-medium">
+                    <AlertCircle size={14} />
+                    {isRTL ? 'يرجى إدخال اسم القطعة' : 'Please enter part name'}
+                  </motion.p>
+                )}
               </div>
 
               {/* Description */}
@@ -146,9 +153,15 @@ export const PartDetailsStep: React.FC = () => {
                   value={part.description}
                   onChange={(e) => updatePart(part.id, 'description', e.target.value)}
                   rows={3}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none transition-all placeholder-white/20 resize-none"
+                  className={`w-full bg-black/20 border rounded-xl px-4 py-3 text-white outline-none transition-all placeholder-white/20 resize-none ${showErrors && !part.description ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
                   placeholder={t.dashboard.createOrder.part.descPlaceholder}
                 />
+                {showErrors && !part.description && (
+                  <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-500 text-xs flex items-center gap-1 mt-2 font-medium">
+                    <AlertCircle size={14} />
+                    {isRTL ? 'يرجى إدخال وصف القطعة' : 'Please enter part description'}
+                  </motion.p>
+                )}
               </div>
 
               {/* Notes (Optional) */}
@@ -172,7 +185,7 @@ export const PartDetailsStep: React.FC = () => {
                 </label>
                 <div className="flex flex-wrap gap-4">
                   {/* Add Image Button */}
-                  <label className="w-24 h-24 rounded-xl border-2 border-dashed border-white/10 hover:border-gold-500/50 hover:bg-white/5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group/upload">
+                  <label className={`w-24 h-24 rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group/upload ${showErrors && part.images.length === 0 ? 'border-red-500 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.4)] hover:border-red-400' : 'border-white/10 hover:border-gold-500/50 hover:bg-white/5'}`}>
                     <input
                       type="file"
                       className="hidden"
@@ -180,7 +193,20 @@ export const PartDetailsStep: React.FC = () => {
                       onChange={(e) => handleFileChange(e, part.id)}
                     />
                     <UploadCloud className="w-6 h-6 text-white/20 group-hover/upload:text-gold-400 transition-colors" />
-                    <span className="text-[10px] text-white/40">{isRTL ? "رفع" : "Upload"}</span>
+                    <span className="text-[10px] text-white/40 text-center leading-tight px-1">{isRTL ? "رفع صورة" : "Upload Image"}</span>
+                  </label>
+
+                  {/* Camera Capture Button */}
+                  <label className={`w-24 h-24 rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group/camera ${showErrors && part.images.length === 0 ? 'border-red-500 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.4)] hover:border-red-400' : 'border-white/10 hover:border-gold-500/50 hover:bg-gold-500/5'}`}>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => handleFileChange(e, part.id)}
+                    />
+                    <Camera className="w-6 h-6 text-white/20 group-hover/camera:text-gold-400 transition-colors" />
+                    <span className="text-[10px] text-white/40 text-center leading-tight px-1">{isRTL ? "تصوير مباشر" : "Take Photo"}</span>
                   </label>
 
                   {/* Image Previews */}
@@ -200,6 +226,12 @@ export const PartDetailsStep: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                {showErrors && part.images.length === 0 && (
+                  <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-500 text-xs flex items-center gap-1 mt-2 font-medium">
+                    <AlertCircle size={14} />
+                    {isRTL ? 'يرجى إرفاق صورة واحدة على الأقل لكل قطعة' : 'Please attach at least one image per part'}
+                  </motion.p>
+                )}
               </div>
 
               {/* Video Upload (Optional) */}

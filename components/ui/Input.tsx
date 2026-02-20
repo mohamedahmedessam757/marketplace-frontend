@@ -16,9 +16,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             className={`
-              peer w-full bg-[#1A1814] border-2 rounded-xl px-4 py-3 text-white outline-none transition-all placeholder-transparent
-              ${error 
-                ? 'border-red-500/50 focus:border-red-500' 
+              ${error
+                ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500'
                 : 'border-white/5 focus:border-gold-500'
               }
               ${Icon ? 'pl-11' : ''}
@@ -27,7 +26,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             placeholder={label}
             {...props}
           />
-          <label 
+          <label
             className={`
               absolute left-4 -top-2.5 bg-[#1A1814] px-2 text-xs text-white/50 transition-all 
               peer-placeholder-shown:text-base peer-placeholder-shown:text-white/40 peer-placeholder-shown:top-3.5 

@@ -1,13 +1,13 @@
 import React, { useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Car, Calendar, Hash, Camera, Info, ChevronDown } from 'lucide-react';
+import { Car, Calendar, Hash, Camera, Info, ChevronDown, AlertCircle } from 'lucide-react';
 import { useCreateOrderStore } from '../../../../stores/useCreateOrderStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { manufacturers } from '../../../../data/manufacturers';
 import { GlassCard } from '../../../ui/GlassCard';
 
 export const VehicleDetailsStep: React.FC = () => {
-  const { vehicle, updateVehicle } = useCreateOrderStore();
+  const { vehicle, updateVehicle, showErrors } = useCreateOrderStore();
   const { t, language } = useLanguage();
   const isRTL = language === 'ar';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +73,7 @@ export const VehicleDetailsStep: React.FC = () => {
             <select
               value={vehicle.make}
               onChange={handleManufacturerChange}
-              className={`w-full bg-white/5 border border-white/10 rounded-xl py-3 text-white focus:border-gold-500 focus:ring-1 focus:ring-gold-500 outline-none transition-all appearance-none ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} ${!vehicle.make ? 'text-white/30' : ''}`}
+              className={`w-full bg-white/5 border rounded-xl py-3 text-white outline-none transition-all appearance-none ${showErrors && !vehicle.make ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:ring-1 focus:ring-gold-500'} ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} ${!vehicle.make ? 'text-white/30' : ''}`}
             >
               <option value="" disabled className="bg-[#1A1814] text-gray-400">
                 {language === 'ar' ? "اختر الشركة المصنعة" : "Select Manufacturer"}
@@ -86,6 +86,12 @@ export const VehicleDetailsStep: React.FC = () => {
             </select>
             <ChevronDown className={`absolute top-4 w-4 h-4 text-white/30 pointer-events-none ${isRTL ? 'left-3.5' : 'right-3.5'}`} />
           </div>
+          {showErrors && !vehicle.make && (
+            <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-500 text-xs flex items-center gap-1 mt-1.5 font-medium">
+              <AlertCircle size={14} />
+              {isRTL ? 'يرجى اختيار الشركة المصنعة' : 'Please select a manufacturer'}
+            </motion.p>
+          )}
         </div>
 
         {/* Vehicle Type Selection (Replacing Model) */}
@@ -99,7 +105,7 @@ export const VehicleDetailsStep: React.FC = () => {
               value={vehicle.model}
               onChange={handleTypeChange}
               disabled={!vehicle.make}
-              className={`w-full bg-white/5 border border-white/10 rounded-xl py-3 text-white focus:border-gold-500 focus:ring-1 focus:ring-gold-500 outline-none transition-all appearance-none ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} ${!vehicle.make ? 'opacity-50 cursor-not-allowed' : ''} ${!vehicle.model ? 'text-white/30' : ''}`}
+              className={`w-full bg-white/5 border rounded-xl py-3 text-white outline-none transition-all appearance-none ${showErrors && !vehicle.model ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:ring-1 focus:ring-gold-500'} ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} ${!vehicle.make ? 'opacity-50 cursor-not-allowed' : ''} ${!vehicle.model ? 'text-white/30' : ''}`}
             >
               <option value="" disabled className="bg-[#1A1814] text-gray-400">
                 {language === 'ar' ? "اختر نوع السيارة" : "Select Vehicle Type"}
@@ -112,6 +118,12 @@ export const VehicleDetailsStep: React.FC = () => {
             </select>
             <ChevronDown className={`absolute top-4 w-4 h-4 text-white/30 pointer-events-none ${isRTL ? 'left-3.5' : 'right-3.5'}`} />
           </div>
+          {showErrors && !vehicle.model && (
+            <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-500 text-xs flex items-center gap-1 mt-1.5 font-medium">
+              <AlertCircle size={14} />
+              {isRTL ? 'يرجى اختيار نوع السيارة' : 'Please select vehicle type'}
+            </motion.p>
+          )}
         </div>
 
         {/* Year of Manufacture (Manual Input) */}
@@ -127,9 +139,15 @@ export const VehicleDetailsStep: React.FC = () => {
               onChange={handleYearChange}
               placeholder={language === 'ar' ? "مثال: 2020" : "Ex: 2020"}
               maxLength={4}
-              className={`w-full bg-white/5 border border-white/10 rounded-xl py-3 text-white placeholder:text-white/20 focus:border-gold-500 focus:ring-1 focus:ring-gold-500 outline-none transition-all ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'}`}
+              className={`w-full bg-white/5 border rounded-xl py-3 text-white placeholder:text-white/20 outline-none transition-all ${showErrors && !vehicle.year ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:ring-1 focus:ring-gold-500'} ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'}`}
             />
           </div>
+          {showErrors && !vehicle.year && (
+            <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-500 text-xs flex items-center gap-1 mt-1.5 font-medium">
+              <AlertCircle size={14} />
+              {isRTL ? 'يرجى إدخال سنة الصنع' : 'Please enter year of manufacture'}
+            </motion.p>
+          )}
         </div>
 
         {/* VIN Number */}
