@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Car, Package, Settings, AlertCircle, Loader2, Truck, ShieldCheck, Video } from 'lucide-react';
+import { CheckCircle2, Car, Package, Settings, AlertCircle, Loader2, Truck, Video } from 'lucide-react';
 import { useCreateOrderStore } from '../../../../stores/useCreateOrderStore';
 import { useAdminStore } from '../../../../stores/useAdminStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
@@ -184,55 +184,26 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onConfirm }) => {
                             </GlassCard>
                         ))}
                     </div>
-                </div>
 
-                {/* Extended Warranty Toggle (New Phase 4 addition) */}
-                <div className="md:col-span-2">
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
-                                <ShieldCheck size={24} />
-                            </div>
-                            <div>
-                                <h4 className="text-white font-bold text-sm">
-                                    {isRTL ? "تمديد الضمان (اختياري)" : "Extended Warranty (Optional)"}
-                                </h4>
-
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => updatePreferences('warranty', !preferences.warranty)}
-                            className={`
-                                w-12 h-7 rounded-full p-1 transition-colors duration-300 flex items-center relative
-                                ${preferences.warranty ? 'bg-gold-500' : 'bg-white/10'}
-                            `}
-                        >
-                            <motion.div
-                                className="w-5 h-5 rounded-full bg-white shadow-md absolute top-1 left-1"
-                                animate={{ x: preferences.warranty ? 20 : 0 }}
-                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                            />
-                        </button>
-                    </div>
                 </div>
 
             </div>
 
             <div className="pt-4">
-                <button
-                    onClick={onConfirm}
-                    disabled={isSubmitting}
-                    className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                    {isSubmitting ? <Loader2 className="animate-spin" /> : (
-                        <>
-                            <CheckCircle2 size={20} />
-                            {t.dashboard.createOrder.review.confirm}
-                        </>
-                    )}
-                </button>
-            </div>
+                    <button
+                        onClick={onConfirm}
+                        disabled={isSubmitting}
+                        className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        {isSubmitting ? <Loader2 className="animate-spin" /> : (
+                            <>
+                                <CheckCircle2 size={20} />
+                                {t.dashboard.createOrder.review.confirm}
+                            </>
+                        )}
+                    </button>
+                </div>
 
-        </motion.div>
+        </motion.div >
     );
 };
