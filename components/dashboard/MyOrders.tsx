@@ -94,7 +94,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
     const isOrderExpired = (order: Order) => {
         if (order.status === 'CANCELLED') return true;
         if (order.status !== 'AWAITING_OFFERS') return false;
-        const created = new Date(order.created_at).getTime();
+        const created = new Date(order.createdAt).getTime();
         const now = new Date().getTime();
         return (now - created) > (24 * 60 * 60 * 1000);
     };
@@ -104,9 +104,9 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
         // 1. Search
         const searchLower = searchQuery.toLowerCase();
         const matchesSearch =
-            order.part_name.toLowerCase().includes(searchLower) ||
-            order.vehicle_make.toLowerCase().includes(searchLower) ||
-            order.order_number.toLowerCase().includes(searchLower);
+            (order.partName || '').toLowerCase().includes(searchLower) ||
+            (order.vehicleMake || '').toLowerCase().includes(searchLower) ||
+            (order.orderNumber || '').toLowerCase().includes(searchLower);
 
         if (!matchesSearch) return false;
 
@@ -115,20 +115,12 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
             const expired = isOrderExpired(order);
 
             if (statusFilter === 'ACTIVE') {
-                // Must NOT be expired
                 if (expired) return false;
                 if (!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'PREPARATION', 'SHIPPED', 'DISPUTED'].includes(order.status)) return false;
             } else if (statusFilter === 'COMPLETED') {
                 if (!['COMPLETED', 'DELIVERED'].includes(order.status)) return false;
-            } else if (statusFilter === 'EXPIRED') {
-                // Must be 'AWAITING_OFFERS' AND Expired, OR explicitly 'CANCELLED'/'RETURNED' (if we want to group them, but user said change Cancelled to Expired logic)
-                // User said: "Rename Cancelled to Expired and make it bring all Expired offers".
-                // I will include actual logical expirations AND explicit cancellations for completeness, or just logical expirations if strictly requested. 
-                // "ال فلتر على حسب الحاله محتاج أغير فيه كلمه ملغاه الى منتهى وتكون شغاله بتجيب كل العروض المنتهيه"
-                // I will include both for better UX, or just Expired. Let's stick to Expired + Cancelled to be safe, or just Expired?
-                // "Expired" usually implies "Time run out". "Cancelled" implies user action.
-                // I will strictly check for Expired (Time) OR Cancelled (Status) to show in this tab, as "Cancelled" tab is gone.
-                if (!expired && !['CANCELLED'].includes(order.status)) return false;
+            } else if (statusFilter === 'CANCELLED') {
+                if (order.status !== 'CANCELLED') return false;
             } else if (statusFilter === 'PENDING') {
                 if (expired) return false;
                 if (order.status !== 'AWAITING_OFFERS') return false;
@@ -137,9 +129,11 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
 
         // 3. Offers Filter
         if (offersFilter !== 'ALL') {
+            const expired = isOrderExpired(order);
             const hasOffers = (order.offers?.length || 0) > 0;
             if (offersFilter === 'WITH_OFFERS' && !hasOffers) return false;
             if (offersFilter === 'WITHOUT_OFFERS' && hasOffers) return false;
+            if (offersFilter === 'EXPIRED' && !expired) return false;
         }
 
         // 4. Payment Filter
@@ -147,7 +141,8 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
             const isPaid = order.status !== 'AWAITING_PAYMENT' && order.status !== 'AWAITING_OFFERS' && order.status !== 'CANCELLED' && order.status !== 'RETURNED';
 
             if (paymentFilter === 'PAID' && !isPaid) return false;
-            if (paymentFilter === 'UNPAID' && isPaid) return false;
+            if (paymentFilter === 'UNPAID' && order.status !== 'AWAITING_PAYMENT' && order.status !== 'AWAITING_OFFERS') return false;
+            if (paymentFilter === 'PARTIAL' && order.status !== 'PARTIALLY_PAID') return false;
         }
 
         return true;
@@ -183,65 +178,78 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                 </div>
 
                 {/* Filters Bar */}
-                <GlassCard className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between z-20 relative">
-                    <div className="flex items-center gap-3 w-full md:w-auto">
+                <GlassCard className="p-4 flex flex-col md:flex-row items-start md:items-end gap-5 z-20 relative">
+                    <div className="flex flex-col gap-2 w-full md:w-auto">
+                        <label className="text-xs font-bold text-white/50 px-1">{language === 'ar' ? 'البحث في الطلبات' : 'Search in orders'}</label>
                         <div className="relative w-full md:w-64">
                             <Search size={16} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/30" />
                             <input
                                 type="text"
                                 placeholder={(t.dashboard.orders as any).searchPlaceholder || (language === 'ar' ? 'بحث عن الطلبات...' : 'Search orders...')}
-                                className="bg-black/20 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-gold-500/50 w-full placeholder:text-white/20"
+                                className="bg-black/20 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-gold-500/50 w-full placeholder:text-white/20"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-4 w-full md:w-auto">
+                    <div className="flex flex-wrap gap-4 w-full md:flex-1 md:justify-end">
                         {/* Status Select */}
-                        <div className="relative">
-                            <Filter size={14} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/40" />
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                                className="bg-black/20 border border-white/10 rounded-xl py-2 pl-9 pr-8 text-sm text-white focus:outline-none appearance-none cursor-pointer hover:border-white/20"
-                                style={{ colorScheme: 'dark' }}
-                            >
-                                <option value="ALL" className="text-black bg-white">{t.dashboard.orders.tabs.all}</option>
-                                <option value="ACTIVE" className="text-black bg-white">{t.dashboard.orders.tabs.active}</option>
-                                <option value="COMPLETED" className="text-black bg-white">{t.dashboard.orders.tabs.completed}</option>
-                                <option value="EXPIRED" className="text-black bg-white">{language === 'ar' ? 'منتهى' : 'Expired'}</option>
-                            </select>
+                        <div className="flex flex-col gap-2 w-full sm:w-auto">
+                            <label className="text-xs font-bold text-white/50 px-1">{language === 'ar' ? 'فلترة حسب الحالة' : 'Filter by Status'}</label>
+                            <div className="relative">
+                                <Filter size={14} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/40" />
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className="bg-black/20 border border-white/10 rounded-xl py-2.5 pl-9 pr-8 text-sm text-white focus:outline-none appearance-none cursor-pointer w-full sm:w-auto hover:border-white/20"
+                                    style={{ colorScheme: 'dark' }}
+                                >
+                                    <option value="ALL" className="text-black bg-white">{language === 'ar' ? 'جميع الحالات' : 'All Statuses'}</option>
+                                    <option value="PENDING" className="text-black bg-white">{language === 'ar' ? 'في الانتظار' : 'Pending'}</option>
+                                    <option value="ACTIVE" className="text-black bg-white">{t.dashboard.orders.tabs.active}</option>
+                                    <option value="COMPLETED" className="text-black bg-white">{t.dashboard.orders.tabs.completed}</option>
+                                    <option value="CANCELLED" className="text-black bg-white">{language === 'ar' ? 'ملغى' : 'Cancelled'}</option>
+                                </select>
+                            </div>
                         </div>
 
                         {/* Offers Select */}
-                        <div className="relative">
-                            <Tag size={14} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/40" />
-                            <select
-                                value={offersFilter}
-                                onChange={(e) => setOffersFilter(e.target.value)}
-                                className="bg-black/20 border border-white/10 rounded-xl py-2 pl-9 pr-8 text-sm text-white focus:outline-none appearance-none cursor-pointer hover:border-white/20"
-                                style={{ colorScheme: 'dark' }}
-                            >
-                                <option value="ALL" className="text-black bg-white">{t.dashboard.orders.filterOffers || (language === 'ar' ? 'جميع العروض' : 'All Offers')}</option>
-                                <option value="WITH_OFFERS" className="text-black bg-white">{t.dashboard.orders.withOffers || (language === 'ar' ? 'مع عروض' : 'With Offers')}</option>
-                                <option value="WITHOUT_OFFERS" className="text-black bg-white">{t.dashboard.orders.withoutOffers || (language === 'ar' ? 'بدون عروض' : 'No Offers')}</option>
-                            </select>
+                        <div className="flex flex-col gap-2 w-full sm:w-auto">
+                            <label className="text-xs font-bold text-white/50 px-1">{language === 'ar' ? 'فلترة حسب العروض' : 'Filter by Offers'}</label>
+                            <div className="relative">
+                                <Tag size={14} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/40" />
+                                <select
+                                    value={offersFilter}
+                                    onChange={(e) => setOffersFilter(e.target.value)}
+                                    className="bg-black/20 border border-white/10 rounded-xl py-2.5 pl-9 pr-8 text-sm text-white focus:outline-none appearance-none cursor-pointer w-full sm:w-auto hover:border-white/20"
+                                    style={{ colorScheme: 'dark' }}
+                                >
+                                    <option value="ALL" className="text-black bg-white">{language === 'ar' ? 'جميع الطلبات' : 'All Orders'}</option>
+                                    <option value="WITH_OFFERS" className="text-black bg-white">{language === 'ar' ? 'طلبات بها عروض' : 'Orders with Offers'}</option>
+                                    <option value="WITHOUT_OFFERS" className="text-black bg-white">{language === 'ar' ? 'طلبات بدون عروض' : 'Orders without Offers'}</option>
+                                    <option value="EXPIRED" className="text-black bg-white">{language === 'ar' ? 'طلبات منتهيه الصلاحيه' : 'Expired Orders'}</option>
+                                </select>
+                            </div>
                         </div>
 
-                        {/* Payment Select (NEW) */}
-                        <div className="relative">
-                            <CreditCard size={14} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/40" />
-                            <select
-                                value={paymentFilter}
-                                onChange={(e) => setPaymentFilter(e.target.value)}
-                                className="bg-black/20 border border-white/10 rounded-xl py-2 pl-9 pr-8 text-sm text-white focus:outline-none appearance-none cursor-pointer hover:border-white/20"
-                                style={{ colorScheme: 'dark' }}
-                            >
-                                <option value="ALL" className="text-black bg-white">{language === 'ar' ? 'حالة الدفع' : 'Payment Status'}</option>
-                                <option value="PAID" className="text-black bg-white">{language === 'ar' ? 'مدفوع بالكامل' : 'Paid'}</option>
-                                <option value="UNPAID" className="text-black bg-white">{language === 'ar' ? 'غير مدفوع' : 'Unpaid'}</option>
-                            </select>
+                        {/* Payment Select */}
+                        <div className="flex flex-col gap-2 w-full sm:w-auto">
+                            <label className="text-xs font-bold text-white/50 px-1">{language === 'ar' ? 'الدفع' : 'Payment'}</label>
+                            <div className="relative">
+                                <CreditCard size={14} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/40" />
+                                <select
+                                    value={paymentFilter}
+                                    onChange={(e) => setPaymentFilter(e.target.value)}
+                                    className="bg-black/20 border border-white/10 rounded-xl py-2.5 pl-9 pr-8 text-sm text-white focus:outline-none appearance-none cursor-pointer w-full sm:w-auto hover:border-white/20"
+                                    style={{ colorScheme: 'dark' }}
+                                >
+                                    <option value="ALL" className="text-black bg-white">{language === 'ar' ? 'الكل' : 'All'}</option>
+                                    <option value="PAID" className="text-black bg-white">{language === 'ar' ? 'مدفوع بالكامل' : 'Paid'}</option>
+                                    <option value="PARTIAL" className="text-black bg-white">{language === 'ar' ? 'مدفوع جزئيا' : 'Partially Paid'}</option>
+                                    <option value="UNPAID" className="text-black bg-white">{language === 'ar' ? 'غير مدفوع' : 'Unpaid'}</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </GlassCard>
@@ -285,15 +293,19 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-3 mb-1">
-                                                        <span className="font-mono text-xs text-white/40">#{order.order_number}</span>
+                                                        <span className="font-mono text-xs text-white/40">#{order.orderNumber}</span>
                                                         <span className="w-1 h-1 rounded-full bg-white/20"></span>
                                                         <span className="text-xs text-white/40 flex items-center gap-1">
                                                             <Calendar size={12} />
-                                                            {new Date(order.created_at).toLocaleDateString()}
+                                                            {new Date(order.createdAt).toLocaleDateString()}
                                                         </span>
                                                     </div>
-                                                    <h3 className="font-bold text-white text-lg">{order.part_name}</h3>
-                                                    <p className="text-sm text-white/60">{order.vehicle_make} {order.vehicle_model} {order.vehicle_year}</p>
+                                                    <h3 className="font-bold text-white text-lg">
+                                                        {(order.parts && order.parts.length > 1)
+                                                            ? (language === 'ar' ? `طلبية متعددة (${order.parts.length} قطع)` : `Multi-Part Order (${order.parts.length} items)`)
+                                                            : order.partName}
+                                                    </h3>
+                                                    <p className="text-sm text-white/60">{order.vehicleMake} {order.vehicleModel} {order.vehicleYear}</p>
                                                 </div>
                                             </div>
 
@@ -309,7 +321,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                                     )}
 
                                                     {!expired && (
-                                                        <OrderTimer createdAt={order.created_at} status={order.status} />
+                                                        <OrderTimer createdAt={order.createdAt} status={order.status} />
                                                     )}
 
                                                     {(order.offers?.length || 0) > 0 && order.status === 'AWAITING_OFFERS' && (

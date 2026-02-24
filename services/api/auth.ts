@@ -44,7 +44,26 @@ export const authApi = {
     updateProfile: async (data: any) => {
         const response = await client.post('/users/profile/update', data);
         return response.data;
+    },
+
+    // Recovery API endpoints
+    requestRecoveryEmailOtp: async (email: string, role: 'customer' | 'merchant') => {
+        const response = await client.post('/auth/recovery/request-email-otp', { email, role });
+        return response.data;
+    },
+
+    verifyRecoveryEmailOtp: async (email: string, otp: string, role: 'customer' | 'merchant') => {
+        const response = await client.post('/auth/recovery/verify-email-otp', { email, otp, role });
+        return response.data;
+    },
+
+    requestRecoveryPhoneOtp: async (email: string, newPhone: string, role: 'customer' | 'merchant') => {
+        const response = await client.post('/auth/recovery/request-phone-otp', { email, newPhone, role });
+        return response.data;
+    },
+
+    submitRecovery: async (email: string, newPhone: string, phoneOtp: string, role: 'customer' | 'merchant') => {
+        const response = await client.post('/auth/recovery/submit', { email, newPhone, phoneOtp, role });
+        return response.data;
     }
-
-
 };

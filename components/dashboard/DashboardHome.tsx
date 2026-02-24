@@ -111,12 +111,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
             {/* 2. Quick Stats Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                    { label: (t.dashboard as any).dashboardHome?.stats.active, value: activeOrdersCount, icon: Clock, color: 'text-gold-400', bg: 'bg-gold-500/10', border: 'border-gold-500/20' },
-                    { label: (t.dashboard as any).dashboardHome?.stats.completed, value: completedOrdersCount, icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
-                    { label: (t.dashboard as any).dashboardHome?.stats.spent, value: totalSpent.toLocaleString(), unit: 'SAR', icon: TrendingUp, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+                    { label: (t.dashboard as any).dashboardHome?.stats.active, value: activeOrdersCount, icon: Clock, color: 'text-gold-400', bg: 'bg-gold-500/10', border: 'border-gold-500/20', action: () => onNavigate('orders') },
+                    { label: (t.dashboard as any).dashboardHome?.stats.completed, value: completedOrdersCount, icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', action: () => onNavigate('orders') },
+                    { label: (t.dashboard as any).dashboardHome?.stats.spent, value: totalSpent.toLocaleString(), unit: 'SAR', icon: TrendingUp, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', action: undefined },
                 ].map((stat, idx) => (
                     <motion.div key={idx} variants={itemVariants}>
-                        <GlassCard className={`p-6 flex items-center justify-between group hover:-translate-y-1 transition-transform duration-300 ${stat.bg} ${stat.border}`}>
+                        <GlassCard
+                            className={`p-6 flex items-center justify-between group hover:-translate-y-1 transition-transform duration-300 ${stat.bg} ${stat.border} ${stat.action ? 'cursor-pointer hover:shadow-lg' : ''}`}
+                            onClick={stat.action}
+                        >
                             <div>
                                 <div className="text-sm text-white/60 mb-1 font-medium">{stat.label}</div>
                                 <div className="text-3xl font-bold text-white flex items-baseline gap-1">

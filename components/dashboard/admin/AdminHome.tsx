@@ -34,9 +34,84 @@ interface AdminHomeProps {
     viewId?: any; // ID passed from routing
 }
 
+// Ultra-Modern 2026 Skeleton Pre-loader (No flashes, extremely fast structural rendering)
+const AdminHomeSkeleton = () => (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-10">
+        {/* HEADER HEADER SKELETON */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 bg-gradient-to-r from-[#1A1814] to-transparent p-6 rounded-3xl border border-white/5">
+            <div className="space-y-3 w-full max-w-sm">
+                <div className="w-24 h-6 bg-white/10 rounded-full animate-pulse"></div>
+                <div className="w-64 h-10 bg-white/10 rounded-xl animate-pulse"></div>
+                <div className="w-48 h-4 bg-white/10 rounded-xl animate-pulse"></div>
+            </div>
+            <div className="flex gap-2">
+                <div className="w-32 h-10 bg-white/10 rounded-xl animate-pulse"></div>
+                <div className="w-24 h-10 bg-white/10 rounded-xl animate-pulse"></div>
+            </div>
+        </div>
+
+        {/* KPI GRID SKELETON */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {[...Array(6)].map((_, i) => (
+                <GlassCard key={i} className="p-5 border-white/5">
+                    <div className="flex justify-between items-start">
+                        <div className="space-y-3 w-full">
+                            <div className="w-16 h-3 bg-white/10 rounded-full animate-pulse"></div>
+                            <div className="w-24 h-8 bg-white/10 rounded-xl animate-pulse"></div>
+                        </div>
+                        <div className="w-10 h-10 rounded-xl bg-white/10 animate-pulse"></div>
+                    </div>
+                </GlassCard>
+            ))}
+        </div>
+
+        {/* CHARTS SKELETON */}
+        <div className="grid lg:grid-cols-3 gap-6">
+            <GlassCard className="lg:col-span-2 p-6 md:p-8 flex flex-col bg-[#1A1814]/80 min-h-[400px] justify-between">
+                <div className="flex justify-between w-full">
+                    <div className="w-32 h-6 bg-white/10 rounded-xl animate-pulse"></div>
+                    <div className="w-24 h-8 bg-white/10 rounded-xl animate-pulse"></div>
+                </div>
+                <div className="w-full h-[300px] bg-white/5 rounded-xl animate-pulse mt-8"></div>
+            </GlassCard>
+            <GlassCard className="p-6 bg-[#1A1814]/80 flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-48 h-48 rounded-full bg-white/5 animate-pulse"></div>
+                <div className="w-full grid grid-cols-2 gap-3 mt-8">
+                    {[...Array(4)].map((_, i) => <div key={i} className="w-full h-8 bg-white/10 rounded-xl animate-pulse"></div>)}
+                </div>
+            </GlassCard>
+        </div>
+    </div>
+);
+
+// --- KPI CARD COMPONENT ---
+const KPICard = ({ label, value, icon: Icon, color, trend }: any) => (
+    <GlassCard className="relative overflow-hidden group p-5 border-white/5 hover:border-gold-500/30 transition-all duration-500">
+        <div className={`absolute top-0 right-0 p-20 rounded-full blur-3xl opacity-10 bg-${color.split('-')[1]}-500 group-hover:opacity-20 transition-opacity`} />
+
+        <div className="relative z-10 flex justify-between items-start">
+            <div>
+                <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">{label}</p>
+                <h3 className="text-2xl lg:text-3xl font-bold text-white font-mono tracking-tight">{value}</h3>
+            </div>
+            <div className={`p-3 rounded-xl bg-white/5 border border-white/5 ${color} shadow-lg`}>
+                <Icon size={20} />
+            </div>
+        </div>
+
+        <div className="relative z-10 mt-4 flex items-center gap-2">
+            <span className={`text-xs font-bold flex items-center gap-1 ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {trend > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                {Math.abs(trend)}%
+            </span>
+            <span className="text-[10px] text-white/30">vs last week</span>
+        </div>
+    </GlassCard>
+);
+
 export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     const { t, language } = useLanguage();
-    const { currentAdmin, commissionRate, fetchDashboardStats, dashboardStats, subscribeToStats, unsubscribeFromStats } = useAdminStore();
+    const { currentAdmin, isLoadingStats, commissionRate, fetchDashboardStats, dashboardStats, subscribeToStats, unsubscribeFromStats } = useAdminStore();
     const { orders } = useOrderStore(); // Still kept for table, but stats come from backend now
     const { cases } = useResolutionStore();
     const { isRunning } = useSystemAutomation();
@@ -58,26 +133,8 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
         window.dispatchEvent(new CustomEvent('admin-nav', { detail: { path, id } }));
     };
 
-    // --- SUB-VIEW ROUTING --- (Kept same)
-    if (subPath === 'billing' || subPath === 'financials') return <AdminBilling onNavigate={navigate} />;
-    if (subPath === 'invoice-details' && viewId) return <InvoiceViewer invoiceId={viewId} onBack={() => navigate('billing')} />;
-    if (subPath === 'resolution') return <AdminDisputes onNavigate={navigate} />;
-    if (subPath === 'admin-dispute-details' && viewId) return <AdminDisputeDetails caseId={viewId} onBack={() => navigate('resolution')} />;
-    if (subPath === 'users') return <StoreManagement onNavigate={navigate} />;
-    if (subPath === 'store-profile' && viewId) return <AdminStoreProfile vendorId={viewId} onBack={() => navigate('users')} />;
-    if (subPath === 'customers') return <CustomerManagement onNavigate={navigate} />;
-    if (subPath === 'customer-profile' && viewId) return <AdminCustomerProfile customerId={viewId} onBack={() => navigate('customers')} onNavigate={navigate} />;
-    if (subPath === 'reviews') return <ReviewsControl />;
-    if (subPath === 'orders-control') return <OrderControl onNavigate={navigate} />;
-    if (subPath === 'admin-order-details' && viewId) return <AdminOrderDetails orderId={viewId} onBack={() => navigate('orders-control')} />;
-    if (subPath === 'audit-logs') return <AdminAuditLogs />;
-    if (subPath === 'shipping') return <AdminShipping />;
-    if (subPath === 'settings') return <AdminSettings />;
-    if (subPath === 'support') return <AdminSupport />;
-    if (subPath === 'security-audit') return <SecurityAudit />;
-
     // --- ANALYTICS ENGINE (KPIs) ---
-    // Use Real Stats from Backend or Fallback to 0
+    // Use Real Stats from Backend or Fallback to 0, placed above early returns to obey Hook Rules
     const stats = useMemo(() => {
         if (!dashboardStats) return {
             totalSales: 0,
@@ -107,16 +164,12 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
             barData: []
         };
 
-        // Trend Data
-        // Map backend date string to localized label if needed, or just day
         const salesTrend = dashboardStats.salesTrend.map(d => d.value);
         const salesLabels = dashboardStats.salesTrend.map(d => {
             const date = new Date(d.date);
             return date.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US', { day: '2-digit', month: '2-digit' });
         });
 
-        // Donut Data
-        // Aggregate status distribution
         const sDist = dashboardStats.statusDistribution;
         const getCount = (statuses: string[]) => sDist.filter(s => statuses.includes(s.status)).reduce((acc, curr) => acc + curr.count, 0);
 
@@ -127,39 +180,39 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
             { label: t.admin.alerts.legend.issues, value: getCount(['CANCELLED', 'DISPUTED', 'REFUNDED', 'RETURNED']), color: '#f87171' }
         ];
 
-        // Top Stores
         const barData = dashboardStats.topStores.map(s => ({
             label: s.name,
-            value: s.ordersCount // Visualizing Order Volume
+            value: s.ordersCount
         }));
 
         return { salesTrend, salesLabels, donutData, barData };
     }, [dashboardStats, language, t]);
 
-    // --- KPI CARD COMPONENT ---
-    const KPICard = ({ label, value, icon: Icon, color, trend }: any) => (
-        <GlassCard className="relative overflow-hidden group p-5 border-white/5 hover:border-gold-500/30 transition-all duration-500">
-            <div className={`absolute top-0 right-0 p-20 rounded-full blur-3xl opacity-10 bg-${color.split('-')[1]}-500 group-hover:opacity-20 transition-opacity`} />
+    // --- SUB-VIEW ROUTING --- (Kept same)
+    if (subPath === 'billing' || subPath === 'financials') return <AdminBilling onNavigate={navigate} />;
+    if (subPath === 'invoice-details' && viewId) return <InvoiceViewer invoiceId={viewId} onBack={() => navigate('billing')} />;
+    if (subPath === 'resolution') return <AdminDisputes onNavigate={navigate} />;
+    if (subPath === 'admin-dispute-details' && viewId) return <AdminDisputeDetails caseId={viewId} onBack={() => navigate('resolution')} />;
+    if (subPath === 'users') return <StoreManagement onNavigate={navigate} />;
+    if (subPath === 'store-profile' && viewId) return <AdminStoreProfile vendorId={viewId} onBack={() => navigate('users')} />;
+    if (subPath === 'customers') return <CustomerManagement onNavigate={navigate} />;
+    if (subPath === 'customer-profile' && viewId) return <AdminCustomerProfile customerId={viewId} onBack={() => navigate('customers')} onNavigate={navigate} />;
+    if (subPath === 'reviews') return <ReviewsControl />;
+    if (subPath === 'orders-control') return <OrderControl onNavigate={navigate} />;
+    if (subPath === 'admin-order-details' && viewId) return <AdminOrderDetails orderId={viewId} onBack={() => navigate('orders-control')} />;
+    if (subPath === 'audit-logs') return <AdminAuditLogs />;
+    if (subPath === 'shipping') return <AdminShipping />;
+    if (subPath === 'settings') return <AdminSettings />;
+    if (subPath === 'support') return <AdminSupport />;
+    if (subPath === 'security-audit') return <SecurityAudit />;
 
-            <div className="relative z-10 flex justify-between items-start">
-                <div>
-                    <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">{label}</p>
-                    <h3 className="text-2xl lg:text-3xl font-bold text-white font-mono tracking-tight">{value}</h3>
-                </div>
-                <div className={`p-3 rounded-xl bg-white/5 border border-white/5 ${color} shadow-lg`}>
-                    <Icon size={20} />
-                </div>
-            </div>
+    // --- PROTECTIVE SKELETON LOADER ---
+    // If stats are empty or officially loading upon first fresh mount from server, use structural skeleton avoiding 0s.
+    if (!dashboardStats || isLoadingStats) {
+        return <AdminHomeSkeleton />;
+    }
 
-            <div className="relative z-10 mt-4 flex items-center gap-2">
-                <span className={`text-xs font-bold flex items-center gap-1 ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {trend > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                    {Math.abs(trend)}%
-                </span>
-                <span className="text-[10px] text-white/30">vs last week</span>
-            </div>
-        </GlassCard>
-    );
+
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-10">

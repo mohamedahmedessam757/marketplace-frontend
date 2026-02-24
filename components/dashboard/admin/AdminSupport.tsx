@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
-import { useSupportStore, SupportTicket } from '../../../stores/useSupportStore';
+import { useOrderChatStore } from '../../../stores/useOrderChatStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { Search, MessageSquare, User, CheckCircle2, Clock, Send, ChevronRight, ChevronLeft, Filter, AlertCircle } from 'lucide-react';
@@ -9,30 +9,41 @@ import { motion } from 'framer-motion';
 
 export const AdminSupport: React.FC = () => {
   const { t, language } = useLanguage();
-  const { tickets, addMessage, updateStatus } = useSupportStore();
+  const { chats, setActiveChat, fetchChats, sendMessage } = useOrderChatStore();
   const { currentAdmin } = useAdminStore();
 
   // Store ID only, derive object from store to ensure real-time updates
-  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'RESOLVED'>('ALL');
 
   const isAr = language === 'ar';
   const ArrowIcon = isAr ? ChevronLeft : ChevronRight;
 
-  const filteredTickets = tickets.filter(t => filter === 'ALL' || (filter === 'OPEN' ? t.status !== 'RESOLVED' && t.status !== 'CLOSED' : t.status === 'RESOLVED'));
+  const tickets = chats.filter((c) => c.type === 'support');
+  const filteredTickets = tickets.filter(t => filter === 'ALL' || (filter === 'OPEN' ? t.status === 'OPEN' : t.status === 'CLOSED'));
 
   // Derived state: Always fresh from store
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
 
-  const handleSendReply = () => {
+  // Derive Display Subject dynamically to preserve original context
+  let displaySubject = "Support Ticket";
+  if (selectedTicket?.lastMessage && selectedTicket.lastMessage.startsWith("[")) {
+      const endBracket = selectedTicket.lastMessage.indexOf("]");
+      if (endBracket > 0) {
+          displaySubject = selectedTicket.lastMessage.substring(1, endBracket);
+      }
+  }
+
+  const handleSendReply = async () => {
     if (!selectedTicket || !replyText.trim()) return;
 
+    // ensure active chat is set
+    setActiveChat(selectedTicket.id);
+
     // console.log('Sending reply:', replyText);
-    addMessage(selectedTicket.id, {
-      senderId: currentAdmin?.id || 'ADMIN',
-      senderRole: 'admin',
-      text: replyText,
+    await sendMessage({
+      text: replyText
     });
     setReplyText('');
   };
@@ -71,23 +82,33 @@ export const AdminSupport: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {filteredTickets.map(ticket => (
-            <div
-              key={ticket.id}
-              onClick={() => setSelectedTicketId(ticket.id)}
-              className={`p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${selectedTicket?.id === ticket.id ? 'bg-gold-500/10 border-l-4 border-l-gold-500' : ''}`}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded border ${getPriorityColor(ticket.priority)}`}>{ticket.priority}</span>
-                <span className="text-[10px] text-white/30">{new Date(ticket.lastUpdate).toLocaleDateString()}</span>
+          {filteredTickets.map(ticket => {
+            let displaySubject = "Support Ticket";
+            if (ticket.lastMessage && ticket.lastMessage.startsWith("[")) {
+              const endBracket = ticket.lastMessage.indexOf("]");
+              if (endBracket > 0) {
+                displaySubject = ticket.lastMessage.substring(1, endBracket);
+              }
+            }
+
+            return (
+              <div
+                key={ticket.id}
+                onClick={() => { setSelectedTicketId(ticket.id); setActiveChat(ticket.id); }}
+                className={`p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${selectedTicket?.id === ticket.id ? 'bg-gold-500/10 border-l-4 border-l-gold-500' : ''}`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded border ${getPriorityColor('MEDIUM')}`}>MEDIUM</span>
+                  <span className="text-[10px] text-white/30">{ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : ''}</span>
+                </div>
+                <h4 className="text-sm font-bold text-white mb-1 truncate">{displaySubject}</h4>
+                <div className="flex items-center gap-2 text-xs text-white/50">
+                  <User size={12} />
+                  {ticket.customerName || 'Customer'}
+                </div>
               </div>
-              <h4 className="text-sm font-bold text-white mb-1 truncate">{ticket.subject}</h4>
-              <div className="flex items-center gap-2 text-xs text-white/50">
-                <User size={12} />
-                {ticket.userName}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </GlassCard>
 
@@ -99,18 +120,18 @@ export const AdminSupport: React.FC = () => {
             <div className="p-4 border-b border-white/10 bg-[#151310] flex justify-between items-center">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-lg font-bold text-white">{selectedTicket.subject}</h3>
-                  <span className="text-xs text-gold-400 font-mono">#{selectedTicket.id}</span>
+                  <h3 className="text-lg font-bold text-white">{displaySubject}</h3>
+                  <span className="text-xs text-gold-400 font-mono">#{selectedTicket.id?.substring(0,8) || 'ID'}</span>
                 </div>
                 <div className="text-xs text-white/40 flex gap-2">
-                  <span>{selectedTicket.userType.toUpperCase()}</span> • <span>{selectedTicket.email}</span>
+                  <span>CUSTOMER</span> • <span>{selectedTicket.customerName || 'Unknown User'}</span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                {selectedTicket.status !== 'RESOLVED' ? (
+                {selectedTicket.status !== 'CLOSED' ? (
                   <button
-                    onClick={() => updateStatus(selectedTicket.id, 'RESOLVED')}
+                    onClick={() => {/* updateStatus(selectedTicket.id, 'CLOSED') */ }}
                     className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded-lg text-xs font-bold hover:bg-green-500/20 transition-colors"
                   >
                     <CheckCircle2 size={14} />
@@ -128,7 +149,7 @@ export const AdminSupport: React.FC = () => {
             {/* Chat Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {selectedTicket.messages.map((msg) => {
-                const isAdmin = msg.senderRole === 'admin';
+                const isAdmin = msg.senderId !== selectedTicket.customerId;
                 return (
                   <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[70%] p-4 rounded-xl ${isAdmin ? 'bg-gold-500 text-white rounded-tr-none' : 'bg-white/10 text-white rounded-tl-none'}`}>
@@ -146,7 +167,7 @@ export const AdminSupport: React.FC = () => {
 
                       <p className="text-sm border-white/10">{msg.text}</p>
                       <div className={`text-[10px] mt-2 opacity-50 ${isAdmin ? 'text-black' : 'text-white'}`}>
-                        {new Date(msg.timestamp).toLocaleTimeString()}
+                        {new Date(msg.createdAt).toLocaleTimeString()}
                       </div>
                     </div>
                   </div>

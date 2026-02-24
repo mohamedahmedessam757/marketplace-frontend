@@ -45,6 +45,8 @@ export interface PerformanceMetrics {
   acceptanceRate: number; // percentage
   complaintRate: number; // percentage
   rating: number; // 0-5
+  weeklyEarnings?: number[]; // Added for dashboard graph
+  activeOrdersCount?: number; // Added for dashboard metrics
 }
 
 export interface VendorState {
@@ -100,6 +102,7 @@ export interface VendorState {
   reset: () => void;
 
   // LOGIC ACTIONS
+  fetchDashboardStats: () => Promise<void>;
   checkLicenseStatus: () => void;
   adminApproveVendor: () => void;
   adminRejectVendor: (reason: string) => void;
@@ -255,6 +258,25 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     // Deprecated, mapped to uploadDocument internally if needed, or removed.
     // Keeping this solely for API compatibility if called elsewhere, but logic handles actual upload now.
     console.warn('simulateUpload is deprecated. Use uploadDocument instead.');
+  },
+
+  fetchDashboardStats: async () => {
+    try {
+      const { client } = await import('../services/api/client');
+      const response = await client.get('/stores/me/dashboard');
+      if (response && response.data) {
+        set((state) => ({
+          performance: {
+            ...state.performance,
+            ...response.data.performance,
+            weeklyEarnings: response.data.weeklyEarnings,
+            activeOrdersCount: response.data.activeOrdersCount
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch merchant dashboard stats:', error);
+    }
   },
 
   // --- THE LICENSE WATCHDOG LOGIC ---

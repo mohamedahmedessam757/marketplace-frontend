@@ -15,6 +15,12 @@ export const MerchantHome: React.FC = () => {
     const { addNotification, notifications } = useNotificationStore();
     const isAr = language === 'ar';
 
+    // Fetch Dashboard Stats on Mount
+    const { fetchDashboardStats } = useVendorStore();
+    useEffect(() => {
+        fetchDashboardStats();
+    }, [fetchDashboardStats]);
+
     // --- LOGIC: License Expiry Check ---
     const license = documents.license;
     let licenseWarning = null;
@@ -63,10 +69,12 @@ export const MerchantHome: React.FC = () => {
     const newRequests = orders.filter(o => o.status === 'AWAITING_OFFERS').length;
     const submittedOffers = orders.filter(o => o.status === 'AWAITING_PAYMENT').length;
     const acceptedOffers = orders.filter(o => ['PREPARATION', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(o.status)).length;
-    const preparingOrders = orders.filter(o => o.status === 'PREPARATION').length;
-    const totalSales = orders
-        .filter(o => ['PREPARATION', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(o.status) && o.price)
-        .reduce((acc, curr) => acc + parseFloat(curr.price?.replace(/[^0-9.]/g, '') || '0'), 0);
+
+    // Use real activeOrdersCount from backend if available, fallback to local
+    const preparingOrders = performance.activeOrdersCount !== undefined ? performance.activeOrdersCount : orders.filter(o => o.status === 'PREPARATION').length;
+
+    // Total sales can be accumulated natively or accurately fetched from server, we use sum for now locally
+    const totalSales = performance.weeklyEarnings ? performance.weeklyEarnings.reduce((a, b) => a + b, 0) : 0;
     const dueBalance = totalSales * 0.8;
 
     const orderStats = [
@@ -95,8 +103,8 @@ export const MerchantHome: React.FC = () => {
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`p-4 rounded-2xl border flex items-start gap-4 ${licenseWarning.type === 'expired'
-                            ? 'bg-red-500/10 border-red-500/30 text-red-200'
-                            : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-200'
+                        ? 'bg-red-500/10 border-red-500/30 text-red-200'
+                        : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-200'
                         }`}
                 >
                     <div className={`p-2 rounded-full ${licenseWarning.type === 'expired' ? 'bg-red-500/20' : 'bg-yellow-500/20'}`}>
@@ -144,8 +152,8 @@ export const MerchantHome: React.FC = () => {
                             </div>
                             <div className="text-2xl font-bold text-white mb-1">{kpi.value}</div>
                             <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${kpi.status === 'good' ? 'bg-green-500/10 text-green-400' :
-                                    kpi.status === 'risk' ? 'bg-yellow-500/10 text-yellow-400' :
-                                        'bg-red-500/10 text-red-400'
+                                kpi.status === 'risk' ? 'bg-yellow-500/10 text-yellow-400' :
+                                    'bg-red-500/10 text-red-400'
                                 }`}>
                                 {kpi.status === 'good' ? t.dashboard.merchant.kpi.excellent : kpi.status === 'risk' ? t.dashboard.merchant.kpi.good : t.dashboard.merchant.kpi.risk}
                             </div>
@@ -186,21 +194,35 @@ export const MerchantHome: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Mock Graph Visual */}
+                    {/* Mock Graph Visual -> Replaced with Real Backend Data */}
                     <div className="flex-1 flex items-end justify-between gap-3 h-48 w-full">
-                        {[35, 55, 40, 70, 50, 85, 60].map((h, i) => (
-                            <div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-3 group">
-                                <motion.div
-                                    initial={{ height: 0 }}
-                                    animate={{ height: `${h}%` }}
-                                    transition={{ duration: 1, delay: i * 0.1, type: "spring" }}
-                                    className="w-full bg-gradient-to-t from-gold-900/40 via-gold-500 to-gold-400 rounded-t-md relative group-hover:brightness-110 transition-all shadow-[0_0_10px_rgba(168,139,62,0.2)]"
-                                />
-                                <span className="text-[10px] text-white/40 font-mono font-bold uppercase tracking-wider">
-                                    {t.common.daysShort?.[i] || ['S', 'M', 'T', 'W', 'T', 'F', 'S'][i]}
-                                </span>
-                            </div>
-                        ))}
+                        {(performance.weeklyEarnings || [0, 0, 0, 0, 0, 0, 0]).map((h, i) => {
+                            const max = Math.max(...(performance.weeklyEarnings || [1])) || 1;
+                            const heightPercentage = Math.max((h / max) * 100, 5); // minimum 5% height for visibility
+
+                            // Get proper short day name dynamically based on today's day
+                            const todayDayIndex = new Date().getDay(); // 0 is Sunday
+                            const dayIndex = (todayDayIndex - 6 + i + 7) % 7;
+                            const dayLetter = t.common.daysShort?.[dayIndex] || ['S', 'M', 'T', 'W', 'T', 'F', 'S'][dayIndex];
+
+                            return (
+                                <div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-3 group relative cursor-pointer">
+                                    {/* Tooltip on Hover */}
+                                    <div className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-[#1A1814] border border-gold-500/30 text-gold-400 text-xs py-1 px-2 rounded font-mono shadow-xl z-20 whitespace-nowrap">
+                                        {h.toLocaleString()} SAR
+                                    </div>
+                                    <motion.div
+                                        initial={{ height: 0 }}
+                                        animate={{ height: `${heightPercentage}%` }}
+                                        transition={{ duration: 1, delay: i * 0.1, type: "spring" }}
+                                        className="w-full bg-gradient-to-t from-gold-900/40 via-gold-500 to-gold-400 rounded-t-md relative group-hover:brightness-110 transition-all shadow-[0_0_10px_rgba(168,139,62,0.2)]"
+                                    />
+                                    <span className="text-[10px] text-white/40 font-mono font-bold uppercase tracking-wider">
+                                        {dayLetter}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
                 </GlassCard>
 

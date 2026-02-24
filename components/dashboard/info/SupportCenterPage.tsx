@@ -5,11 +5,11 @@ import { GlassCard } from '../../ui/GlassCard';
 import { Badge } from '../../ui/Badge';
 import { MessageSquare, HelpCircle, Send, Plus, ChevronDown, ChevronUp, Clock, CheckCircle } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { useSupportStore } from '../../../stores/useSupportStore';
+import { useOrderChatStore } from '../../../stores/useOrderChatStore';
 
-export const SupportCenterPage: React.FC = () => {
-    const { t, language } = useLanguage();
-    const { tickets, loading, fetchTickets, createTicket } = useSupportStore();
+export const SupportCenterPage: React.FC<{ onNavigate?: (path: string) => void }> = ({ onNavigate }) => {
+    const { t } = useLanguage();
+    const { chats, isLoading, fetchChats, createSupportChat, setActiveChat } = useOrderChatStore();
     const [isCreating, setIsCreating] = useState(false);
     const [newTicket, setNewTicket] = useState({ subject: '', message: '', priority: 'MEDIUM' });
 
@@ -17,17 +17,17 @@ export const SupportCenterPage: React.FC = () => {
     const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
     useEffect(() => {
-        fetchTickets();
-    }, [fetchTickets]);
+        fetchChats();
+    }, [fetchChats]);
+
+    const supportTickets = chats.filter(c => c.type === 'support');
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const success = await createTicket(newTicket.subject, newTicket.message, newTicket.priority);
-        if (success) {
-            setIsCreating(false);
-            setNewTicket({ subject: '', message: '', priority: 'MEDIUM' });
-        }
-    };
+        await createSupportChat(newTicket.subject, newTicket.message, undefined);
+        setIsCreating(false);
+        setNewTicket({ subject: '', message: '', priority: 'MEDIUM' });
+    }
 
     const faqs = [
         { q: t.dashboard.support.faq.q1, a: t.dashboard.support.faq.a1 },
@@ -119,31 +119,47 @@ export const SupportCenterPage: React.FC = () => {
                             {t.dashboard.support.myTickets}
                         </h2>
                         <div className="space-y-3">
-                            {loading ? (
+                            {isLoading ? (
                                 <p className="text-white/50 text-center py-8">{t.dashboard.common?.loading || 'Loading tickets...'}</p>
-                            ) : tickets.length > 0 ? (
-                                tickets.map(ticket => (
-                                    <GlassCard key={ticket.id} className="p-4 flex items-center justify-between hover:border-gold-500/30 transition-colors cursor-pointer group">
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <span className="text-xs text-white/30">#{ticket.ticket_number}</span>
-                                                <span className={`text-xs px-2 py-0.5 rounded-full ${ticket.status === 'OPEN' ? 'bg-blue-500/20 text-blue-400' :
-                                                    ticket.status === 'CLOSED' ? 'bg-green-500/20 text-green-400' :
-                                                        'bg-white/10 text-white/40'
-                                                    }`}>
-                                                    {ticket.status}
-                                                </span>
+                            ) : supportTickets.length > 0 ? (
+                                supportTickets.map(ticket => {
+                                    // Calculate display logic since ticket is now an OrderChat
+                                    // The subject was mapped inside the first message text [Subject] message
+                                    let displaySubject = "Support Ticket";
+                                    if (ticket.lastMessage && ticket.lastMessage.startsWith("[")) {
+                                        const endBracket = ticket.lastMessage.indexOf("]");
+                                        if (endBracket > 0) {
+                                            displaySubject = ticket.lastMessage.substring(1, endBracket);
+                                        }
+                                    }
+
+                                    return (
+                                        <GlassCard
+                                            key={ticket.id}
+                                            onClick={() => { setActiveChat(ticket.id); onNavigate?.('chats'); }}
+                                            className="p-4 flex items-center justify-between hover:border-gold-500/30 transition-colors cursor-pointer group"
+                                        >
+                                            <div>
+                                                <div className="flex items-center gap-3 mb-1">
+                                                    <span className="text-xs text-white/30">#{ticket.id?.substring(0, 8) || 'Ticket'}</span>
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full ${ticket.status === 'OPEN' ? 'bg-blue-500/20 text-blue-400' :
+                                                        ticket.status === 'CLOSED' ? 'bg-green-500/20 text-green-400' :
+                                                            'bg-white/10 text-white/40'
+                                                        }`}>
+                                                        {ticket.status}
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-white font-medium group-hover:text-gold-500 transition-colors">{displaySubject}</h4>
                                             </div>
-                                            <h4 className="text-white font-medium group-hover:text-gold-500 transition-colors">{ticket.subject}</h4>
-                                        </div>
-                                        <div className="text-right text-xs text-white/40">
-                                            <div className="flex items-center gap-1">
-                                                <Clock size={12} />
-                                                {new Date(ticket.created_at).toLocaleDateString()}
+                                            <div className="text-right text-xs text-white/40">
+                                                <div className="flex items-center gap-1">
+                                                    <Clock size={12} />
+                                                    {ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : 'Recent'}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </GlassCard>
-                                ))
+                                        </GlassCard>
+                                    );
+                                })
                             ) : (
                                 <div className="text-center py-12 bg-white/5 rounded-2xl border border-dashed border-white/10">
                                     <MessageSquare className="mx-auto text-white/10 mb-3" size={32} />

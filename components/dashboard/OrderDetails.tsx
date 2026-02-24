@@ -7,16 +7,18 @@ import { Button } from '../ui/Button';
 import { Badge, StatusType } from '../ui/Badge';
 import { StatusTimeline } from '../ui/StatusTimeline';
 import { OfferCard } from './OfferCard';
-import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCheckoutStore } from '../../stores/useCheckoutStore';
 import { useChatStore } from '../../stores/useChatStore';
 import { useOrderStore, Order } from '../../stores/useOrderStore';
+import { useOrderChatStore } from '../../stores/useOrderChatStore';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { TrackingView } from './tracking/TrackingView';
 import { ReviewModal } from './reviews/ReviewModal';
 import { ReturnRequestModal } from './resolution/ReturnRequestModal';
 import { DisputeModal } from './resolution/DisputeModal';
+import { OrderExpiredModal } from './OrderExpiredModal';
 
 interface OrderDetailsProps {
     orderId: string | null;
@@ -24,7 +26,7 @@ interface OrderDetailsProps {
     onNavigate: (path: string, id?: any) => void;
 }
 
-const CountdownTimer = ({ targetDate, label }: { targetDate: string, label: string }) => {
+export const CountdownTimer = ({ targetDate, label, compact = false }: { targetDate: string, label?: string, compact?: boolean }) => {
     const { t } = useLanguage();
     const [timeLeft, setTimeLeft] = useState<{ h: number, m: number, s: number } | null>(null);
 
@@ -50,9 +52,10 @@ const CountdownTimer = ({ targetDate, label }: { targetDate: string, label: stri
     if (!timeLeft) return <span className="text-red-500 font-bold text-xs">{t.dashboard.common?.expired || 'Expired'}</span>;
 
     return (
-        <div className="flex flex-col items-end">
-            <span className="text-[10px] text-white/40 mb-1">{label}</span>
-            <div className="flex gap-1 text-gold-400 font-mono font-bold text-sm">
+        <div className={`flex ${compact ? 'flex-row items-center gap-2' : 'flex-col items-end'}`}>
+            {label && <span className={`${compact ? 'text-xs text-white/60' : 'text-[10px] text-white/40 mb-1'}`}>{label}</span>}
+            <div className={`flex gap-1 text-gold-400 font-mono font-bold ${compact ? 'text-xs' : 'text-sm'}`}>
+                {compact && <Clock size={12} className="text-white/40 mr-1" />}
                 <span>{String(timeLeft.h).padStart(2, '0')}</span>:
                 <span>{String(timeLeft.m).padStart(2, '0')}</span>:
                 <span>{String(timeLeft.s).padStart(2, '0')}</span>
@@ -70,14 +73,39 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
     const [selectedOffer, setSelectedOfferId] = useState<number | null>(null);
     const [showTracking, setShowTracking] = useState(false);
+    const [isLoadingSupport, setIsLoadingSupport] = useState(false);
 
-    // Modals
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [showReturnModal, setShowReturnModal] = useState(false);
     const [showDisputeModal, setShowDisputeModal] = useState(false);
+    const [showExpiredModal, setShowExpiredModal] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
     // Fetch Order
     const order = getOrder(orderId || '');
+
+    // Show Expired Modal Logic
+    useEffect(() => {
+        if (!order || order.status !== 'CANCELLED') return;
+
+        // Only show if it was cancelled AND has no offers (indicating it expired via cron job 24h limit)
+        const hasNoOffers = !order.offers || order.offers.length === 0;
+        if (!hasNoOffers) return;
+
+        const storageKey = `expired_modal_seen_${order.id}`;
+        if (!localStorage.getItem(storageKey)) {
+            // Small timeout to allow transition to finish
+            const timer = setTimeout(() => setShowExpiredModal(true), 500);
+            return () => clearTimeout(timer);
+        }
+    }, [order]);
+
+    const handleCloseExpiredModal = (dontShowAgain: boolean) => {
+        if (dontShowAgain && order) {
+            localStorage.setItem(`expired_modal_seen_${order.id}`, 'true');
+        }
+        setShowExpiredModal(false);
+    };
 
     // Timer Check & Data Refresh
     useEffect(() => {
@@ -102,8 +130,25 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     };
 
     const handleChat = (offer: any) => {
-        openChatForOrder(Number(order.id), offer.merchantName, order.part);
+        openChatForOrder(String(order.id), offer.merchantName, order.part);
         onNavigate('chats');
+    };
+
+    const handleSupportClick = async () => {
+        setIsLoadingSupport(true);
+        try {
+            const subject = `${language === 'ar' ? 'طلب رقم' : 'Order'} #${order.id}`;
+            const message = `${language === 'ar' ? 'أحتاج مساعدة بخصوص طلبي' : 'I need help with my order'} (${order.part})`;
+
+            // Launch directly via unified chat store
+            await useOrderChatStore.getState().createSupportChat(subject, message, String(order.id));
+
+            onNavigate('chats');
+        } catch (err) {
+            console.error('Failed to launch support chat', err);
+        } finally {
+            setIsLoadingSupport(false);
+        }
     };
 
     // Helper to calculate deadlines
@@ -165,6 +210,70 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 onSuccess={() => onNavigate('resolution')}
             />
 
+            <OrderExpiredModal
+                isOpen={showExpiredModal}
+                orderId={order.id}
+                onClose={handleCloseExpiredModal}
+            />
+
+            {/* Lightbox Viewer */}
+            <AnimatePresence>
+                {lightboxImage && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setLightboxImage(null)}
+                        className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+                    >
+                        <button
+                            onClick={() => setLightboxImage(null)}
+                            className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                        >
+                            <X size={24} />
+                        </button>
+                        <motion.img
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            src={lightboxImage}
+                            alt="Preview"
+                            className="max-w-full max-h-[90vh] object-contain rounded-xl border border-white/10 shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Lightbox Viewer */}
+            <AnimatePresence>
+                {lightboxImage && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setLightboxImage(null)}
+                        className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+                    >
+                        <button
+                            onClick={() => setLightboxImage(null)}
+                            className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                        >
+                            <X size={24} />
+                        </button>
+                        <motion.img
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            src={lightboxImage}
+                            alt="Preview"
+                            className="max-w-full max-h-[90vh] object-contain rounded-xl border border-white/10 shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* 1. Header & Timeline Section (Full Width) */}
             <div className="space-y-4">
                 <div className="flex justify-between items-center mb-2">
@@ -192,7 +301,11 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     <div className="p-6 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
                             <div className="flex items-center gap-3 mb-1">
-                                <h1 className="text-2xl font-bold text-white">{order.part}</h1>
+                                <h1 className="text-2xl font-bold text-white">
+                                    {(order.parts && order.parts.length > 1)
+                                        ? (language === 'ar' ? `طلبية متعددة (${order.parts.length} قطع)` : `Multi-Part Order (${order.parts.length} items)`)
+                                        : order.part}
+                                </h1>
                                 <Badge status={order.status} />
                             </div>
                             <div className="text-white/60 text-sm flex items-center gap-2">
@@ -290,6 +403,53 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
                 {/* Main Content Area (Offers, Tracking, etc) - Spans 2 cols */}
                 <div className="lg:col-span-2 space-y-6">
+
+                    {/* Requested Parts List */}
+                    {(order.parts && order.parts.length > 0) && (
+                        <div className="space-y-4">
+                            <h3 className="text-white font-bold flex items-center gap-2">
+                                <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
+                                {language === 'ar' ? 'القطع المطلوبة' : 'Requested Parts'}
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {order.parts.map((p, idx) => (
+                                    <GlassCard key={p.id || idx} className="p-4 border-white/5 bg-[#1A1814] flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="font-bold text-white">{p.name}</h4>
+                                                <span className="text-xs font-mono text-white/30 bg-white/5 px-2 py-1 rounded">Part {idx + 1}</span>
+                                            </div>
+                                            {p.description && <p className="text-white/60 text-sm mb-3 line-clamp-2">{p.description}</p>}
+                                        </div>
+
+                                        {p.images && p.images.length > 0 && (
+                                            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none mt-2">
+                                                {p.images.map((img: any, i: number) => {
+                                                    const src = typeof img === 'string' ? img : URL.createObjectURL(img);
+                                                    return (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => setLightboxImage(src)}
+                                                            className="shrink-0 relative group rounded-lg overflow-hidden border border-white/10 hover:border-gold-500/50 transition-colors cursor-zoom-in"
+                                                        >
+                                                            <img
+                                                                src={src}
+                                                                alt={p.name}
+                                                                className="w-16 h-16 object-cover transition-transform group-hover:scale-110"
+                                                            />
+                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                                                <Search size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </GlassCard>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* STATE: AWAITING OFFERS */}
                     {order.status === 'AWAITING_OFFERS' && !isExpired && (
@@ -399,7 +559,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 <div className="space-y-6">
                     <GlassCard className="bg-[#1A1814] border-white/5 p-6">
                         <h3 className="text-sm font-bold text-white/50 uppercase tracking-wider mb-6 pb-2 border-b border-white/10">
-                            {(t.dashboard.orders as any).vehicleDetails}
+                            {language === 'ar' ? 'تفاصيل الطلب' : 'Order Details'}
                         </h3>
 
                         <div className="space-y-6">
@@ -408,8 +568,20 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                     <Package size={20} />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-white/40 mb-1">{(t.dashboard.orders as any).partName}</div>
-                                    <div className="text-white font-medium">{order.part}</div>
+                                    <div className="text-xs text-white/40 mb-1">{language === 'ar' ? 'القطع المطلوبة' : 'Requested Parts'}</div>
+                                    <div className="text-white font-medium">
+                                        {(order.parts && order.parts.length > 1)
+                                            ? (language === 'ar' ? `طلبية متعددة (${order.parts.length} قطع)` : `Multi-Part Order (${order.parts.length} items)`)
+                                            : order.part}
+                                    </div>
+                                    <div className="text-xs text-white/40 mt-1">
+                                        {language === 'ar' ? 'الحالة: ' : 'Condition: '}
+                                        <span className="text-white border px-1.5 py-0.5 rounded border-white/10 ml-1">
+                                            {order.preferences?.condition === 'new'
+                                                ? (language === 'ar' ? 'جديد' : 'New')
+                                                : (language === 'ar' ? 'مستعمل' : 'Used')}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -418,23 +590,62 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                     <FileText size={20} />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-white/40 mb-1">{(t.dashboard.orders as any).vehicle}</div>
+                                    <div className="text-xs text-white/40 mb-1">{language === 'ar' ? 'المركبة المعنية' : 'Target Vehicle'}</div>
                                     <div className="text-white font-medium">{order.car}</div>
-                                    <div className="text-xs text-white/30 font-mono mt-1">{order.vin || 'N/A'}</div>
+                                    <div className="text-xs text-white/30 font-mono mt-1">VIN: {order.vin || 'N/A'}</div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-white/30 shrink-0">
+                                    <Truck size={20} />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-white/40 mb-1">{language === 'ar' ? 'التسليم والدفع' : 'Delivery & Payment'}</div>
+                                    <div className="text-white text-sm">
+                                        {language === 'ar' ? 'الطلب: ' : 'Request: '}
+                                        <span className="font-bold text-gold-400">
+                                            {order.requestType === 'multiple' ? (language === 'ar' ? 'عدة قطع' : 'Multiple Parts') : (language === 'ar' ? 'قطعة واحدة' : 'Single Part')}
+                                        </span>
+                                    </div>
+                                    <div className="text-white/60 text-xs mt-1 mb-2">
+                                        {language === 'ar' ? 'الشحن: ' : 'Shipping: '}
+                                        <span>
+                                            {order.shippingType === 'combined'
+                                                ? (language === 'ar' ? '(عدة قطع) تجميع الطلبات' : '(Multiple) Combined Delivery')
+                                                : (order.requestType === 'multiple'
+                                                    ? (language === 'ar' ? '(عدة قطع) كل طلب فى شحنه لوحده' : '(Multiple) Separate Delivery')
+                                                    : (language === 'ar' ? '(قطعة واحدة) شحن كل قطعة لوحدها' : '(Single) Direct Delivery')
+                                                )
+                                            }
+                                        </span>
+                                    </div>
+                                    <div className="pt-2 border-t border-white/10 flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${order.status === 'AWAITING_OFFERS' || order.status === 'AWAITING_PAYMENT' || order.status === 'CANCELLED' ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
+                                        <span className={`text-xs font-bold ${order.status === 'AWAITING_OFFERS' || order.status === 'AWAITING_PAYMENT' || order.status === 'CANCELLED' ? 'text-red-400' : 'text-green-400'}`}>
+                                            {order.status === 'AWAITING_OFFERS' || order.status === 'AWAITING_PAYMENT' || order.status === 'CANCELLED'
+                                                ? (language === 'ar' ? 'لم يتم الدفع' : 'Not Paid')
+                                                : (language === 'ar' ? 'تم الدفع بنجاح' : 'Paid Successfully')}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </GlassCard>
 
-                    <div className="bg-gradient-to-br from-[#1A1814] to-gold-900/10 border border-white/5 rounded-2xl p-5 flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/60">
-                            <Shield size={20} />
+                    <button
+                        onClick={handleSupportClick}
+                        disabled={isLoadingSupport}
+                        className="w-full text-start bg-gradient-to-br from-[#1A1814] to-gold-900/10 border border-white/5 rounded-2xl p-5 flex items-center gap-4 hover:border-gold-500/50 hover:bg-gold-500/5 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/60 group-hover:bg-gold-500/20 group-hover:text-gold-400 transition-colors">
+                            {isLoadingSupport ? <Loader2 size={20} className="animate-spin" /> : <Shield size={20} />}
                         </div>
                         <div>
-                            <div className="font-bold text-white text-sm">{(t.dashboard.orders as any).supportTitle}</div>
+                            <div className="font-bold text-white text-sm group-hover:text-gold-400 transition-colors">{(t.dashboard.orders as any).supportTitle}</div>
                             <div className="text-xs text-white/40">{(t.dashboard.orders as any).supportDesc}</div>
                         </div>
-                    </div>
+                    </button>
                 </div>
             </div>
 

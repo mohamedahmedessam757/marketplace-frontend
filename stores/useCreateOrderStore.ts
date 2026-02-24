@@ -50,7 +50,7 @@ export interface OrderState {
 
   updatePreferences: (field: string, value: any) => void;
   reset: () => void;
-  submitOrder: () => Promise<void>;
+  submitOrder: () => Promise<string>;
   setShowErrors: (show: boolean) => void;
 }
 
@@ -109,7 +109,10 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
   setShippingType: (type) => set({ shippingType: type }),
 
   addPart: () => set((state) => {
-    if (state.parts.length >= 12) return state; // Max 12
+    if (state.parts.length >= 12) {
+      alert("عذراً، لا يمكنك إضافة أكثر من 12 قطعة في الطلب الواحد.\nSorry, you cannot add more than 12 parts per order.");
+      return state; // Max 12
+    }
     return {
       parts: [
         ...state.parts,
@@ -161,37 +164,48 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
     try {
       const state = get();
 
-      // 1. Upload All Images for All Parts
-      // We need to map parts to a structure that includes uploaded URLs
-      const processedParts = [];
-
-      // Dynamic import services
+      // 1. Upload All Files Concurrently
       const { storageService } = await import('../services/storage');
 
+      // Prepare an array of upload promises
+      const uploadPromises: Promise<void>[] = [];
+      const processedParts: any[] = [];
+
       for (const part of state.parts) {
-        const imageUrls: string[] = [];
-        for (const file of part.images) {
-          const url = await storageService.uploadFile(file, 'marketplace-uploads', `orders/parts/${part.id}`);
-          imageUrls.push(url);
-        }
+        const partData: any = { ...part, images: [], video: null };
+        processedParts.push(partData);
 
-        let videoUrl = null;
-        if (part.video) {
-          videoUrl = await storageService.uploadFile(part.video, 'marketplace-uploads', `orders/parts/${part.id}/video`);
-        }
-
-        processedParts.push({
-          ...part,
-          images: imageUrls,
-          video: videoUrl
+        // Upload images
+        part.images.forEach((file, index) => {
+          uploadPromises.push(
+            storageService.uploadFile(file, 'marketplace-uploads', `orders/parts/${part.id}`).then(url => {
+              partData.images[index] = url; // Maintain order
+            })
+          );
         });
+
+        // Upload video
+        if (part.video) {
+          uploadPromises.push(
+            storageService.uploadFile(part.video, 'marketplace-uploads', `orders/parts/${part.id}/video`).then(url => {
+              partData.video = url;
+            })
+          );
+        }
       }
 
-      // 2. Upload VIN Image
+      // Upload VIN Image
       let vinImageUrl = null;
       if (state.vehicle.vinImage) {
-        vinImageUrl = await storageService.uploadFile(state.vehicle.vinImage, 'marketplace-uploads', 'orders/vin');
+        uploadPromises.push(
+          storageService.uploadFile(state.vehicle.vinImage, 'marketplace-uploads', 'orders/vin').then(url => {
+            vinImageUrl = url;
+          })
+        );
       }
+
+      // Wait for all uploads to complete simultaneously
+      await Promise.all(uploadPromises);
 
       // 3. Prepare Payload
       const yearInt = parseInt(state.vehicle.year) || new Date().getFullYear();
@@ -223,7 +237,10 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
 
       // 4. Call Backend API
       const { ordersApi } = await import('../services/api/orders');
-      await ordersApi.create(payload);
+      const newOrder = await ordersApi.create(payload);
+
+      // Return the ID for the success modal
+      return newOrder.id;
 
     } catch (err) {
       console.error('Submission failed', err);

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Send, X, Video, Clock, CheckCircle2, Paperclip, Globe, MessageSquareDashed } from 'lucide-react';
+import { Send, X, Video, Clock, CheckCircle2, Paperclip, Globe, MessageSquareDashed, FileText } from 'lucide-react';
 import { useChatStore } from '../../../stores/useChatStore';
 import { useOrderChatStore } from '../../../stores/useOrderChatStore'; // NEW
 import { useProfileStore } from '../../../stores/useProfileStore';
@@ -7,6 +7,8 @@ import { useVendorStore } from '../../../stores/useVendorStore';
 import { MessageBubble } from './MessageBubble';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { CountdownTimer } from '../OrderDetails';
+import { supabase } from '../../../services/supabase';
 
 interface ChatWindowProps {
   onNavigateToCheckout: () => void;
@@ -21,7 +23,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
   const { t } = useLanguage();
 
   const [text, setText] = useState('');
-  const [pendingAttachment, setPendingAttachment] = useState<{ url: string; type: 'image' | 'video'; file: File } | null>(null);
+  const [pendingAttachment, setPendingAttachment] = useState<{ url: string; type: 'image' | 'video' | 'document'; file: File } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
 
   // Derived typing state to avoid calling hooks conditionally below
@@ -35,12 +38,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
   const legacyChat = chats.find(c => c.id === activeChatId);
   const isOrderChat = !!orderChat && !activeChatId;
 
+  // Compute if User has translations enabled
+  const isTranslationEnabled = user?.role === 'CUSTOMER' ? !!orderChat?.customerTranslationEnabledAt
+    : user?.role === 'VENDOR' ? !!orderChat?.vendorTranslationEnabledAt
+      : !!orderChat?.adminTranslationEnabledAt;
+
   // Use the correct chat object (OrderChatStore if available, else Legacy)
   const displayChat = isOrderChat && orderChat ? {
     id: orderChat.id,
-    merchantName: user?.role === 'CUSTOMER' ? (orderChat.vendorName || t.dashboard.menu?.merchant || 'Merchant') : (orderChat.customerName || t.dashboard.menu?.customer || 'Customer'),
-    partName: orderChat.partName || t.dashboard.menu?.order || 'Order Inquiry',
-    orderId: orderChat.orderNumber || orderChat.orderId,
+    merchantName: orderChat.type === 'support'
+      ? (t.dashboard.menu?.support || 'Technical Support')
+      : (user?.role === 'CUSTOMER' ? (orderChat.vendorName || t.dashboard.menu?.merchant || 'Merchant') : (orderChat.customerName || t.dashboard.menu?.customer || 'Customer')),
+    partName: orderChat.type === 'support' ? '' : (orderChat.partName || t.dashboard.menu?.order || 'Order Inquiry'),
+    orderId: orderChat.type === 'support' ? '' : (orderChat.orderNumber || orderChat.orderId),
     messages: orderChat.messages.map(m => ({
       id: m.id,
       text: m.translatedText || m.text,
@@ -48,14 +58,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
       time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isRead: m.isRead,
       originalText: m.text,
-      translatedText: m.translatedText
+      translatedText: m.translatedText,
+      mediaUrl: m.mediaUrl,
+      mediaType: m.mediaType,
+      mediaName: m.mediaName
     })),
     status: orderChat.status === 'OPEN' ? 'active' : orderChat.status.toLowerCase(), // active, closed, expired
-    isTranslationEnabled: orderChat.isTranslationEnabled
+    isTranslationEnabled
   } : legacyChat ? {
     ...legacyChat,
     status: getChatStatus(legacyChat.id)
   } : null;
+
+  const handleBackToChats = () => {
+    useOrderChatStore.getState().clearChat();
+    useChatStore.getState().setActiveChat(null as any);
+  };
 
 
   // Auto Scroll
@@ -113,10 +131,43 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
   const chatStatus = displayChat.status;
 
   const handleSend = async () => {
-    if ((!text.trim() && !pendingAttachment) || chatStatus !== 'active') return;
+    if ((!text.trim() && !pendingAttachment) || chatStatus !== 'active' || isUploading) return;
 
     if (isOrderChat) {
-      await sendOrderMessage(text); // Attachments logic to be added to OrderChatStore if needed
+      let uploadedMediaUrl = undefined;
+      setIsUploading(true);
+
+      try {
+        if (pendingAttachment) {
+          const roleFolder = user?.role?.toLowerCase() || 'general';
+          const fileName = `${roleFolder}/${Date.now()}_${pendingAttachment.file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+
+          const { data, error } = await supabase.storage
+            .from('chat_media')
+            .upload(fileName, pendingAttachment.file, { upsert: true });
+
+          if (error) {
+            console.error('Upload Error:', error);
+            alert('Failed to upload attachment. It might be too large or invalid format.');
+            setIsUploading(false);
+            return;
+          }
+
+          if (data) {
+            const { data: publicData } = supabase.storage.from('chat_media').getPublicUrl(data.path);
+            uploadedMediaUrl = publicData.publicUrl;
+          }
+        }
+
+        await sendOrderMessage({
+          text,
+          mediaUrl: uploadedMediaUrl,
+          mediaType: pendingAttachment?.type,
+          mediaName: pendingAttachment?.file.name
+        });
+      } finally {
+        setIsUploading(false);
+      }
     } else {
       // Legacy/Support
       let finalText = text;
@@ -136,11 +187,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size too large (Max 5MB)');
+      if (file.size > 25 * 1024 * 1024) { // Increased to 25MB to align with Docs
+        alert('File size too large (Max 25MB)');
         return;
       }
-      const type = file.type.startsWith('video/') ? 'video' : 'image';
+
+      let type: 'image' | 'video' | 'document' = 'document';
+      if (file.type.startsWith('image/')) type = 'image';
+      else if (file.type.startsWith('video/')) type = 'video';
+
       const url = URL.createObjectURL(file);
       setPendingAttachment({ url, type, file });
     }
@@ -163,7 +218,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
 
   const handleToggleTranslation = () => {
     if (isOrderChat && orderChat?.id) {
-      toggleTranslation(orderChat.id);
+      toggleTranslation(orderChat.id, !isTranslationEnabled);
     }
   };
 
@@ -195,33 +250,60 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
       </AnimatePresence>
 
       {/* Header */}
-      <div className="p-4 border-b border-white/10 bg-[#151310] flex justify-between items-center z-10">
+      <div className="p-4 border-b border-white/10 bg-[#151310] flex justify-between items-center z-10 w-full">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gold-500/20 flex items-center justify-center text-gold-500 font-bold">
+          <button
+            onClick={handleBackToChats}
+            className="md:hidden p-2 text-white/50 hover:text-white transition-colors hover:bg-white/5 rounded-lg"
+          >
+            <X size={20} className="scale-x-[-1]" />
+          </button>
+          <div className="w-10 h-10 rounded-full bg-gold-500/20 flex items-center justify-center text-gold-500 font-bold shrink-0">
             {displayChat.merchantName[0]}
           </div>
           <div>
-            <h3 className="text-white font-bold">{displayChat.merchantName}</h3>
-            <div className="flex items-center gap-2 text-xs text-white/50">
-              <span className={`w-2 h-2 rounded-full ${chatStatus === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-              {displayChat.partName} #{displayChat.orderId}
-            </div>
+            <h3 className="text-white font-bold flex items-center gap-2">
+              {displayChat.merchantName}
+              {(legacyChat?.type === 'support' || displayChat.partName.includes('Support')) && (
+                <span className="bg-blue-500/10 text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-blue-500/20">
+                  Support SLA
+                </span>
+              )}
+            </h3>
+            {displayChat.partName && (
+              <div className="flex items-center gap-2 text-xs text-white/50">
+                <span className={`w-2 h-2 rounded-full ${chatStatus === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                {displayChat.partName} {displayChat.orderId ? `#${displayChat.orderId}` : ''}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Translation Toggle */}
-        {isOrderChat && (
-          <button
-            onClick={handleToggleTranslation}
-            className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${orderChat?.isTranslationEnabled ? 'bg-gold-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
-            title="Toggle Auto-Translation"
-          >
-            <Globe size={18} />
-            <span className="text-xs font-medium hidden md:inline">
-              {orderChat?.isTranslationEnabled ? 'Translation ON' : 'Translate'}
-            </span>
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* SLA Timer rendering - Only for Merchant Offers */}
+          {chatStatus === 'active' && legacyChat?.createdAt && legacyChat.type !== 'support' && (
+            <div className="hidden md:block">
+              <CountdownTimer
+                targetDate={new Date(new Date(legacyChat.createdAt).getTime() + 24 * 60 * 60 * 1000).toISOString()}
+                compact
+              />
+            </div>
+          )}
+
+          {/* Translation Toggle */}
+          {isOrderChat && (
+            <button
+              onClick={handleToggleTranslation}
+              className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${isTranslationEnabled ? 'bg-gold-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+              title="Toggle Auto-Translation"
+            >
+              <Globe size={18} />
+              <span className="text-xs font-medium hidden md:inline">
+                {isTranslationEnabled ? (t.dashboard.chat?.translationOn || 'Translation ON') : (t.dashboard.chat?.translate || 'Translate')}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -231,8 +313,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
             key={msg.id}
             message={{
               ...msg,
-              text: (orderChat?.isTranslationEnabled && msg.translatedText) ? msg.translatedText : msg.text,
-              isTranslated: !!(orderChat?.isTranslationEnabled && msg.translatedText)
+              text: (isTranslationEnabled && msg.translatedText) ? msg.translatedText : msg.text,
+              isTranslated: !!(isTranslationEnabled && msg.translatedText)
             }}
             onAcceptOffer={handleAcceptOffer}
             onViewMedia={(url, type) => setLightboxMedia({ url, type })}
@@ -245,7 +327,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
             <span className="w-1.5 h-1.5 bg-gold-500 rounded-full"></span>
             <span className="w-1.5 h-1.5 bg-gold-500 rounded-full animation-delay-150"></span>
             <span className="w-1.5 h-1.5 bg-gold-500 rounded-full animation-delay-300"></span>
-            Someone is typing...
+            {t.dashboard.chat?.someoneTyping || 'Someone is typing...'}
           </div>
         )}
 
@@ -281,7 +363,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
               <div className="mb-4 p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between animate-in slide-in-from-bottom-2">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-black/40 rounded-lg overflow-hidden flex items-center justify-center">
-                    {pendingAttachment.type === 'video' ? <Video size={20} className="text-white/50" /> : <img src={pendingAttachment.url} className="w-full h-full object-cover" />}
+                    {pendingAttachment.type === 'video' ? <Video size={20} className="text-white/50" /> : pendingAttachment.type === 'document' ? <FileText size={20} className="text-white/50" /> : <img src={pendingAttachment.url} className="w-full h-full object-cover" />}
                   </div>
                   <div>
                     <p className="text-sm text-white font-medium max-w-[200px] truncate">{pendingAttachment.file.name}</p>
@@ -300,7 +382,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
                 type="file"
                 ref={fileInputRef}
                 className="hidden"
-                accept="image/*,video/*"
+                accept="image/*,video/*,.pdf,.doc,.docx"
                 onChange={handleFileUpload}
               />
               <button
@@ -321,16 +403,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
                   }
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder={isOrderChat && orderChat?.isTranslationEnabled ? "Type... (Auto-translating to Arabic/English)" : "Type your message..."}
+                placeholder={isOrderChat && isTranslationEnabled ? "Type... (Auto-translating to Arabic/English)" : "Type your message..."}
                 className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-gold-500 outline-none placeholder:text-white/20"
-                disabled={chatStatus !== 'active'}
+                disabled={chatStatus !== 'active' || isUploading}
               />
               <button
                 onClick={handleSend}
-                disabled={(!text.trim() && !pendingAttachment) || chatStatus !== 'active'}
-                className="p-3 bg-gold-500 hover:bg-gold-600 disabled:bg-white/10 disabled:text-white/20 text-white rounded-xl transition-colors"
+                disabled={(!text.trim() && !pendingAttachment) || chatStatus !== 'active' || isUploading}
+                className="p-3 bg-gold-500 hover:bg-gold-600 disabled:bg-white/10 disabled:text-white/20 text-white rounded-xl transition-colors relative flex items-center justify-center min-w-[42px]"
               >
-                <Send size={18} />
+                {isUploading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} />}
               </button>
             </div>
           </>

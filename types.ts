@@ -29,6 +29,7 @@ export interface FeatureCardProps {
 export type OrderStatus =
   | 'AWAITING_OFFERS'
   | 'AWAITING_PAYMENT'
+  | 'PARTIALLY_PAID'
   | 'PREPARATION'
   | 'SHIPPED'
   | 'DELIVERED'

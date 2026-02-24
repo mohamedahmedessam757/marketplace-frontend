@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Printer, Download, FileText } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Order } from '../../../types';
+import { useNotificationStore } from '../../../stores/useNotificationStore';
 
 interface InvoiceModalProps {
     isOpen: boolean;
@@ -30,8 +31,21 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
     const vat = (price + shipping) * 0.15; // Assuming 15% VAT, logic might need adjustment based on business rules
     const total = acceptedOffer?.final_price || (price + shipping + vat); // Use final_price if available, else calc
 
+    const addNotification = useNotificationStore(state => state.addNotification);
+
     const handlePrint = () => {
         window.print();
+
+        // Notify user they printed an invoice
+        addNotification({
+            titleAr: 'تمت طباعة الفاتورة',
+            titleEn: 'Invoice Printed',
+            messageAr: `تم طباعة أو تنزيل الفاتورة للطلب #${order.order_number} بنجاح.`,
+            messageEn: `Invoice for Order #${order.order_number} was successfully printed or downloaded.`,
+            type: 'SYSTEM',
+            recipientRole: 'CUSTOMER', // Typically customer reading their invoice
+            link: `/dashboard/wallet`
+        });
     };
 
     return (

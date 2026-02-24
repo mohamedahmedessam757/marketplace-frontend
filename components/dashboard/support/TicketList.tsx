@@ -1,15 +1,17 @@
 import React, { useEffect } from 'react';
-import { useSupportStore } from '../../../stores/useSupportStore';
+import { useOrderChatStore } from '../../../stores/useOrderChatStore';
 import { MessageSquare, Clock, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 
-export const TicketList: React.FC<{ onNewClick: () => void; onNavigate?: (ticketId: string) => void }> = ({ onNewClick, onNavigate }) => {
+export const TicketList: React.FC<{ onNewClick: () => void; onNavigate?: (chatId: string) => void }> = ({ onNewClick, onNavigate }) => {
     const { t } = useLanguage();
-    const { tickets, loading, fetchTickets } = useSupportStore();
+    const { chats, isLoading, fetchChats } = useOrderChatStore();
 
     useEffect(() => {
-        fetchTickets();
-    }, [fetchTickets]);
+        fetchChats();
+    }, [fetchChats]);
+
+    const tickets = chats.filter(c => c.type === 'support');
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -20,7 +22,7 @@ export const TicketList: React.FC<{ onNewClick: () => void; onNavigate?: (ticket
         }
     };
 
-    if (loading) {
+    if (isLoading) {
         return <div className="text-center py-20 text-white/50">{t.dashboard.common?.loading || 'Loading tickets...'}</div>;
     }
 
@@ -42,38 +44,48 @@ export const TicketList: React.FC<{ onNewClick: () => void; onNavigate?: (ticket
 
     return (
         <div className="space-y-4">
-            {tickets.map((ticket) => (
-                <div
-                    key={ticket.id}
-                    onClick={() => onNavigate && onNavigate(ticket.id)}
-                    className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-gold-500/50 transition-colors cursor-pointer group"
-                >
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStatusColor(ticket.status)}`}>
-                                {ticket.status === 'CLOSED' ? <CheckCircle size={20} /> : <Clock size={20} />}
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-white group-hover:text-gold-500 transition-colors">
-                                    {ticket.subject}
-                                </h4>
-                                <div className="flex items-center gap-3 text-xs text-white/40 mt-1">
-                                    <span>#{ticket.ticket_number || ticket.id.toString().slice(0, 8)}</span>
-                                    <span>•</span>
-                                    <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
+            {tickets.map((ticket) => {
+                let displaySubject = "Support Ticket";
+                if (ticket.lastMessage && ticket.lastMessage.startsWith("[")) {
+                    const endBracket = ticket.lastMessage.indexOf("]");
+                    if (endBracket > 0) {
+                        displaySubject = ticket.lastMessage.substring(1, endBracket);
+                    }
+                }
+
+                return (
+                    <div
+                        key={ticket.id}
+                        onClick={() => onNavigate && onNavigate(ticket.id)}
+                        className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-gold-500/50 transition-colors cursor-pointer group"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStatusColor(ticket.status)}`}>
+                                    {ticket.status === 'CLOSED' ? <CheckCircle size={20} /> : <Clock size={20} />}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-white group-hover:text-gold-500 transition-colors">
+                                        {displaySubject}
+                                    </h4>
+                                    <div className="flex items-center gap-3 text-xs text-white/40 mt-1">
+                                        <span>#{ticket.id?.substring(0, 8) || 'Ticket'}</span>
+                                        <span>•</span>
+                                        <span>{ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : 'Recent'}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="flex items-center gap-4">
-                            <span className={`px-3 py-1 rounded-full text-xs border ${getStatusColor(ticket.status)}`}>
-                                {ticket.status}
-                            </span>
-                            <ChevronRight className="text-white/20 group-hover:text-white transition-colors" />
+                            <div className="flex items-center gap-4">
+                                <span className={`px-3 py-1 rounded-full text-xs border ${getStatusColor(ticket.status)}`}>
+                                    {ticket.status}
+                                </span>
+                                <ChevronRight className="text-white/20 group-hover:text-white transition-colors" />
+                            </div>
                         </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 };

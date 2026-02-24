@@ -11,6 +11,7 @@ interface LoginPageProps {
   onCustomerRegisterClick: () => void;
   onLoginSuccess: (role: 'customer' | 'merchant') => void;
   onForgotPasswordClick?: () => void;
+  onRecoveryClick?: (role: 'customer' | 'merchant') => void;
   initialTab?: 'customer' | 'merchant';
   forcedRole?: 'customer' | 'merchant'; // NEW: If set, tabs are hidden
 }
@@ -19,6 +20,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   onRegisterClick,
   onCustomerRegisterClick,
   onLoginSuccess,
+  onForgotPasswordClick,
+  onRecoveryClick,
   initialTab = 'customer',
   forcedRole
 }) => {
@@ -335,6 +338,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </>
           )}
         </button>
+
+        {/* ACCOUNT RECOVERY BUTTON */}
+        <div className="flex justify-center mt-4">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              if (onRecoveryClick) {
+                onRecoveryClick(activeTab);
+              }
+            }}
+            className="text-white/40 hover:text-white transition-colors text-sm flex items-center gap-2 py-2 px-4 rounded-full border border-transparent hover:border-white/10 hover:bg-white/5"
+          >
+            🔒 {language === 'ar' ? 'لا أستطيع الوصول إلى رقم الجوال' : 'I cannot access my phone number'}
+          </button>
+        </div>
       </form>
 
       {/* Register Link */}

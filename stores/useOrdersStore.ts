@@ -40,6 +40,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
                 .from('orders')
                 .select(`
                     *,
+                    parts:order_parts(*),
                     offers!offers_order_id_fkey(*),
                     store:stores(*)
                 `)
@@ -53,10 +54,16 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
             // Transform data if needed to match interface strictly
             const mappedOrders = (data || []).map(order => ({
                 ...order,
-                // Ensure offers is array
+                orderNumber: order.order_number,
+                vehicleMake: order.vehicle_make,
+                vehicleModel: order.vehicle_model,
+                vehicleYear: order.vehicle_year,
+                partName: order.part_name,
+                createdAt: order.created_at,
+                // Ensure features are arrays
                 offers: order.offers || [],
-                // Safely handle store
-                store: order.store || undefined
+                store: order.store || undefined,
+                parts: order.parts || []
             }));
 
             set({ orders: mappedOrders as Order[] });

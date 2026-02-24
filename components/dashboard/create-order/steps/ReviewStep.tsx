@@ -122,7 +122,13 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onConfirm }) => {
                         <SummaryItem
                             icon={Truck}
                             label={isRTL ? "الشحن" : "Shipping"}
-                            value={shippingType === 'combined' ? (isRTL ? "تجميع الطلبات" : "Combined") : (isRTL ? "شحن منفصل" : "Separate")}
+                            value={shippingType === 'combined'
+                                ? (isRTL ? "(عدة قطع) تجميع الطلبات" : "(Multiple) Combined")
+                                : (requestType === 'multiple'
+                                    ? (isRTL ? "(عدة قطع) كل طلب فى شحنه لوحده" : "(Multiple) Separate")
+                                    : (isRTL ? "(قطعة واحدة) شحن كل قطعة لوحدها" : "(Single) Separate")
+                                )
+                            }
                         />
                         {requestType === 'multiple' && (
                             <SummaryItem
@@ -190,19 +196,19 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({ onConfirm }) => {
             </div>
 
             <div className="pt-4">
-                    <button
-                        onClick={onConfirm}
-                        disabled={isSubmitting}
-                        className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                        {isSubmitting ? <Loader2 className="animate-spin" /> : (
-                            <>
-                                <CheckCircle2 size={20} />
-                                {t.dashboard.createOrder.review.confirm}
-                            </>
-                        )}
-                    </button>
-                </div>
+                <button
+                    onClick={onConfirm}
+                    disabled={isSubmitting}
+                    className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                    {isSubmitting ? <Loader2 className="animate-spin" /> : (
+                        <>
+                            <CheckCircle2 size={20} />
+                            {t.dashboard.createOrder.review.confirm}
+                        </>
+                    )}
+                </button>
+            </div>
 
         </motion.div >
     );

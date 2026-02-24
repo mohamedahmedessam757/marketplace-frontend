@@ -99,6 +99,8 @@ export interface Order {
     };
     requestType?: 'single' | 'multiple';
     shippingType?: 'separate' | 'combined';
+    conditionPref?: 'new' | 'used' | string;
+    warrantyPreferred?: boolean;
 
     // Status & Dates
     status: StatusType;
@@ -115,6 +117,7 @@ export interface Order {
     // Offers
     offersCount: number;
     offers?: OrderOffer[];
+    acceptedOffer?: OrderOffer;
 
     // Logistics
     waybillNumber?: string;
@@ -236,6 +239,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     notes: p.notes
                 })) : [],
                 vin: o.vin,
+                requestType: o.requestType,
+                shippingType: o.shippingType,
+                conditionPref: typeof o.conditionPref === 'string' ? o.conditionPref.trim() : o.conditionPref,
+                warrantyPreferred: o.warrantyPreferred,
+                vehicle: {
+                    make: o.vehicleMake,
+                    model: o.vehicleModel,
+                    year: o.vehicleYear,
+                    vin: o.vin,
+                    vinImage: o.vinImage
+                },
                 status: o.status,
                 date: new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
                 offersCount: o.offers ? o.offers.length : 0,
@@ -299,6 +313,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     notes: p.notes
                 })) : [],
                 vin: o.vin,
+                requestType: o.requestType,
+                shippingType: o.shippingType,
+                conditionPref: typeof o.conditionPref === 'string' ? o.conditionPref.trim() : o.conditionPref,
+                warrantyPreferred: o.warrantyPreferred,
+                vehicle: {
+                    make: o.vehicleMake,
+                    model: o.vehicleModel,
+                    year: o.vehicleYear,
+                    vin: o.vin,
+                    vinImage: o.vinImage
+                },
                 status: o.status,
                 date: new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
                 offersCount: o.offers ? o.offers.length : 0,

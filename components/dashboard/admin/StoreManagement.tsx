@@ -11,14 +11,15 @@ interface StoreManagementProps {
 
 export const StoreManagement: React.FC<StoreManagementProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
-    const { stores, fetchAllStores, isLoadingStores } = useAdminStore();
+    const { stores, subscribeToStores, unsubscribeFromStores, isLoadingStores } = useAdminStore();
     const [filter, setFilter] = useState<'all' | 'pending'>('all');
     const [search, setSearch] = useState('');
 
     const isAr = language === 'ar';
 
     React.useEffect(() => {
-        fetchAllStores();
+        subscribeToStores();
+        return () => unsubscribeFromStores();
     }, []);
 
     const filteredStores = stores.filter(store => {
@@ -63,7 +64,38 @@ export const StoreManagement: React.FC<StoreManagementProps> = ({ onNavigate }) 
 
             <GlassCard className="p-0 overflow-hidden bg-[#151310] min-h-[400px]">
                 {isLoadingStores ? (
-                    <div className="flex items-center justify-center h-48 text-white/30">Loading stores...</div>
+                    <table className="w-full text-left">
+                        <thead className="bg-white/5 text-xs text-white/40 uppercase">
+                            <tr>
+                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.name}</th>
+                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.owner}</th>
+                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.joined}</th>
+                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.status}</th>
+                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.actions}</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {[...Array(5)].map((_, i) => (
+                                <tr key={i} className="animate-pulse">
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-lg bg-white/5"></div>
+                                            <div className="w-24 h-5 bg-white/10 rounded-lg"></div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="space-y-2">
+                                            <div className="w-24 h-4 bg-white/10 rounded-lg"></div>
+                                            <div className="w-32 h-3 bg-white/5 rounded-lg"></div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4"><div className="w-20 h-4 bg-white/10 rounded-lg"></div></td>
+                                    <td className="p-4"><div className="w-24 h-6 bg-white/10 rounded-full"></div></td>
+                                    <td className="p-4"><div className="w-8 h-8 bg-white/10 rounded-lg"></div></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 ) : (
                     <table className="w-full text-left">
                         <thead className="bg-white/5 text-xs text-white/40 uppercase">

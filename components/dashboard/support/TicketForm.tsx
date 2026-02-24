@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
-import { useSupportStore } from '../../../stores/useSupportStore';
+import { useOrderChatStore } from '../../../stores/useOrderChatStore';
 import { storageApi } from '../../../services/api/storage';
 import { Send, Upload, X } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 
 export const TicketForm: React.FC<{ onSuccess: () => void, onCancel: () => void }> = ({ onSuccess, onCancel }) => {
     const { t } = useLanguage();
-    const { createTicket } = useSupportStore();
+    const { createSupportChat } = useOrderChatStore();
     const [subject, setSubject] = useState('');
     const [description, setDescription] = useState(''); // Maps to 'message' in store
     const [priority, setPriority] = useState('MEDIUM');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [attachment, setAttachment] = useState<{ url: string; type: string } | null>(null);
+    const [attachment, setAttachment] = useState<{ url: string; type: string; name: string } | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -21,18 +21,16 @@ export const TicketForm: React.FC<{ onSuccess: () => void, onCancel: () => void 
 
         try {
             // Pass attachment if exists
-            const success = await createTicket(
+            await createSupportChat(
                 subject,
                 description,
-                priority,
+                undefined, // orderId
                 attachment?.url,
-                attachment?.type as 'image' | 'video'
+                attachment?.type,
+                attachment?.name
             );
-            if (success) {
-                onSuccess();
-            } else {
-                setError(t.dashboard.support.form?.error || 'Failed to create ticket. Please try again.');
-            }
+
+            onSuccess();
         } catch (err: any) {
             console.error('Failed to submit ticket:', err);
             setError(err.message || 'Failed to submit ticket');
@@ -122,7 +120,7 @@ export const TicketForm: React.FC<{ onSuccess: () => void, onCancel: () => void 
                                     const type = file.type.startsWith('image/') ? 'image' : 'video'; // Simple check
                                     // We need to pass these to createTicket, so strictly we should state them
                                     // But createTicket is called on submit. So let's store them in state.
-                                    setAttachment({ url, type });
+                                    setAttachment({ url, type, name: file.name });
                                     setIsSubmitting(false);
                                 } catch (err) {
                                     console.error('Upload failed', err);

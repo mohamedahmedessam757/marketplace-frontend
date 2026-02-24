@@ -96,6 +96,7 @@ export interface AdminState {
   toggleSystemStatus: () => void;
   updateSystemConfig: (section: keyof SystemConfig, data: any) => void;
   fetchAllStores: () => Promise<void>;
+  silentFetchStores: () => Promise<void>;
   fetchStoreProfile: (id: string) => Promise<void>;
   getVendorById: (id: string) => Vendor | undefined;
   updateVendorStatus: (id: string, status: MerchantStatus) => void;
@@ -103,8 +104,13 @@ export interface AdminState {
 
   // Real-time
   subscription: any;
+  silentFetchDashboardStats: () => Promise<void>;
   subscribeToStats: () => void;
   unsubscribeFromStats: () => void;
+
+  storeSubscription: any;
+  subscribeToStores: () => void;
+  unsubscribeFromStores: () => void;
 }
 
 const MOCK_VENDORS: Vendor[] = [
@@ -179,8 +185,26 @@ export const useAdminStore = create<AdminState>()(
         set({ currentAdmin: null });
       },
 
+      silentFetchDashboardStats: async () => {
+        try {
+          const token = localStorage.getItem('access_token');
+          if (token) {
+            const res = await fetch(`${API_URL}/dashboard/stats`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              set({ dashboardStats: data });
+            }
+          }
+        } catch (e) {
+          console.error("Failed to silently fetch stats", e);
+        }
+      },
+
       fetchDashboardStats: async () => {
-        set({ isLoadingStats: true });
+        const { dashboardStats } = get();
+        if (!dashboardStats) set({ isLoadingStats: true });
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
@@ -218,7 +242,8 @@ export const useAdminStore = create<AdminState>()(
       }),
 
       fetchAllStores: async () => {
-        set({ isLoadingStores: true });
+        const { stores } = get();
+        if (stores.length === 0) set({ isLoadingStores: true });
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
@@ -234,6 +259,23 @@ export const useAdminStore = create<AdminState>()(
           console.error("Failed to fetch stores", error);
         } finally {
           set({ isLoadingStores: false });
+        }
+      },
+
+      silentFetchStores: async () => {
+        try {
+          const token = localStorage.getItem('access_token');
+          if (token) {
+            const response = await fetch(`${API_URL}/stores`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              set({ stores: data });
+            }
+          }
+        } catch (error) {
+          console.error("Failed to silently fetch stores", error);
         }
       },
 
@@ -276,7 +318,7 @@ export const useAdminStore = create<AdminState>()(
       subscription: null,
 
       subscribeToStats: () => {
-        const { subscription } = get();
+        const { subscription, silentFetchDashboardStats } = get();
         if (subscription) return;
 
         const channel = supabase.channel('admin-stats-realtime')
@@ -284,8 +326,24 @@ export const useAdminStore = create<AdminState>()(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'orders' },
             () => {
-              console.log('🔔 Admin Stats Update Recieved');
-              get().fetchDashboardStats();
+              console.log('🔔 Admin Stats Update: Orders');
+              silentFetchDashboardStats();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'users' },
+            () => {
+              console.log('🔔 Admin Stats Update: Users');
+              silentFetchDashboardStats();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'stores' },
+            () => {
+              console.log('🔔 Admin Stats Update: Stores');
+              silentFetchDashboardStats();
             }
           )
           .subscribe();
@@ -298,6 +356,36 @@ export const useAdminStore = create<AdminState>()(
         if (subscription) {
           supabase.removeChannel(subscription);
           set({ subscription: null });
+        }
+      },
+
+      storeSubscription: null,
+
+      subscribeToStores: () => {
+        const { storeSubscription, fetchAllStores, silentFetchStores } = get();
+        if (storeSubscription) return;
+
+        fetchAllStores(); // Initial load with spinner
+
+        const channel = supabase.channel('admin-stores-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'stores' },
+            () => {
+              console.log('🔔 Admin Stores Update Received');
+              silentFetchStores();
+            }
+          )
+          .subscribe();
+
+        set({ storeSubscription: channel });
+      },
+
+      unsubscribeFromStores: () => {
+        const { storeSubscription } = get();
+        if (storeSubscription) {
+          supabase.removeChannel(storeSubscription);
+          set({ storeSubscription: null });
         }
       }
     }),

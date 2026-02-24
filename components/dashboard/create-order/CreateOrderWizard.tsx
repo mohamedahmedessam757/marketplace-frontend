@@ -11,13 +11,15 @@ import { PartDetailsStep } from './steps/PartDetailsStep';
 import { PreferencesStep } from './steps/PreferencesStep';
 import { ReviewStep } from './steps/ReviewStep';
 import { GlassCard } from '../../ui/GlassCard';
+import { OrderSuccessModal } from './OrderSuccessModal';
 
 interface CreateOrderWizardProps {
   onComplete: () => void;
+  onNavigate?: (path: string, id?: string) => void;
 }
 
-export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete }) => {
-  const { step, setStep, submitOrder, reset, vehicle, parts, preferences, setShowErrors } = useCreateOrderStore();
+export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete, onNavigate }) => {
+  const { step, setStep, submitOrder, reset, vehicle, parts, preferences, setShowErrors, requestType } = useCreateOrderStore();
   const { systemConfig } = useAdminStore(); // Hook into admin config
   const { addNotification } = useNotificationStore();
   const { t, language } = useLanguage();
@@ -27,6 +29,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
 
   const [isReady, setIsReady] = React.useState(false);
   const [shake, setShake] = React.useState(false);
+  const [createdOrderId, setCreatedOrderId] = React.useState<string | null>(null);
 
   useEffect(() => {
     reset(); // Clear store on mount
@@ -67,11 +70,16 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
     }
 
     if (step === 2 && !hasError) {
-      // Validate ALL parts
-      const isValid = parts.every(p => p.name && p.description && p.images.length > 0);
-      if (!isValid) {
-        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى تعبئة جميع البيانات الإلزامية وإرفاق صورة واحدة على الأقل لكل قطعة' : 'Please fill all mandatory details and attach at least one image for all parts', priority: 'urgent' });
+      if (requestType === 'multiple' && parts.length < 2) {
+        addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'لقد اخترت (عدة قطع)، يجب إضافة قطعتين على الأقل للمتابعة' : 'You selected (Multiple Parts), please add at least 2 parts to continue', priority: 'urgent' });
         hasError = true;
+      } else {
+        // Validate ALL parts
+        const isValid = parts.every(p => p.name && p.description && p.images.length > 0);
+        if (!isValid) {
+          addNotification({ type: 'system', titleKey: 'alert', message: language === 'ar' ? 'يرجى تعبئة جميع البيانات الإلزامية وإرفاق صورة واحدة على الأقل لكل قطعة' : 'Please fill all mandatory details and attach at least one image for all parts', priority: 'urgent' });
+          hasError = true;
+        }
       }
     }
 
@@ -91,13 +99,17 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
     // Success (Move Next)
     setShowErrors(false);
     setStep(getNextStep(step));
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // Mobile UX fix
   };
 
-  const handleBack = () => setStep(getPrevStep(step));
+  const handleBack = () => {
+    setStep(getPrevStep(step));
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // Mobile UX fix
+  };
 
   const handleSubmit = async () => {
     try {
-      await submitOrder();
+      const newOrderId = await submitOrder();
       useOrderStore.getState().fetchOrders(); // Sync
 
       addNotification({
@@ -107,7 +119,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
         priority: 'urgent'
       });
 
-      onComplete();
+      setCreatedOrderId(newOrderId); // Trigger Modal instead of immediate redirect
     } catch (error) {
       console.error("Order Creation Failed:", error);
       addNotification({
@@ -123,7 +135,12 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">{t.dashboard.createOrder.title}</h1>
+        <h1 className="text-3xl font-bold text-white mb-4">{t.dashboard.createOrder.title}</h1>
+        <p className="text-white/80 text-base md:text-lg font-medium max-w-2xl mx-auto leading-relaxed">
+          {language === 'ar'
+            ? 'اطلب قطع غيار أصلية مستعملة من التشاليح في دول الخليج عبر منصة اي-تشليح'
+            : 'Order original used auto parts from scrapyards in the GCC via E-Tashleh platform'}
+        </p>
       </div>
 
       {/* Progress Stepper */}
@@ -199,6 +216,20 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
           </div>
         )}
       </GlassCard>
+
+      <OrderSuccessModal
+        isOpen={!!createdOrderId}
+        orderId={createdOrderId}
+        onConfirm={() => {
+          const id = createdOrderId;
+          setCreatedOrderId(null);
+          if (onNavigate && id) {
+            onNavigate('order-details', id);
+          } else {
+            onComplete();
+          }
+        }}
+      />
 
     </div>
   );

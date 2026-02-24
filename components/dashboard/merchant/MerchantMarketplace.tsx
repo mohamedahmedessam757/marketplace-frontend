@@ -1,22 +1,25 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Box, Calendar, MapPin, ChevronRight, ChevronLeft, Car, AlertTriangle, FileText, Clock } from 'lucide-react';
+import { Search, Box, Calendar, MapPin, ChevronRight, ChevronLeft, Car, AlertTriangle, FileText, Clock, Info, Shield, Truck } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { GlassCard } from '../../ui/GlassCard';
 import { SubmitOfferModal } from './SubmitOfferModal';
+import { CountdownTimer } from '../OrderDetails';
 
-export const MerchantMarketplace: React.FC = () => {
+interface MerchantMarketplaceProps {
+    onNavigate?: (path: string, id?: any) => void;
+}
+
+export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const { orders, addOfferToOrder } = useOrderStore();
     const { vendorStatus, storeInfo } = useVendorStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
-    const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
-    const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
 
     // LICENSE CHECK
     if (vendorStatus === 'LICENSE_EXPIRED') {
@@ -39,85 +42,59 @@ export const MerchantMarketplace: React.FC = () => {
         );
     }
 
-    // Expiration Helper
-    const getHoursLeft = (dateStr: string) => {
-        const created = new Date(dateStr).getTime();
-        const now = new Date().getTime();
-        const expiresAt = created + (24 * 60 * 60 * 1000);
-        const diff = expiresAt - now;
-        if (diff <= 0) return 0;
-        return Math.floor(diff / (1000 * 60 * 60));
+    // Timer & Expiration Logic matching OrderDetails perfectly
+    const getOfferDeadline = (dateStr: string) => {
+        const d = new Date(dateStr);
+        d.setHours(d.getHours() + 24);
+        return d.toISOString();
     };
 
-    const isExpired = (dateStr: string) => {
-        return getHoursLeft(dateStr) <= 0;
+    const isOrderExpired = (dateStr: string) => {
+        const deadline = new Date(getOfferDeadline(dateStr)).getTime();
+        return new Date().getTime() > deadline;
     };
 
-    // Filter Logic: Exclude Expired Orders
-    const openRequests = orders.filter(o =>
-        (o.status === 'AWAITING_OFFERS') &&
-        (!isExpired(o.createdAt || o.date)) && // CRITICAL: 24h Expiration Check
-        (activeFilter === 'all' || o.car.toLowerCase().includes(activeFilter.toLowerCase())) &&
-        (o.part.toLowerCase().includes(searchQuery.toLowerCase()) || o.id.toString().includes(searchQuery) || o.car.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    // Base active requests (excluding expired)
+    const activeRequests = useMemo(() => {
+        return orders.filter(o =>
+            o.status === 'AWAITING_OFFERS' &&
+            !isOrderExpired(o.createdAt || o.date)
+        );
+    }, [orders]);
+
+    // Compute unique car makes dynamically
+    const dynamicFilters = useMemo(() => {
+        const makes = new Set<string>();
+        activeRequests.forEach(req => {
+            const make = req.vehicle?.make || req.car;
+            if (make && typeof make === 'string') makes.add(make);
+        });
+        const filtersArr = Array.from(makes).map(make => ({ id: make, label: make }));
+        return [{ id: 'all', label: t.dashboard.merchant.marketplace.filters.all }, ...filtersArr];
+    }, [activeRequests, t.dashboard.merchant.marketplace.filters.all]);
+
+    // Search & Filter Logic
+    const openRequests = activeRequests.filter(o => {
+        const make = o.vehicle?.make || o.car;
+        return (activeFilter === 'all' || make?.toLowerCase() === activeFilter.toLowerCase()) &&
+            (o.part.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                o.id.toString().includes(searchQuery) ||
+                o.car.toLowerCase().includes(searchQuery.toLowerCase()))
+    });
 
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronLeft : ChevronRight;
 
-    const handleOpenOffer = (request: any) => {
-        setSelectedRequest(request);
-        setIsOfferModalOpen(true);
-    };
-
-    const handleSubmitOffer = (data: any) => {
-        if (selectedRequest) {
-            addOfferToOrder(selectedRequest.id, {
-                merchantName: storeInfo.storeName || 'My Store',
-                price: data.price,
-                condition: data.condition,
-                warranty: data.warranty,
-                deliveryTime: data.deliveryTime,
-                notes: data.notes
-            });
+    const handleOpenExplore = (request: any) => {
+        if (onNavigate) {
+            onNavigate('explore-offer', request.id);
         }
-        setIsOfferModalOpen(false);
     };
 
-    const filters = [
-        { id: 'all', label: t.dashboard.merchant.marketplace.filters.all },
-        { id: 'Toyota', label: t.dashboard.merchant.marketplace.filters.toyota },
-        { id: 'Lexus', label: t.dashboard.merchant.marketplace.filters.lexus },
-        { id: 'Hyundai', label: t.dashboard.merchant.marketplace.filters.hyundai },
-    ];
-
-    // Timer Component for Cards
-    const CardTimer = ({ date }: { date: string }) => {
-        const [hours, setHours] = useState(getHoursLeft(date));
-
-        useEffect(() => {
-            const interval = setInterval(() => {
-                setHours(getHoursLeft(date));
-            }, 60000); // Update every minute
-            return () => clearInterval(interval);
-        }, [date]);
-
-        return (
-            <div className={`text-[10px] font-bold px-2 py-1 rounded animate-pulse flex items-center gap-1 ${hours < 5 ? 'bg-red-500/10 text-red-500' : 'bg-gold-500/10 text-gold-500'}`}>
-                <Clock size={10} />
-                {hours}h {t.common.left || 'left'}
-            </div>
-        );
-    };
+    // Removed old filters array & CardTimer component
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-
-            <SubmitOfferModal
-                isOpen={isOfferModalOpen}
-                onClose={() => setIsOfferModalOpen(false)}
-                requestDetails={selectedRequest}
-                onSubmit={handleSubmitOffer}
-            />
 
             {/* Header & Filter Bar */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -142,13 +119,13 @@ export const MerchantMarketplace: React.FC = () => {
                 </div>
             </div>
 
-            {/* Filter Tabs */}
+            {/* Dynamic Filter Tabs */}
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
-                {filters.map(f => (
+                {dynamicFilters.map(f => (
                     <button
                         key={f.id}
                         onClick={() => setActiveFilter(f.id)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeFilter === f.id ? 'bg-gold-500 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap border ${activeFilter === f.id ? 'bg-gold-500 text-white border-gold-400' : 'bg-white/5 text-white/60 hover:bg-white/10 border-white/5'}`}
                     >
                         {f.label}
                     </button>
@@ -185,7 +162,7 @@ export const MerchantMarketplace: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <CardTimer date={req.createdAt || req.date} />
+                                            <CountdownTimer targetDate={getOfferDeadline(req.createdAt || req.date)} compact={true} />
                                         </div>
 
                                         <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">
@@ -206,22 +183,31 @@ export const MerchantMarketplace: React.FC = () => {
 
                                         <div className="space-y-2 mb-6">
                                             <div className="flex items-center gap-2 text-xs text-white/40 bg-white/5 p-2 rounded-lg">
-                                                <MapPin size={12} />
-                                                <span>{t.common.location}</span>
+                                                <Truck size={12} />
+                                                <span className="truncate">
+                                                    {req.shippingType === 'combined'
+                                                        ? (isAr ? 'تجميع الطلبات' : 'Combined Delivery')
+                                                        : (isAr ? 'شحن منفصل' : 'Separate Delivery')}
+                                                </span>
                                             </div>
-                                            {(req.vin || req.vehicle?.vin) && (
-                                                <div className="text-[10px] text-white/30 font-mono px-2">
-                                                    VIN: {req.vehicle?.vin || req.vin}
+                                            <div className="flex items-center gap-2 justify-between">
+                                                {(req.vin || req.vehicle?.vin) && (
+                                                    <div className="text-[10px] text-white/30 font-mono px-2 py-1 bg-white/5 rounded border border-white/5">
+                                                        VIN: {req.vehicle?.vin || req.vin}
+                                                    </div>
+                                                )}
+                                                <div className="text-[10px] text-white/40 bg-white/5 px-2 py-1 rounded border border-white/5">
+                                                    {req.requestType === 'multiple' ? (isAr ? 'عدة قطع' : 'Multiple Parts') : (isAr ? 'قطعة واحدة' : 'Single Part')}
                                                 </div>
-                                            )}
+                                            </div>
                                         </div>
                                     </div>
 
                                     <button
-                                        onClick={() => handleOpenOffer(req)}
-                                        className="w-full py-3 bg-white/5 hover:bg-gold-500 text-white border border-white/10 hover:border-gold-500 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 group/btn"
+                                        onClick={() => handleOpenExplore(req)}
+                                        className="w-full py-3 bg-white/5 hover:bg-gold-500 text-gold-400 hover:text-white border border-white/10 hover:border-gold-500 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 group/btn"
                                     >
-                                        <span>{t.dashboard.merchant.marketplace.makeOffer}</span>
+                                        <span>{isAr ? 'استكشف العرض' : 'Explore Offer'}</span>
                                         <ArrowIcon size={16} className={`transition-transform ${isAr ? 'group-hover/btn:-translate-x-1' : 'group-hover/btn:translate-x-1'}`} />
                                     </button>
                                 </GlassCard>

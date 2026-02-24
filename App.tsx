@@ -6,6 +6,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { RoleSelectionScreen } from './components/RoleSelectionScreen';
 import { WholesaleScreen } from './components/WholesaleScreen';
 import { HowWeWorkScreen } from './components/HowWeWorkScreen';
+import { HowWeWorkTutorial } from './components/HowWeWorkTutorial';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { Footer } from './components/Footer';
@@ -24,6 +25,7 @@ import { DashboardLayout } from './components/dashboard/DashboardLayout';
 import { DashboardHome } from './components/dashboard/DashboardHome';
 import { MerchantHome } from './components/dashboard/merchant/MerchantHome';
 import { MerchantMarketplace } from './components/dashboard/merchant/MerchantMarketplace';
+import { MarketplaceOfferDetails } from './components/dashboard/merchant/MarketplaceOfferDetails'; // NEW
 import { MerchantOffers } from './components/dashboard/merchant/MerchantOffers';
 import { MerchantOrders } from './components/dashboard/merchant/MerchantOrders';
 import { MerchantWallet } from './components/dashboard/merchant/MerchantWallet';
@@ -70,6 +72,7 @@ const AdminLogin = lazy(() => import('./components/auth/AdminLogin').then(module
 const ForgotPassword = lazy(() => import('./components/auth/ForgotPassword').then(module => ({ default: module.ForgotPassword })));
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword').then(module => ({ default: module.ResetPassword })));
 const TermsView = lazy(() => import('./components/auth/TermsView').then(module => ({ default: module.TermsView })));
+const AccountRecoveryWizard = lazy(() => import('./components/auth/AccountRecoveryWizard').then(module => ({ default: module.AccountRecoveryWizard })));
 
 type ViewState =
   | 'landing'
@@ -81,11 +84,13 @@ type ViewState =
   | 'admin-login'
   | 'forgot-password'
   | 'reset-password'
+  | 'account-recovery'
   | 'terms'
   | 'dashboard'
   | 'role-selection'
   | 'wholesale'
-  | 'how-we-work';
+  | 'how-we-work'
+  | 'how-we-work-tutorial';
 type UserRole = 'customer' | 'merchant' | 'admin' | null;
 
 function AppContent() {
@@ -93,6 +98,7 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<ViewState>('landing');
   const [legalInitialSection, setLegalInitialSection] = useState<'terms' | 'privacy'>('terms');
   const [landingInitialSection, setLandingInitialSection] = useState<string | null>(null);
+  const [recoveryRole, setRecoveryRole] = useState<'customer' | 'merchant'>('customer');
 
   // Handle Scrolling to Landing Section
   useEffect(() => {
@@ -210,6 +216,7 @@ function AppContent() {
       case 'vendor-register': return 'Register';
       case 'forgot-password': return 'Recovery';
       case 'reset-password': return 'Reset';
+      case 'account-recovery': return 'Account Recovery';
       case 'terms': return 'Terms & Conditions';
       default: return 'Auth';
     }
@@ -278,7 +285,7 @@ function AppContent() {
                       {dashboardPath === 'shipments' && <ShipmentsPage />}
                       {dashboardPath === 'orders' && <MyOrders onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'shipping-cart' && <ShippingCartPage />}
-                      {dashboardPath === 'create' && <CreateOrderWizard onComplete={() => handleDashboardNavigate('orders')} />}
+                      {dashboardPath === 'create' && <CreateOrderWizard onComplete={() => handleDashboardNavigate('orders')} onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'order-details' && <OrderDetails orderId={viewId} onBack={() => handleDashboardNavigate('orders')} onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'chats' && <ChatLayout onNavigateToCheckout={() => handleDashboardNavigate('checkout')} viewId={viewId} />}
                       {dashboardPath === 'checkout' && <CheckoutWizard onComplete={() => { alert('Order Success!'); handleDashboardNavigate('orders'); }} />}
@@ -298,7 +305,8 @@ function AppContent() {
                   {userRole === 'merchant' && (
                     <MerchantStatusGuard>
                       {dashboardPath === 'home' && <MerchantHome />}
-                      {dashboardPath === 'marketplace' && <MerchantMarketplace />}
+                      {dashboardPath === 'marketplace' && <MerchantMarketplace onNavigate={handleDashboardNavigate} />}
+                      {dashboardPath === 'explore-offer' && <MarketplaceOfferDetails orderId={viewId} onBack={() => handleDashboardNavigate('marketplace')} />}
                       {dashboardPath === 'active-orders' && <MerchantOrders />}
                       {dashboardPath === 'my-offers' && <MerchantOffers />}
                       {dashboardPath === 'profile' && <MerchantProfile />}
@@ -344,7 +352,7 @@ function AppContent() {
             ) : currentView === 'role-selection' ? (
               <RoleSelectionScreen
                 onCustomerClick={() => {
-                  setCurrentView('customer-login');
+                  setCurrentView('how-we-work');
                 }}
                 onMerchantClick={() => {
                   setCurrentView('merchant-login');
@@ -363,8 +371,22 @@ function AppContent() {
                 onComplete={() => {
                   setCurrentView('customer-login');
                 }}
+                onTutorial={() => setCurrentView('how-we-work-tutorial')}
                 onBack={() => setCurrentView('role-selection')}
                 onTermsClick={() => handleNavigateToLegal('terms')}
+                onOpenSupport={() => setIsSupportOpen(true)}
+                onAdminClick={() => setCurrentView('admin-login')}
+                onNavigateToLegal={handleNavigateToLegal}
+                onNavigateToLandingSection={handleNavigateToLandingSection}
+              />
+            ) : currentView === 'how-we-work-tutorial' ? (
+              <HowWeWorkTutorial
+                onComplete={() => setCurrentView('customer-login')}
+                onBack={() => setCurrentView('how-we-work')}
+                onOpenSupport={() => setIsSupportOpen(true)}
+                onAdminClick={() => setCurrentView('admin-login')}
+                onNavigateToLegal={handleNavigateToLegal}
+                onNavigateToLandingSection={handleNavigateToLandingSection}
               />
             ) : currentView === 'landing' ? (
 
@@ -408,7 +430,7 @@ function AppContent() {
                 className="will-change-transform"
               >
                 <AuthLayout
-                  onBack={currentView === 'terms' ? handleBackFromTerms : (currentView === 'customer-register' || currentView === 'forgot-password' || currentView === 'reset-password' ? handleBackToLogin : handleBackToHome)}
+                  onBack={currentView === 'terms' ? handleBackFromTerms : (currentView === 'customer-register' || currentView === 'forgot-password' || currentView === 'reset-password' || currentView === 'account-recovery' ? handleBackToLogin : handleBackToHome)}
                   title={getTitle()}
                   wide={currentView === 'vendor-register' || currentView === 'terms'}
                 >
@@ -420,6 +442,7 @@ function AppContent() {
                         onCustomerRegisterClick={() => setCurrentView('customer-register')}
                         onLoginSuccess={handleLoginSuccess}
                         onForgotPasswordClick={() => setCurrentView('forgot-password')}
+                        onRecoveryClick={(r) => { setRecoveryRole(r); setCurrentView('account-recovery'); }}
                       />
                     )}
 
@@ -430,6 +453,7 @@ function AppContent() {
                         onCustomerRegisterClick={() => setCurrentView('customer-register')}
                         onLoginSuccess={handleLoginSuccess}
                         onForgotPasswordClick={() => setCurrentView('forgot-password')}
+                        onRecoveryClick={(r) => { setRecoveryRole(r); setCurrentView('account-recovery'); }}
                       />
                     )}
 
@@ -440,6 +464,7 @@ function AppContent() {
                         onCustomerRegisterClick={() => { /* Should not happen */ }}
                         onLoginSuccess={handleLoginSuccess}
                         onForgotPasswordClick={() => setCurrentView('forgot-password')}
+                        onRecoveryClick={(r) => { setRecoveryRole(r); setCurrentView('account-recovery'); }}
                       />
                     )}
 
@@ -471,6 +496,10 @@ function AppContent() {
 
                     {currentView === 'reset-password' && (
                       <ResetPassword onLoginClick={handleBackToLogin} />
+                    )}
+
+                    {currentView === 'account-recovery' && (
+                      <AccountRecoveryWizard onBackToLogin={handleBackToLogin} role={recoveryRole} />
                     )}
 
                     {currentView === 'terms' && (

@@ -81,15 +81,27 @@ export const PartDetailsStep: React.FC = () => {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-4">
-                <div className="px-6 py-3 rounded-xl border border-gold-500 bg-gold-500/10 text-white flex items-center gap-2">
-                  <Package size={18} />
-                  {isRTL ? "تجميع الطلبات (شحنة واحدة)" : "Combined Shipping"}
+                <div className="flex flex-wrap justify-center gap-3 w-full">
+                  <button
+                    onClick={() => setShippingType('combined')}
+                    className={`flex-1 min-w-[200px] px-6 py-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${shippingType === 'combined' ? 'border-gold-500 bg-gold-500/10 text-white shadow-lg shadow-gold-500/10' : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:text-white'}`}
+                  >
+                    <Package size={18} />
+                    {isRTL ? "تجميع الطلبات (شحنة واحدة)" : "Combined Shipping"}
+                  </button>
+                  <button
+                    onClick={() => setShippingType('separate')}
+                    className={`flex-1 min-w-[200px] px-6 py-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${shippingType === 'separate' ? 'border-gold-500 bg-gold-500/10 text-white shadow-lg shadow-gold-500/10' : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:text-white'}`}
+                  >
+                    <Truck size={18} />
+                    {isRTL ? "كل طلب فى شحنه لوحده" : "Ship Separately"}
+                  </button>
                 </div>
-                <div className="bg-blue-500/10 border border-blue-500/20 text-blue-200 text-sm p-4 rounded-lg flex items-start gap-3 max-w-lg text-start leading-relaxed shadow-lg shadow-blue-900/10">
+                <div className="bg-blue-500/10 border border-blue-500/20 text-blue-200 text-sm p-4 rounded-lg flex items-start gap-3 w-full max-w-2xl text-start leading-relaxed shadow-lg shadow-blue-900/10">
                   <Info size={20} className="shrink-0 mt-1" />
                   <p className="whitespace-pre-line">
                     {isRTL
-                      ? <>خيار تجميع الطلبات يتييح شحن من قطعتين الى 12 قطعة في شحنه واحدة بدلا من شحن كل قطعة لوحدها،<br />على ان لاتبقى في سلتك لتجميع الشحنات أكثر من 7 أيام<br />ولو لم تقم بطلب الشحن قبل ذلك تشحن تلقائياً..</>
+                      ? <>خيار تجميع الطلبات يتييح شحن من قطعتين الى 12 قطعة في شحنه واحدة بدلا من شحن كل قطعة لوحدها ،<br />على ان لاتبقى في سلتك لتجميع الشحنات أكثر من 7 أيام<br />ولو لم تقم بطلب الشحن قبل ذلك تشحن تلقائياً..</>
                       : "Combined shipping allows 2-12 items in one shipment instead of shipping each part separately.\nItems can remain in your consolidation cart for up to 7 days.\nIf not shipped by then, they will be shipped automatically."
                     }
                   </p>
@@ -285,20 +297,51 @@ export const PartDetailsStep: React.FC = () => {
                   </label>
                 )}
               </div>
+
+              {/* Media Disclaimer */}
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 mt-2 mb-4 shadow-lg shadow-blue-900/10">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                  <div className="text-sm text-blue-400 leading-relaxed space-y-2 font-bold drop-shadow-sm">
+                    <p>
+                      {isRTL
+                        ? "- يرجى ارفاق صوره او فيديو واضح للطلب كمرجع رسمى عند أى نزاع مع التاجر ."
+                        : "- Please attach a clear image or video of the request as an official reference in case of any dispute with the merchant."}
+                    </p>
+                    <p>
+                      {isRTL
+                        ? "- اذا لم تتوفر صوره او فيديو يمكن رفع صوره فارغه مع العلم ان العميل يتحمل المسؤليه بذلك ويقر ."
+                        : "- If no image or video is available, a blank image can be uploaded, noting that the customer bears responsibility and acknowledges this."}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </GlassCard>
         ))}
       </div>
 
       {/* Add Part Button */}
-      {requestType === 'multiple' && parts.length < 12 && (
-        <button
-          onClick={addPart}
-          className="w-full py-4 rounded-xl border-2 border-dashed border-white/10 hover:border-gold-500/50 hover:bg-gold-500/5 text-white/60 hover:text-gold-400 transition-all flex items-center justify-center gap-2 font-medium"
-        >
-          <Plus size={20} />
-          {isRTL ? "إضافة قطعة أخرى" : "Add Another Part"}
-        </button>
+      {requestType === 'multiple' && (
+        <div className="space-y-4">
+          {parts.length < 12 && (
+            <button
+              onClick={addPart}
+              className={`w-full py-4 rounded-xl border-2 border-dashed transition-all flex items-center justify-center gap-2 font-medium ${showErrors && parts.length < 2 ? 'border-red-500 bg-red-500/10 text-red-400 hover:bg-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'border-white/10 hover:border-gold-500/50 hover:bg-gold-500/5 text-white/60 hover:text-gold-400'}`}
+            >
+              <Plus size={20} />
+              {isRTL ? "إضافة قطعة أخرى" : "Add Another Part"}
+            </button>
+          )}
+          {showErrors && parts.length < 2 && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
+              <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
+              <p className="text-sm text-red-200 font-medium">
+                {isRTL ? "لقد اخترت (عدة قطع)، يجب إضافة قطعتين على الأقل للمتابعة، أو قم بتغيير نوع الخيار بالاعلى إلى (قطعة واحدة)." : "You selected (Multiple Parts). Please add at least 2 parts to continue, or change the request type above to (Single Part)."}
+              </p>
+            </motion.div>
+          )}
+        </div>
       )}
 
       {/* Warning Message */}

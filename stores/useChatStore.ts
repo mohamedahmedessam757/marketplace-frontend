@@ -175,27 +175,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
   getChatStatus: (chatId) => {
     const state = get();
     const chat = state.chats.find(c => c.id === chatId);
-    if (!chat) return 'active'; // Default safety
+    if (!chat) return 'expired'; // Default safety
 
-    if (chat.type === 'support') return 'active'; // Support always active
-
-    const acceptedChatId = state.acceptedChats[chat.orderId];
-
-    // Rule 2: If ANY offer for this order is accepted
-    if (acceptedChatId) {
-      // If THIS is the accepted one -> ACTIVE
-      if (acceptedChatId === chatId) return 'active';
-      // If another one -> CLOSED_OTHERS
-      return 'closed_others';
-    }
-
-    // Rule 1: Expiry Time (24 Hours)
-    // In real app, offerCreatedAt should be from the Offer object
-    // For now we use chat.createdAt as proxy
     const createdTime = new Date(chat.createdAt).getTime();
     const now = Date.now();
     const hoursElapsed = (now - createdTime) / (1000 * 60 * 60);
 
+    // Support Tickets never expire by time boundary
+    if (chat.type === 'support') {
+      return 'active';
+    }
+
+    // Merchant Offers SLA (24 hours strict closure or chosen otherwise)
+    const acceptedChatId = state.acceptedChats[chat.orderId];
+
+    if (acceptedChatId) {
+      if (acceptedChatId === chatId) return 'active';
+      return 'closed_others';
+    }
+
+    // Unaccepted offers expire after 24h
     if (hoursElapsed > 24) {
       return 'expired';
     }

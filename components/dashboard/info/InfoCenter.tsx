@@ -4,11 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Info, Shield, FileText, HelpCircle, Mail, ChevronDown, CheckCircle2, Loader2, Phone } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { GlassCard } from '../../ui/GlassCard';
-import { useSupportStore } from '../../../stores/useSupportStore'; // Import
+import { useOrderChatStore } from '../../../stores/useOrderChatStore'; // Import unified store
 
 export const InfoCenter: React.FC = () => {
   const { t, language } = useLanguage();
-  const { createTicket } = useSupportStore();
+  const { createSupportChat } = useOrderChatStore();
   const [activeTab, setActiveTab] = useState('about');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
@@ -37,8 +37,8 @@ export const InfoCenter: React.FC = () => {
     if (!message || !subject) return;
 
     setIsSending(true);
-    setTimeout(() => {
-      createTicket(subject, message, 'MEDIUM');
+    setTimeout(async () => {
+      await createSupportChat(subject, message);
       setIsSending(false);
       setShowSuccess(true);
       setMessage('');

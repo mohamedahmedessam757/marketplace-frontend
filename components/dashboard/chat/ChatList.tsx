@@ -1,59 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { useOrderChatStore } from '../../../stores/useOrderChatStore';
-import { useChatStore } from '../../../stores/useChatStore';
 import { useProfileStore } from '../../../stores/useProfileStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Search, Store, User, ShoppingBag, LifeBuoy } from 'lucide-react';
 
 export const ChatList: React.FC = () => {
-    // Order Chats
-    const { chats: orderChats, activeChat: activeOrderChat, setActiveChat: setOrderChat, fetchChats: fetchOrderChats } = useOrderChatStore();
-    // Support/Legacy Chats
-    const { chats: supportChats, activeChatId: activeSupportChatId, setActiveChat: setSupportChat, syncSupportTickets } = useChatStore();
+    // Unified Chats List 
+    const { chats, activeChat, setActiveChat, fetchChats } = useOrderChatStore();
 
     const { user } = useProfileStore();
     const { t } = useLanguage();
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
-        fetchOrderChats();
-        syncSupportTickets();
-    }, [fetchOrderChats, syncSupportTickets]);
+        fetchChats();
+    }, [fetchChats]);
 
-    // Unified click handler to ensure only one active chat across both stores
-    const handleChatClick = (chatId: string, isOrder: boolean) => {
-        if (isOrder) {
-            setOrderChat(chatId);
-            setSupportChat(null as any); // Clear support selection
-        } else {
-            setSupportChat(chatId);
-            setOrderChat(null as any); // Clear order selection
-        }
+    const handleChatClick = (chatId: string) => {
+        setActiveChat(chatId);
     };
 
-    // Determine currently active globally to highlight UI
-    const globalActiveId = activeOrderChat?.id || activeSupportChatId;
+    const globalActiveId = activeChat?.id;
 
-    // Combine and normalize chats for unified rendering
-    const allChats = [
-        ...orderChats.map(c => ({
+    const allChats = chats.map(c => {
+        const isSupport = c.type === 'support';
+        return {
             ...c,
-            isOrderChat: true,
-            displayTitle: user?.role === 'CUSTOMER' ? c.vendorName : c.customerName,
-            displaySubtitle: c.orderNumber ? `#${c.orderNumber}` : '',
+            displayTitle: isSupport ? (t.dashboard.menu?.support || 'Support Team') : (user?.role === 'CUSTOMER' ? c.vendorName : c.customerName),
+            displaySubtitle: isSupport ? c.partName : (c.orderNumber ? `#${c.orderNumber}` : ''),
             sortTime: c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0,
-            icon: user?.role === 'CUSTOMER' ? <Store size={14} /> : <User size={14} />
-        })),
-        ...supportChats.map(c => ({
-            ...c,
-            isOrderChat: false,
-            // Use localized Support text if it's a support chat
-            displayTitle: c.type === 'support' ? (t.dashboard.menu?.support || 'Support Team') : (user?.role === 'CUSTOMER' ? c.merchantName : c.customerName),
-            displaySubtitle: c.type === 'support' ? c.partName : (c.orderId && c.orderId !== '0' ? `#${c.orderId}` : ''),
-            sortTime: c.lastMessageTime ? new Date("1970/01/01 " + c.lastMessageTime).getTime() : 0, // Mock structure mapping hack
-            icon: c.type === 'support' ? <LifeBuoy size={14} /> : (user?.role === 'CUSTOMER' ? <Store size={14} /> : <User size={14} />)
-        }))
-    ].sort((a, b) => b.sortTime - a.sortTime);
+            icon: isSupport ? <LifeBuoy size={14} /> : (user?.role === 'CUSTOMER' ? <Store size={14} /> : <User size={14} />)
+        };
+    }).sort((a, b) => b.sortTime - a.sortTime);
 
     const filteredChats = allChats.filter(chat => {
         const query = searchQuery.toLowerCase();
@@ -91,7 +69,7 @@ export const ChatList: React.FC = () => {
                         return (
                             <div
                                 key={chat.id}
-                                onClick={() => handleChatClick(chat.id, chat.isOrderChat)}
+                                onClick={() => handleChatClick(chat.id)}
                                 className={`p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${isActive ? 'bg-gold-500/10 border-l-4 border-l-gold-500' : ''}`}
                             >
                                 <div className="flex justify-between items-start mb-1">
@@ -107,11 +85,7 @@ export const ChatList: React.FC = () => {
                                     </div>
                                     {/* Time */}
                                     <span className="text-[10px] text-white/40 shrink-0 ml-2">
-                                        {chat.lastMessageTime ? (
-                                            chat.isOrderChat
-                                                ? new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                                : chat.lastMessageTime // legacy already has time string
-                                        ) : ''}
+                                        {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                     </span>
                                 </div>
 
@@ -119,7 +93,7 @@ export const ChatList: React.FC = () => {
                                     <div className="flex flex-col gap-0.5 overflow-hidden">
                                         {chat.displaySubtitle && (
                                             <div className="text-[10px] text-gold-400 font-mono flex items-center gap-1">
-                                                {!chat.isOrderChat && (chat as any).type === 'support' ? <LifeBuoy size={10} /> : <ShoppingBag size={10} />}
+                                                {chat.type === 'support' ? <LifeBuoy size={10} /> : <ShoppingBag size={10} />}
                                                 {chat.displaySubtitle}
                                             </div>
                                         )}

@@ -18,7 +18,9 @@ export const customer = {
       preferences: 'التفضيلات والإشعارات',
       loyalty: 'التقييم والولاء',
       support: 'الدعم الفني',
-      returns: 'المرتجعات'
+      returns: 'المرتجعات',
+      merchant: 'تاجر',
+      customer: 'عميل'
     },
     common: {
       loading: 'جاري التحميل...',
@@ -173,7 +175,13 @@ export const customer = {
       supportDesc: 'تواصل معنا في حال وجود مشكلة',
       hideTracking: 'إخفاء التفاصيل',
       viewTracking: 'تتبع الشحنة بالتفصيل',
-      searchPlaceholder: 'بحث...'
+      searchPlaceholder: 'بحث...',
+      expiredModal: {
+        title: 'انتهت صلاحية الطلب',
+        desc: 'تم استنفاد وقت استلام العروض (24 ساعة) لهذا الطلب. لم يتم العثور على عروض مناسبة.',
+        dontShow: 'لا تظهر هذه الرسالة مرة أخرى',
+        understood: 'موافق'
+      }
     },
     offers: {
       incVat: 'السعر شامل الضريبة',
@@ -220,7 +228,10 @@ export const customer = {
       typeMessage: 'اكتب رسالتك هنا...',
       offerReceived: 'عرض جديد بقيمة',
       acceptOffer: 'قبول العرض والانتقال للدفع',
-      orderContext: 'سياق الطلب'
+      orderContext: 'سياق الطلب',
+      translationOn: 'الترجمة مفعلة',
+      translate: 'ترجمة النص',
+      someoneTyping: 'شخص ما يكتب الآن...'
     },
     checkout: {
       title: 'إتمام الطلب',
@@ -501,7 +512,9 @@ export const customer = {
       preferences: 'Preferences',
       loyalty: 'Loyalty & Rewards',
       support: 'Support Center',
-      returns: 'Returns'
+      returns: 'Returns',
+      merchant: 'Merchant',
+      customer: 'Customer'
     },
     common: {
       loading: 'Loading...',
@@ -656,7 +669,13 @@ export const customer = {
       supportDesc: 'Contact us if you have any issues',
       hideTracking: 'Hide Tracking Details',
       viewTracking: 'View Full Tracking',
-      searchPlaceholder: 'Search...'
+      searchPlaceholder: 'Search...',
+      expiredModal: {
+        title: 'Order Expired',
+        desc: 'The time to receive offers (24 hours) for this order has elapsed. No suitable offers were found.',
+        dontShow: 'Do not show this message again',
+        understood: 'OK'
+      }
     },
     offers: {
       incVat: 'Inc. VAT',
@@ -703,7 +722,10 @@ export const customer = {
       typeMessage: 'Type your message...',
       offerReceived: 'New offer received:',
       acceptOffer: 'Accept Offer & Pay',
-      orderContext: 'Order Context'
+      orderContext: 'Order Context',
+      translationOn: 'Translation ON',
+      translate: 'Translate',
+      someoneTyping: 'Someone is typing...'
     },
     checkout: {
       title: 'Checkout',

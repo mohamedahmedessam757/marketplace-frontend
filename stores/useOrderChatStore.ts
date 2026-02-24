@@ -10,6 +10,9 @@ export interface OrderChatMessage {
     senderId: string;
     text: string;
     translatedText?: string;
+    mediaUrl?: string;
+    mediaType?: string;
+    mediaName?: string;
     isRead: boolean;
     createdAt: string;
 }
@@ -17,11 +20,16 @@ export interface OrderChatMessage {
 export interface OrderChat {
     id: string;
     orderId: string;
-    vendorId: string;
+    vendorId?: string;
     customerId: string;
     status: 'OPEN' | 'CLOSED' | 'EXPIRED';
-    expiryAt: string;
-    isTranslationEnabled: boolean;
+    type: 'order' | 'support';
+    expiryAt?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    customerTranslationEnabledAt?: string;
+    vendorTranslationEnabledAt?: string;
+    adminTranslationEnabledAt?: string;
     messages: OrderChatMessage[];
 
     // Mapped DTO Fields
@@ -47,10 +55,12 @@ interface OrderChatState {
 
     // Actions
     fetchChat: (orderId: string, vendorId: string) => Promise<void>;
+    loadChat: (chatId: string) => Promise<void>;
     fetchChats: () => Promise<void>;
+    createSupportChat: (subject: string, message: string, orderId?: string, mediaUrl?: string, mediaType?: string, mediaName?: string) => Promise<void>;
     setActiveChat: (chatId: string) => void;
-    sendMessage: (text: string) => Promise<void>;
-    toggleTranslation: (chatId: string) => Promise<void>;
+    sendMessage: (payload: { text?: string; mediaUrl?: string; mediaType?: string; mediaName?: string }) => Promise<void>;
+    toggleTranslation: (chatId: string, enabled: boolean) => Promise<void>;
     subscribeToChat: (chatId: string) => void;
     unsubscribeFromChat: () => void;
     clearChat: () => void;
@@ -97,19 +107,91 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
             set({ error: error.message || 'Failed to load chat', isLoading: false });
         }
     },
+    loadChat: async (chatId: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            const response = await api.get(`/chats/${chatId}`);
+            const chat = response.data;
 
-    sendMessage: async (text: string) => {
+            const { data: messages, error: msgError } = await supabase
+                .from('order_chat_messages')
+                .select('*')
+                .eq('chat_id', chat.id)
+                .order('created_at', { ascending: true });
+
+            if (msgError) throw msgError;
+
+            set({ activeChat: { ...chat, messages: messages || [] }, isLoading: false });
+            get().subscribeToChat(chat.id);
+        } catch (error: any) {
+            console.error('Failed to load chat by ID:', error);
+            set({ error: error.message || 'Failed to load chat', isLoading: false });
+        }
+    },
+    createSupportChat: async (subject: string, message: string, orderId?: string, mediaUrl?: string, mediaType?: string, mediaName?: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            const response = await api.post('/chats/support', { orderId, subject, message, mediaUrl, mediaType, mediaName });
+            // Successfully created, fetch chats to refresh the list
+            await get().fetchChats();
+            get().setActiveChat(response.data.id); // Auto open
+        } catch (error: any) {
+            console.error('Failed to create support chat:', error);
+            set({ error: error.message || 'Failed to create support chat', isLoading: false });
+        }
+    },
+
+    sendMessage: async ({ text, mediaUrl, mediaType, mediaName }) => {
         const { activeChat } = get();
         if (!activeChat) return;
 
-        // Optimistic Update can happen here if we want super speed, 
-        // but since we want to validate 24h/expiry backend side, we go through API.
+        // Extremely fast 0ms Optimistic UI Update Fake Message
+        const tempId = `temp-${Date.now()}`;
+        const tempMessage: OrderChatMessage = {
+            id: tempId,
+            chatId: activeChat.id,
+            senderId: 'temp_user', // This will be ignored functionally but gives it shape
+            text: text || '',
+            isRead: false,
+            createdAt: new Date().toISOString(),
+            mediaUrl,
+            mediaType,
+            mediaName
+        };
+
+        set((state) => ({
+            activeChat: state.activeChat ? {
+                ...state.activeChat,
+                messages: [...state.activeChat.messages, tempMessage]
+            } : null
+        }));
+
         try {
-            await api.post(`/chats/${activeChat.id}/messages`, { text });
-            // No need to manually update state, the Supabase Subscription will catch the new message
+            const response = await api.post(`/chats/${activeChat.id}/messages`, {
+                text: text || '',
+                mediaUrl,
+                mediaType,
+                mediaName
+            });
+
+            // Replace the optimistic temp message with the real one returned by backend
+            set((state) => ({
+                activeChat: state.activeChat ? {
+                    ...state.activeChat,
+                    messages: state.activeChat.messages.map(m => m.id === tempId ? response.data : m)
+                } : null
+            }));
+
         } catch (error: any) {
             console.error('Failed to send message:', error);
-            set({ error: error.message });
+            // Revert optimistic message
+            set((state) => ({
+                error: error.message,
+                activeChat: state.activeChat ? {
+                    ...state.activeChat,
+                    messages: state.activeChat.messages.filter(m => m.id !== tempId)
+                } : null
+            }));
         }
     },
 
@@ -129,32 +211,42 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
         const chat = chats.find(c => c.id === chatId);
         if (chat) {
             // Optimistically set active
-            set({ activeChat: chat, error: null });
-            // Fetch full details and subscribe
-            get().fetchChat(chat.orderId, chat.vendorId);
+            set({ activeChat: Object.assign({}, chat, { messages: [] }), error: null });
+            // Fetch full details natively
+            get().loadChat(chat.id);
         }
     },
 
-    toggleTranslation: async (chatId: string) => {
+    toggleTranslation: async (chatId: string, enabled: boolean) => {
         const { activeChat } = get();
-        if (!activeChat || activeChat.id !== chatId) return; // Ensure we're toggling the active chat
+        if (!activeChat || activeChat.id !== chatId) return;
 
-        const originalStatus = activeChat.isTranslationEnabled;
-        const newStatus = !originalStatus;
+        // Try getting role from local storage if profile store isn't safely accessible
+        let userRole = 'CUSTOMER';
+        try {
+            const profileData = localStorage.getItem('profile-storage');
+            if (profileData) userRole = JSON.parse(profileData)?.state?.user?.role || 'CUSTOMER';
+        } catch (e) { }
+
+        const timestamp = enabled ? new Date().toISOString() : null;
+
+        // Optimistic UI Update for zero latency toggling
+        set((state) => {
+            if (!state.activeChat) return state;
+            const updated = { ...state.activeChat };
+            if (userRole === 'CUSTOMER') updated.customerTranslationEnabledAt = timestamp;
+            else if (userRole === 'VENDOR') updated.vendorTranslationEnabledAt = timestamp;
+            else if (userRole === 'ADMIN') updated.adminTranslationEnabledAt = timestamp;
+
+            return { activeChat: updated };
+        });
 
         try {
-            // Optimistic update
-            set(state => ({
-                activeChat: state.activeChat ? { ...state.activeChat, isTranslationEnabled: newStatus } : null
-            }));
-            await api.post(`/chats/${chatId}/translation`, { enabled: newStatus });
+            await api.post(`/chats/${chatId}/translation`, { enabled });
         } catch (error: any) {
             console.error('Translation toggle failed:', error);
-            // Revert on error
-            set(state => ({
-                activeChat: state.activeChat ? { ...state.activeChat, isTranslationEnabled: originalStatus } : null,
-                error: error.message || 'Failed to toggle translation'
-            }));
+            // Revert changes on fail
+            set((state) => ({ error: error.message || 'Failed to toggle translation', activeChat }));
         }
     },
 
@@ -231,11 +323,17 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
                     filter: `id=eq.${chatId}`,
                 },
                 (payload) => {
-                    const updatedChat = payload.new as Partial<OrderChat>;
+                    const dbChat: any = payload.new;
                     set((state) => {
                         if (!state.activeChat || state.activeChat.id !== chatId) return state;
                         return {
-                            activeChat: { ...state.activeChat, ...updatedChat }
+                            activeChat: {
+                                ...state.activeChat,
+                                status: dbChat.status || state.activeChat.status,
+                                customerTranslationEnabledAt: dbChat.customer_translation_enabled_at !== undefined ? dbChat.customer_translation_enabled_at : state.activeChat.customerTranslationEnabledAt,
+                                vendorTranslationEnabledAt: dbChat.vendor_translation_enabled_at !== undefined ? dbChat.vendor_translation_enabled_at : state.activeChat.vendorTranslationEnabledAt,
+                                adminTranslationEnabledAt: dbChat.admin_translation_enabled_at !== undefined ? dbChat.admin_translation_enabled_at : state.activeChat.adminTranslationEnabledAt,
+                            }
                         };
                     });
                 }

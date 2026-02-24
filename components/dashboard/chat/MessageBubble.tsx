@@ -1,11 +1,10 @@
 
 import React from 'react';
-import { Message } from '../../../stores/useChatStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, FileText, Download, Globe } from 'lucide-react';
 
 interface MessageBubbleProps {
-  message: Message;
+  message: any;
   onAcceptOffer?: () => void;
   onViewMedia?: (url: string, type: 'image' | 'video') => void;
 }
@@ -36,28 +35,56 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onAcceptO
 
           {/* Media Attachment */}
           {message.mediaUrl && (
-            <div
-              className="mb-2 rounded-lg overflow-hidden border border-white/10 cursor-pointer hover:opacity-90 transition-opacity bg-black/20"
-              onClick={() => message.mediaUrl && onViewMedia?.(message.mediaUrl, message.mediaType || 'image')}
-            >
-              {message.mediaType === 'video' ? (
-                <div className="relative">
-                  <video src={message.mediaUrl} className="w-full max-h-60 object-cover" />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                      <div className="w-0 h-0 ml-1 border-y-[6px] border-y-transparent border-l-[10px] border-l-white" />
-                    </div>
+            <div className="mb-2">
+              {message.mediaType === 'document' ? (
+                <a
+                  href={message.mediaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-colors"
+                >
+                  <div className="w-10 h-10 bg-gold-500/20 rounded-lg flex items-center justify-center text-gold-500 shrink-0">
+                    <FileText size={20} />
                   </div>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{message.mediaName || 'Document'}</p>
+                    <p className="text-[10px] text-white/50 uppercase">Download</p>
+                  </div>
+                  <Download size={16} className="text-white/40" />
+                </a>
               ) : (
-                <img src={message.mediaUrl} alt="attachment" className="w-full max-h-60 object-cover" />
+                <div
+                  className="rounded-lg overflow-hidden border border-white/10 cursor-pointer hover:opacity-90 transition-opacity bg-black/20"
+                  onClick={() => onViewMedia?.(message.mediaUrl, message.mediaType || 'image')}
+                >
+                  {message.mediaType === 'video' ? (
+                    <div className="relative">
+                      <video src={message.mediaUrl} className="w-full max-h-60 object-cover" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                          <div className="w-0 h-0 ml-1 border-y-[6px] border-y-transparent border-l-[10px] border-l-white" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <img src={message.mediaUrl} alt="attachment" className="w-full max-h-60 object-cover" />
+                  )}
+                </div>
               )}
             </div>
           )}
 
           {/* Text Content */}
           {message.text && (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+            <div className="relative">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+              {message.isTranslated && (
+                <div className="flex items-center gap-1 mt-1 text-[10px] text-gold-400 font-medium">
+                  <Globe size={10} />
+                  <span>Auto-Translated</span>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Offer Action */}
