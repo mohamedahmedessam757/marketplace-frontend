@@ -38,6 +38,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fingerprint, setFingerprint] = useState<string | null>(null);
+
+  // Load unique device identifier for session deduplication (2026 Best Practice)
+  React.useEffect(() => {
+    const loadFingerprint = async () => {
+      try {
+        const { default: FingerprintJS } = await import('@fingerprintjs/fingerprintjs');
+        const fp = await FingerprintJS.load();
+        const result = await fp.get();
+        setFingerprint(result.visitorId);
+      } catch (err) {
+        console.warn('Failed to load fingerprint:', err);
+      }
+    };
+    loadFingerprint();
+  }, []);
 
   const countries = [
     { code: '+966', name: language === 'ar' ? 'السعودية' : 'Saudi Arabia', flag: '🇸🇦' },
@@ -63,7 +79,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
     // Immediate Validation Feedback
     if (val.length > 0 && !val.startsWith('5')) {
-      setError(t.auth.errors?.invalidPhoneStart || 'Mobile number must start with 5');
+      setError(t.auth.errors?.invalidPhoneStart || (language === 'ar' ? 'يجب أن يبدأ رقم الجوال بـ 5' : 'Mobile number must start with 5'));
     } else if (val.length > 0 && val.length < 9) {
       // Don't show length error while typing, only if invalid start or on partial
       setError(null);
@@ -85,9 +101,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   };
 
   const validatePhone = () => {
-    if (!phone) return t.auth.errors?.invalidPhone || 'Mobile number is required';
-    if (!phone.startsWith('5')) return t.auth.errors?.invalidPhoneStart || 'Mobile number must start with 5';
-    if (phone.length !== 9) return t.auth.errors?.invalidPhoneLength || 'Mobile number must be 9 digits';
+    if (!phone) return t.auth.errors?.invalidPhone || (language === 'ar' ? 'رقم الجوال مطلوب' : 'Mobile number is required');
+    if (!phone.startsWith('5')) return t.auth.errors?.invalidPhoneStart || (language === 'ar' ? 'يجب أن يبدأ رقم الجوال بـ 5' : 'Mobile number must start with 5');
+    if (phone.length !== 9) return t.auth.errors?.invalidPhoneLength || (language === 'ar' ? 'يجب أن يتكون رقم الجوال من 9 أرقام' : 'Mobile number must be 9 digits');
     return null;
   };
 
@@ -115,11 +131,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
       // 2. Role Verification
       if (activeTab === 'customer' && backendRole !== 'CUSTOMER') {
-        throw new Error(t.auth.errors?.wrongAccountType || 'Incorrect account type');
+        throw new Error(t.auth.errors?.wrongAccountType || (language === 'ar' ? 'نوع الحساب غير صحيح' : 'Incorrect account type'));
       }
 
       if (activeTab === 'merchant' && backendRole !== 'VENDOR') {
-        throw new Error(t.auth.errors?.wrongAccountType || 'Incorrect account type');
+        throw new Error(t.auth.errors?.wrongAccountType || (language === 'ar' ? 'نوع الحساب غير صحيح' : 'Incorrect account type'));
       }
 
       // Store details
@@ -130,11 +146,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     } catch (err: any) {
       console.error('Login Init Failed', err);
       if (err.response?.status === 401 || err.response?.status === 404) {
-        setError(t.auth.errors?.accountNotFound || 'Account not found');
+        setError(t.auth.errors?.accountNotFound || (language === 'ar' ? 'الحساب غير موجود' : 'Account not found'));
       } else if (err.message) {
         setError(err.message);
       } else {
-        setError(t.auth.errors?.loginFailed || 'Login failed');
+        setError(t.auth.errors?.loginFailed || (language === 'ar' ? 'فشل تسجيل الدخول' : 'Login failed'));
       }
     } finally {
       setIsLoading(false);
@@ -152,7 +168,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             try {
               setIsLoading(true);
               const fullPhone = `${countryCode}${phone}`;
-              const response = await authApi.verifyMobileLogin(fullPhone, code);
+              // Pass fingerprint to ensure unique session mapping
+              const response = await authApi.verifyMobileLogin(fullPhone, code, fingerprint || undefined);
 
               localStorage.setItem('access_token', response.access_token);
               if (response.user) {
@@ -162,7 +179,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               onLoginSuccess(activeTab);
             } catch (err: any) {
               console.error('Verify Failed', err);
-              alert(t.auth.errors?.invalidCode || 'Invalid verification code');
+              alert(t.auth.errors?.invalidCode || (language === 'ar' ? 'رمز التحقق غير صحيح' : 'Invalid verification code'));
             } finally {
               setIsLoading(false);
             }

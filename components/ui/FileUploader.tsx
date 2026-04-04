@@ -49,14 +49,15 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
         onFilesSelected(newFiles);
     };
 
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    const dropzoneOptions: any = {
         onDrop,
         accept,
         maxSize,
         maxFiles: maxFiles - files.length,
         disabled: files.length >= maxFiles,
         multiple: true
-    });
+    };
+    const { getRootProps, getInputProps, isDragActive } = useDropzone(dropzoneOptions);
 
     return (
         <div className="space-y-4">

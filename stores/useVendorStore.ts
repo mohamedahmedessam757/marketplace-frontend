@@ -1,8 +1,8 @@
-
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { useNotificationStore } from './useNotificationStore';
 
-export type MerchantStatus = 'IDLE' | 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'ACTIVE' | 'SUSPENDED' | 'BLOCKED' | 'LICENSE_EXPIRED';
+export type MerchantStatus = 'IDLE' | 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'BLOCKED' | 'LICENSE_EXPIRED';
 
 export interface DocState {
   file: File | null;
@@ -45,28 +45,55 @@ export interface PerformanceMetrics {
   acceptanceRate: number; // percentage
   complaintRate: number; // percentage
   rating: number; // 0-5
-  weeklyEarnings?: number[]; // Added for dashboard graph
-  activeOrdersCount?: number; // Added for dashboard metrics
+  weeklyEarnings?: number[];
+  activeOrdersCount?: number;
+  loyaltyTier?: MerchantStatus; // Sync with StoreLoyaltyTier
+  lifetimeEarnings?: number;
 }
 
 export interface VendorState {
   step: number;
   vendorStatus: MerchantStatus;
+  storeId: string | null;
+  storeRejectionReason: string | null;
 
   account: {
     name: string;
     email: string;
     phone: string;
+    countryCode: string;
     password: string;
   };
   otpVerified: boolean;
   storeInfo: {
     storeName: string;
-    category: string;
+    selectedMakes: string[];
+    selectedModels: string[];
+    customMake: string;
+    customModel: string;
     bio: string;
     address: string;
     lat: number | null;
     lng: number | null;
+  };
+
+  contractFormData: {
+    secondPartyData: {
+      companyName: string;
+      managerName: string;
+      crNumber: string;
+      licenseNumber: string;
+      licenseExpiry: string;
+      emirate: string;
+      country: string;
+    };
+    signatureData: {
+      signedName: string;
+      email: string; // Read-only from account
+      phone: string; // Read-only from account
+      address: string;
+      date: string;
+    };
   };
 
   profile: StoreProfileData;
@@ -75,6 +102,7 @@ export interface VendorState {
   performance: PerformanceMetrics;
 
   contractAgreed: boolean;
+  contractId: string | null;
   documents: {
     cr: DocState;
     license: DocState;
@@ -83,41 +111,57 @@ export interface VendorState {
     authLetter: DocState;
   };
 
+  isLoadingProfile: boolean;
+  
   // Actions
   setStep: (step: number) => void;
   setVendorStatus: (status: MerchantStatus) => void;
   updateAccount: (field: string, value: string) => void;
-  updateStoreInfo: (field: string, value: string) => void;
+  updateStoreInfo: (field: string, value: any) => void;
+  updateContractFormData: (section: 'secondPartyData' | 'signatureData', field: string, value: string) => void;
   updateProfile: (data: Partial<StoreProfileData>) => void;
   updateBankDetails: (data: Partial<BankDetails>) => void;
   updateSettings: (data: Partial<VendorSettings>) => void;
 
   setOtpVerified: (verified: boolean) => void;
   setContractAgreed: (agreed: boolean) => void;
+  setContractId: (id: string | null) => void;
   updateDocumentStatus: (key: keyof VendorState['documents'], status: DocState['status'], progress?: number) => void;
   updateDocumentMetadata: (key: keyof VendorState['documents'], data: Partial<DocState>) => void;
   setDocumentFile: (key: keyof VendorState['documents'], file: File) => void;
   uploadDocument: (key: keyof VendorState['documents'], file: File) => Promise<void>;
+  uploadLogo: (file: File) => Promise<string>;
   simulateUpload: (key: keyof VendorState['documents']) => void;
   reset: () => void;
 
   // LOGIC ACTIONS
   fetchDashboardStats: () => Promise<void>;
+  fetchVendorProfile: () => Promise<void>;
+  updateVendorProfile: () => Promise<void>;
   checkLicenseStatus: () => void;
-  adminApproveVendor: () => void;
-  adminRejectVendor: (reason: string) => void;
+  adminApproveVendor: (id: string) => Promise<void>;
+  adminRejectVendor: (id: string, reason: string) => Promise<void>;
   adminBanVendor: () => void;
 }
 
 const initialDocState: DocState = { file: null, status: 'empty', progress: 0 };
 
-export const useVendorStore = create<VendorState>((set, get) => ({
+export const useVendorStore = create<VendorState>()(
+  persist(
+    (set, get) => ({
   step: 1,
-  vendorStatus: 'PENDING_DOCUMENTS',
-  account: { name: '', email: '', phone: '', password: '' },
+  vendorStatus: 'IDLE',
+  storeId: null,
+  storeRejectionReason: null,
+  account: { name: '', email: '', phone: '', countryCode: '+966', password: '' },
   otpVerified: false,
-  storeInfo: { storeName: '', category: '', bio: '', address: '', lat: null, lng: null },
+  storeInfo: { storeName: '', selectedMakes: [], selectedModels: [], customMake: '', customModel: '', bio: '', address: '', lat: null, lng: null },
+  contractFormData: {
+    secondPartyData: { companyName: '', managerName: '', crNumber: '', licenseNumber: '', licenseExpiry: '', emirate: '', country: '' },
+    signatureData: { signedName: '', email: '', phone: '', address: '', date: '' }
+  },
   contractAgreed: false,
+  contractId: null,
 
   profile: {
     logo: null,
@@ -131,6 +175,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     accountHolder: 'Mohammed Ali Store',
     status: 'approved'
   },
+  isLoadingProfile: true,
 
   settings: {
     notifications: {
@@ -166,6 +211,16 @@ export const useVendorStore = create<VendorState>((set, get) => ({
   updateStoreInfo: (field, value) =>
     set((state) => ({ storeInfo: { ...state.storeInfo, [field]: value } })),
 
+  updateContractFormData: (section, field, value) => set((state) => ({
+    contractFormData: {
+      ...state.contractFormData,
+      [section]: {
+        ...state.contractFormData[section],
+        [field]: value
+      }
+    }
+  })),
+
   updateProfile: (data) => set((state) => ({ profile: { ...state.profile, ...data } })),
 
   updateBankDetails: (data) => set((state) => ({
@@ -184,6 +239,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
 
   setOtpVerified: (verified) => set({ otpVerified: verified }),
   setContractAgreed: (agreed) => set({ contractAgreed: agreed }),
+  setContractId: (id) => set({ contractId: id }),
 
   updateDocumentStatus: (key, status, progress) => set((state) => ({
     documents: {
@@ -210,8 +266,60 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     }
   })),
 
-  // REAL UPLOAD LOGIC
+  // REAL LOGO UPLOAD
+  uploadLogo: async (file: File) => {
+    // 2026 Security: Validate file before hitting Supabase
+    if (file.size > 2 * 1024 * 1024) throw new Error('File size exceeds 2MB limit');
+    if (!file.type.startsWith('image/')) throw new Error('Invalid file type. Only images allowed.');
+
+    try {
+      const { supabase } = await import('../services/supabase');
+      const storeName = get().storeInfo.storeName || 'unknown_store';
+      const safeName = storeName.replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '') || `store_${Date.now()}`;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${safeName}_logo_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // Upload to 'profile' bucket
+      const { data, error } = await supabase.storage
+        .from('profile')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      // Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('profile')
+        .getPublicUrl(filePath);
+
+      // Update local state immediately
+      set((state) => ({
+        profile: { ...state.profile, logo: publicUrl }
+      }));
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Logo Upload Failed:', error);
+      throw error;
+    }
+  },
+
+  // REAL DOCUMENT UPLOAD & SYNC
   uploadDocument: async (key: keyof VendorState['documents'], file: File) => {
+    // 2026 Security: File size limit 5MB for documents
+    if (file.size > 5 * 1024 * 1024) {
+      useNotificationStore.getState().addNotification({ 
+        type: 'error', 
+        titleEn: 'Error', titleAr: 'خطأ',
+        message: 'File size exceeds 5MB limit.', 
+        priority: 'high' 
+      });
+      return;
+    }
+
     const { updateDocumentStatus, updateDocumentMetadata } = get();
     // Start Upload
     updateDocumentStatus(key, 'uploading', 0);
@@ -219,17 +327,18 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     try {
       const { supabase } = await import('../services/supabase');
       const storeName = get().storeInfo.storeName || 'unknown_store';
-      // Sanitize filename: storeName_docType_timestamp.ext
+      // Sanitize filename
+      const safeName = storeName.replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '') || `store_${Date.now()}`;
       const fileExt = file.name.split('.').pop();
-      const fileName = `${storeName.replace(/\s+/g, '_')}_${key}_${Date.now()}.${fileExt}`;
+      const fileName = `${safeName}_${key}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // Upload to Supabase Storage
+      // Upload to 'vendor-documents' bucket
       const { data, error } = await supabase.storage
         .from('vendor-documents')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: true, // Overwrite if exists
+          upsert: true,
         });
 
       if (error) throw error;
@@ -239,18 +348,40 @@ export const useVendorStore = create<VendorState>((set, get) => ({
         .from('vendor-documents')
         .getPublicUrl(filePath);
 
-      // Success
-      updateDocumentStatus(key, 'pending', 100); // Mark as pending review
+      // SYNC WITH BACKEND (Only if logged in / has token)
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        try {
+          const { client } = await import('../services/api/client');
+          const docTypeMap: Record<string, string> = {
+            cr: 'CR',
+            license: 'LICENSE',
+            id: 'ID',
+            iban: 'IBAN',
+            authLetter: 'AUTH_LETTER'
+          };
+
+          await client.post('/stores/onboarding/documents', {
+            docType: docTypeMap[key],
+            fileUrl: publicUrl
+          });
+        } catch (syncError) {
+          console.warn('Backend sync failed (possibly expired token). File is safe in Supabase and will be linked on final registration.', syncError);
+        }
+      }
+
+      // Update local state
+      updateDocumentStatus(key, 'pending', 100); 
       updateDocumentMetadata(key, {
         lastUpdated: new Date().toISOString(),
-        fileUrl: publicUrl, // Store the URL for viewing
+        fileUrl: publicUrl,
         fileName: fileName
       });
 
     } catch (error) {
       console.error('Upload Failed:', error);
-      updateDocumentStatus(key, 'empty', 0); // Reset on failure
-      // Ideally show error toast
+      updateDocumentStatus(key, 'empty', 0);
+      throw error;
     }
   },
 
@@ -276,6 +407,112 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       }
     } catch (error) {
       console.error('Failed to fetch merchant dashboard stats:', error);
+    }
+  },
+
+      fetchVendorProfile: async () => {
+        // Reset loading state and ensure a clean slate before fetching
+        // ONLY if we don't already have a storeId (initial load)
+        const isInitial = !get().storeId;
+        if (isInitial) set({ isLoadingProfile: true });
+
+        try {
+          const { client } = await import('../services/api/client');
+      const response = await client.get('/stores/me');
+      
+      if (response && response.data) {
+        const data = response.data;
+        
+        // Persist store ID for analytics/filtering (minimal local leakage)
+        if (data.id) localStorage.setItem('merchant_store_id', data.id);
+        set({
+          storeId: data.id,
+          vendorStatus: data.status,
+          storeRejectionReason: data.rejectionReason,
+          storeInfo: {
+            storeName: data.name,
+            selectedMakes: data.selectedMakes || [],
+            selectedModels: data.selectedModels || [],
+            customMake: data.customMake || '',
+            customModel: data.customModel || '',
+            bio: data.description || '',
+            address: data.address || '',
+            lat: data.lat,
+            lng: data.lng
+          },
+          profile: {
+            logo: data.logo,
+            categories: data.categories || ['Spare Parts'],
+            workingHours: data.workingHours || { start: '09:00', end: '21:00' }
+          },
+          account: {
+            name: data.owner?.name || '',
+            email: data.owner?.email || '',
+            phone: data.owner?.phone || '',
+            countryCode: '+966',
+            password: ''
+          },
+          bankDetails: data.bankDetails || {
+            iban: '',
+            bankName: '',
+            accountHolder: '',
+            status: 'pending_review'
+          },
+          documents: {
+            cr: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'CR')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'CR')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'CR')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'CR')?.updatedAt },
+            license: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'LICENSE')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'LICENSE')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'LICENSE')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'LICENSE')?.updatedAt },
+            id: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'ID')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'ID')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'ID')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'ID')?.updatedAt },
+            iban: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'IBAN')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'IBAN')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'IBAN')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'IBAN')?.updatedAt },
+            authLetter: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.updatedAt }
+          },
+          isLoadingProfile: false
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch vendor profile:', error);
+      set({ isLoadingProfile: false });
+    }
+  },
+
+  updateVendorProfile: async () => {
+    const { storeInfo, profile } = get();
+    try {
+      const { client } = await import('../services/api/client');
+      const payload = {
+        name: storeInfo.storeName,
+        description: storeInfo.bio,
+        selectedMakes: storeInfo.selectedMakes,
+        selectedModels: storeInfo.selectedModels,
+        customMake: storeInfo.customMake,
+        customModel: storeInfo.customModel,
+        logo: profile.logo,
+        address: storeInfo.address,
+        lat: storeInfo.lat,
+        lng: storeInfo.lng,
+      };
+
+      await client.patch('/stores/me', payload);
+
+      // Refresh data locally
+      await get().fetchVendorProfile();
+      
+      useNotificationStore.getState().addNotification({
+        type: 'success',
+        titleEn: 'Success',
+        titleAr: 'تم بنجاح',
+        message: 'Profile updated successfully',
+        priority: 'normal'
+      });
+    } catch (error) {
+      console.error('Failed to update vendor profile:', error);
+      useNotificationStore.getState().addNotification({
+        type: 'error',
+        titleEn: 'Error',
+        titleAr: 'خطأ',
+        message: 'Failed to update profile',
+        priority: 'high'
+      });
+      throw error;
     }
   },
 
@@ -312,42 +549,111 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     }
   },
 
-  adminApproveVendor: () => set((state) => ({
-    vendorStatus: 'ACTIVE',
-    documents: Object.keys(state.documents).reduce((acc, key) => {
-      (acc as any)[key] = { ...state.documents[key as keyof typeof state.documents], status: 'approved' };
-      return acc;
-    }, {} as typeof state.documents)
-  })),
-
-  adminRejectVendor: (reason) => {
-    set((state) => ({
-      vendorStatus: 'PENDING_DOCUMENTS', // Send back to docs
-      step: 5, // Force UI to docs step
-      documents: {
-        ...state.documents,
-        // Mark all pending as rejected for clarity, or specific ones in a real app
-        license: { ...state.documents.license, status: 'rejected', rejectionReason: reason }
+  adminApproveVendor: async (id: string) => {
+    try {
+      const { client } = await import('../services/api/client');
+      await client.patch(`/stores/${id}/status`, { status: 'ACTIVE' });
+      
+      // Update local status if it happens to be the current vendor (for simulation)
+      if (get().vendorStatus !== 'ACTIVE') {
+        set({ vendorStatus: 'ACTIVE', storeRejectionReason: null });
       }
-    }));
+      
+      useNotificationStore.getState().addNotification({
+        titleEn: 'Success', 
+        messageEn: 'Store has been activated successfully', 
+        type: 'SYSTEM'
+      });
+    } catch (error) {
+      console.error('Failed to approve vendor:', error);
+      useNotificationStore.getState().addNotification({ titleEn: 'Error', messageEn: 'Failed to approve store', type: 'SYSTEM' });
+    }
+  },
+
+  adminRejectVendor: async (id: string, reason: string) => {
+    try {
+      const { client } = await import('../services/api/client');
+      await client.patch(`/stores/${id}/status`, { status: 'REJECTED', reason });
+      
+      // Update local status if it's the same (for simulation)
+      set({ 
+        vendorStatus: 'REJECTED', 
+        storeRejectionReason: reason 
+      });
+
+      useNotificationStore.getState().addNotification({
+        titleEn: 'Rejected', 
+        messageEn: 'Store has been rejected with reason', 
+        type: 'SYSTEM'
+      });
+    } catch (error) {
+      console.error('Failed to reject vendor:', error);
+      useNotificationStore.getState().addNotification({ titleEn: 'Error', messageEn: 'Failed to reject store', type: 'SYSTEM' });
+    }
   },
 
   adminBanVendor: () => set({ vendorStatus: 'BLOCKED' }),
 
-  reset: () => set({
-    step: 1,
-    vendorStatus: 'PENDING_DOCUMENTS',
-    account: { name: '', email: '', phone: '', password: '' },
-    otpVerified: false,
-    storeInfo: { storeName: '', category: '', bio: '', address: '', lat: null, lng: null },
-    profile: { logo: null, categories: ['Spare Parts'], workingHours: { start: '09:00', end: '21:00' } },
-    contractAgreed: false,
-    documents: {
-      cr: { ...initialDocState },
-      license: { ...initialDocState },
-      id: { ...initialDocState },
-      iban: { ...initialDocState },
-      authLetter: { ...initialDocState }
+  reset: () => {
+    // SECURITY: Explicitly clear local identifiers
+    localStorage.removeItem('merchant_store_id');
+    
+    set({
+      step: 1,
+      vendorStatus: 'IDLE', // Default to IDLE instead of PENDING_DOCUMENTS for clean state
+      storeId: null,
+      storeRejectionReason: null,
+      account: { name: '', email: '', phone: '', countryCode: '+966', password: '' },
+      otpVerified: false,
+      storeInfo: { storeName: '', selectedMakes: [], selectedModels: [], customMake: '', customModel: '', bio: '', address: '', lat: null, lng: null },
+      contractFormData: {
+        secondPartyData: { companyName: '', managerName: '', crNumber: '', licenseNumber: '', licenseExpiry: '', emirate: '', country: '' },
+        signatureData: { signedName: '', email: '', phone: '', address: '', date: '' }
+      },
+      profile: { logo: null, categories: ['Spare Parts'], workingHours: { start: '09:00', end: '21:00' } },
+      contractAgreed: false,
+      contractId: null,
+      bankDetails: {
+        iban: '',
+        bankName: '',
+        accountHolder: '',
+        status: 'pending_review'
+      },
+      settings: {
+        notifications: { whatsapp: true, email: false },
+        autoTranslateChat: false
+      },
+      performance: {
+        responseSpeed: 0,
+        prepSpeed: 0,
+        acceptanceRate: 100,
+        complaintRate: 0,
+        rating: 5.0
+      },
+      documents: {
+        cr: { ...initialDocState },
+        license: { ...initialDocState },
+        id: { ...initialDocState },
+        iban: { ...initialDocState },
+          authLetter: { ...initialDocState }
+        },
+        isLoadingProfile: false // Set to false on reset to avoid perpetual loading UI
+      });
     }
-  })
-}));
+  }),
+  {
+    name: 'vendor-storage',
+    storage: createJSONStorage(() => sessionStorage),
+    partialize: (state) => ({ 
+      vendorStatus: state.vendorStatus, 
+      storeId: state.storeId, 
+      storeRejectionReason: state.storeRejectionReason,
+      storeInfo: { 
+        storeName: state.storeInfo.storeName,
+        selectedMakes: state.storeInfo.selectedMakes,
+        selectedModels: state.storeInfo.selectedModels
+      } 
+    }),
+  }
+)
+);

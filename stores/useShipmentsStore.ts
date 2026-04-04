@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
-import { getCurrentUserId } from '../utils/auth';
+import { shipmentsApi } from '../services/api/shipments.api';
 
 export interface ShipmentItem {
     name: string;
@@ -9,89 +9,113 @@ export interface ShipmentItem {
 }
 
 export interface Shipment {
-    id: string;
+    id: string; 
+    orderId: string;
+    orderNumber: string; // Added
     trackingNumber: string;
     carrier: string;
-    status: 'received' | 'transit' | 'distribution' | 'out' | 'delivered';
+    status: string; 
     estimatedDelivery: string;
     origin: string;
     destination: string;
     items: ShipmentItem[];
+    // New metadata for detail view
+    storeCode: string;
+    customerCode: string;
+    shippingAddress: string;
+    customerCountry?: string;
+    customerCity?: string;
+    customerDetails?: string;
+    vehicleMake?: string;
+    vehicleModel?: string;
+    partName?: string;
+    partDescription?: string;
+    partImages?: string[];
+    offerImage?: string;
+    weightKg?: number;
+    updatedAt: string | Date;
 }
 
 interface ShipmentsState {
     shipments: Shipment[];
     loading: boolean;
     error: string | null;
+    subscription: any;
     fetchShipments: () => Promise<void>;
+    startRealtime: () => void;
+    stopRealtime: () => void;
 }
 
-export const useShipmentsStore = create<ShipmentsState>((set) => ({
+export const useShipmentsStore = create<ShipmentsState>((set, get) => ({
     shipments: [],
     loading: false,
     error: null,
+    subscription: null,
+
+    startRealtime: () => {
+        const { subscription, fetchShipments } = get();
+        if (subscription) return;
+        
+        // Real-time subscriptions don't hit RLS policies - safe to use Supabase directly
+        const channel = supabase.channel('shipments-realtime-global')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'shipments' }, () => {
+                fetchShipments();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+                fetchShipments();
+            })
+            .subscribe();
+            
+        set({ subscription: channel });
+    },
+
+    stopRealtime: () => {
+        const { subscription } = get();
+        if (subscription) {
+            supabase.removeChannel(subscription);
+            set({ subscription: null });
+        }
+    },
 
     fetchShipments: async () => {
         set({ loading: true, error: null });
         try {
-            const userId = getCurrentUserId();
-            console.log('[useShipmentsStore] getCurrentUserId returned:', userId);
-            if (!userId) {
-                console.log('[useShipmentsStore] No user ID, returning empty shipments');
-                set({ shipments: [], loading: false });
-                return;
-            }
+            // Use the NestJS API (Prisma) to bypass Supabase RLS recursion
+            const data = await shipmentsApi.getMyShipments();
 
-            const { data, error } = await supabase
-                .from('orders')
-                .select(`
-                    id,
-                    order_number,
-                    status,
-                    vehicle_make,
-                    vehicle_model,
-                    vehicle_year,
-                    part_name,
-                    updated_at
-                `)
-                .in('status', ['SHIPPED', 'DELIVERED'])
-                .eq('customer_id', userId)
-                .order('updated_at', { ascending: false });
+            const finalShipments: Shipment[] = (data || []).map((item: any) => ({
+                id: item.id,
+                orderId: item.orderId,
+                orderNumber: item.orderNumber,
+                trackingNumber: item.trackingNumber || item.orderNumber || item.orderId.substring(0, 8),
+                carrier: item.carrier || 'Tashleh Carrier',
+                status: item.status || 'RECEIVED_AT_HUB',
+                estimatedDelivery: item.estimatedDelivery 
+                    ? new Date(item.estimatedDelivery).toLocaleDateString() 
+                    : new Date(new Date(item.updatedAt).getTime() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+                origin: item.origin || 'Central Hub',
+                destination: item.destination || 'Your Address',
+                items: item.items || [],
+                storeCode: item.storeCode,
+                customerCode: item.customerCode,
+                shippingAddress: item.shippingAddress,
+                customerCountry: item.customerCountry,
+                customerCity: item.customerCity,
+                customerDetails: item.customerDetails,
+                vehicleMake: item.vehicleMake,
+                vehicleModel: item.vehicleModel,
+                partName: item.partName,
+                partDescription: item.partDescription,
+                partImages: item.partImages,
+                offerImage: item.offerImage,
+                weightKg: item.weightKg,
+                updatedAt: item.updatedAt
+            }));
 
-            if (error) throw error;
-
-            console.log('[useShipmentsStore] Query returned', data?.length, 'shipments:', data);
-
-            // Group by order_number (Tracking Number)
-            const groupedShipments: Record<string, Shipment> = {};
-
-            (data || []).forEach((order: any) => {
-                const trackingNum = order.order_number;
-
-                if (!groupedShipments[trackingNum]) {
-                    groupedShipments[trackingNum] = {
-                        id: order.id, // Use first ID as group ID
-                        trackingNumber: trackingNum,
-                        carrier: 'Tashleh Express',
-                        status: order.status === 'SHIPPED' ? 'transit' :
-                            order.status === 'DELIVERED' ? 'delivered' : 'transit',
-                        estimatedDelivery: new Date(new Date(order.updated_at).getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-                        origin: 'Central Warehouse',
-                        destination: 'Customer Address',
-                        items: []
-                    };
-                }
-
-                groupedShipments[trackingNum].items.push({
-                    name: `${order.vehicle_make} ${order.vehicle_model} ${order.part_name}`,
-                    quantity: 1
-                });
-            });
-
-            const realShipments = Object.values(groupedShipments);
-            set({ shipments: realShipments, loading: false });
+            set({ shipments: finalShipments, loading: false });
         } catch (err: any) {
-            set({ error: err.message, loading: false });
+            console.error('[useShipmentsStore] Fetch error:', err);
+            set({ error: err?.response?.data?.message || err.message || 'Unknown error', loading: false });
         }
     }
 }));

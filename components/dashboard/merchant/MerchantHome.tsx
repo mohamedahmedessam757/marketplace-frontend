@@ -1,57 +1,42 @@
-
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '../../ui/GlassCard';
-import { TrendingUp, Package, DollarSign, Clock, CheckCircle2, Box, RefreshCcw, Activity, Zap, Star, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Badge, StatusType } from '../../ui/Badge';
+import { TrendingUp, Package, DollarSign, Clock, CheckCircle2, Box, RefreshCcw, Activity, Zap, Star, AlertTriangle, ShieldAlert, Car, ChevronRight, ChevronLeft, ArrowRight, ArrowLeft, MessageSquare, ListChecks, FileText } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 
-export const MerchantHome: React.FC = () => {
+interface MerchantHomeProps {
+    onNavigate: (path: string, id?: number) => void;
+}
+
+export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const { orders } = useOrderStore();
-    const { performance, documents, vendorStatus } = useVendorStore();
+    const { performance, documents, vendorStatus, storeId: myStoreId, storeInfo } = useVendorStore();
     const { addNotification, notifications } = useNotificationStore();
     const isAr = language === 'ar';
+    const ChevronIcon = isAr ? ChevronLeft : ChevronRight;
+    const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
 
     // Fetch Dashboard Stats on Mount
-    const { fetchDashboardStats } = useVendorStore();
-    useEffect(() => {
-        fetchDashboardStats();
-    }, [fetchDashboardStats]);
+    const { fetchDashboardStats, fetchVendorProfile } = useVendorStore();
+    const fetchLock = useRef(false);
 
-    // --- LOGIC: License Expiry Check ---
+    useEffect(() => {
+        if (fetchLock.current) return;
+        fetchLock.current = true;
+        Promise.all([fetchDashboardStats(), fetchVendorProfile()])
+            .finally(() => fetchLock.current = false);
+    }, [fetchDashboardStats, fetchVendorProfile]);
+
+    // --- LOGIC: Alerts ---
+    const activeAlerts = [];
+    
+    // 1. License Check
     const license = documents.license;
-    let licenseWarning = null;
-
-    // Notification Logic
-    useEffect(() => {
-        if (license.expiryDate) {
-            const today = new Date();
-            const expiry = new Date(license.expiryDate);
-            const diffTime = expiry.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays <= 30 && diffDays > 0) {
-                const alreadyNotified = notifications.some(n => n.type === 'docExpiry' && !n.isRead);
-                if (!alreadyNotified) {
-                    addNotification({
-                        type: 'docExpiry',
-                        titleKey: 'docExpiry',
-                        message: isAr
-                            ? `تنبيه: رخصة البلدية تنتهي خلال ${diffDays} يوم. يرجى التجديد.`
-                            : `Warning: Municipality License expires in ${diffDays} days.`,
-                        linkTo: 'docs',
-                        priority: 'urgent',
-                        channels: ['app']
-                    });
-                }
-            }
-        }
-    }, [license.expiryDate, addNotification, notifications, isAr]);
-
-    // UI Banner Logic
     if (license.expiryDate) {
         const today = new Date();
         const expiry = new Date(license.expiryDate);
@@ -59,202 +44,412 @@ export const MerchantHome: React.FC = () => {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
         if (diffDays <= 0 || vendorStatus === 'LICENSE_EXPIRED') {
-            licenseWarning = { type: 'expired', title: t.dashboard.merchant.alerts.accountRestricted, msg: t.dashboard.merchant.alerts.licenseExpired };
+            activeAlerts.push({ 
+                type: 'error', 
+                title: t.dashboard.merchant.alerts.accountRestricted, 
+                msg: t.dashboard.merchant.alerts.licenseExpired,
+                icon: ShieldAlert
+            });
         } else if (diffDays <= 30) {
-            licenseWarning = { type: 'warning', title: t.dashboard.merchant.alerts.attention, msg: `${t.dashboard.merchant.alerts.licenseExpiring} (${diffDays} ${t.common.days})` };
+            activeAlerts.push({ 
+                type: 'warning', 
+                title: t.dashboard.merchant.alerts.attention, 
+                msg: `${t.dashboard.merchant.alerts.licenseExpiring} (${diffDays} ${t.common.days})`,
+                icon: AlertTriangle
+            });
         }
     }
 
-    // KPI Calculations (Connected to store)
-    const newRequests = orders.filter(o => o.status === 'AWAITING_OFFERS').length;
-    const submittedOffers = orders.filter(o => o.status === 'AWAITING_PAYMENT').length;
-    const acceptedOffers = orders.filter(o => ['PREPARATION', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(o.status)).length;
+    // --- LOGIC: Stats & Categories ---
+    // 1. New Requests (Global Marketplace - specialization filtered)
+    const newRequests = orders.filter(o => {
+        if (o.status !== 'AWAITING_OFFERS') return false;
+        
+        // Exclude expired orders (24h)
+        const d = new Date(o.createdAt || o.date);
+        d.setHours(d.getHours() + 24);
+        if (new Date().getTime() > d.getTime()) return false;
+        
+        const make = (o.vehicle?.make || o.car || '').toLowerCase();
+        const model = (o.vehicle?.model || '').toLowerCase();
+        
+        const selectedMakesLower = (storeInfo?.selectedMakes || []).map((m: string) => m.toLowerCase());
+        const selectedModelsLower = (storeInfo?.selectedModels || []).map((m: string) => m.toLowerCase());
+        
+        const hasMakes = selectedMakesLower.length > 0;
+        const hasModels = selectedModelsLower.length > 0;
 
-    // Use real activeOrdersCount from backend if available, fallback to local
-    const preparingOrders = performance.activeOrdersCount !== undefined ? performance.activeOrdersCount : orders.filter(o => o.status === 'PREPARATION').length;
+        const matchesSpecialization = !hasMakes || selectedMakesLower.includes(make);
+        const matchesModel = !hasModels || selectedModelsLower.includes(model);
 
-    // Total sales can be accumulated natively or accurately fetched from server, we use sum for now locally
-    const totalSales = performance.weeklyEarnings ? performance.weeklyEarnings.reduce((a, b) => a + b, 0) : 0;
-    const dueBalance = totalSales * 0.8;
+        return matchesSpecialization && matchesModel;
+    }).length;
+    
+    // 2. My Specific Orders (where I have an ACTIVE offer or am the assigned merchant)
+    const myOrders = orders.filter(o => {
+        if (!myStoreId) return false;
+        
+        const isAssigned = o.merchantId === myStoreId || (o.acceptedOffer && String(o.acceptedOffer.storeId) === String(myStoreId));
+        if (isAssigned) return true;
+        
+        // Return true if merchant has AT LEAST ONE offer that is NOT rejected
+        const merchantOffers = o.offers?.filter(off => String(off.storeId) === String(myStoreId)) || [];
+        return merchantOffers.length > 0 && merchantOffers.some(off => off.status?.toLowerCase() !== 'rejected');
+    });
+    
+    // 3. Orders Awaiting Verification Alert
+    const preparedOrders = myOrders.filter(o => o.status === 'PREPARED');
+    preparedOrders.forEach(o => {
+        activeAlerts.push({
+            type: 'error', // Made red and glowing
+            title: isAr ? 'توثيق حالة القطعة إلزامي!' : 'Part Verification Required!',
+            msg: isAr 
+                ? `طلب #${o.id} (${o.car}) تم تجهيزه. يرجى رفع التوثيق لتتمكن من تسليمه.` 
+                : `Order #${o.id} (${o.car}) is prepared. Please upload verification to proceed with delivery.`,
+            icon: FileText,
+            onClick: () => onNavigate('explore-offer', o.id)
+        });
+    });
 
-    const orderStats = [
+    // Negotiation: AWAITING_PAYMENT (Client has offer but hasn't paid yet) OR AWAITING_OFFERS (Active bidding phase)
+    const negotiating = myOrders.filter(o => o.status === 'AWAITING_PAYMENT' || o.status === 'AWAITING_OFFERS').length;
+    
+    // In Progress: PREPARATION or SHIPPED (Client paid, item being prepped or in transit)
+    const inProgress = myOrders.filter(o => o.status === 'PREPARATION' || o.status === 'SHIPPED').length;
+    
+    // Completed: COMPLETED or DELIVERED
+    const completedCount = myOrders.filter(o => o.status === 'COMPLETED' || o.status === 'DELIVERED').length;
+    
+    // Rejected: Count of orders where ALL of my offers were rejected
+    const rejectedCount = orders.filter(o => {
+        const merchantOffers = o.offers?.filter(off => off.storeId === myStoreId) || [];
+        return merchantOffers.length > 0 && merchantOffers.every(off => off.status?.toLowerCase() === 'rejected');
+    }).length;
+
+    const statsCards = [
         { label: t.dashboard.merchant.kpi.newRequests, value: newRequests, icon: Box, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-        { label: t.dashboard.merchant.kpi.submittedOffers, value: submittedOffers, icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-        { label: t.dashboard.merchant.kpi.acceptedOffers, value: acceptedOffers, icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/10' },
-        { label: t.dashboard.merchant.kpi.preparing, value: preparingOrders, icon: Package, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-        { label: t.dashboard.merchant.kpi.totalSales, value: totalSales.toLocaleString(), unit: t.common.sar, icon: TrendingUp, color: 'text-gold-400', bg: 'bg-gold-500/10' },
-        { label: t.dashboard.merchant.kpi.dueBalance, value: dueBalance.toLocaleString(), unit: t.common.sar, icon: DollarSign, color: 'text-white', bg: 'bg-white/10' },
+        { label: t.dashboard.merchant.kpi.negotiating, value: negotiating, icon: MessageSquare, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+        { label: t.dashboard.merchant.kpi.executing, value: inProgress, icon: Zap, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+        { label: t.dashboard.merchant.kpi.done, value: completedCount, icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/10' },
+        { label: t.dashboard.merchant.kpi.rejected, value: rejectedCount, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
     ];
 
-    // Dynamic KPIs from Vendor Store
-    const kpiCards = [
-        { label: t.dashboard.merchant.kpi.responseSpeed, value: `${performance.responseSpeed} ${t.dashboard.merchant.kpi.hours}`, icon: Zap, status: performance.responseSpeed < 4 ? 'good' : 'bad' },
-        { label: t.dashboard.merchant.kpi.prepSpeed, value: `${performance.prepSpeed} ${t.dashboard.merchant.kpi.hours}`, icon: Activity, status: performance.prepSpeed < 24 ? 'good' : 'bad' },
-        { label: t.dashboard.merchant.kpi.acceptanceRate, value: `${performance.acceptanceRate}%`, icon: CheckCircle2, status: performance.acceptanceRate > 50 ? 'good' : 'bad' },
-        { label: t.dashboard.merchant.kpi.rating, value: performance.rating, icon: Star, status: performance.rating > 4.5 ? 'good' : 'risk' },
+    // --- Logic for Offers Summary (KPIs area) ---
+    const offersSent = orders.reduce((acc, o) => acc + (o.offers?.filter(off => off.storeId === myStoreId).length || 0), 0);
+    const offersAccepted = orders.reduce((acc, o) => acc + (o.offers?.filter(off => off.storeId === myStoreId && (off.status === 'accepted' || off.status === 'ACCEPTED')).length || 0), 0);
+    const offersRejectedTotal = orders.reduce((acc, o) => acc + (o.offers?.filter(off => off.storeId === myStoreId && (off.status === 'rejected' || off.status === 'REJECTED')).length || 0), 0);
+
+    const summaryCards = [
+        { label: t.dashboard.merchant.kpi.offersSent, value: offersSent, icon: FileText, color: 'text-blue-400' },
+        { label: t.dashboard.merchant.kpi.offersAccepted, value: offersAccepted, icon: CheckCircle2, color: 'text-green-400' },
+        { label: t.dashboard.merchant.kpi.offersRejected, value: offersRejectedTotal, icon: AlertTriangle, color: 'text-red-400' }
     ];
+
+    // Get live tracking order (most relevant active one)
+    const liveOrder = myOrders.find(o => {
+        const merchantOffers = o.offers?.filter(off => String(off.storeId) === String(myStoreId)) || [];
+        const hasValidOffer = merchantOffers.some(off => off.status?.toLowerCase() !== 'rejected');
+        // Prioritize what needs most attention or is actively moving
+        return hasValidOffer && ['PREPARATION', 'SHIPPED', 'AWAITING_PAYMENT'].includes(o.status);
+    }) || myOrders.find(o => ['PREPARATION', 'SHIPPED'].includes(o.status)); // Fallback to any active I'm assigned to
+
+    // Helper for progress
+    const getProgress = (status: string) => {
+        switch (status) {
+            case 'AWAITING_PAYMENT': return 33;
+            case 'PREPARATION': return 66;
+            case 'SHIPPED': return 90;
+            case 'COMPLETED': return 100;
+            default: return 10;
+        }
+    };
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-
-            {/* LICENSE WARNING BANNER */}
-            {licenseWarning && (
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`p-4 rounded-2xl border flex items-start gap-4 ${licenseWarning.type === 'expired'
-                        ? 'bg-red-500/10 border-red-500/30 text-red-200'
-                        : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-200'
-                        }`}
-                >
-                    <div className={`p-2 rounded-full ${licenseWarning.type === 'expired' ? 'bg-red-500/20' : 'bg-yellow-500/20'}`}>
-                        <ShieldAlert size={24} />
-                    </div>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+            
+            {/* Header / Welcome */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1A1814] via-[#24211B] to-[#151310] border border-white/5 shadow-2xl p-8 transition-all hover:shadow-gold-500/5 group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-gold-500/10 transition-all duration-700" />
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div>
-                        <h3 className="font-bold text-lg mb-1">{licenseWarning.title}</h3>
-                        <p className="opacity-80 text-sm mb-3">{licenseWarning.msg}</p>
-                        {/* Add action button if expired */}
-                        {licenseWarning.type === 'expired' && (
-                            <button className="px-4 py-1.5 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition-colors">
-                                {t.dashboard.merchant.alerts.updateLicense}
-                            </button>
-                        )}
-                    </div>
-                </motion.div>
-            )}
-
-            {/* Welcome Banner */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#1A1814] to-[#2A2620] border border-gold-500/20 shadow-xl p-8">
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-xs font-bold text-green-400/80 uppercase tracking-widest">{t.dashboard.merchant.home.online}</span>
+                        </div>
                         <h1 className="text-3xl font-bold text-white mb-2">{t.dashboard.merchant.home.welcome}</h1>
-                        <p className="text-white/60">{t.dashboard.merchant.home.welcomeSub}</p>
-                    </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-green-400 text-sm font-bold">{t.dashboard.merchant.home.online}</span>
+                        <p className="text-white/40 text-sm max-w-md leading-relaxed">{t.dashboard.merchant.home.welcomeSub}</p>
                     </div>
                 </div>
             </div>
 
-            {/* KPI SECTION */}
-            <div>
-                <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                    <Activity className="text-gold-500" />
-                    {t.dashboard.merchant.kpi.title}
-                </h3>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {kpiCards.map((kpi, idx) => (
-                        <GlassCard key={idx} className="p-4 bg-[#151310] border-white/5 hover:border-gold-500/20 transition-all">
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="text-xs text-white/40 font-medium uppercase tracking-wider">{kpi.label}</span>
-                                <kpi.icon size={16} className={kpi.status === 'good' ? 'text-green-400' : kpi.status === 'risk' ? 'text-yellow-400' : 'text-red-400'} />
+            {/* Reputation & Performance Overview [NEW 2026] */}
+            <div className="grid lg:grid-cols-4 gap-6">
+                <GlassCard 
+                    onClick={() => onNavigate('reviews')}
+                    className="lg:col-span-1 p-6 bg-gradient-to-br from-gold-500/10 to-transparent border-gold-500/20 flex flex-col items-center justify-center text-center cursor-pointer group hover:border-gold-500/40 transition-all"
+                >
+                    <div className="text-[10px] font-black text-gold-500/60 uppercase tracking-[0.2em] mb-3 group-hover:text-gold-500 transition-colors">
+                        {isAr ? 'سمعة المتجر' : 'STORE REPUTATION'}
+                    </div>
+                    <div className="flex items-end gap-1 mb-2">
+                        <span className="text-4xl font-black text-white leading-none">{(performance?.rating || 0).toFixed(1)}</span>
+                        <span className="text-white/20 font-bold mb-1">/ 5.0</span>
+                    </div>
+                    <div className="flex gap-0.5 mb-4">
+                        {[1, 2, 3, 4, 5].map(s => (
+                            <Star 
+                                key={s} 
+                                size={14} 
+                                fill={s <= Math.round(performance?.rating || 0) ? "currentColor" : "none"} 
+                                className={s <= Math.round(performance?.rating || 0) ? "text-gold-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]" : "text-white/10"} 
+                            />
+                        ))}
+                    </div>
+                    <div className="px-4 py-1.5 rounded-full bg-gold-500/10 border border-gold-500/20 text-[10px] font-black text-gold-500 uppercase tracking-widest group-hover:bg-gold-500 group-hover:text-black transition-all">
+                        {isAr ? 'عرض كل التقييمات' : 'VIEW ALL REVIEWS'}
+                    </div>
+                </GlassCard>
+
+                <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {statsCards.map((stat, idx) => (
+                        <GlassCard key={idx} className="p-5 flex flex-col justify-between h-32 hover:border-gold-500/30 transition-all group cursor-default">
+                            <div className="flex justify-between items-start">
+                                <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform duration-300`}>
+                                    <stat.icon size={20} />
+                                </div>
                             </div>
-                            <div className="text-2xl font-bold text-white mb-1">{kpi.value}</div>
-                            <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${kpi.status === 'good' ? 'bg-green-500/10 text-green-400' :
-                                kpi.status === 'risk' ? 'bg-yellow-500/10 text-yellow-400' :
-                                    'bg-red-500/10 text-red-400'
-                                }`}>
-                                {kpi.status === 'good' ? t.dashboard.merchant.kpi.excellent : kpi.status === 'risk' ? t.dashboard.merchant.kpi.good : t.dashboard.merchant.kpi.risk}
+                            <div>
+                                <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
+                                <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">{stat.label}</div>
                             </div>
                         </GlassCard>
                     ))}
                 </div>
             </div>
 
-            {/* Order Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {orderStats.map((stat, idx) => (
-                    <GlassCard key={idx} className="p-4 flex flex-col justify-between h-32 hover:border-gold-500/30 transition-all cursor-default">
-                        <div className="flex justify-between items-start mb-2">
-                            <div className={`p-2 rounded-lg ${stat.bg} ${stat.color}`}>
-                                <stat.icon size={18} />
-                            </div>
-                        </div>
-                        <div>
-                            <h3 className="text-2xl font-bold text-white leading-none mb-1">
-                                {stat.value} <span className="text-[10px] text-white/40 align-top">{stat.unit}</span>
-                            </h3>
-                            <p className="text-white/50 text-xs font-medium whitespace-nowrap">{stat.label}</p>
-                        </div>
-                    </GlassCard>
-                ))}
-            </div>
-
-            {/* Alerts & Earnings */}
-            <div className="grid lg:grid-cols-3 gap-8">
-                <GlassCard className="lg:col-span-2 min-h-[350px] p-6 flex flex-col">
-                    <div className="flex justify-between items-center mb-8 shrink-0">
-                        <div>
-                            <h3 className="text-lg font-bold text-white">{t.dashboard.merchant.kpi.earnings}</h3>
-                            <p className="text-xs text-white/40">{t.dashboard.merchant.kpi.weekly}</p>
-                        </div>
-                        <button className="p-2 bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors">
-                            <RefreshCcw size={16} />
-                        </button>
-                    </div>
-
-                    {/* Mock Graph Visual -> Replaced with Real Backend Data */}
-                    <div className="flex-1 flex items-end justify-between gap-3 h-48 w-full">
-                        {(performance.weeklyEarnings || [0, 0, 0, 0, 0, 0, 0]).map((h, i) => {
-                            const max = Math.max(...(performance.weeklyEarnings || [1])) || 1;
-                            const heightPercentage = Math.max((h / max) * 100, 5); // minimum 5% height for visibility
-
-                            // Get proper short day name dynamically based on today's day
-                            const todayDayIndex = new Date().getDay(); // 0 is Sunday
-                            const dayIndex = (todayDayIndex - 6 + i + 7) % 7;
-                            const dayLetter = t.common.daysShort?.[dayIndex] || ['S', 'M', 'T', 'W', 'T', 'F', 'S'][dayIndex];
-
-                            return (
-                                <div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-3 group relative cursor-pointer">
-                                    {/* Tooltip on Hover */}
-                                    <div className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-[#1A1814] border border-gold-500/30 text-gold-400 text-xs py-1 px-2 rounded font-mono shadow-xl z-20 whitespace-nowrap">
-                                        {h.toLocaleString()} SAR
-                                    </div>
-                                    <motion.div
-                                        initial={{ height: 0 }}
-                                        animate={{ height: `${heightPercentage}%` }}
-                                        transition={{ duration: 1, delay: i * 0.1, type: "spring" }}
-                                        className="w-full bg-gradient-to-t from-gold-900/40 via-gold-500 to-gold-400 rounded-t-md relative group-hover:brightness-110 transition-all shadow-[0_0_10px_rgba(168,139,62,0.2)]"
-                                    />
-                                    <span className="text-[10px] text-white/40 font-mono font-bold uppercase tracking-wider">
-                                        {dayLetter}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </GlassCard>
-
-                <GlassCard className="min-h-[350px] bg-red-900/5 border-red-500/10">
-                    <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            {/* System Notifications / Alerts (Conditional) */}
+            {activeAlerts.length > 0 && (
+                <div className="space-y-4">
+                    <h3 className="text-white font-bold flex items-center gap-2 text-sm uppercase tracking-widest px-1">
+                        <ShieldAlert size={16} className="text-red-500" />
                         {t.dashboard.merchant.alerts.urgent}
                     </h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                        {activeAlerts.map((alert, idx) => (
+                            <motion.div 
+                                key={idx}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                onClick={alert.onClick}
+                                className={`p-4 rounded-2xl border flex items-start gap-4 hover:-translate-y-0.5 transition-all duration-300 ${
+                                    alert.onClick ? 'cursor-pointer' : ''
+                                } ${
+                                    alert.type === 'error' 
+                                        ? 'bg-red-500/5 border-red-500/30 shadow-[0_0_30px_rgba(239,68,68,0.15)] hover:border-red-500/50 hover:bg-red-500/10' 
+                                        : 'bg-yellow-500/5 border-yellow-500/30 shadow-[0_0_30px_rgba(234,179,8,0.1)] hover:border-yellow-500/50 hover:bg-yellow-500/10'
+                                }`}
+                            >
+                                <div className={`p-2 rounded-xl ${alert.type === 'error' ? 'bg-red-500/10 text-red-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
+                                    <alert.icon size={20} />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-sm text-white mb-1">{alert.title}</h4>
+                                    <p className="text-xs text-white/50 leading-relaxed">{alert.msg}</p>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
-                    <div className="space-y-4">
-                        {preparingOrders > 0 ? (
-                            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                                <div className="flex items-start gap-3">
-                                    <Package className="text-red-400 mt-1" size={16} />
+            {/* Main Content Grid: Live Tracking & Offers Summary */}
+            <div className="grid lg:grid-cols-3 gap-8">
+                
+                {/* Left Side: Live Tracking (Col Span 2) */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="flex items-center justify-between px-1">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                            <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
+                            {t.dashboard.merchant.marketplace.activeOffers}
+                        </h3>
+                    </div>
+
+                    {liveOrder ? (
+                        <GlassCard 
+                            onClick={() => onNavigate('explore-offer', liveOrder.id)}
+                            className="p-0 overflow-hidden bg-[#151310] border-gold-500/10 hover:border-gold-500/30 transition-all duration-500 group shadow-xl cursor-pointer"
+                        >
+                            <div className="p-8">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gold-500 group-hover:scale-110 transition-transform duration-500">
+                                            <Car size={32} />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-2xl font-bold text-white mb-1">{liveOrder.car}</h4>
+                                            <div className="flex items-center gap-3 text-sm">
+                                                <span className="text-white/60">{liveOrder.part}</span>
+                                                <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                <span className="text-gold-500/80 font-mono">#{liveOrder.id}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <Badge status={liveOrder.status as StatusType} />
+                                </div>
+
+                                <div className="space-y-6">
                                     <div>
-                                        <h4 className="text-white font-bold text-sm mb-1">{t.dashboard.merchant.alerts.latePrep}</h4>
-                                        <p className="text-xs text-white/60 leading-relaxed mb-2">
-                                            {isAr ? `لديك ${preparingOrders} طلبات مدفوعة يجب شحنها خلال 24 ساعة.` : `You have ${preparingOrders} paid orders to ship within 24 hours.`}
-                                        </p>
+                                        <div className="flex justify-between text-xs font-bold mb-3">
+                                            <span className="text-white/40 uppercase tracking-widest">{t.dashboard.orders.status}</span>
+                                            <span className="text-gold-500">{getProgress(liveOrder.status)}%</span>
+                                        </div>
+                                        <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden p-[1px]">
+                                            <motion.div 
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${getProgress(liveOrder.status)}%` }}
+                                                className="h-full bg-gradient-to-r from-gold-600 to-gold-400 rounded-full shadow-[0_0_15px_rgba(212,175,55,0.3)]"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                                        <div className="px-3 py-1.5 rounded-lg bg-gold-500/5 border border-gold-500/10 text-gold-500/80 font-bold">
+                                            {liveOrder.offersCount} {t.dashboard.merchant.marketplace.competingOffers}
+                                        </div>
+                                        <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/40">
+                                            {t.dashboard.merchant.marketplace.lastUpdate} {liveOrder.date}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl flex items-center gap-3">
-                                <CheckCircle2 className="text-green-400" size={16} />
-                                <span className="text-xs text-green-200">{t.dashboard.merchant.alerts.none}</span>
-                            </div>
-                        )}
-                    </div>
-                </GlassCard>
-            </div>
 
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onNavigate('explore-offer', liveOrder.id); }}
+                                className="w-full py-4 border-t border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all flex items-center justify-center gap-2 group/btn"
+                            >
+                                <span className="text-sm font-bold text-white/60 group-hover/btn:text-white transition-colors">{t.dashboard.merchant.marketplace.viewDetails}</span>
+                                <ArrowIcon size={16} className="text-white/20 group-hover/btn:text-gold-500 transition-all group-hover/btn:translate-x-1" />
+                            </button>
+                        </GlassCard>
+                    ) : (
+                        <GlassCard className="p-12 flex flex-col items-center justify-center text-center opacity-50 grayscale">
+                            <ListChecks size={48} className="text-white/10 mb-4" />
+                            <p className="text-white/60 font-medium">{t.dashboard.merchant.marketplace.noActiveOffers}</p>
+                        </GlassCard>
+                    )}
+
+                    {/* Offers Summary (KPIs Row Replacement) */}
+                    <div className="space-y-4 pt-4">
+                        <h3 className="text-sm font-bold text-white/40 uppercase tracking-[0.2em] px-1">{t.dashboard.merchant.kpi.offersSummary}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {summaryCards.map((card, idx) => (
+                                <GlassCard key={idx} className="p-6 bg-white/[0.02] border-white/5 hover:border-gold-500/20 transition-all group">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-3 rounded-2xl bg-white/5 ${card.color} group-hover:scale-110 transition-transform`}>
+                                            <card.icon size={24} />
+                                        </div>
+                                        <div>
+                                            <div className="text-2xl font-bold text-white mb-0.5">{card.value}</div>
+                                            <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider">{card.label}</div>
+                                        </div>
+                                    </div>
+                                </GlassCard>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Side: Recent Activity (Right Sidebar pattern) */}
+                <div className="space-y-6">
+                    <GlassCard className="h-full flex flex-col min-h-[500px] border-white/5 shadow-2xl">
+                        <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                            <h3 className="font-bold text-white flex items-center gap-2">
+                                <Activity size={18} className="text-gold-500" />
+                                {t.dashboard.dashboardHome.headers.recentActivity}
+                            </h3>
+                            <button onClick={() => onNavigate('active-orders')} className="text-xs text-gold-500 hover:text-gold-400 transition-colors">
+                                {t.common.viewAll}
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                            {myOrders.filter(o => !['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(o.status)).length === 0 ? (
+                                <div className="flex flex-col items-center justify-center text-white/10 space-y-3 py-20">
+                                    <Activity size={40} />
+                                    <span className="text-sm font-medium">{t.common.noData}</span>
+                                </div>
+                            ) : (
+                                myOrders
+                                    .filter(o => !['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(o.status))
+                                    .slice(0, 5)
+                                    .map((order, i) => {
+                                        const myOffer = order.offers?.find(off => off.storeId === myStoreId);
+                                        
+                                        const getStatusLabel = (status: string) => {
+                                            switch (status) {
+                                                case 'AWAITING_OFFERS': return isAr ? 'في انتظار العروض' : 'Awaiting Offers';
+                                                case 'AWAITING_PAYMENT': return isAr ? 'في انتظار الدفع' : 'Awaiting Payment';
+                                                case 'PREPARATION': return isAr ? 'قيد التجهيز' : 'In Preparation';
+                                                case 'SHIPPED': return isAr ? 'تم الشحن' : 'Shipped';
+                                                default: return status;
+                                            }
+                                        };
+
+                                        const getStatusColor = (status: string) => {
+                                            switch (status) {
+                                                case 'AWAITING_OFFERS': return 'bg-gold-500';
+                                                case 'AWAITING_PAYMENT': return 'bg-yellow-500';
+                                                case 'PREPARATION': return 'bg-orange-500';
+                                                case 'SHIPPED': return 'bg-blue-500';
+                                                default: return 'bg-gray-500';
+                                            }
+                                        };
+
+                                        return (
+                                            <motion.div 
+                                                key={i}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: i * 0.1 }}
+                                                onClick={() => onNavigate('explore-offer', order.id)}
+                                                className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-gold-500/20 transition-all cursor-pointer group/item relative overflow-hidden"
+                                            >
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div className="min-w-0">
+                                                        <h5 className="text-sm font-bold text-white truncate group-hover/item:text-gold-500 transition-colors uppercase tracking-tight">{order.car}</h5>
+                                                        <p className="text-[10px] text-white/40 truncate mt-0.5">{order.part}</p>
+                                                    </div>
+                                                    <span className="text-[9px] font-mono text-white/20">{order.date}</span>
+                                                </div>
+
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${getStatusColor(order.status)}`} />
+                                                        <span className="text-[11px] font-bold text-white/60">
+                                                            {getStatusLabel(order.status)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="px-2 py-0.5 rounded-md bg-white/5 text-[10px] font-bold text-white/40 border border-white/5">
+                                                        {order.offersCount && order.offersCount > 0 ? order.offersCount : order.offers?.length || 0} {language === 'ar' ? 'عروض' : 'Offers'}
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })
+                            )}
+                        </div>
+
+                        <div className="p-6 bg-white/[0.02] border-t border-white/5">
+                            <button 
+                                onClick={() => onNavigate('my-offers')}
+                                className="w-full py-3 rounded-xl bg-gold-500/10 text-gold-500 font-bold text-sm hover:bg-gold-500 hover:text-black transition-all border border-gold-500/20 shadow-lg"
+                            >
+                                {t.dashboard.merchant.marketplace.viewOffersHistory}
+                            </button>
+                        </div>
+                    </GlassCard>
+                </div>
+
+            </div>
         </div>
     );
 };

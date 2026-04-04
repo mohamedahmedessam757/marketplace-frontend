@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Send, X, Video, Clock, CheckCircle2, Paperclip, Globe, MessageSquareDashed, FileText } from 'lucide-react';
+import { Send, X, Video, Clock, CheckCircle2, Paperclip, Globe, MessageSquareDashed, FileText, ShieldAlert, Ban, AlertTriangle } from 'lucide-react';
 import { useChatStore } from '../../../stores/useChatStore';
 import { useOrderChatStore } from '../../../stores/useOrderChatStore'; // NEW
 import { useProfileStore } from '../../../stores/useProfileStore';
@@ -9,6 +9,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { CountdownTimer } from '../OrderDetails';
 import { supabase } from '../../../services/supabase';
+import { client as api } from '../../../services/api/client';
+import { useOrderStore } from '../../../stores/useOrderStore'; // ADDED
+import { Badge } from '../../ui/Badge'; // ADDED
 
 interface ChatWindowProps {
   onNavigateToCheckout: () => void;
@@ -16,27 +19,35 @@ interface ChatWindowProps {
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) => {
   const { chats, activeChatId, sendMessage: sendLegacyMessage, getChatStatus, acceptOffer } = useChatStore();
-  const { activeChat: orderChat, sendMessage: sendOrderMessage, toggleTranslation, fetchChat } = useOrderChatStore(); // NEW
+  const { activeChat: orderChat, sendMessage: sendOrderMessage, toggleTranslation, fetchChat, markAsRead } = useOrderChatStore(); // NEW
+  
+  // Real-time Order Status fetching
+  const order = useOrderStore((state) => orderChat?.orderId ? state.getOrder(orderChat.orderId) : null);
+  const orderStatus = order?.status;
 
   const { settings: userSettings, user } = useProfileStore(); // Get user object
   const { settings: vendorSettings } = useVendorStore();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const [text, setText] = useState('');
   const [pendingAttachment, setPendingAttachment] = useState<{ url: string; type: 'image' | 'video' | 'document'; file: File } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
 
+  const [warning, setWarning] = useState<string | null>(null);
+
   // Derived typing state to avoid calling hooks conditionally below
   const isTyping = useOrderChatStore((state) => state.isTyping);
   const typingUserId = useOrderChatStore((state) => state.typingUserId);
+  const isChatContentLoading = useOrderChatStore((state) => state.isChatContentLoading);
   const showTypingIndicator = isTyping && typingUserId !== user?.id;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const legacyChat = chats.find(c => c.id === activeChatId);
-  const isOrderChat = !!orderChat && !activeChatId;
+  // CRITICAL: Always prefer OrderChatStore when activeChat exists — this ensures messages save to DB
+  const isOrderChat = !!orderChat;
 
   // Compute if User has translations enabled
   const isTranslationEnabled = user?.role === 'CUSTOMER' ? !!orderChat?.customerTranslationEnabledAt
@@ -48,12 +59,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
     id: orderChat.id,
     merchantName: orderChat.type === 'support'
       ? (t.dashboard.menu?.support || 'Technical Support')
-      : (user?.role === 'CUSTOMER' ? (orderChat.vendorName || t.dashboard.menu?.merchant || 'Merchant') : (orderChat.customerName || t.dashboard.menu?.customer || 'Customer')),
+      : (user?.role === 'CUSTOMER' ? (orderChat.vendorCode || t.dashboard.menu?.merchant || 'Merchant') : (orderChat.customerCode || t.dashboard.menu?.customer || 'Customer')),
     partName: orderChat.type === 'support' ? '' : (orderChat.partName || t.dashboard.menu?.order || 'Order Inquiry'),
     orderId: orderChat.type === 'support' ? '' : (orderChat.orderNumber || orderChat.orderId),
     messages: orderChat.messages.map(m => ({
       id: m.id,
-      text: m.translatedText || m.text,
+      text: m.text,  // Keep ORIGINAL text — toggle logic in render handles switching
       sender: m.senderId === user?.id ? 'me' : 'other',
       time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isRead: m.isRead,
@@ -61,7 +72,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
       translatedText: m.translatedText,
       mediaUrl: m.mediaUrl,
       mediaType: m.mediaType,
-      mediaName: m.mediaName
+      mediaName: m.mediaName,
+      priority: m.priority,
+      subject: m.subject
     })),
     status: orderChat.status === 'OPEN' ? 'active' : orderChat.status.toLowerCase(), // active, closed, expired
     isTranslationEnabled
@@ -80,6 +93,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [displayChat?.messages, pendingAttachment, orderChat?.messages]);
+
+  // Auto-Mark as Read when opening an order chat
+  useEffect(() => {
+    if (isOrderChat && orderChat?.id && orderChat.messages?.length > 0) {
+      markAsRead(orderChat.id);
+    }
+  }, [isOrderChat, orderChat?.id, orderChat?.messages?.length, markAsRead]);
 
   // Determine Auto-Translate Setting based on Context (Simulated)
   const isMerchant = window.location.pathname.includes('/merchant');
@@ -121,7 +141,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
           transition={{ delay: 0.3, duration: 0.4 }}
           className="text-sm text-white/50 max-w-[280px]"
         >
-          Select a chat to start messaging
+          {language === 'ar' ? 'اختر محادثة للبدء فى المراسلة' : 'Select a chat to start messaging'}
         </motion.p>
       </div>
     );
@@ -129,9 +149,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
 
   // Smart Chat Logic Checks
   const chatStatus = displayChat.status;
+  const isChatActive = chatStatus === 'active' || (orderStatus && orderStatus !== 'AWAITING_OFFERS' && orderStatus !== 'CANCELLED');
 
   const handleSend = async () => {
-    if ((!text.trim() && !pendingAttachment) || chatStatus !== 'active' || isUploading) return;
+    if ((!text.trim() && !pendingAttachment) || !isChatActive || isUploading) return;
+    setWarning(null);
 
     if (isOrderChat) {
       let uploadedMediaUrl = undefined;
@@ -140,7 +162,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
       try {
         if (pendingAttachment) {
           const roleFolder = user?.role?.toLowerCase() || 'general';
-          const fileName = `${roleFolder}/${Date.now()}_${pendingAttachment.file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+          const chatFolder = orderChat?.id || 'uncategorized';
+          const fileName = `${roleFolder}/${chatFolder}/${Date.now()}_${pendingAttachment.file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
 
           const { data, error } = await supabase.storage
             .from('chat_media')
@@ -163,8 +186,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
           text,
           mediaUrl: uploadedMediaUrl,
           mediaType: pendingAttachment?.type,
-          mediaName: pendingAttachment?.file.name
+          mediaName: pendingAttachment?.file.name,
+          userId: user?.id
         });
+      } catch (err: any) {
+        if (err.message === 'CHAT_VIOLATION_DETECTED') {
+            setWarning(language === 'ar' 
+                ? 'يُمنع منعاً باتاً تبادل أرقام الهواتف، الإيميلات، أو الروابط الخارجية لحفظ حقوق المنصة. تكرار المحاولة قد يعرض حسابك للحظر النهائي.' 
+                : 'Sharing contact information or external links is strictly prohibited. Repeated attempts will result in account suspension.');
+        } else {
+            console.error('Send error:', err);
+        }
       } finally {
         setIsUploading(false);
       }
@@ -217,8 +249,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
   };
 
   const handleToggleTranslation = () => {
-    if (isOrderChat && orderChat?.id) {
-      toggleTranslation(orderChat.id, !isTranslationEnabled);
+    if (isOrderChat && orderChat?.id && user?.role) {
+      toggleTranslation(orderChat.id, !isTranslationEnabled, user.role);
     }
   };
 
@@ -259,12 +291,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
             <X size={20} className="scale-x-[-1]" />
           </button>
           <div className="w-10 h-10 rounded-full bg-gold-500/20 flex items-center justify-center text-gold-500 font-bold shrink-0">
-            {displayChat.merchantName[0]}
+            {displayChat.merchantName?.[0] || '?'}
           </div>
           <div>
             <h3 className="text-white font-bold flex items-center gap-2">
               {displayChat.merchantName}
-              {(legacyChat?.type === 'support' || displayChat.partName.includes('Support')) && (
+              {(legacyChat?.type === 'support' || displayChat.partName?.includes('Support')) && (
                 <span className="bg-blue-500/10 text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-blue-500/20">
                   Support SLA
                 </span>
@@ -273,20 +305,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
             {displayChat.partName && (
               <div className="flex items-center gap-2 text-xs text-white/50">
                 <span className={`w-2 h-2 rounded-full ${chatStatus === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                {displayChat.partName} {displayChat.orderId ? `#${displayChat.orderId}` : ''}
+                {displayChat.orderId ? `#${displayChat.orderId} • ` : ''}{displayChat.partName}
               </div>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* SLA Timer rendering - Only for Merchant Offers */}
-          {chatStatus === 'active' && legacyChat?.createdAt && legacyChat.type !== 'support' && (
+          {/* Status Badge or SLA Timer */}
+          {chatStatus === 'active' && orderChat?.type !== 'support' && (
             <div className="hidden md:block">
-              <CountdownTimer
-                targetDate={new Date(new Date(legacyChat.createdAt).getTime() + 24 * 60 * 60 * 1000).toISOString()}
-                compact
-              />
+              {orderStatus && orderStatus !== 'AWAITING_OFFERS' ? (
+                <Badge status={orderStatus} />
+              ) : (
+                <CountdownTimer
+                  targetDate={
+                    orderChat?.expiryAt
+                      ? orderChat.expiryAt
+                      : new Date(new Date(legacyChat?.createdAt || orderChat?.createdAt || Date.now()).getTime() + 24 * 60 * 60 * 1000).toISOString()
+                  }
+                  compact
+                />
+              )}
             </div>
           )}
 
@@ -303,11 +343,57 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
               </span>
             </button>
           )}
+
+          {/* Admin Monitor Actions */}
+          {user?.role === 'ADMIN' && isOrderChat && orderChat?.status === 'OPEN' && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={async () => {
+                  if (!orderChat?.id) return;
+                  if (!window.confirm(language === 'ar' ? 'هل أنت متأكد من إغلاق هذه المحادثة؟' : 'Are you sure you want to close this chat?')) return;
+                  try {
+                    await api.post(`/chats/${orderChat.id}/admin-action`, { action: 'close' });
+                  } catch (e) { console.error('Admin close failed:', e); }
+                }}
+                className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
+                title={language === 'ar' ? 'إغلاق المحادثة' : 'Close Chat'}
+              >
+                <ShieldAlert size={16} />
+                <span className="text-xs font-medium hidden lg:inline">
+                  {language === 'ar' ? 'إغلاق' : 'Close'}
+                </span>
+              </button>
+              <button
+                onClick={async () => {
+                  if (!orderChat?.id) return;
+                  const targetId = orderChat.customerId; // Block the customer by default
+                  if (!window.confirm(language === 'ar' ? 'هل أنت متأكد من حظر هذا المستخدم؟' : 'Are you sure you want to block this user?')) return;
+                  try {
+                    await api.post(`/chats/${orderChat.id}/admin-action`, { action: 'block', targetUserId: targetId });
+                  } catch (e) { console.error('Admin block failed:', e); }
+                }}
+                className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
+                title={language === 'ar' ? 'حظر المستخدم' : 'Block User'}
+              >
+                <Ban size={16} />
+                <span className="text-xs font-medium hidden lg:inline">
+                  {language === 'ar' ? 'حظر' : 'Block'}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 relative">
+        {isOrderChat && isChatContentLoading ? (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#1A1814]/80 backdrop-blur-sm">
+            <div className="w-8 h-8 border-2 border-gold-500/30 border-t-gold-500 rounded-full animate-spin mb-3"></div>
+            <p className="text-white/50 text-sm">{language === 'ar' ? 'جاري تحميل المحادثة...' : 'Loading chat...'}</p>
+          </div>
+        ) : null}
+
         {displayChat.messages?.map((msg: any) => (
           <MessageBubble
             key={msg.id}
@@ -332,11 +418,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
         )}
 
         {/* Status Indicators in Chat Stream */}
-        {chatStatus === 'expired' && (
+        {chatStatus === 'expired' && (!orderStatus || orderStatus === 'AWAITING_OFFERS') && (
           <div className="flex justify-center my-4">
             <span className="text-xs text-red-400 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20 flex items-center gap-1">
               <Clock size={12} />
-              Offer Expired (24h Limit Reached)
+              {language === 'ar' ? 'انتهت صلاحية العرض (24 ساعة)' : 'Offer Expired (24h Limit Reached)'}
             </span>
           </div>
         )}
@@ -345,7 +431,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
           <div className="flex justify-center my-4">
             <span className="text-xs text-gray-400 bg-gray-500/10 px-3 py-1 rounded-full border border-gray-500/20 flex items-center gap-1">
               <CheckCircle2 size={12} />
-              Chat Closed (Offer Accepted Elsewhere)
+              {language === 'ar' ? 'تم إغلاق المحادثة (تم قبول عرض آخر)' : 'Chat Closed (Offer Accepted Elsewhere)'}
             </span>
           </div>
         )}
@@ -356,7 +442,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
       {/* Footer / Status Banner */}
       <div className="p-4 bg-[#151310] border-t border-white/10">
 
-        {chatStatus === 'active' ? (
+        {isChatActive ? (
           <>
             {/* Pending Attachment Preview */}
             {pendingAttachment && (
@@ -372,6 +458,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
                 </div>
                 <button onClick={clearAttachment} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-red-400 transition-colors">
                   <X size={18} />
+                </button>
+              </div>
+            )}
+
+            {/* Chat Guard Warning */}
+            {warning && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 animate-in slide-in-from-bottom-2">
+                <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={20} />
+                <p className="text-sm text-red-200">{warning}</p>
+                <button onClick={() => setWarning(null)} className="text-red-400 hover:text-white ml-auto">
+                  <X size={16} />
                 </button>
               </div>
             )}
@@ -405,11 +502,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder={isOrderChat && isTranslationEnabled ? "Type... (Auto-translating to Arabic/English)" : "Type your message..."}
                 className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-gold-500 outline-none placeholder:text-white/20"
-                disabled={chatStatus !== 'active' || isUploading}
+                disabled={!isChatActive || isUploading}
               />
               <button
                 onClick={handleSend}
-                disabled={(!text.trim() && !pendingAttachment) || chatStatus !== 'active' || isUploading}
+                disabled={(!text.trim() && !pendingAttachment) || !isChatActive || isUploading}
                 className="p-3 bg-gold-500 hover:bg-gold-600 disabled:bg-white/10 disabled:text-white/20 text-white rounded-xl transition-colors relative flex items-center justify-center min-w-[42px]"
               >
                 {isUploading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} />}
@@ -423,16 +520,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
               <>
                 <Clock className="text-red-400" size={24} />
                 <div>
-                  <h4 className="text-white font-bold text-sm">Offer Expired</h4>
-                  <p className="text-xs text-white/40">This chat is closed because the 24h offer window has passed.</p>
+                  <h4 className="text-white font-bold text-sm">{language === 'ar' ? 'انتهت صلاحية العرض' : 'Offer Expired'}</h4>
+                  <p className="text-xs text-white/40">{language === 'ar' ? 'تم إغلاق هذه المحادثة لانتهاء مهلة الـ 24 ساعة للعرض.' : 'This chat is closed because the 24h offer window has passed.'}</p>
                 </div>
               </>
             ) : (
               <>
                 <CheckCircle2 className="text-gold-500" size={24} />
                 <div>
-                  <h4 className="text-white font-bold text-sm">Order in Progress</h4>
-                  <p className="text-xs text-white/40">This chat is closed because you accepted another offer for this order.</p>
+                  <h4 className="text-white font-bold text-sm">{language === 'ar' ? 'تم الاختيار' : 'Order in Progress'}</h4>
+                  <p className="text-xs text-white/40">{language === 'ar' ? 'تم إغلاق هذه المحادثة بسبب قبولك لعرض آخر لهذا الطلب.' : 'This chat is closed because you accepted another offer for this order.'}</p>
                 </div>
               </>
             )}

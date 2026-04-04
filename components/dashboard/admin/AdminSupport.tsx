@@ -1,60 +1,147 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
-import { useOrderChatStore } from '../../../stores/useOrderChatStore';
+import { useAdminChatStore } from '../../../stores/useAdminChatStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { useAdminStore } from '../../../stores/useAdminStore';
-import { Search, MessageSquare, User, CheckCircle2, Clock, Send, ChevronRight, ChevronLeft, Filter, AlertCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Search, MessageSquare, User, CheckCircle2, Send, ChevronRight, ChevronLeft, Loader2, Download, Video, FileText, Image as ImageIcon, Inbox, X, Globe, Paperclip } from 'lucide-react';
+import { supabase } from '../../../services/supabase';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const AdminSupport: React.FC = () => {
   const { t, language } = useLanguage();
-  const { chats, setActiveChat, fetchChats, sendMessage } = useOrderChatStore();
-  const { currentAdmin } = useAdminStore();
+  const { supportChats, activeChat, fetchChats, fetchChatById, sendMessage, adminAction, isLoading, clearActiveChat, _hasLoadedSupport, initSocket } = useAdminChatStore();
 
-  // Store ID only, derive object from store to ensure real-time updates
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const { toggleTranslation } = useAdminChatStore();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   const [replyText, setReplyText] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'RESOLVED'>('ALL');
+  const [search, setSearch] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<{ url: string; type: 'image' | 'video' | 'document'; file: File } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showTranslated, setShowTranslated] = useState(false);
 
   const isAr = language === 'ar';
-  const ArrowIcon = isAr ? ChevronLeft : ChevronRight;
+  
+  useEffect(() => {
+    // CRITICAL: Clear any stale activeChat from another page (e.g. Oversight)
+    clearActiveChat();
+    initSocket();
+    fetchChats('support');
+    const interval = setInterval(() => fetchChats('support'), 15000);
+    return () => clearInterval(interval);
+  }, [fetchChats, clearActiveChat, initSocket]);
 
-  const tickets = chats.filter((c) => c.type === 'support');
-  const filteredTickets = tickets.filter(t => filter === 'ALL' || (filter === 'OPEN' ? t.status === 'OPEN' : t.status === 'CLOSED'));
+  const filteredTickets = supportChats.filter(chat => {
+      const matchesFilter = filter === 'ALL' || (filter === 'OPEN' ? chat.status === 'OPEN' : chat.status === 'CLOSED');
+      const matchesSearch = chat.customerName?.toLowerCase().includes(search.toLowerCase()) || 
+                           chat.lastMessage?.toLowerCase().includes(search.toLowerCase());
+      return matchesFilter && matchesSearch;
+  });
 
-  // Derived state: Always fresh from store
-  const selectedTicket = tickets.find(t => t.id === selectedTicketId);
-
-  // Derive Display Subject dynamically to preserve original context
-  let displaySubject = "Support Ticket";
-  if (selectedTicket?.lastMessage && selectedTicket.lastMessage.startsWith("[")) {
-      const endBracket = selectedTicket.lastMessage.indexOf("]");
-      if (endBracket > 0) {
-          displaySubject = selectedTicket.lastMessage.substring(1, endBracket);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 25 * 1024 * 1024) {
+        alert(isAr ? 'حجم الملف كبير جداً (الأقصى 25 ميجابايت)' : 'File size too large (Max 25MB)');
+        return;
       }
-  }
-
-  const handleSendReply = async () => {
-    if (!selectedTicket || !replyText.trim()) return;
-
-    // ensure active chat is set
-    setActiveChat(selectedTicket.id);
-
-    // console.log('Sending reply:', replyText);
-    await sendMessage({
-      text: replyText
-    });
-    setReplyText('');
-  };
-
-  const getPriorityColor = (p: string) => {
-    switch (p) {
-      case 'HIGH': return 'text-red-400 bg-red-500/10 border-red-500/20';
-      case 'MEDIUM': return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
-      default: return 'text-green-400 bg-green-500/10 border-green-500/20';
+      let type: 'image' | 'video' | 'document' = 'document';
+      if (file.type.startsWith('image/')) type = 'image';
+      else if (file.type.startsWith('video/')) type = 'video';
+      const url = URL.createObjectURL(file);
+      setPendingAttachment({ url, type, file });
     }
   };
+
+  const clearAttachment = () => {
+    if (pendingAttachment) {
+      URL.revokeObjectURL(pendingAttachment.url);
+      setPendingAttachment(null);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSendReply = async () => {
+    if (!activeChat || (!replyText.trim() && !pendingAttachment) || isSending || isUploading) return;
+    
+    setIsUploading(true);
+    let uploadedMediaUrl = undefined;
+
+    try {
+      if (pendingAttachment) {
+        const fileName = `admin/support/${Date.now()}_${pendingAttachment.file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+        const { data, error } = await supabase.storage.from('chat_media').upload(fileName, pendingAttachment.file, { upsert: true });
+        
+        if (error) {
+          console.error('Upload Error:', error);
+          alert(isAr ? 'فشل رفع المرفق. تأكد من الحجم والصيغة.' : 'Failed to upload attachment. Check size and format.');
+          setIsUploading(false);
+          return;
+        }
+        
+        if (data) {
+          const { data: publicData } = supabase.storage.from('chat_media').getPublicUrl(data.path);
+          uploadedMediaUrl = publicData.publicUrl;
+        }
+      }
+
+      const textToSend = replyText;
+      setReplyText(''); // Clear instantly for optimistic UX
+      setIsSending(true);
+      
+      await sendMessage(
+        activeChat.id, 
+        textToSend, 
+        uploadedMediaUrl, 
+        pendingAttachment?.type, 
+        pendingAttachment?.file.name
+      );
+      clearAttachment();
+    } finally {
+      setIsUploading(false);
+      setIsSending(false);
+    }
+  };
+
+  const handleToggleTranslation = () => {
+    if (activeChat?.id) {
+       const isCurrentlyEnabled = !!activeChat.adminTranslationEnabledAt;
+       toggleTranslation(activeChat.id, !isCurrentlyEnabled);
+    }
+  };
+
+  const getPriorityColor = (status: string) => {
+    return status === 'OPEN' ? 'text-red-400 bg-red-500/10 border-red-500/20' : 'text-green-400 bg-green-500/10 border-green-500/20';
+  };
+
+  const renderMedia = (mediaUrl: string, mediaType?: string) => {
+      if (!mediaUrl) return null;
+      if (mediaType === 'video') return <video src={mediaUrl} controls className="w-full h-48 rounded-lg object-cover" />;
+      if (mediaType === 'image' || !mediaType) return <img src={mediaUrl} alt="attachment" className="w-full max-h-64 rounded-lg object-contain bg-black/20" />;
+      return (
+          <div className="flex items-center gap-2 p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
+              <FileText size={18} className="text-gold-500" />
+              <div className="flex-1 min-w-0">
+                  <p className="text-xs text-white truncate">Attachment</p>
+                  <p className="text-[10px] text-white/40">Open File</p>
+              </div>
+              <Download size={14} className="text-white/40" />
+          </div>
+      );
+  };
+
+  if (isLoading && !_hasLoadedSupport) {
+      return (
+          <div className="h-[calc(100vh-140px)] flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                  <Loader2 className="w-12 h-12 text-gold-500 animate-spin" />
+                  <span className="text-white/60 font-medium">{isAr ? 'جاري تحميل التذاكر...' : 'Loading tickets...'}</span>
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="h-[calc(100vh-140px)] flex gap-6 animate-in fade-in slide-in-from-bottom-4">
@@ -63,142 +150,221 @@ export const AdminSupport: React.FC = () => {
       <GlassCard className="w-1/3 min-w-[350px] flex flex-col p-0 overflow-hidden bg-[#151310] border-white/5">
         <div className="p-4 border-b border-white/10">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <MessageSquare className="text-gold-500" />
-            {t.admin.support.title}
+            <Inbox className="text-gold-500" />
+            {isAr ? 'تذاكر الدعم' : 'Support Tickets'}
           </h2>
           <div className="flex gap-2 mb-4">
-            <button onClick={() => setFilter('ALL')} className={`flex-1 py-2 text-xs font-bold rounded-lg border ${filter === 'ALL' ? 'bg-white/10 border-white/20 text-white' : 'border-transparent text-white/40'}`}>All</button>
-            <button onClick={() => setFilter('OPEN')} className={`flex-1 py-2 text-xs font-bold rounded-lg border ${filter === 'OPEN' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'border-transparent text-white/40'}`}>Open</button>
-            <button onClick={() => setFilter('RESOLVED')} className={`flex-1 py-2 text-xs font-bold rounded-lg border ${filter === 'RESOLVED' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'border-transparent text-white/40'}`}>Resolved</button>
+            <button onClick={() => setFilter('ALL')} className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all ${filter === 'ALL' ? 'bg-white/10 border-white/20 text-white' : 'border-transparent text-white/40 hover:text-white'}`}>
+                {isAr ? 'الكل' : 'All'}
+            </button>
+            <button onClick={() => setFilter('OPEN')} className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all ${filter === 'OPEN' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'border-transparent text-white/40 hover:text-red-400'}`}>
+                {isAr ? 'مفتوح' : 'Open'}
+            </button>
+            <button onClick={() => setFilter('RESOLVED')} className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all ${filter === 'RESOLVED' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'border-transparent text-white/40 hover:text-green-400'}`}>
+                {isAr ? 'محلول' : 'Resolved'}
+            </button>
           </div>
           <div className="relative">
-            <Search size={14} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/30" />
+            <Search size={14} className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'right-3' : 'left-3'} text-white/30`} />
             <input
               type="text"
-              placeholder="Search tickets..."
-              className="w-full bg-[#1A1814] border border-white/10 rounded-lg pl-9 pr-4 py-2 text-xs text-white focus:border-gold-500 outline-none"
+              placeholder={isAr ? 'بحث في التذاكر...' : 'Search tickets...'}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`w-full bg-[#1A1814] border border-white/10 rounded-xl ${isAr ? 'pr-9 pl-4' : 'pl-9 pr-4'} py-2 text-xs text-white focus:border-gold-500/50 outline-none transition-colors`}
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {filteredTickets.map(ticket => {
-            let displaySubject = "Support Ticket";
-            if (ticket.lastMessage && ticket.lastMessage.startsWith("[")) {
-              const endBracket = ticket.lastMessage.indexOf("]");
-              if (endBracket > 0) {
-                displaySubject = ticket.lastMessage.substring(1, endBracket);
-              }
-            }
-
-            return (
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {filteredTickets.length > 0 ? (
+            filteredTickets.map(ticket => (
               <div
                 key={ticket.id}
-                onClick={() => { setSelectedTicketId(ticket.id); setActiveChat(ticket.id); }}
-                className={`p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${selectedTicket?.id === ticket.id ? 'bg-gold-500/10 border-l-4 border-l-gold-500' : ''}`}
+                onClick={() => fetchChatById(ticket.id)}
+                className={`p-4 border-b border-white/5 cursor-pointer hover:bg-white/[0.04] transition-all relative ${activeChat?.id === ticket.id ? 'bg-gold-500/[0.08]' : ''}`}
               >
-                <div className="flex justify-between items-start mb-1">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded border ${getPriorityColor('MEDIUM')}`}>MEDIUM</span>
-                  <span className="text-[10px] text-white/30">{ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : ''}</span>
+                {activeChat?.id === ticket.id && <div className={`absolute top-0 bottom-0 ${isAr ? 'right-0' : 'left-0'} w-1 bg-gold-500`} />}
+                
+                <div className="flex justify-between items-start mb-1.5">
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getPriorityColor(ticket.status)}`}>
+                      {ticket.status}
+                  </span>
+                  <span className="text-[10px] text-white/20">{ticket.lastMessageTime ? new Date(ticket.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                 </div>
-                <h4 className="text-sm font-bold text-white mb-1 truncate">{displaySubject}</h4>
-                <div className="flex items-center gap-2 text-xs text-white/50">
-                  <User size={12} />
-                  {ticket.customerName || 'Customer'}
+                <h4 className="text-sm font-bold text-white mb-1 truncate">{ticket.lastMessage || (isAr ? 'بدون محتوى' : 'No Content')}</h4>
+                <div className="flex items-center gap-2 text-[11px] text-white/40">
+                  <User size={12} className="text-gold-500/50" />
+                  <span className="truncate">{ticket.customerName || (isAr ? 'عميل' : 'Customer')}</span>
+                  {ticket.unreadCount > 0 && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-gold-500 animate-pulse ml-auto" />
+                  )}
                 </div>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            <div className="p-12 text-center flex flex-col items-center justify-center h-full">
+                <div className="w-16 h-16 rounded-2xl bg-white/[0.02] flex items-center justify-center text-white/10 mb-4 border border-white/5">
+                    <Inbox size={32} />
+                </div>
+                <p className="text-white/20 text-xs font-medium">{isAr ? 'لا توجد تذاكر حالياً' : 'No tickets found'}</p>
+            </div>
+          )}
         </div>
       </GlassCard>
 
       {/* RIGHT: Chat Detail */}
       <GlassCard className="flex-1 flex flex-col p-0 overflow-hidden bg-[#1A1814] border-white/5 relative">
-        {selectedTicket ? (
+        {/* Chat Transition Overlay */}
+        {isLoading && _hasLoadedSupport && (
+            <div className="absolute inset-0 z-50 bg-[#1A1814]/50 backdrop-blur-[2px] flex flex-col items-center justify-center">
+                <Loader2 size={32} className="text-gold-500 animate-spin mb-4" />
+                <span className="text-white/60 text-sm font-medium">{isAr ? 'جاري فتح المحادثة...' : 'Opening conversation...'}</span>
+            </div>
+        )}
+        
+        {activeChat ? (
           <>
             {/* Chat Header */}
             <div className="p-4 border-b border-white/10 bg-[#151310] flex justify-between items-center">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-lg font-bold text-white">{displaySubject}</h3>
-                  <span className="text-xs text-gold-400 font-mono">#{selectedTicket.id?.substring(0,8) || 'ID'}</span>
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                    {activeChat.customerAvatar ? <img src={activeChat.customerAvatar} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gold-500" />}
                 </div>
-                <div className="text-xs text-white/40 flex gap-2">
-                  <span>CUSTOMER</span> • <span>{selectedTicket.customerName || 'Unknown User'}</span>
+                <div>
+                  <h3 className="text-lg font-bold text-white leading-tight">{activeChat.customerName}</h3>
+                  <div className="text-[10px] text-white/40 flex items-center gap-2 mt-1">
+                    <span className="text-gold-500 font-mono">TICKET: {activeChat.id?.substring(0,8)}</span>
+                    <span className="w-1 h-1 rounded-full bg-white/10" />
+                    <span>REF: {activeChat.orderNumber || 'GENERIC'}</span>
+                  </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                {selectedTicket.status !== 'CLOSED' ? (
+                <button
+                  onClick={handleToggleTranslation}
+                  className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${activeChat.adminTranslationEnabledAt ? 'bg-gold-500 text-[#1A1814]' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                  title={isAr ? 'تفعيل الترجمة التلقائية بالذكاء الاصطناعي' : 'Toggle AI Auto-Translation'}
+                >
+                  <Globe size={18} />
+                  <span className="text-xs font-bold hidden md:inline">
+                    {activeChat.adminTranslationEnabledAt ? (isAr ? 'ترجمة تلقائية مفعلة' : 'AI Translation ON') : (isAr ? 'تفعيل الترجمة' : 'Translate')}
+                  </span>
+                </button>
+                <div className="w-[1px] h-6 bg-white/10 mx-1"></div>
+                
+                {activeChat.status !== 'CLOSED' ? (
                   <button
-                    onClick={() => {/* updateStatus(selectedTicket.id, 'CLOSED') */ }}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded-lg text-xs font-bold hover:bg-green-500/20 transition-colors"
+                    onClick={() => adminAction(activeChat.id, 'close')}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/20 rounded-xl text-xs font-bold hover:bg-green-500/20 transition-all active:scale-95"
                   >
                     <CheckCircle2 size={14} />
-                    Mark Resolved
+                    {isAr ? 'تم الحل' : 'Mark Resolved'}
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 text-white/40 rounded-lg text-xs font-bold border border-white/10">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-white/5 text-white/40 rounded-xl text-xs font-bold border border-white/10">
                     <CheckCircle2 size={14} />
-                    Resolved
+                    {isAr ? 'محلولة' : 'Resolved'}
                   </div>
                 )}
               </div>
             </div>
 
             {/* Chat Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {selectedTicket.messages.map((msg) => {
-                const isAdmin = msg.senderId !== selectedTicket.customerId;
+            <div className={`flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar ${isAr ? 'text-right' : 'text-left'}`}>
+              <AnimatePresence mode="popLayout">
+              {activeChat.messages?.map((msg) => {
+                const isAdmin = msg.senderId !== activeChat.customerId;
                 return (
-                  <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] p-4 rounded-xl ${isAdmin ? 'bg-gold-500 text-white rounded-tr-none' : 'bg-white/10 text-white rounded-tl-none'}`}>
-
-                      {/* Media Attachment */}
-                      {msg.mediaUrl && (
-                        <div className="mb-3 rounded-lg overflow-hidden bg-black/20">
-                          {msg.mediaType === 'video' ? (
-                            <video src={msg.mediaUrl} controls className="w-full max-h-60 object-cover" />
-                          ) : (
-                            <img src={msg.mediaUrl} alt="attachment" className="w-full max-h-60 object-cover" />
-                          )}
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    key={msg.id} 
+                    className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[75%] group relative ${isAdmin ? 'items-end' : 'items-start'}`}>
+                      <div className={`p-4 rounded-2xl ${isAdmin ? 'bg-gold-500 text-[#1A1814] rounded-tr-none' : 'bg-white/5 border border-white/5 text-white rounded-tl-none'}`}>
+                        {msg.mediaUrl && (
+                          <div className="mb-3">
+                            {renderMedia(msg.mediaUrl, msg.mediaType)}
+                          </div>
+                        )}
+                        <p className="text-sm font-medium leading-relaxed mb-1 whitespace-pre-wrap">
+                          {activeChat.adminTranslationEnabledAt && msg.translatedText ? msg.translatedText : msg.text}
+                        </p>
+                        {activeChat.adminTranslationEnabledAt && msg.translatedText && (
+                            <p className="text-[10px] text-black/40 italic font-medium">Original: {msg.text}</p>
+                        )}
+                        <div className={`text-[9px] mt-2 font-bold uppercase tracking-widest opacity-40 ${isAdmin ? 'text-black' : 'text-white'}`}>
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
-                      )}
-
-                      <p className="text-sm border-white/10">{msg.text}</p>
-                      <div className={`text-[10px] mt-2 opacity-50 ${isAdmin ? 'text-black' : 'text-white'}`}>
-                        {new Date(msg.createdAt).toLocaleTimeString()}
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
+              </AnimatePresence>
             </div>
 
             {/* Reply Input */}
             <div className="p-4 bg-[#151310] border-t border-white/10">
+              {pendingAttachment && (
+                <div className="mb-4 p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-black/40 rounded-lg overflow-hidden flex items-center justify-center">
+                      {pendingAttachment.type === 'video' ? <Video size={16} className="text-white/50" /> : pendingAttachment.type === 'document' ? <FileText size={16} className="text-white/50" /> : <img src={pendingAttachment.url} className="w-full h-full object-cover" />}
+                    </div>
+                    <div>
+                      <p className="text-xs text-white font-medium max-w-[200px] truncate">{pendingAttachment.file.name}</p>
+                      <p className="text-[10px] text-white/40">{isAr ? 'جاهز للإرسال' : 'Ready to send'}</p>
+                    </div>
+                  </div>
+                  <button onClick={clearAttachment} className="p-1.5 hover:bg-white/10 rounded-full text-white/50 hover:text-red-400 transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
-                  type="text"
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
-                  placeholder="Type your reply..."
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-gold-500 outline-none"
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*,video/*,.pdf,.doc,.docx"
+                  onChange={handleFileUpload}
                 />
                 <button
-                  onClick={handleSendReply}
-                  className="p-3 bg-gold-500 hover:bg-gold-600 text-white rounded-xl transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || isSending}
+                  className={`p-3 rounded-xl transition-colors shrink-0 ${pendingAttachment ? 'bg-gold-500/20 text-gold-500' : 'text-white/40 hover:text-white hover:bg-white/5 bg-white/5 border border-white/10'}`}
                 >
-                  <Send size={18} />
+                  <Paperclip size={20} />
                 </button>
+                <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
+                      placeholder={isAr ? 'اكتب رد المقترح...' : 'Type your resolution...'}
+                      disabled={isUploading || isSending}
+                      className={`w-full bg-white/5 border border-white/10 rounded-2xl ${isAr ? 'pr-4 pl-12' : 'pl-4 pr-12'} py-3.5 text-sm text-white focus:border-gold-500/50 outline-none transition-all ${isUploading || isSending ? 'opacity-50' : ''}`}
+                    />
+                    <button
+                        onClick={handleSendReply}
+                        disabled={(!replyText.trim() && !pendingAttachment) || isUploading || isSending}
+                        className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'left-2.5' : 'right-2.5'} w-10 h-10 bg-gold-500 hover:bg-gold-600 text-[#1A1814] rounded-xl transition-all active:scale-95 flex items-center justify-center shadow-lg shadow-gold-500/10 disabled:opacity-50 disabled:bg-white/10 disabled:text-white/20`}
+                    >
+                        {isUploading || isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    </button>
+                </div>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-white/30">
-            <MessageSquare size={48} className="mb-4 opacity-20" />
-            <p>Select a ticket to view details</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-white/10 select-none">
+            <MessageSquare size={80} className="mb-6 opacity-5" />
+            <h3 className="text-lg font-bold text-white/20">{isAr ? 'اختر تذكرة للبدء' : 'Select a ticket to begin resolution'}</h3>
           </div>
         )}
       </GlassCard>

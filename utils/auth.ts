@@ -46,3 +46,15 @@ export function getCurrentUser(): { id: string; email: string; role: string } | 
         return null;
     }
 }
+
+/**
+ * Normalize backend roles (VENDOR, SUPER_ADMIN, etc.) to frontend roles (merchant, admin, customer)
+ */
+export function mapBackendRoleToFrontend(role: string | undefined): string {
+    if (!role) return 'customer';
+    const r = role.toUpperCase();
+    if (r === 'VENDOR') return 'merchant';
+    if (r === 'ADMIN' || r === 'SUPER_ADMIN' || r === 'SUPPORT') return 'admin';
+    if (r === 'CUSTOMER') return 'customer';
+    return role.toLowerCase();
+}

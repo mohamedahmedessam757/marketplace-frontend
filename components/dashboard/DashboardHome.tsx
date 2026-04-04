@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { GlassCard } from '../ui/GlassCard';
 import { Button } from '../ui/Button';
 import { Badge, StatusType } from '../ui/Badge';
-import { Plus, Search, Car, ArrowRight, ArrowLeft, Clock, CheckCircle2, TrendingUp, ChevronRight, ChevronLeft, Activity } from 'lucide-react';
+import { Plus, Search, Car, ArrowRight, ArrowLeft, Clock, CheckCircle2, TrendingUp, ChevronRight, ChevronLeft, Activity, Package } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useOrderStore } from '../../stores/useOrderStore';
 
@@ -23,14 +23,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
     const activeOrdersCount = orders.filter(o => ['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'PREPARATION', 'SHIPPED'].includes(o.status)).length;
     const completedOrdersCount = orders.filter(o => o.status === 'COMPLETED' || o.status === 'DELIVERED').length;
 
-    // Calculate total spent (parsing "450 SAR" to number)
-    const totalSpent = orders.reduce((acc, order) => {
-        if (['COMPLETED', 'DELIVERED', 'SHIPPED'].includes(order.status) && order.price) {
-            const price = parseFloat(order.price.replace(/[^0-9.]/g, ''));
-            return acc + (isNaN(price) ? 0 : price);
-        }
-        return acc;
-    }, 0);
+    const totalOrdersCount = orders.length;
 
     // 2. Get the most relevant active order to show in the "Live Tracking" card
     // Priority: Shipped > Preparation > Awaiting Payment > Awaiting Offers
@@ -97,7 +90,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                     </div>
 
                     <button
-                        onClick={() => onNavigate('create')}
+                        onClick={() => onNavigate('create-order')}
                         className="group relative px-8 py-4 bg-white text-gold-600 rounded-xl font-bold shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center gap-3 whitespace-nowrap"
                     >
                         <span>{t.dashboard.menu.create}</span>
@@ -113,7 +106,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                 {[
                     { label: (t.dashboard as any).dashboardHome?.stats.active, value: activeOrdersCount, icon: Clock, color: 'text-gold-400', bg: 'bg-gold-500/10', border: 'border-gold-500/20', action: () => onNavigate('orders') },
                     { label: (t.dashboard as any).dashboardHome?.stats.completed, value: completedOrdersCount, icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', action: () => onNavigate('orders') },
-                    { label: (t.dashboard as any).dashboardHome?.stats.spent, value: totalSpent.toLocaleString(), unit: 'SAR', icon: TrendingUp, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', action: undefined },
+                    { label: (t.dashboard as any).dashboardHome?.stats.totalOrders, value: totalOrdersCount, icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', action: () => onNavigate('orders') },
                 ].map((stat, idx) => (
                     <motion.div key={idx} variants={itemVariants}>
                         <GlassCard
@@ -124,7 +117,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                                 <div className="text-sm text-white/60 mb-1 font-medium">{stat.label}</div>
                                 <div className="text-3xl font-bold text-white flex items-baseline gap-1">
                                     {stat.value}
-                                    {stat.unit && <span className="text-sm font-medium text-white/40">{stat.unit}</span>}
                                 </div>
                             </div>
                             <div className={`w-12 h-12 rounded-2xl ${stat.bg} flex items-center justify-center ${stat.color} border border-white/5 group-hover:scale-110 transition-transform`}>
@@ -203,7 +195,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                             </div>
                             <h3 className="text-lg font-bold text-white mb-2">{(t.dashboard as any).dashboardHome?.empty.noActive}</h3>
                             <p className="text-white/40 text-sm mb-6">{(t.dashboard as any).dashboardHome?.empty.noActiveDesc}</p>
-                            <Button variant="secondary" onClick={() => onNavigate('create')} size="sm">
+                            <Button variant="secondary" onClick={() => onNavigate('create-order')} size="sm">
                                 {t.dashboard.menu.create}
                             </Button>
                         </GlassCard>

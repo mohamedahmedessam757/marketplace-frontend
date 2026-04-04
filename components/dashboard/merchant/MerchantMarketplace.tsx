@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Box, Calendar, MapPin, ChevronRight, ChevronLeft, Car, AlertTriangle, FileText, Clock, Info, Shield, Truck } from 'lucide-react';
+import { Search, Box, Calendar, MapPin, ChevronRight, ChevronLeft, Car, AlertTriangle, FileText, Clock, Info, Shield, Truck, CheckCircle2 } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { GlassCard } from '../../ui/GlassCard';
+import { Badge } from '../../ui/Badge';
 import { SubmitOfferModal } from './SubmitOfferModal';
 import { CountdownTimer } from '../OrderDetails';
+import { getDynamicOrderDeadline, isOrderExpired } from '../../../utils/dateUtils';
 
 interface MerchantMarketplaceProps {
     onNavigate?: (path: string, id?: any) => void;
@@ -17,7 +19,7 @@ interface MerchantMarketplaceProps {
 export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const { orders, addOfferToOrder } = useOrderStore();
-    const { vendorStatus, storeInfo } = useVendorStore();
+    const { vendorStatus, storeInfo, storeId } = useVendorStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
 
@@ -42,24 +44,10 @@ export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavi
         );
     }
 
-    // Timer & Expiration Logic matching OrderDetails perfectly
-    const getOfferDeadline = (dateStr: string) => {
-        const d = new Date(dateStr);
-        d.setHours(d.getHours() + 24);
-        return d.toISOString();
-    };
-
-    const isOrderExpired = (dateStr: string) => {
-        const deadline = new Date(getOfferDeadline(dateStr)).getTime();
-        return new Date().getTime() > deadline;
-    };
-
-    // Base active requests (excluding expired)
+    // Base active requests (excluding terminal states)
     const activeRequests = useMemo(() => {
-        return orders.filter(o =>
-            o.status === 'AWAITING_OFFERS' &&
-            !isOrderExpired(o.createdAt || o.date)
-        );
+        const terminalStates = ['COMPLETED', 'DELIVERED', 'RETURNED', 'REFUNDED', 'DISPUTED', 'CANCELLED', 'RETURN_APPROVED'];
+        return orders.filter(o => !terminalStates.includes(o.status));
     }, [orders]);
 
     // Compute unique car makes dynamically
@@ -75,11 +63,68 @@ export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavi
 
     // Search & Filter Logic
     const openRequests = activeRequests.filter(o => {
-        const make = o.vehicle?.make || o.car;
-        return (activeFilter === 'all' || make?.toLowerCase() === activeFilter.toLowerCase()) &&
-            (o.part.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                o.id.toString().includes(searchQuery) ||
-                o.car.toLowerCase().includes(searchQuery.toLowerCase()))
+        // 1. Specialization Filtering (Relaxed & Case-Insensitive)
+        const make = (o.vehicle?.make || o.car || '').toLowerCase();
+        const model = (o.vehicle?.model || '').toLowerCase();
+        
+        const selectedMakesLower = (storeInfo?.selectedMakes || []).map((m: string) => m.toLowerCase());
+        const selectedModelsLower = (storeInfo?.selectedModels || []).map((m: string) => m.toLowerCase());
+        
+        const hasMakes = selectedMakesLower.length > 0;
+        const hasModels = selectedModelsLower.length > 0;
+
+        // If merchant has specializations, check matching
+        const matchesSpecialization = !hasMakes || selectedMakesLower.includes(make);
+        const matchesModel = !hasModels || selectedModelsLower.includes(model);
+
+        // 2. Advanced Logic: Visibility overrides
+        const myOffers = storeId ? (o.offers || []).filter((of: any) => String(of.storeId) === String(storeId)) : [];
+        const hasOfferByMe = myOffers.length > 0;
+        const hasAcceptedByMe = myOffers.some((of: any) => of.status === 'accepted' || of.status === 'ACCEPTED');
+
+        const partsCount = (o.parts || []).length;
+        const partsWithAcceptedOffer = (o.parts || []).filter((part: any) => {
+            return (o.offers || []).some((of: any) =>
+                (of.orderPartId === part.id || of.order_part_id === part.id) && 
+                (of.status === 'accepted' || of.status === 'ACCEPTED')
+            );
+        });
+
+        // Determine if everything is taken
+        const allPartsTaken = partsCount > 0
+            ? partsWithAcceptedOffer.length === partsCount
+            : (o.offers || []).some((of: any) => of.status === 'accepted' || of.status === 'ACCEPTED');
+
+        const isClosedStatus = ['COMPLETED', 'DELIVERED', 'CANCELLED', 'RETURNED'].includes(o.status);
+        const isExpired = isOrderExpired(o);
+        
+        // VISIBILITY RULES:
+        // - Hide if status is definitively closed (COMPLETED etc.)
+        if (isClosedStatus) return false;
+        
+        let shouldShowByVisibility = false;
+        if (hasOfferByMe) {
+            // If I have an offer, ignore expiration and specialization (to track follow-up).
+            // But hide if ALL parts are taken by others AND I didn't win anything.
+            shouldShowByVisibility = !(allPartsTaken && !hasAcceptedByMe);
+        } else {
+            // If no offer yet: MUST NOT be expired, MUST match both Make and Model specialization, and MUST have open parts
+            shouldShowByVisibility = !isExpired && matchesSpecialization && matchesModel && !allPartsTaken;
+        }
+
+        if (!shouldShowByVisibility) return false;
+
+        // 3. Standard Search filters
+        const matchesSearch = (
+            o.part?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            o.id?.toString().includes(searchQuery) ||
+            o.car?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            make.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+        const matchesViewFilter = (activeFilter === 'all' || make?.toLowerCase() === activeFilter.toLowerCase());
+
+        return matchesSearch && matchesViewFilter;
     });
 
     const isAr = language === 'ar';
@@ -144,26 +189,50 @@ export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavi
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 transition={{ delay: idx * 0.05 }}
                             >
-                                <GlassCard className="p-5 flex flex-col justify-between h-full bg-[#151310] hover:border-gold-500/30 transition-all group relative overflow-hidden">
-                                    {/* Top Border Indicator */}
-                                    <div className="absolute top-0 left-0 w-full h-1 bg-gold-500/20 group-hover:bg-gold-500 transition-colors" />
+                                {(() => {
+                                    const myOffersOnThisOrder = storeId ? (req.offers || []).filter((of: any) => String(of.storeId) === String(storeId)) : [];
+                                    const hasMyOffer = myOffersOnThisOrder.length > 0;
 
-                                    <div>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/40 group-hover:text-gold-400 group-hover:bg-gold-500/10 transition-colors">
-                                                    <Box size={20} />
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] text-gold-400 font-mono bg-gold-500/10 px-1.5 py-0.5 rounded border border-gold-500/10">#{req.id}</span>
-                                                    <div className="text-xs text-white/40 mt-1 flex items-center gap-1">
-                                                        <Calendar size={10} />
-                                                        {req.date}
+                                    return (
+                                        <GlassCard className={`p-5 flex flex-col justify-between h-full bg-[#151310] hover:border-gold-500/30 transition-all group relative overflow-hidden ${hasMyOffer ? 'border-green-500/15' : ''}`}>
+                                            {/* Top Border Indicator */}
+                                            <div className={`absolute top-0 left-0 w-full h-1 ${hasMyOffer ? 'bg-green-500/40 group-hover:bg-green-500' : 'bg-gold-500/20 group-hover:bg-gold-500'} transition-colors`} />
+
+                                            <div>
+                                                <div className="flex justify-between items-start mb-4 gap-2">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors shrink-0 ${hasMyOffer ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-white/5 border-white/10 text-white/40 group-hover:text-gold-400 group-hover:bg-gold-500/10'}`}>
+                                                            {hasMyOffer ? <CheckCircle2 size={20} /> : <Box size={20} />}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] text-gold-400 font-mono bg-gold-500/10 px-1.5 py-0.5 rounded border border-gold-500/10">#{req.id}</span>
+                                                            </div>
+                                                            <div className="text-xs text-white/40 mt-1 flex items-center gap-1">
+                                                                <Calendar size={10} />
+                                                                {req.date}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {/* Timer + Badge Column (right side, no overlap) */}
+                                                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                        <Badge status={req.status} className="scale-75 origin-right" />
+                                                        {getDynamicOrderDeadline(req) && (
+                                                            <CountdownTimer targetDate={getDynamicOrderDeadline(req)!} compact={true} hideExpiredText={true} />
+                                                        )}
+                                                        {hasMyOffer && (
+                                                            <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-2 py-0.5 flex items-center gap-1">
+                                                                <CheckCircle2 size={10} className="text-green-400" />
+                                                                <span className="text-[9px] font-bold text-green-400">
+                                                                    {req.parts && req.parts.length > 1
+                                                                        ? `${myOffersOnThisOrder.length}/${req.parts.length} ${isAr ? 'قطع' : 'parts'}`
+                                                                        : (isAr ? 'عرض مقدم' : 'Offered')
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <CountdownTimer targetDate={getOfferDeadline(req.createdAt || req.date)} compact={true} />
-                                        </div>
 
                                         <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">
                                             {req.parts && req.parts.length > 0
@@ -210,7 +279,9 @@ export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavi
                                         <span>{isAr ? 'استكشف العرض' : 'Explore Offer'}</span>
                                         <ArrowIcon size={16} className={`transition-transform ${isAr ? 'group-hover/btn:-translate-x-1' : 'group-hover/btn:translate-x-1'}`} />
                                     </button>
-                                </GlassCard>
+                                        </GlassCard>
+                                    );
+                                })()}
                             </motion.div>
                         ))
                     ) : (

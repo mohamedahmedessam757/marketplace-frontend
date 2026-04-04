@@ -30,7 +30,7 @@ export const WholesaleScreen: React.FC<WholesaleScreenProps> = ({ onBack }) => {
                 <div className="flex justify-center mb-8">
                     <div className="w-20 h-20 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-2xl">
                         <img
-                            src="https://drive.google.com/thumbnail?id=1TpxgbWGVS4LykUr_psioU1F5ww0a7q64&sz=w1000"
+                            src="/logo.png"
                             alt="E-Tashleh Logo"
                             className="w-full h-full object-contain p-3 brightness-0 invert"
                         />

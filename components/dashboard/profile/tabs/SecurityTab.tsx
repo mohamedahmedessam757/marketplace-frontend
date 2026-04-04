@@ -1,143 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Globe2, Smartphone, Monitor, LogOut, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Globe2, Smartphone, Monitor, LogOut, ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
 import { useProfileStore } from '../../../../stores/useProfileStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 
-const InputGroup = ({ label, value, onChange, type = "text", placeholder = "", error = "" }: any) => (
-    <div className="space-y-2">
-        <label className="text-xs text-white/40 uppercase tracking-wider">{label}</label>
-        <input
-            type={type}
-            value={value}
-            onChange={onChange}
-            placeholder={placeholder}
-            className={`w-full bg-[#151310] border rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none transition-colors placeholder-white/20 ${error ? 'border-red-500/50' : 'border-white/10'}`}
-        />
-        {error && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {error}</p>}
-    </div>
-);
-
 export const SecurityTab: React.FC = () => {
-    const { sessions, terminateSession, terminateAllSessions, updatePassword, detectCurrentSession } = useProfileStore();
+    const { sessions, terminateSession, terminateAllSessions, detectCurrentSession } = useProfileStore();
     const { t, language } = useLanguage();
-
-    // Password State
-    const [currentPass, setCurrentPass] = useState('');
-    const [newPass, setNewPass] = useState('');
-    const [confirmPass, setConfirmPass] = useState('');
-    const [passStrength, setPassStrength] = useState(0);
-    const [loading, setLoading] = useState(false);
-    const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [isWarningOpen, setIsWarningOpen] = useState(false);
 
     useEffect(() => {
         detectCurrentSession();
     }, []);
 
-    const calculateStrength = (pass: string) => {
-        setNewPass(pass);
-        let score = 0;
-        if (pass.length > 6) score++;
-        if (pass.length > 10) score++;
-        if (/[A-Z]/.test(pass)) score++;
-        if (/[0-9]/.test(pass)) score++;
-        if (/[^A-Za-z0-9]/.test(pass)) score++;
-        setPassStrength(score);
-    };
-
-    const handleUpdatePassword = async () => {
-        setMsg(null);
-        if (newPass !== confirmPass) {
-            setMsg({ type: 'error', text: language === 'ar' ? 'كلمات المرور غير متطابقة' : 'Passwords do not match' });
-            return;
-        }
-        if (passStrength < 3) {
-            setMsg({ type: 'error', text: language === 'ar' ? 'كلمة المرور ضعيفة جداً' : 'Password is too weak' });
-            return;
-        }
-
-        setLoading(true);
-        try {
-            await updatePassword(currentPass, newPass);
-            setMsg({ type: 'success', text: language === 'ar' ? 'تم تحديث كلمة المرور بنجاح' : 'Password updated successfully' });
-            setCurrentPass('');
-            setNewPass('');
-            setConfirmPass('');
-            setPassStrength(0);
-        } catch (err: any) {
-            setMsg({ type: 'error', text: err.message || (language === 'ar' ? 'فشل تحديث كلمة المرور' : 'Failed to update password') });
-        } finally {
-            setLoading(false);
-        }
+    const handleTerminateAll = () => {
+        terminateAllSessions();
+        setIsWarningOpen(false);
     };
 
     return (
         <motion.div key="security" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-10">
-            {/* Password Section */}
-            <div>
-                <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                    <Lock size={20} className="text-gold-500" />
-                    {t.dashboard.profile.security.update}
-                </h3>
-
-                <div className="grid md:grid-cols-2 gap-6 mb-6">
-                    <InputGroup
-                        label={t.dashboard.profile.security.current}
-                        type="password"
-                        value={currentPass}
-                        onChange={(e: any) => setCurrentPass(e.target.value)}
-                    />
-                    <div className="space-y-2">
-                        <label className="text-xs text-white/40 uppercase tracking-wider">{t.dashboard.profile.security.new}</label>
-                        <input
-                            type="password"
-                            value={newPass}
-                            className="w-full bg-[#151310] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none transition-colors"
-                            onChange={(e) => calculateStrength(e.target.value)}
-                        />
-                        {/* Password Strength Meter */}
-                        <div className="flex gap-1 h-1 mt-2">
-                            {[1, 2, 3, 4, 5].map(i => (
-                                <div
-                                    key={i}
-                                    className={`flex-1 rounded-full transition-colors duration-300 ${i <= passStrength
-                                        ? passStrength < 3 ? 'bg-red-500' : passStrength < 5 ? 'bg-yellow-500' : 'bg-green-500'
-                                        : 'bg-white/10'}`}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                    <InputGroup
-                        label={t.dashboard.profile.security.confirm}
-                        type="password"
-                        value={confirmPass}
-                        onChange={(e: any) => setConfirmPass(e.target.value)}
-                    />
-                </div>
-
-                <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                        {msg && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={`flex items-center gap-2 text-sm ${msg.type === 'success' ? 'text-green-500' : 'text-red-500'}`}
-                            >
-                                {msg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                                {msg.text}
-                            </motion.div>
-                        )}
-                    </div>
-                    <button
-                        onClick={handleUpdatePassword}
-                        disabled={loading || !currentPass || !newPass}
-                        className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                        {loading && <Loader2 size={16} className="animate-spin" />}
-                        {t.dashboard.profile.security.update}
-                    </button>
-                </div>
-            </div>
 
             <div className="h-px bg-white/10" />
 
@@ -164,14 +46,23 @@ export const SecurityTab: React.FC = () => {
                                             </span>
                                         )}
                                     </div>
-                                    <div className="text-xs text-white/40 mt-1 flex items-center gap-2">
-                                        <span>{session.os}</span>
+                                    <div className="text-xs text-white/40 mt-1 flex flex-wrap items-center gap-2">
+                                        <span className="bg-white/5 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider">{session.os}</span>
                                         <span>•</span>
-                                        <span>{session.location}</span>
+                                        <span className="text-gold-200/60">{session.location === 'Unknown Location' && language === 'ar' ? 'موقع غير معروف' : session.location}</span>
                                         <span>•</span>
-                                        <span className="font-mono">{session.ip}</span>
+                                        <span className="font-mono text-[10px] bg-black/20 px-1.5 py-0.5 rounded border border-white/5">{session.ip}</span>
                                         <span>•</span>
-                                        <span>{session.lastActive}</span>
+                                        <span className="whitespace-nowrap italic opacity-60">
+                                            {language === 'ar' ? 'نشط منذ: ' : 'Active: '}
+                                            {new Date(session.lastActive).toLocaleString('en-US', {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: true
+                                            })}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -193,7 +84,7 @@ export const SecurityTab: React.FC = () => {
 
                 <div className="mt-6">
                     <button
-                        onClick={terminateAllSessions}
+                        onClick={() => setIsWarningOpen(true)}
                         className="w-full py-4 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
                     >
                         <LogOut size={18} />
@@ -201,6 +92,48 @@ export const SecurityTab: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Terminate All Confirmation Modal */}
+            <AnimatePresence>
+                {isWarningOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-[#1A1814] w-full max-w-md rounded-2xl border border-red-500/20 overflow-hidden shadow-2xl shadow-red-900/20"
+                        >
+                            <div className="p-6">
+                                <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 text-red-500">
+                                    <AlertCircle size={24} />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">
+                                    {language === 'ar' ? 'إنهاء جميع الجلسات النشطة' : 'Terminate All Active Sessions'}
+                                </h3>
+                                <p className="text-white/60 text-sm mb-6 leading-relaxed">
+                                    {language === 'ar'
+                                        ? 'سيتم تسجيل خروجك فوراً من جميع الأجهزة المتصلة بحسابك (بما في ذلك الحواسيب، والهواتف، وتطبيقات الجوال) باستثناء هذا الجهاز الذي تستخدمه الآن. هل أنت متأكد من تنفيذ هذا الإجراء الأمني؟'
+                                        : 'You will be immediately logged out from all devices connected to your account (including computers, tablets, and mobile apps) EXCEPT this current device. Are you sure you want to take this security action?'}
+                                </p>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setIsWarningOpen(false)}
+                                        className="flex-1 py-3 px-4 rounded-xl border border-white/10 text-white hover:bg-white/5 transition-colors font-bold"
+                                    >
+                                        {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                                    </button>
+                                    <button
+                                        onClick={handleTerminateAll}
+                                        className="flex-1 py-3 px-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors font-bold shadow-lg shadow-red-500/20"
+                                    >
+                                        {language === 'ar' ? 'تسجيل الخروج من البقية' : 'Sign Out All'}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             <div className="p-4 bg-green-500/5 border border-green-500/10 rounded-xl flex items-center gap-3">
                 <ShieldCheck size={20} className="text-green-500" />

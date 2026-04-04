@@ -6,20 +6,53 @@ import { getCurrentUserId } from '../utils/auth';
 interface ReturnsState {
     returns: Return[];
     disputes: Dispute[];
+    deliveredOrders: any[]; // Or use a specific Type like CartItemType
     loading: boolean;
     error: string | null;
 
     fetchReturnsAndDisputes: () => Promise<void>;
-    requestReturn: (orderId: string, reason: string, description: string, files: File[]) => Promise<boolean>;
+    fetchDeliveredOrders: () => Promise<void>;
+    requestReturn: (orderId: string, orderPartId: string | undefined, reason: string, description: string, usageCondition: string | undefined, files: File[]) => Promise<boolean>;
     cancelReturn: (orderId: string) => Promise<boolean>;
-    escalateDispute: (orderId: string, reason: string, description: string, files: File[]) => Promise<boolean>;
+    escalateDispute: (orderId: string, orderPartId: string | undefined, reason: string, description: string, files: File[]) => Promise<boolean>;
 }
 
 export const useReturnsStore = create<ReturnsState>((set, get) => ({
     returns: [],
     disputes: [],
+    deliveredOrders: [],
     loading: false,
     error: null,
+
+    fetchDeliveredOrders: async () => {
+        set({ loading: true, error: null });
+        try {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+            const response = await fetch(`${API_URL}/orders/delivered`, { // The new endpoint
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch delivered orders');
+            }
+
+            const data = await response.json();
+
+            set({
+                deliveredOrders: data || [],
+                loading: false
+            });
+        } catch (err: any) {
+            console.error('Error fetching delivered orders:', err);
+            set({ error: err.message, loading: false });
+        }
+    },
 
     fetchReturnsAndDisputes: async () => {
         set({ loading: true, error: null });
@@ -54,7 +87,7 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
         }
     },
 
-    requestReturn: async (orderId: string, reason: string, description: string, files: File[]) => {
+    requestReturn: async (orderId: string, orderPartId: string | undefined, reason: string, description: string, usageCondition: string | undefined, files: File[]) => {
         set({ loading: true, error: null });
         try {
             const token = localStorage.getItem('access_token');
@@ -63,8 +96,10 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
 
             const formData = new FormData();
             formData.append('orderId', orderId);
+            if (orderPartId) formData.append('orderPartId', orderPartId);
             formData.append('reason', reason);
             formData.append('description', description);
+            if (usageCondition) formData.append('usageCondition', usageCondition);
 
             if (files && files.length > 0) {
                 files.forEach((file) => {
@@ -114,7 +149,7 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
         }
     },
 
-    escalateDispute: async (orderId: string, reason: string, description: string, files: File[]) => {
+    escalateDispute: async (orderId: string, orderPartId: string | undefined, reason: string, description: string, files: File[]) => {
         set({ loading: true, error: null });
         try {
             const token = localStorage.getItem('access_token');
@@ -123,6 +158,7 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
 
             const formData = new FormData();
             formData.append('orderId', orderId);
+            if (orderPartId) formData.append('orderPartId', orderPartId);
             formData.append('reason', reason);
             formData.append('description', description);
 

@@ -6,11 +6,23 @@ import { useBillingStore } from './useBillingStore';
 import { ordersApi } from '../services/api/orders';
 import { supabase } from '../services/supabase';
 
+// Module-level debounce timer to prevent realtime spam and race conditions with DB transactions
+let realtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const REALTIME_DEBOUNCE_MS = 1500;
+
 // --- FSM CONFIGURATION (Must match Backend) ---
 const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     AWAITING_OFFERS: ['AWAITING_PAYMENT', 'CANCELLED'],
     AWAITING_PAYMENT: ['PREPARATION', 'CANCELLED'],
-    PREPARATION: ['SHIPPED', 'CANCELLED'],
+    PREPARATION: ['PREPARED', 'DELAYED_PREPARATION', 'CANCELLED'],
+    PREPARED: ['VERIFICATION', 'SHIPPED', 'CANCELLED'],
+    VERIFICATION: ['VERIFICATION_SUCCESS', 'NON_MATCHING', 'CANCELLED'],
+    VERIFICATION_SUCCESS: ['READY_FOR_SHIPPING', 'CANCELLED'],
+    READY_FOR_SHIPPING: ['SHIPPED', 'CANCELLED'],
+    NON_MATCHING: ['CORRECTION_PERIOD', 'CANCELLED'],
+    CORRECTION_PERIOD: ['CORRECTION_SUBMITTED', 'CANCELLED'],
+    CORRECTION_SUBMITTED: ['VERIFICATION_SUCCESS', 'NON_MATCHING', 'CANCELLED'],
+    DELAYED_PREPARATION: ['PREPARED', 'CANCELLED'],
     SHIPPED: ['DELIVERED', 'RETURNED', 'DISPUTED'],
     DELIVERED: ['COMPLETED', 'RETURNED', 'DISPUTED'],
     COMPLETED: [],
@@ -20,21 +32,39 @@ const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     REFUNDED: [],
     RETURN_REQUESTED: ['RETURN_APPROVED', 'DISPUTED'],
     RETURN_APPROVED: ['RETURNED'],
-    RESOLVED: ['COMPLETED']
+    RESOLVED: ['COMPLETED'],
+    // Shipment Detailed Statuses (Read-only or transition via logistics system)
+    RECEIVED_AT_HUB: [],
+    QUALITY_CHECK_PASSED: [],
+    PACKAGED_FOR_SHIPPING: [],
+    AWAITING_CARRIER_PICKUP: [],
+    PICKED_UP_BY_CARRIER: [],
+    IN_TRANSIT_TO_DESTINATION: [],
+    ARRIVED_AT_LOCAL_FACILITY: [],
+    CUSTOMS_CLEARANCE: [],
+    AT_LOCAL_WAREHOUSE: [],
+    OUT_FOR_DELIVERY: [],
+    DELIVERY_ATTEMPTED: [],
+    DELIVERED_TO_CUSTOMER: [],
+    RETURN_TO_SENDER_INITIATED: [],
+    RETURNED_TO_SENDER: []
 };
 
 export const SLA_LIMITS: Partial<Record<StatusType, number>> = {
     AWAITING_OFFERS: 24,
-    AWAITING_PAYMENT: 24,
-    PREPARATION: 48,
-    SHIPPED: 336,
+    AWAITING_PAYMENT: 24, // 24 hours to pay
+    PREPARATION: 48,      // 48 hours to prepare
+    DELAYED_PREPARATION: 24, // 24 extra hours to prepare (Penalty period)
+    SHIPPED: 72,          // 3 days to deliver
     DELIVERED: 168,
     DISPUTED: 72
 };
 
 export interface OrderOffer {
     id: number;
+    offerNumber?: string;
     storeId?: string; // Store ID for vendor identification
+    storeCode?: string; // Store unit code D-XXXX
     merchantName: string;
     storeRating: number;
     storeReviewCount: number;
@@ -49,9 +79,12 @@ export interface OrderOffer {
     deliveryTime: string;
     notes?: string;
     submittedAt: string;
+    status?: string; // pending | accepted | rejected
     offerImage?: string;
     weight?: number; // In Kg
     partType?: string; // Original, Commercial, etc.
+    orderPartId?: string; // Links to specific part
+    partName?: string; // Part name for display
 }
 
 export interface Order {
@@ -61,6 +94,7 @@ export interface Order {
     customer: {
         id: string;
         name: string;
+        customerCode?: string; // ADDED
         avatar?: string;
         email?: string;
         phone?: string;
@@ -69,6 +103,9 @@ export interface Order {
     // Merchant Info
     merchantId?: string;
     merchantName?: string;
+
+    // Admin Features
+    adminNotes?: string;
 
     // Legacy Fields (Must keep for backward compatibility)
     part: string;
@@ -107,23 +144,38 @@ export interface Order {
     date: string; // Display Date
     createdAt: string;
     updatedAt: string;
+    paymentDeadlineAt?: string;
+    delayedPreparationDeadlineAt?: string;
+    payments?: any[];
     offerAcceptedAt?: string;
     shippedAt?: string;
     deliveredAt?: string;
 
     // Financials
-    price?: string; // Total Price
+    price?: number; // Total Price
 
     // Offers
     offersCount: number;
     offers?: OrderOffer[];
-    acceptedOffer?: OrderOffer;
+    acceptedOffer?: OrderOffer; // Back-compat: First accepted offer
+    acceptedOffers?: OrderOffer[]; // New: List of all accepted/paid offers
+    _count?: {
+        offers?: number;
+    };
+
+    // Verification
+    verificationDocuments?: any[];
+    verificationSubmittedAt?: string;
+    correctionDeadlineAt?: string;
 
     // Logistics
     waybillNumber?: string;
     courier?: string;
     expectedDeliveryDate?: string;
     waybillImage?: string | File;
+    shipments?: any[];
+    shippingWaybills?: any[];
+    invoices?: any[];
 
     // Returns
     returnWaybillNumber?: string;
@@ -144,15 +196,21 @@ interface OrderState {
     clearOrders: () => void; // Clear orders when switching roles
     resetForRole: (role: string) => void; // Reset store if role changed
     addOrder: (order: Omit<Order, 'id' | 'date' | 'status' | 'offersCount' | 'createdAt' | 'updatedAt' | 'offers'>) => Promise<void>;
-    addOfferToOrder: (orderId: number, offer: Omit<OrderOffer, 'id' | 'submittedAt'>) => void;
+    addOfferToOrder: (orderId: number, offer: Omit<OrderOffer, 'id'>) => void;
+    acceptOffer: (orderId: string | number, partId: string | number, offerId: string | number) => Promise<void>;
+    rejectOffer: (orderId: number, offerId: number, reason: string, customReason?: string) => Promise<void>;
     transitionOrder: (id: number, targetStatus: StatusType, actor?: string, metadata?: any) => Promise<{ success: boolean; message?: string }>;
     forceStatus: (id: number, status: StatusType, adminNote: string) => void;
     processPaymentWebhook: (event: 'succeeded' | 'failed' | 'refunded', orderId: number) => void;
 
     checkSLA: () => void;
-    getOrder: (id: number) => Order | undefined;
+    getOrder: (id: string | number) => Order | undefined;
     getValidTransitions: (currentStatus: StatusType) => StatusType[];
     updateOrderStatus: (id: number, status: StatusType) => void;
+
+    adminUpdateOffer: (offerId: string | number, updateDto: any) => Promise<void>;
+    adminDeleteOffer: (offerId: string | number) => Promise<void>;
+    updateAdminNotes: (orderId: string | number, notes: string) => Promise<void>;
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
@@ -189,30 +247,41 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         // relying on the API fetch to securely filter the records after the ping.
 
         // 1. Setup Realtime Subscription first
+        const handleRealtimeEvent = (source: string) => {
+            console.log(`⚡ Realtime Update: ${source} changed. Debouncing fetch...`);
+            if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer);
+            realtimeDebounceTimer = setTimeout(() => {
+                get().silentFetch();
+            }, REALTIME_DEBOUNCE_MS);
+        };
+
         const channel = supabase.channel(`orders-realtime-${userId || 'global'}`)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'orders', filter: filterString },
-                () => {
-                    console.log('⚡ Realtime Update: orders table changed (0ms latency)');
-                    get().silentFetch();
-                }
+                () => handleRealtimeEvent('orders table')
             )
             .subscribe();
 
         // 2. Initial Fetch immediately
         get().fetchOrders();
 
-        set({ subscription: channel });
+        // Also listen to offers table for real-time offer status changes
+        const offersChannel = supabase.channel(`offers-realtime-${userId || 'global'}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'offers' }, () => {
+                handleRealtimeEvent('offers table');
+            })
+            .subscribe();
+
+        set({ subscription: { ordersChannel: channel, offersChannel } });
     },
 
     stopRealtime: () => {
         const { subscription } = get();
-
         if (subscription) {
-            supabase.removeChannel(subscription);
+            if (subscription.ordersChannel) supabase.removeChannel(subscription.ordersChannel);
+            if (subscription.offersChannel) supabase.removeChannel(subscription.offersChannel);
         }
-
         set({ subscription: null });
     },
 
@@ -243,6 +312,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 shippingType: o.shippingType,
                 conditionPref: typeof o.conditionPref === 'string' ? o.conditionPref.trim() : o.conditionPref,
                 warrantyPreferred: o.warrantyPreferred,
+                preferences: {
+                    condition: o.conditionPref === 'new' ? 'new' : 'used',
+                    warranty: !!o.warrantyPreferred
+                },
                 vehicle: {
                     make: o.vehicleMake,
                     model: o.vehicleModel,
@@ -255,32 +328,66 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 offersCount: o.offers ? o.offers.length : 0,
                 offers: o.offers ? o.offers.map((offer: any) => ({
                     id: offer.id,
+                    offerNumber: offer.offerNumber || 'N/A',
                     storeId: offer.store?.id || offer.storeId,
+                    storeCode: offer.store?.storeCode || offer.storeCode || 'N/A',
                     merchantName: offer.store?.name || 'Unknown Store',
                     storeRating: offer.store?.rating || 0,
                     storeReviewCount: offer.store?._count?.reviews || 0,
                     storeLogo: offer.store?.logo || null,
                     storeCity: offer.store?.city || 'Saudi Arabia',
 
-                    // Price Logic
-                    price: Number(offer.finalPrice || (Number(offer.unitPrice) + Number(offer.shippingCost || 0) + Number(offer.commission || 0))),
+                    // Price Logic: unitPrice + shippingCost + max(25%, 100 AED) marketplace commission
+                    price: (() => {
+                        const base = Number(offer.unitPrice || 0);
+                        const shipping = Number(offer.shippingCost || 0);
+                        const percentCommission = Math.round(base * 0.25);
+                        const commission = base > 0 ? Math.max(percentCommission, 100) : 0;
+                        return base + shipping + commission;
+                    })(),
+                    unitPrice: Number(offer.unitPrice || 0),
                     shippingCost: Number(offer.shippingCost || 0),
                     isShippingIncluded: Number(offer.shippingCost || 0) === 0,
 
-                    condition: offer.condition || 'Used',
-                    warranty: offer.hasWarranty ? (offer.warrantyDuration || 'Yes') : 'No',
+                    condition: offer.condition || 'used',
+                    warranty: offer.hasWarranty ? (offer.warrantyDuration || 'yes') : 'no',
                     deliveryTime: offer.deliveryDays || 'N/A',
                     notes: offer.notes,
                     submittedAt: offer.createdAt,
+                    status: offer.status || 'pending',
                     offerImage: offer.offerImage,
-                    weight: offer.weight || 0,
-                    partType: offer.partType || 'Original'
+                    weight: Number(offer.weightKg || offer.weight || 0),
+                    partType: offer.partType || 'original',
+                    orderPartId: offer.orderPartId || offer.order_part_id || null
                 })) : [],
                 createdAt: o.createdAt,
                 updatedAt: o.updatedAt,
-                customer: o.customer,
-                price: o.acceptedOffer ? o.acceptedOffer.unitPrice : null,
-                merchantName: o.acceptedOffer?.store?.name || null,
+                customer: o.customer ? {
+                    ...o.customer,
+                    customerCode: o.customer.id ? `CUS-${o.customer.id.substring(0, 6).toUpperCase()}` : undefined
+                } : undefined,
+                price: (() => {
+                    const allAccepted = o.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())) || [];
+                    if (allAccepted.length > 0) {
+                        return allAccepted.reduce((total: number, of: any) => {
+                            const base = Number(of.unitPrice || 0);
+                            const shipping = Number(of.shippingCost || 0);
+                            const percentCommission = Math.round(base * 0.25);
+                            const commission = base > 0 ? Math.max(percentCommission, 100) : 0;
+                            return total + base + shipping + commission;
+                        }, 0);
+                    }
+                    return null;
+                })(),
+                merchantName: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase()))?.store?.name || null,
+                acceptedOffer: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),
+                acceptedOffers: o.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),
+                verificationDocuments: o.verificationDocuments || [],
+                verificationSubmittedAt: o.verificationSubmittedAt,
+                correctionDeadlineAt: o.correctionDeadlineAt,
+                shipments: o.shipments || [],
+                shippingWaybills: o.shippingWaybills || [],
+                invoices: o.invoices || [],
             }));
 
             // Only update if difference? safely just set for now since React handles diffing.
@@ -317,6 +424,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 shippingType: o.shippingType,
                 conditionPref: typeof o.conditionPref === 'string' ? o.conditionPref.trim() : o.conditionPref,
                 warrantyPreferred: o.warrantyPreferred,
+                preferences: {
+                    condition: o.conditionPref === 'new' ? 'new' : 'used',
+                    warranty: !!o.warrantyPreferred
+                },
                 vehicle: {
                     make: o.vehicleMake,
                     model: o.vehicleModel,
@@ -326,36 +437,70 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 },
                 status: o.status,
                 date: new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-                offersCount: o.offers ? o.offers.length : 0,
+                offersCount: o.offers ? o.offers.filter((of: any) => of.status !== 'rejected').length : 0,
                 offers: o.offers ? o.offers.map((offer: any) => ({
                     id: offer.id,
+                    offerNumber: offer.offerNumber || 'N/A',
                     storeId: offer.store?.id || offer.storeId,
+                    storeCode: offer.store?.storeCode || offer.storeCode || 'N/A',
                     merchantName: offer.store?.name || 'Unknown Store',
                     storeRating: offer.store?.rating || 0,
                     storeReviewCount: offer.store?._count?.reviews || 0,
                     storeLogo: offer.store?.logo || null,
                     storeCity: offer.store?.city || 'Saudi Arabia',
 
-                    // Price Logic
-                    price: Number(offer.finalPrice || (Number(offer.unitPrice) + Number(offer.shippingCost || 0) + Number(offer.commission || 0))),
+                    // Price Logic: unitPrice + shippingCost + max(25%, 100 AED) marketplace commission
+                    price: (() => {
+                        const base = Number(offer.unitPrice || 0);
+                        const shipping = Number(offer.shippingCost || 0);
+                        const percentCommission = Math.round(base * 0.25);
+                        const commission = base > 0 ? Math.max(percentCommission, 100) : 0;
+                        return base + shipping + commission;
+                    })(),
+                    unitPrice: Number(offer.unitPrice || 0),
                     shippingCost: Number(offer.shippingCost || 0),
                     isShippingIncluded: Number(offer.shippingCost || 0) === 0,
 
-                    condition: offer.condition || 'Used',
-                    warranty: offer.hasWarranty ? (offer.warrantyDuration || 'Yes') : 'No',
+                    condition: offer.condition || 'used',
+                    warranty: offer.hasWarranty ? (offer.warrantyDuration || 'yes') : 'no',
                     deliveryTime: offer.deliveryDays || 'N/A',
                     notes: offer.notes,
                     submittedAt: offer.createdAt,
+                    status: offer.status || 'pending',
                     offerImage: offer.offerImage,
-                    weight: offer.weight || 0,
-                    partType: offer.partType || 'Original'
+                    weight: Number(offer.weightKg || offer.weight || 0),
+                    partType: offer.partType || 'original',
+                    orderPartId: offer.orderPartId || offer.order_part_id || null
                 })) : [],
                 createdAt: o.createdAt,
                 updatedAt: o.updatedAt,
-                customer: o.customer,
-                // Ensure price/merchant are mapped if available (from accepted offer?)
-                price: o.acceptedOffer ? o.acceptedOffer.unitPrice : null,
-                merchantName: o.acceptedOffer?.store?.name || null,
+                customer: o.customer ? {
+                    ...o.customer,
+                    customerCode: o.customer.id ? `CUS-${o.customer.id.substring(0, 6).toUpperCase()}` : undefined
+                } : undefined,
+                adminNotes: o.adminNotes,
+                price: (() => {
+                    const allAccepted = o.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())) || [];
+                    if (allAccepted.length > 0) {
+                        return allAccepted.reduce((total: number, of: any) => {
+                            const base = Number(of.unitPrice || 0);
+                            const shipping = Number(of.shippingCost || 0);
+                            const percentCommission = Math.round(base * 0.25);
+                            const commission = base > 0 ? Math.max(percentCommission, 100) : 0;
+                            return total + base + shipping + commission;
+                        }, 0);
+                    }
+                    return null;
+                })(),
+                merchantName: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase()))?.store?.name || null,
+                acceptedOffer: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),
+                acceptedOffers: o.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),
+                verificationDocuments: o.verificationDocuments || [],
+                verificationSubmittedAt: o.verificationSubmittedAt,
+                correctionDeadlineAt: o.correctionDeadlineAt,
+                shipments: o.shipments || [],
+                shippingWaybills: o.shippingWaybills || [],
+                invoices: o.invoices || [],
             }));
             set({ orders: mappedOrders, isLoading: false });
         } catch (err) {
@@ -392,7 +537,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     },
 
     addOfferToOrder: (orderId, offerData) => {
-        // Mock Implementation for now as Phase 4 didn't cover Offers API fully yet
+        // Add offer to order — does NOT change status. Only customer accepting changes status.
         set((state) => ({
             orders: state.orders.map(o => {
                 // Compare as string/number safely
@@ -400,18 +545,80 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 if (o.id != orderId) return o;
                 return {
                     ...o,
-                    status: o.status === 'AWAITING_OFFERS' ? 'AWAITING_PAYMENT' : o.status,
-                    offersCount: o.offersCount + 1,
-                    offers: [...o.offers, { ...offerData, id: Date.now(), submittedAt: new Date().toISOString() }]
+                    // Increment the count properties so the UI registers the new total immediately
+                    offersCount: (o.offersCount || o._count?.offers || 0) + 1,
+                    _count: {
+                        ...o._count,
+                        offers: (o._count?.offers || o.offersCount || 0) + 1
+                    },
+                    offers: [...(o.offers || []), { id: Date.now(), submittedAt: new Date().toISOString(), ...offerData }]
                 };
             })
         }));
     },
 
+    rejectOffer: async (orderId: string | number, offerId: string | number, reason: string, customReason?: string) => {
+        // Optimistic UI Update first
+        set((state) => ({
+            orders: state.orders.map(o => {
+                // @ts-ignore — loose equality handles string/number UUID mismatch
+                if (o.id != orderId) return o;
+                return {
+                    ...o,
+                    offers: o.offers?.map(offer =>
+                        // @ts-ignore
+                        offer.id == offerId ? { ...offer, status: 'rejected' } : offer
+                    )
+                };
+            })
+        }));
+
+        try {
+            await ordersApi.rejectOffer(String(orderId), String(offerId), { reason, customReason });
+            // Let realtime sockets handle the final confirmation, or we can just leave the optimistic ui.
+        } catch (error) {
+            console.error("Failed to reject offer", error);
+            // Revert on failure
+            await get().silentFetch();
+        }
+    },
+
+    acceptOffer: async (orderId: string | number, partId: string | number, offerId: string | number) => {
+        // Optimistic update
+        set((state) => ({
+            orders: state.orders.map(o => {
+                // @ts-ignore
+                if (o.id != orderId) return o;
+                return {
+                    ...o,
+                    offers: o.offers?.map(offer => {
+                        // @ts-ignore
+                        if (offer.id == offerId) return { ...offer, status: 'accepted' };
+                        // @ts-ignore
+                        if (offer.orderPartId == partId && offer.id != offerId && offer.status !== 'rejected') return { ...offer, status: 'rejected' };
+                        return offer;
+                    })
+                };
+            })
+        }));
+
+        try {
+            await ordersApi.acceptOfferForPart(String(orderId), String(partId), String(offerId));
+            // DO NOT silentFetch immediately — it overwrites the optimistic update with stale data
+            // (the DB transaction may not have propagated yet). Instead, defer the sync.
+            setTimeout(() => { get().silentFetch(); }, 2000);
+        } catch (error) {
+            console.error("Failed to accept offer", error);
+            // On failure, revert optimistic update by fetching fresh data immediately
+            await get().silentFetch();
+            throw error;
+        }
+    },
+
     transitionOrder: async (id, targetStatus, actor = 'SYSTEM', metadata = {}) => {
         // Optimistic Update or Wait? Let's wait for API
         try {
-            await ordersApi.transition(id, targetStatus, JSON.stringify(metadata));
+            await ordersApi.transition(String(id), targetStatus, JSON.stringify(metadata));
 
             set((state) => ({
                 orders: state.orders.map(o => {
@@ -445,5 +652,62 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
     getOrder: (id) => get().orders.find(o => o.id.toString() === id.toString()),
     getValidTransitions: (status) => TRANSITION_RULES[status] || [],
-    updateOrderStatus: (id, status) => get().transitionOrder(id, status, 'LEGACY_CALL')
+    updateOrderStatus: (id, status) => get().transitionOrder(id, status, 'LEGACY_CALL'),
+
+    adminUpdateOffer: async (offerId, updateDto) => {
+        const token = localStorage.getItem('access_token');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const response = await fetch(`${API_URL}/offers/admin/${offerId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(updateDto)
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'Failed to update offer by admin');
+        }
+        await get().silentFetch(); // Refresh orders after update
+    },
+
+    adminDeleteOffer: async (offerId) => {
+        const token = localStorage.getItem('access_token');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const response = await fetch(`${API_URL}/offers/admin/${offerId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'Failed to delete offer by admin');
+        }
+        await get().silentFetch(); // Refresh orders after deletion
+    },
+
+    updateAdminNotes: async (orderId, notes) => {
+        // Optimistic Update for real-time feel
+        set((state) => ({
+            orders: state.orders.map(o => String(o.id) === String(orderId) ? { ...o, adminNotes: notes } : o)
+        }));
+
+        const token = localStorage.getItem('access_token');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const response = await fetch(`${API_URL}/orders/admin/${orderId}/notes`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ notes })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'Failed to update admin notes');
+        }
+        await get().silentFetch(); // Refresh orders
+    }
 }));

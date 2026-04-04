@@ -58,7 +58,7 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
     setIsSubmitting(true);
     
     setTimeout(() => {
-      respondToCase(dispute.id, {
+      respondToCase(dispute.id, dispute.type, {
         text: response,
         acceptedReturn: acceptReturn,
         evidence: files
@@ -148,13 +148,27 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
 
               <div className="space-y-2">
                  <span className="text-xs text-white/40 uppercase tracking-wider">{isAr ? 'الأدلة المرفقة' : 'Attached Evidence'}</span>
-                 <div className="flex gap-2 overflow-x-auto pb-2">
-                    {[1, 2].map((i) => (
-                       <div key={i} className="w-24 h-24 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center shrink-0">
-                          <span className="text-xs text-white/20">Image {i}</span>
-                       </div>
-                    ))}
-                 </div>
+                  <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+                     {dispute.customerEvidence && dispute.customerEvidence.length > 0 ? (
+                        dispute.customerEvidence.map((url, i) => (
+                           <div key={i} className="w-32 h-32 rounded-2xl bg-black/40 border border-white/10 overflow-hidden shrink-0 group/img relative">
+                              <img 
+                                 src={url} 
+                                 alt={`Evidence ${i+1}`} 
+                                 className="w-full h-full object-cover opacity-60 group-hover/img:opacity-100 transition-all duration-500" 
+                              />
+                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-all cursor-pointer">
+                                 <FileText className="text-white" size={24} />
+                              </div>
+                           </div>
+                        ))
+                     ) : (
+                        <div className="w-full py-8 bg-white/5 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 opacity-30">
+                           <X size={24} />
+                           <span className="text-[10px] font-black uppercase tracking-widest">{isAr ? 'لا توجد مرفقات' : 'No Evidence Uploaded'}</span>
+                        </div>
+                     )}
+                  </div>
               </div>
            </GlassCard>
 

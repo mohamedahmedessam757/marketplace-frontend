@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 
 export interface Device {
@@ -9,12 +8,12 @@ export interface Device {
   ip: string;
 }
 
-export interface LoginLog {
+export interface SecurityLog {
   id: string;
-  date: string;
-  status: 'success' | 'failed';
-  ip: string;
-  method: 'email' | 'google' | 'apple';
+  action: string;
+  createdAt: string;
+  ipAddress: string;
+  details: any;
 }
 
 export interface Customer {
@@ -25,69 +24,105 @@ export interface Customer {
   status: 'ACTIVE' | 'SUSPENDED';
   joinedAt: string;
   avatar?: string;
-  balance: number;
-  devices: Device[];
-  loginHistory: LoginLog[];
+  balance?: number;
+  ltv?: number;
+  successRate?: number;
+  ordersCount?: number;
+  adminNotes?: string;
+  Session?: any[];
+  securityLogs?: SecurityLog[];
+  orders?: any[];
+  disputes?: any[];
 }
 
 interface CustomerState {
   customers: Customer[];
-  toggleStatus: (id: string) => void;
-  getCustomerById: (id: string) => Customer | undefined;
+  isLoading: boolean;
+  error: string | null;
+  fetchCustomers: () => Promise<void>;
+  fetchCustomerById: (id: string) => Promise<Customer | null>;
+  toggleStatus: (id: string) => Promise<void>;
+  updateNotes: (id: string, notes: string) => Promise<void>;
 }
 
-const MOCK_CUSTOMERS: Customer[] = [
-  {
-    id: '100', // Matches Math.floor(1001/10) roughly for demo linkage
-    name: 'Mohammed Ahmed',
-    email: 'mohammed@example.com',
-    phone: '0551234567',
-    status: 'ACTIVE',
-    joinedAt: '2023-05-12',
-    balance: 150,
-    devices: [
-      { id: 'd1', name: 'iPhone 13', type: 'Mobile', lastActive: 'Now', ip: '192.168.1.1' },
-      { id: 'd2', name: 'Chrome Windows', type: 'Desktop', lastActive: '2 days ago', ip: '10.0.0.5' }
-    ],
-    loginHistory: [
-      { id: 'l1', date: '2024-03-10 10:00 AM', status: 'success', ip: '192.168.1.1', method: 'email' },
-      { id: 'l2', date: '2024-03-09 02:30 PM', status: 'failed', ip: '192.168.1.1', method: 'email' }
-    ]
-  },
-  {
-    id: '101',
-    name: 'Sarah Khalid',
-    email: 'sarah@example.com',
-    phone: '0569876543',
-    status: 'ACTIVE',
-    joinedAt: '2023-08-20',
-    balance: 0,
-    devices: [
-      { id: 'd3', name: 'Samsung S22', type: 'Mobile', lastActive: '1 hour ago', ip: '192.168.1.20' }
-    ],
-    loginHistory: [
-      { id: 'l3', date: '2024-03-10 09:00 AM', status: 'success', ip: '192.168.1.20', method: 'google' }
-    ]
-  },
-  {
-    id: '102',
-    name: 'Yousef Omar',
-    email: 'yousef@example.com',
-    phone: '0543332211',
-    status: 'SUSPENDED',
-    joinedAt: '2023-01-15',
-    balance: 500,
-    devices: [],
-    loginHistory: []
-  }
-];
-
 export const useCustomerStore = create<CustomerState>((set, get) => ({
-  customers: MOCK_CUSTOMERS,
-  toggleStatus: (id) => set((state) => ({
-    customers: state.customers.map(c => 
-      c.id === id ? { ...c, status: c.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' } : c
-    )
-  })),
-  getCustomerById: (id) => get().customers.find(c => c.id === id)
+  customers: [],
+  isLoading: false,
+  error: null,
+
+  fetchCustomers: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${API_URL}/users/admin/customers`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch customers');
+      const data = await response.ok ? await response.json() : [];
+      set({ customers: data, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
+  },
+
+  fetchCustomerById: async (id: string) => {
+    const token = localStorage.getItem('access_token');
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const response = await fetch(`${API_URL}/users/admin/customers/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) return null;
+    return response.json();
+  },
+
+  toggleStatus: async (id: string) => {
+    // Optimistic Update
+    set((state) => ({
+      customers: state.customers.map(c =>
+        c.id === id ? { ...c, status: c.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' } : c
+      )
+    }));
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await Patch(`${API_URL}/users/admin/customers/${id}/status`, token);
+      if (!response.ok) throw new Error('Failed to toggle status');
+    } catch (err) {
+      console.error(err);
+      // Revert if failed (Simple refetch for safety)
+      get().fetchCustomers();
+    }
+  },
+
+  updateNotes: async (id: string, notes: string) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${API_URL}/users/admin/customers/${id}/notes`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ notes })
+      });
+      if (!response.ok) throw new Error('Failed to update notes');
+
+      set((state) => ({
+        customers: state.customers.map(c => String(c.id) === String(id) ? { ...c, adminNotes: notes } : c)
+      }));
+    } catch (err) {
+      console.error(err);
+    }
+  }
 }));
+
+// Helper for fetch PATCH
+async function Patch(url: string, token: string | null) {
+  return fetch(url, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+}

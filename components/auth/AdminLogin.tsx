@@ -24,6 +24,22 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fingerprint, setFingerprint] = useState<string | null>(null);
+
+  // Initialize FingerprintJS on mount for 2026 security standards
+  React.useEffect(() => {
+    const loadFingerprint = async () => {
+      try {
+        const { default: FingerprintJS } = await import('@fingerprintjs/fingerprintjs');
+        const fp = await FingerprintJS.load();
+        const result = await fp.get();
+        setFingerprint(result.visitorId);
+      } catch (err) {
+        console.warn('Failed to load fingerprint:', err);
+      }
+    };
+    loadFingerprint();
+  }, []);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,8 +47,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     try {
-      // 1. First Step: Credentials Check
-      const data = await authApi.login(email, password);
+      // 1. First Step: Credentials Check (Include Fingerprint for Deduplication)
+      const data = await authApi.login(email, password, fingerprint || undefined);
 
       // Store Token (Temporary scope)
       localStorage.setItem('access_token', data.access_token);

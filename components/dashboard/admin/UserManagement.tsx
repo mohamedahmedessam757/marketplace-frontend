@@ -72,19 +72,22 @@ export const UserManagement: React.FC = () => {
                                     </span>
                                 </td>
                                 <td className="p-4">
-                                    {user.role === 'Vendor' && user.status === 'PENDING_REVIEW' && (
+                                    {user.role === 'Vendor' && (user.status === 'PENDING_REVIEW' || user.status === 'PENDING_DOCUMENTS') && (
                                         <div className="flex gap-2">
                                             {/* Action Buttons: Only for Admins */}
                                             {hasWriteAccess ? (
                                                 <>
                                                     <button
-                                                        onClick={adminApproveVendor}
+                                                        onClick={() => adminApproveVendor(String(user.id))}
                                                         className="p-2 bg-green-500/20 hover:bg-green-500 text-green-400 hover:text-white rounded-lg transition-colors" title={t.common.approve}
                                                     >
                                                         <CheckCircle2 size={16} />
                                                     </button>
                                                     <button
-                                                        onClick={() => adminRejectVendor('Docs invalid')}
+                                                        onClick={() => {
+                                                            const reason = prompt(isAr ? 'أدخل سبب الرفض:' : 'Enter rejection reason:');
+                                                            if (reason) adminRejectVendor(String(user.id), reason);
+                                                        }}
                                                         className="p-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-lg transition-colors" title={t.common.reject}
                                                     >
                                                         <XCircle size={16} />

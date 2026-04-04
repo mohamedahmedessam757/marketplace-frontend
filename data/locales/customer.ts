@@ -1,4 +1,3 @@
-
 export const customer = {
   ar: {
     menu: {
@@ -13,7 +12,7 @@ export const customer = {
       notifications: 'الإشعارات',
       settings: 'الإعدادات',
       shipments: 'الشحنات',
-      shippingCart: 'سلة الشحن',
+      shippingCart: 'سلة التجميع',
       billing: 'الدفع والفواتير',
       preferences: 'التفضيلات والإشعارات',
       loyalty: 'التقييم والولاء',
@@ -31,11 +30,31 @@ export const customer = {
       history: 'السجل',
       earned: 'المكتسبة',
       rewards: 'المكافآت',
-      reviews: 'تقييمات'
+      reviews: 'تقييمات',
+      status: {
+        AWAITING_OFFERS: 'بانتظار العروض',
+        AWAITING_PAYMENT: 'بانتظار الدفع',
+        PREPARATION: 'قيد التجهيز',
+        VERIFICATION: 'قيد التوثيق',
+        VERIFICATION_SUCCESS: 'توثيق ناجح',
+        NON_MATCHING: 'غير مطابق',
+        CORRECTION_PERIOD: 'فترة التصحيح',
+        CORRECTION_SUBMITTED: 'تم تصحيح التوثيق',
+        SHIPPED: 'تم الشحن',
+        DELIVERED: 'تم التوصيل',
+        COMPLETED: 'مكتمل',
+        CANCELLED: 'ملغى',
+        RETURNED: 'مرتجع',
+        DISPUTED: 'نزاع قائم',
+        REFUNDED: 'تم الاسترداد',
+        AWAITING_SHIPMENT: 'بانتظار الشحن'
+      }
     },
     shipments: {
       subtitle: 'تتبع جميع شحناتك الحالية والسابقة',
       noShipments: 'لا توجد شحنات',
+      orderNo: 'رقم الطلب',
+      partDetails: 'تفاصيل القطعة',
       routeDetails: 'تفاصيل المسار',
       items: 'المحتويات',
       quantity: 'الكمية'
@@ -45,17 +64,19 @@ export const customer = {
       hideTracking: 'إخفاء التتبع'
     },
     shippingCart: {
-      subtitle: 'تجميع العناصر المحتجزة في شحنة واحدة لتوفير التكاليف',
+      subtitle: 'تجميع العناصر المحتجزة في شحنة واحدة',
       itemsInCart: 'عناصر في السلة',
       summary: 'ملخص الطلب',
       subtotal: 'المجموع الفرعي',
       shippingEst: 'تكلفة الشحن التقديرة',
       calculatedNext: 'تُحسب في الخطوة التالية',
       total: 'الإجمالي',
-      proceed: 'المتابعة للدفع',
-      timerNote: 'يتم حجز العناصر المضافة للسلة لمدة 48 ساعة. يرجى إتمام الشراء قبل انتهاء الوقت.',
-      empty: 'سلة الشحن فارغة',
-      emptyDesc: 'ستظهر العناصر هنا بعد قبول عرض من أحد البائعين. تصفح طلباتك واقبل العروض لإضافة عناصر إلى سلتك.',
+      requestShipping: 'طلب شحن',
+      timerNote: 'يتم حجز العناصر المضافة للسلة لمدة 7 أيام كحد أقصى. يرجى طلب الشحن قبل انتهاء الوقت.',
+      autoShipNote: 'سيتم شحن العناصر تلقائياً بعد مرور 7 أيام على الدفع.',
+      daysRemaining: 'أيام متبقية',
+      empty: 'سلة التجميع فارغة',
+      emptyDesc: 'ستظهر القطع التي تتطلب تجميع هنا بعد الدفع. الطلبات المكونة من قطعة واحدة تذهب مباشرة إلى الشحنات.',
       store: 'المتجر',
       modes: {
         title: 'نوع الشحن',
@@ -69,7 +90,7 @@ export const customer = {
       stats: {
         active: 'الطلبات النشطة',
         completed: 'المكتملة',
-        spent: 'إجمالي المصروفات'
+        totalOrders: 'إجمالي الطلبات'
       },
       headers: {
         liveTracking: 'متابعة مباشرة',
@@ -186,6 +207,9 @@ export const customer = {
     offers: {
       incVat: 'السعر شامل الضريبة',
       accept: 'قبول',
+      acceptOffer: 'قبول العرض',
+      chat: 'محادثة',
+      orderClosed: 'الطلب منتهي',
       finalPrice: 'السعر النهائي',
       shippingIncluded: 'شامل الشحن',
       offerNotes: 'ملاحظات المتجر',
@@ -195,20 +219,18 @@ export const customer = {
         used_clean: 'مستعمل - نظيف',
         remanufactured: 'مجدد'
       },
-      warranties: {
-        yes: 'ضمان متوفر',
-        no: 'بدون ضمان'
-      },
       delivery: {
-        d1_3: '1-3 أيام',
-        d3_7: '3-7 أيام',
-        d7_14: '7-14 يوم'
+        d1_3: 'من 1 إلى 3 أيام',
+        d3_5: 'من 3 إلى 5 أيام',
+        d3_7: 'من 3 إلى 7 أيام',
+        d5_7: 'من 5 إلى 7 أيام',
+        d7_14: 'من 7 إلى 14 يوم'
       },
       labels: {
         condition: 'الحالة',
         type: 'النوع',
         warranty: 'الضمان',
-        delivery: 'مدة التواصيل',
+        delivery: 'مدة التوصيل',
         weight: 'الوزن التقريبي',
         notes: 'ملاحظات التاجر',
         unitPrice: 'سعر القطعة'
@@ -216,10 +238,41 @@ export const customer = {
       partTypes: {
         original: 'أصلي',
         commercial: 'تجاري',
-        aftermarket: 'تجاري'
+        aftermarket: 'تجاري',
+        normal: 'عادي',
+        engine: 'محرك',
+        gearbox: 'قير / ناقل حركة'
+      },
+      warranties: {
+        yes: 'ضمان متوفر',
+        no: 'بدون ضمان',
+        month1: 'ضمان شهر',
+        month3: 'ضمان 3 أشهر',
+        month6: 'ضمان 6 أشهر',
+        year1: 'ضمان سنة'
       },
       units: {
-        kg: 'كجم'
+        kg: 'كجم',
+        settings: {
+          global: 'التفضيلات العامة',
+          lang: 'اللغة',
+          langDesc: 'اختر لغة العرض',
+          currency: 'العملة',
+          currencyDesc: 'عملة العرض الافتراضية',
+          notif: 'الإشعارات',
+          notificationTypes: {
+            email: 'إشعارات البريد الإلكتروني',
+            push: 'إشعارات التنبيه',
+            offers: 'تحديثات العروض',
+            sms: 'تنبيهات الرسائل النصية'
+          },
+          delete: 'حذف الحساب',
+          dangerDesc: 'حذف الحساب والبيانات نهائياً',
+          deleteConfirm: 'هل أنت متأكد؟',
+          deleteWarning: 'لا يمكن التراجع عن هذا الإجراء. سيتم حذف جميع بياناتك وفواتيرك بشكل دائم.',
+          typeToConfirm: 'اكتب "DELETE" للتأكيد',
+          cancel: 'إلغاء'
+        }
       }
     },
     chat: {
@@ -235,10 +288,53 @@ export const customer = {
     },
     checkout: {
       title: 'إتمام الطلب',
-      steps: { address: 'العنوان', summary: 'الفاتورة', payment: 'الدفع', confirm: 'التأكيد' },
-      address: { name: 'الاسم الكامل', phone: 'رقم الجوال', city: 'المدينة', address: 'تفاصيل العنوان' },
+      common: { back: 'رجوع', continue: 'المتابعة لتأكيد الطلب', payNow: 'دفع الآن', editData: 'تعديل البيانات' },
+      steps: { address: 'تأكيد بيانات الشحن', summary: 'الفاتورة', finalReview: 'تأكيد الطلبات', payment: 'الدفع', confirm: 'التأكيد' },
+      finalReview: {
+        title: "مراجعة نهائية قبل إتمام عملية الشراء",
+        orderDetails: "تفاصيل الطلب النهائي",
+        price: "السعر",
+        orderNoDate: "رقم الطلب والتاريخ",
+        offerNo: "رقم العرض",
+        storeNo: "رقم المتجر",
+        paymentStatus: "حالة الدفع",
+        shippingInfo: "معلومات الشحن",
+        orderInfo: "معلومات الطلب",
+        shippingType: "آلية الشحن",
+        orderStatus: "حالة الطلب",
+        itemsCount: "عدد القطع",
+        notes: "ملاحظات",
+        groupedAlertTitle: "تنبيه هام حول الشحن المجمع",
+        groupedAlert1: "سيتم تجميع القطع وشحنها معاً في بوليصة واحدة.",
+        groupedAlert2: "قد يستغرق الشحن المجمع وقتاً أطول قليلاً لضمان وصول كافة القطع معاً بسلام.",
+        approve: "موافق",
+        cancel: "إلغاء",
+        condition: "حالة القطعة",
+        deliveryTime: "مدة التوصيل",
+        approxWeight: "الوزن التقريبي",
+        warranty: "مدة الضمان",
+        noWarranty: "بدون ضمان"
+      },
+      address: {
+        name: 'الاسم الكامل', phone: 'رقم الجوال', email: 'البريد الإلكتروني', country: 'الدولة', city: 'المدينة', address: 'تفاصيل العنوان',
+        alertTitle: 'تنبيه: يجب الموافقة على الشروط',
+        alertText: 'تم قبول جميع العروض بنجاح! الآن يجب الموافقة على الشروط والأحكام و سياسة الإرجاع والاستبدال للقطع الثقيلة (أكثر من 100 كجم) يُفضل إدخال عنوان الورشة أو الكراج لتسهيل الشحن ، ويمكنك تعديل العنوان لاحقًا للطلبات الأخرى للمتابعة.',
+        termsCheckboxStart: 'أوافق على ',
+        termsCheckboxLink: 'الشروط والأحكام الخاصة بمنصة إي تشليح',
+        policyCheckboxStart: 'أوافق على ',
+        policyCheckboxLink: 'سياسة الإرجاع والاستبدال',
+        policyCheckboxEnd: ' وأتفهم الشروط المذكورة',
+        validationError: 'يجب تعبئة جميع البيانات والموافقة على الشروط والأحكام وسياسة الإرجاع أولاً'
+      },
       summary: { item: 'قيمة القطعة', vat: 'ضريبة القيمة المضافة', shipping: 'رسوم الشحن', total: 'الإجمالي', pay: 'دفع' },
-      payment: { title: 'بيانات البطاقة', holder: 'اسم حامل البطاقة', card: 'رقم البطاقة', expiry: 'تاريخ الانتهاء', cvv: 'رمز الأمان', secure: 'دفع آمن ومحمي بواسطة Stripe' },
+      payment: {
+        title: 'بيانات البطاقة', holder: 'اسم حامل البطاقة', card: 'رقم البطاقة', expiry: 'تاريخ الانتهاء', cvv: 'رمز الأمان', secure: 'دفع آمن ومحمي بواسطة Stripe',
+        selectOffer: 'اختر العرض للدفع', payForOffer: 'دفع لهذا العرض', unitPrice: 'سعر القطعة', shippingFee: 'رسوم الشحن',
+        platformCommission: 'عمولة المنصة', totalDue: 'المبلغ المطلوب', paid: 'تم الدفع', remaining: 'متبقي',
+        allPaid: 'تم دفع جميع العروض بنجاح!', paymentFailed: 'فشل الدفع', invalidCard: 'بيانات البطاقة غير صحيحة',
+        paySuccess: 'تم الدفع بنجاح!', remainingParts: 'لا يزال هناك قطع لم يتم الدفع لها', readyToPay: 'جاهز للدفع',
+        payingFor: 'الدفع لـ'
+      },
       success: { title: 'تم الدفع بنجاح', desc: 'تم استلام طلبك وجاري العمل على تجهيزه.', back: 'العودة للطلبات' }
     },
     profile: {
@@ -309,137 +405,35 @@ export const customer = {
         cancelled: 'ملغى'
       }
     },
-    reviews: {
-      writeTitle: 'قيم تجربتك',
-      rating: 'التقييم',
-      comment: 'اكتب تعليقك هنا...',
-      placeholder: 'صف تجربتك مع المنتج والتاجر...',
-      submit: 'إرسال التقييم',
-      success: 'تم إرسال التقييم بنجاح',
-      published: 'منشور',
-      pending: 'قيد المراجعة'
-    },
-    resolution: {
-      billing: 'الفواتير',
-      loyalty: 'نقاط الولاء',
-      return: 'طلب إرجاع',
-      dispute: 'نزاع',
-      subtitle: 'إدارة النزاعات وطلبات الإرجاع',
-      returnPolicy: 'يمكنك طلب الإرجاع خلال 48 ساعة من الاستلام في حال وجود عيب مصنعي أو عدم مطابقة.',
-      disputePolicy: 'يتم تجميد المبلغ فوراً عند فتح النزاع. يرجى التواصل مع المتجر أولاً لمحاولة حل المشكلة ودياً.',
-      reasons: {
-        not_matching: 'القطعة غير مطابقة للوصف',
-        defective: 'القطعة تالفة أو معيبة',
-        delayed: 'تأخر الشحن عن الموعد المحدد',
-        wrong_item: 'استلام منتج خاطئ'
-      },
-      guidelines: {
-        title: 'إرشادات التغليف',
-        policy: 'سياسة الإرجاع',
-        packaging: 'تعليمات الشحن',
-        steps: [
-          'استخدم العبوة الأصلية إن أمكن لضمان حماية القطعة.',
-          'تأكد من أن القطعة نظيفة وخالية من السوائل (زيوت، وقود).',
-          'استخدم حماية كافية (فقاعات) للأجزاء القابلة للكسر.',
-          'أغلق الصندوق بإحكام باستخدام شريط لاصق قوي.'
-        ],
-        highlights: [
-          'يتم قبول المرتجعات خلال 7 أيام من الاستلام في حال وجود عيب.',
-          'يجب أن تكون القطعة بنفس الحالة المستلمة (العلامات كما هي).',
-          'قد تطبق رسوم شحن للإرجاع في حال عدم وجود عيب بالقطعة.',
-          'تتم معالجة الاسترداد لنفس وسيلة الدفع أو المحفظة خلال 5 أيام.'
-        ]
-      },
-      form: {
-        reason: 'سبب الطلب',
-        desc: 'وصف المشكلة بالتفصيل',
-        evidence: 'الأدلة (صور/فيديو)',
-        submitReturn: 'إرسال طلب الإرجاع',
-        submitDispute: 'فتح نزاع رسمي',
-        upload: 'رفع ملفات'
-      },
-      alerts: {
-        freeze: 'تنبيه: سيتم تجميد المبلغ وحجزه لدى المنصة لحين حل النزاع نهائياً.',
-        success: 'تم فتح الطلب بنجاح. سنقوم بمراجعة طلبك وإبلاغك بالتحديثات.'
-      }
-    },
-    returns: {
-      subtitle: 'إدارة طلبات الإرجاع والمنازعات',
-      tabs: {
-        activeReturns: 'المرتجعات النشطة',
-        disputes: 'النزاعات',
-        guidelines: 'الإرشادات'
-      },
-      noReturns: 'لا توجد طلبات إرجاع',
-      noReturnsDesc: 'لم تقم بتقديم أي طلب إرجاع حالياً',
-      noDisputes: 'لا توجد نزاعات',
-      noDisputesDesc: 'سجلك نظيف خالي من النزاعات'
-    },
-    billing: {
-      title: 'الدفع والفواتير',
-      subtitle: 'إدارة فواتير الطلبات والمدفوعات',
-      tabs: {
-        unpaid: 'فواتير غير مدفوعة',
-        history: 'سجل المدفوعات',
-        methods: 'طرق الدفع'
-      },
-      wallet: 'المحفظة',
-      invoice: {
-        id: 'رقم الفاتورة',
-        date: 'تاريخ الفاتورة',
-        amount: 'المبلغ الإجمالي',
-        status: 'حالة الدفع',
-        view: 'عرض الفاتورة',
-        pay: 'دفع الآن',
-        details: 'تفاصيل الفاتورة',
-        download: 'تحميل PDF',
-        print: 'طباعة',
-        billTo: 'فاتورة إلى',
-        shipTo: 'الشحن إلى',
-        item: 'المنتج',
-        qty: 'الكمية',
-        price: 'السعر',
-        total: 'الإجمالي',
-        vat: 'الضريبة (15%)',
-        subtotal: 'المجموع الفعلي',
-        shipping: 'الشحن',
-        grandTotal: 'المبلغ النهائي',
-        sender: 'المرسل',
-        receiver: 'المستلم',
-        note: 'ملاحظة'
-      },
-      cardForm: {
-        holder: 'اسم حامل البطاقة',
-        number: 'رقم البطاقة',
-        expiry: 'تاريخ الانتهاء (MM/YY)',
-        cvc: 'رمز الأمان (CVC)',
-        save: 'حفظ البطاقة',
-        cancel: 'إلغاء',
-        makeDefault: 'تعيين كافتراضي',
-        default: 'افتراضي',
-        expires: 'تنتهي في',
-        noCards: 'لا توجد بطاقات محفوظة'
-      },
-      empty: {
-        unpaid: 'لا توجد فواتير مستحقة الدفع',
-        history: 'لا يوجد سجل مدفوعات سابق'
-      }
-    },
     support: {
-      subtitle: 'مركز المساعدة والدعم الفني',
+      title: 'مركز الدعم والمساعدة المباشر',
+      subtitle: 'نحن هنا لضمان حصولك على أفضل تجربة تسوق وحل أي تحديات قد تواجهك.',
       createTicket: 'فتح تذكرة جديدة',
       newTicketTitle: 'تفاصيل التذكرة',
       subject: 'الموضوع',
       message: 'الرسالة',
-      myTickets: 'تذاكري',
+      myTickets: 'سجل تذاكري',
       noTickets: 'لا توجد تذاكر دعم سابقة',
+      noTicketsDesc: 'لم تقم بتقديم أي تذاكر دعم فني حتى الآن.',
+      liveChat: 'المحادثة الفورية',
+      liveChatDesc: 'تحدث مع فريق الدعم الفني الآن',
+      categories: {
+        orders: 'مشاكل الطلبات والتتبع',
+        returns: 'المرتجعات والنزاعات',
+        payment: 'المدفوعات والمحفظة',
+        technical: 'الدعم التقني والتطبيق',
+        other: 'أخرى'
+      },
       faq: {
+        title: 'الأسئلة الشائعة للعملاء',
         q1: 'كيف يمكنني تتبع طلبي؟',
-        a1: 'يمكنك تتبع طلبك من صفحة "الشحنات" أو "طلباتي" بالنقر على زر التتبع.',
+        a1: 'يمكنك تتبع طلبي من صفحة "الشحنات" أو "طلباتي" بالنقر على زر التتبع.',
         q2: 'متى يمكنني طلب استرجاع المبلغ؟',
-        a2: 'يمكنك طلب الاسترجاع إذا لم يتم شحن الطلب، أو خلال 48 ساعة من الاستلام في حال وجود عيب.',
+        a2: 'يمكنك طلب الاسترجاع إذا لم يتم شحن الطلب، أو خلال 48 ساعة من الاستلام في حال وجود عيب مصنعي.',
         q3: 'كيف أتواصل مع البائع؟',
-        a3: 'يمكنك استخدام خيار المحادثة المباشرة في صفحة تفاصيل الطلب.'
+        a3: 'يمكنك استخدام خيار المحادثة المباشرة في صفحة تفاصيل الطلب للتحدث مع التاجر.',
+        q4: 'ما هو الوقت المتوقع للرد؟',
+        a4: 'فريقنا يعمل على مدار الساعة، وعادة ما يتم الرد على التذاكر العاجلة في أقل من ساعتين.'
       },
       form: {
         priority: 'الأولوية',
@@ -447,8 +441,8 @@ export const customer = {
         medium: 'متوسطة',
         high: 'عالية',
         summaryPlaceholder: 'ملخص مختصر للمشكلة',
-        descPlaceholder: 'يرجى وصف مشكلتك بالتفصيل...',
-        upload: 'اضغط هنا لرفع صور أو ملفات ذات صلة',
+        descPlaceholder: 'يرجى شرح مشكلتك بالتفصيل لنتمكن من مساعدتك بسرعة...',
+        upload: 'اضغط هنا لرفع صور أو ملفات توضيحية',
         error: 'فشل إرسال التذكرة. يرجى المحاولة مرة أخرى.',
         submitting: 'جاري الإرسال...'
       }
@@ -483,7 +477,7 @@ export const customer = {
     notifications: {
       title: 'الإشعارات',
       markAllRead: 'تحديد الكل كمقروء',
-      empty: 'لا توجد إشعارات جديدة',
+      empty: 'لا توجد إشعارات جديدة حالياً',
       newOffer: 'عرض جديد',
       offerAccepted: 'تم قبول العرض',
       paymentConfirmed: 'تأكيد الدفع',
@@ -492,6 +486,177 @@ export const customer = {
       rateRequest: 'طلب تقييم',
       disputeUpdate: 'تحديث نزاع',
       adminAlert: 'تنبيه إداري'
+    },
+    reviews: {
+      writeTitle: 'تقييم التجربة',
+      rating: 'التقييم',
+      comment: 'اكتب تعليقك...',
+      placeholder: 'صف تجربتك مع المنتج والتاجر...',
+      submit: 'إرسال التقييم',
+      success: 'تم إرسال التقييم بنجاح',
+      published: 'منشور',
+      pending: 'قيد المراجعة'
+    },
+    resolution: {
+      billing: 'الفواتير',
+      loyalty: 'نقاط الولاء',
+      newReturn: 'طلب إرجاع جديد',
+      newDispute: 'فتح نزاع جديد',
+      subtitle: 'إدارة المرتجعات والنزاعات',
+      returnPolicy: 'يمكنك طلب الإرجاع خلال 48 ساعة من الاستلام في حال وجود عيوب أو عدم تطابق.',
+      disputePolicy: 'يتم تجميد الأموال فور فتح النزاع. يرجى التواصل مع التاجر أولاً.',
+      reasons: {
+        not_matching: 'القطعة غير مطابقة للوصف',
+        defective: 'القطعة معطوبة أو تالفة',
+        not_working: 'القطعة لا تعمل / عطل مصنعي',
+        delayed: 'تأخر الشحن',
+        wrong_item: 'استلام قطعة خاطئة',
+        wrong_size: 'خطأ في المقاس أو الموديل',
+        shipping_error: 'خطأ من شركة الشحن'
+      },
+      guidelines: {
+        title: 'تعليمات التغليف',
+        policy: 'سياسة الإرجاع',
+        packaging: 'تعليمات الشحن',
+        steps: [
+          'استخدم التغليف الأصلي إن أمكن لضمان حماية القطعة.',
+          'تأكد من نظافة القطعة وخلوها من السوائل (زيت، وقود).',
+          'استخدم مواد توسيد كافية (فقاعات هوائية) للمكونات القابلة للكسر.',
+          'أغلق الصندوق بإحكام باستخدام شريط لاصق قوي.'
+        ],
+        highlights: [
+          'يتم قبول المرتجعات خلال 7 أيام من الاستلام للقطع المعيبة.',
+          'يجب أن تكون القطعة بنفس الحالة التي استلمت بها.',
+          'قد يتم تطبيق رسوم شحن للمرتجعات غير الناتجة عن عيب.',
+          'تتم معالجة الاسترداد خلال 5 أيام عمل.'
+        ]
+      },
+      form: {
+        reason: 'السبب',
+        desc: 'وصف تفصيلي',
+        evidence: 'الأدلة (صور/فيديو)',
+        submitReturn: 'إرسال طلب الإرجاع',
+        submitDispute: 'فتح نزاع رسمي',
+        upload: 'رفع الملفات'
+      },
+      alerts: {
+        freeze: 'تنبيه: سيتم تجميد المبلغ لدى المنصة حتى حل النزاع.',
+        success: 'تم فتح الطلب بنجاح. سنقوم بالمراجعة والتحديث.'
+      },
+      statusTimeline: {
+        requested: 'تم تقديم الطلب',
+        awaiting_merchant: 'بانتظار رد المتجر',
+        awaiting_admin: 'بانتظار مراجعة الإدارة',
+        under_review: 'يقوم المسؤول بمراجعة الأدلة الآن',
+        merchant_accepted: 'وافق المتجر على الإرجاع',
+        merchant_rejected: 'رفض المتجر الطلب - جاري التصعيد للإدارة',
+        admin_review: 'يقوم المسؤول بمراجعة الأدلة الآن',
+        resolved: 'تم إصدار القرار النهائي',
+        final_verdict: 'تم إصدار القرار النهائي'
+      },
+      chat: {
+        title: 'نقاش الحالة',
+        realtimeActive: 'الدعم المباشر نشط',
+        placeholder: 'اكتب رسالتك أو تفاصيل الأدلة...',
+        officialAdmin: 'مسؤول المنصة الرسمي',
+        merchant: 'ممثل المتجر',
+        customer: 'العميل (أنت)'
+      },
+      details: {
+        back: 'الرجوع للقائمة',
+        statusProtocol: 'بروتوكول الحالة',
+        digitalSignature: 'التوقيع الرقمي',
+        subject: 'موضوع الحساب',
+        orderRef: 'مرجع الطلب',
+        initiated: 'تاريخ البدء',
+        primaryReason: 'السبب الرئيسي',
+        merchantEntity: 'كيان التاجر',
+        statement: 'بيان العميل',
+        evidence: 'الأدلة المرئية',
+        secureDiscussion: 'نقاش الحالة الآمن',
+        verdict: 'قرار الحوكمة',
+        conclusion: 'الاستنتاج النهائي',
+        closedAt: 'تم الإغلاق في',
+        defense: 'دفاع التاجر',
+        escrowSecurity: 'أمن الضمان (Escrow)',
+        escrowDesc: 'يتم الاحتفاظ بأموال هذا الطلب في ضماننا المشفر. يقوم فريق الخبراء بمراجعة كل نزاع يدوياً قبل تحرير الأموال.',
+        activity: 'نشاط الحالة',
+        opened: 'تم فتح الحالة',
+        notified: 'تم إخطار التاجر',
+        update: 'تحديث النظام'
+      },
+      initiate: {
+        title: 'بدء طلب جديد',
+        selectOrder: 'اختر الطلب',
+        noEligible: 'لا توجد طلبات مؤهلة حالياً',
+        noEligibleDesc: 'تظهر هنا فقط الطلبات المستلمة خلال الـ 48 ساعة الماضية.',
+        returnItem: 'إرجاع واسترداد',
+        openDispute: 'فتح نزاع رسمي',
+        selectPart: 'اختر القطعة المعنية'
+      }
+    },
+    returns: {
+      subtitle: 'إدارة المرتجعات والنزاعات',
+      tabs: {
+        activeReturns: 'المرتجعات النشطة',
+        disputes: 'النزاعات',
+        guidelines: 'التعليمات'
+      },
+      noReturns: 'لا توجد مرتجعات نشطة',
+      noReturnsDesc: 'لم تقم بتقديم أي طلبات إرجاع بعد',
+      noDisputes: 'لا توجد نزاعات',
+      noDisputesDesc: 'سجلك نظيف من النزاعات'
+    },
+    billing: {
+      title: 'الدفع والفواتير',
+      subtitle: 'إدارة فواتير الطلبات والمدفوعات',
+      tabs: {
+        unpaid: 'فواتير غير مدفوعة',
+        history: 'سجل المدفوعات',
+        methods: 'وسائل الدفع',
+        pendingOffers: 'مدفوعات معلقة'
+      },
+      wallet: 'المحفظة',
+      invoice: {
+        id: 'فاتورة #',
+        date: 'تاريخ الفاتورة',
+        amount: 'المبلغ الإجمالي',
+        status: 'حالة الدفع',
+        view: 'عرض الفاتورة',
+        pay: 'ادفع الآن',
+        details: 'تفاصيل الفاتورة',
+        download: 'تحميل PDF',
+        print: 'طباعة',
+        billTo: 'فاتورة إلى',
+        shipTo: 'شحن إلى',
+        item: 'البند',
+        qty: 'الكمية',
+        price: 'السعر',
+        total: 'الإجمالي',
+        vat: 'الضريبة (15%)',
+        subtotal: 'المجموع الفرعي',
+        shipping: 'الشحن',
+        grandTotal: 'الإجمالي الكلي',
+        sender: 'المرسل',
+        receiver: 'المستلم',
+        note: 'ملاحظة'
+      },
+      cardForm: {
+        holder: 'اسم صاحب البطاقة',
+        number: 'رقم البطاقة',
+        expiry: 'الانتهاء (MM/YY)',
+        cvc: 'الرمز (CVC)',
+        save: 'حفظ البطاقة',
+        cancel: 'إلغاء',
+        makeDefault: 'تعيين كافتراضي',
+        default: 'افتراضية',
+        expires: 'تنتهي في',
+        noCards: 'لا توجد بطاقات محفوظة'
+      },
+      empty: {
+        unpaid: 'لا توجد فواتير غير مدفوعة',
+        history: 'سجل المدفوعات فارغ'
+      }
     }
   },
   en: {
@@ -507,7 +672,7 @@ export const customer = {
       notifications: 'Notifications',
       settings: 'Settings',
       shipments: 'Shipments',
-      shippingCart: 'Shipping Cart',
+      shippingCart: 'Assembly Cart',
       billing: 'Billing & Invoices',
       preferences: 'Preferences',
       loyalty: 'Loyalty & Rewards',
@@ -525,11 +690,31 @@ export const customer = {
       history: 'History',
       earned: 'Earned',
       rewards: 'Rewards',
-      reviews: 'Reviews'
+      reviews: 'Reviews',
+      status: {
+        AWAITING_OFFERS: 'Awaiting Offers',
+        AWAITING_PAYMENT: 'Awaiting Payment',
+        PREPARATION: 'Preparation',
+        VERIFICATION: 'Verification Pending',
+        VERIFICATION_SUCCESS: 'Verification Approved',
+        NON_MATCHING: 'Non-Matching',
+        CORRECTION_PERIOD: 'Correction Period',
+        CORRECTION_SUBMITTED: 'Correction Submitted',
+        SHIPPED: 'Shipped',
+        DELIVERED: 'Delivered',
+        COMPLETED: 'Completed',
+        CANCELLED: 'Cancelled',
+        RETURNED: 'Returned',
+        DISPUTED: 'Disputed',
+        REFUNDED: 'Refunded',
+        AWAITING_SHIPMENT: 'Awaiting Shipment'
+      }
     },
     shipments: {
       subtitle: 'Track all your incoming and past shipments',
       noShipments: 'No shipments found',
+      orderNo: 'Order No',
+      partDetails: 'Part Details',
       routeDetails: 'Route Details',
       items: 'Items',
       quantity: 'Qty'
@@ -539,17 +724,19 @@ export const customer = {
       hideTracking: 'Hide Tracking'
     },
     shippingCart: {
-      subtitle: 'Consolidate your held items into one shipment to save costs',
+      subtitle: 'Consolidate your held items into one shipment',
       itemsInCart: 'Items in Cart',
       summary: 'Order Summary',
       subtotal: 'Subtotal',
       shippingEst: 'Shipping estimate',
       calculatedNext: 'Calculated next step',
       total: 'Total',
-      proceed: 'Proceed to Checkout',
-      timerNote: 'Items added to cart are reserved for 48 hours. Please complete purchase before timer expires.',
-      empty: 'Your shipping cart is empty',
-      emptyDesc: 'Items will appear here after accepting an offer from a vendor. Browse your orders and accept offers to add items to your cart.',
+      requestShipping: 'Request Shipping',
+      timerNote: 'Items added to the cart are reserved for up to 7 days. Please request shipping before the timer expires.',
+      autoShipNote: 'Items will be shipped automatically 7 days after payment.',
+      daysRemaining: 'days remaining',
+      empty: 'Your assembly cart is empty',
+      emptyDesc: 'Items requiring assembly will appear here after payment. Single-part orders go directly to Shipments.',
       store: 'Store',
       modes: {
         title: 'Shipping Mode',
@@ -563,7 +750,7 @@ export const customer = {
       stats: {
         active: 'Active Orders',
         completed: 'Completed',
-        spent: 'Total Spent'
+        totalOrders: 'Total Orders'
       },
       headers: {
         liveTracking: 'Live Tracking',
@@ -680,6 +867,9 @@ export const customer = {
     offers: {
       incVat: 'Inc. VAT',
       accept: 'Accept',
+      acceptOffer: 'Accept Offer',
+      chat: 'Chat',
+      orderClosed: 'Order Closed',
       finalPrice: 'Final Price',
       shippingIncluded: 'Shipping Included',
       offerNotes: 'Vendor Notes',
@@ -689,13 +879,11 @@ export const customer = {
         used_clean: 'Used - Clean',
         remanufactured: 'Remanufactured'
       },
-      warranties: {
-        yes: 'Warranty Available',
-        no: 'No Warranty'
-      },
       delivery: {
         d1_3: '1-3 Days',
+        d3_5: '3-5 Days',
         d3_7: '3-7 Days',
+        d5_7: '5-7 Days',
         d7_14: '7-14 Days'
       },
       labels: {
@@ -709,11 +897,42 @@ export const customer = {
       },
       partTypes: {
         original: 'Original',
-        commercial: 'Aftermarket',
-        aftermarket: 'Aftermarket'
+        commercial: 'Commercial',
+        aftermarket: 'Aftermarket',
+        normal: 'Normal',
+        engine: 'Engine',
+        gearbox: 'Gearbox'
+      },
+      warranties: {
+        yes: 'Warranty Available',
+        no: 'No Warranty',
+        month1: '1 Month Warranty',
+        month3: '3 Months Warranty',
+        month6: '6 Months Warranty',
+        year1: '1 Year Warranty'
       },
       units: {
-        kg: 'Kg'
+        kg: 'Kg',
+        settings: {
+          global: 'Global Preferences',
+          lang: 'Language',
+          langDesc: 'Select display language',
+          currency: 'Currency',
+          currencyDesc: 'Default display currency',
+          notif: 'Notifications',
+          notificationTypes: {
+            email: 'Email Notifications',
+            push: 'Push Notifications',
+            offers: 'Offer Updates',
+            sms: 'SMS Alerts'
+          },
+          delete: 'Delete Account',
+          dangerDesc: 'Permanently remove account and data',
+          deleteConfirm: 'Are you sure?',
+          deleteWarning: 'This action cannot be undone. All your data and invoices will be permanently deleted.',
+          typeToConfirm: 'Type "DELETE" to confirm',
+          cancel: 'Cancel'
+        }
       }
     },
     chat: {
@@ -729,10 +948,53 @@ export const customer = {
     },
     checkout: {
       title: 'Checkout',
-      steps: { address: 'Address', summary: 'Invoice', payment: 'Payment', confirm: 'Confirm' },
-      address: { name: 'Full Name', phone: 'Phone Number', city: 'City', address: 'Address Details' },
+      common: { back: 'Back', continue: 'Continue to Confirm', payNow: 'Pay Now', editData: 'Edit Data' },
+      steps: { address: 'Shipping Confirmation', summary: 'Invoice', finalReview: 'Order Confirmation', payment: 'Payment', confirm: 'Confirm' },
+      finalReview: {
+        title: "Final review before completing the purchase",
+        orderDetails: "Final Order Details",
+        price: "Price",
+        orderNoDate: "Order No. & Date",
+        offerNo: "Offer No.",
+        storeNo: "Store No.",
+        paymentStatus: "Payment Status",
+        shippingInfo: "Shipping Information",
+        orderInfo: "Order Information",
+        shippingType: "Shipping Type",
+        orderStatus: "Order Status",
+        itemsCount: "Items Count",
+        notes: "Notes",
+        groupedAlertTitle: "Important Note on Grouped Shipping",
+        groupedAlert1: "Items will be grouped and shipped together in a single waybill.",
+        groupedAlert2: "Grouped shipping may take slightly longer to ensure all items arrive safely together.",
+        approve: "Approve",
+        cancel: "Cancel",
+        condition: "Condition",
+        deliveryTime: "Delivery Time",
+        approxWeight: "Approx. Weight",
+        warranty: "Warranty",
+        noWarranty: "No Warranty"
+      },
+      address: {
+        name: 'Full Name', phone: 'Phone Number', email: 'Email', country: 'Country', city: 'City', address: 'Address Details',
+        alertTitle: 'Attention: Terms Agreement Required',
+        alertText: 'All offers accepted successfully! Now you must agree to the Terms & Conditions and the Return & Exchange Policy. For heavy parts (over 100 kg), it is preferable to enter a workshop or garage address to facilitate shipping. You can edit the address later for other orders to continue.',
+        termsCheckboxStart: 'I agree to the ',
+        termsCheckboxLink: 'Terms & Conditions of the E-TASHLEH platform',
+        policyCheckboxStart: 'I agree to the ',
+        policyCheckboxLink: 'Return & Exchange Policy',
+        policyCheckboxEnd: ' and understand the conditions',
+        validationError: 'You must fill all data and agree to the Terms and Return Policy first'
+      },
       summary: { item: 'Part Value', vat: 'VAT', shipping: 'Shipping', total: 'Total', pay: 'Pay' },
-      payment: { title: 'Card Details', holder: 'Cardholder Name', card: 'Card Number', expiry: 'Expiry Date', cvv: 'CVV', secure: 'Secure Payment by Stripe' },
+      payment: {
+        title: 'Card Details', holder: 'Cardholder Name', card: 'Card Number', expiry: 'Expiry Date', cvv: 'CVV', secure: 'Secure Payment by Stripe',
+        selectOffer: 'Select Offer to Pay', payForOffer: 'Pay for this Offer', unitPrice: 'Unit Price', shippingFee: 'Shipping Fee',
+        platformCommission: 'Platform Commission', totalDue: 'Total Due', paid: 'Paid', remaining: 'Remaining',
+        allPaid: 'All offers paid successfully!', paymentFailed: 'Payment Failed', invalidCard: 'Invalid card details',
+        paySuccess: 'Payment Successful!', remainingParts: 'There are still unpaid parts', readyToPay: 'Ready to Pay',
+        payingFor: 'Paying for'
+      },
       success: { title: 'Payment Successful', desc: 'Order received and being processed.', back: 'Back to Orders' }
     },
     profile: {
@@ -816,16 +1078,19 @@ export const customer = {
     resolution: {
       billing: 'Billing',
       loyalty: 'Loyalty Points',
-      return: 'Return Request',
-      dispute: 'Dispute',
+      newReturn: 'New Return',
+      newDispute: 'New Dispute',
       subtitle: 'Manage disputes and returns',
       returnPolicy: 'You can request a return within 48 hours of delivery for defects or mismatch.',
       disputePolicy: 'Funds are frozen immediately upon opening a dispute. Please contact merchant first.',
       reasons: {
         not_matching: 'Part not matching description',
         defective: 'Part defective or damaged',
+        not_working: 'Item not working / Manufacturer defect',
         delayed: 'Shipping delayed',
-        wrong_item: 'Wrong item received'
+        wrong_item: 'Wrong item received',
+        wrong_size: 'Wrong size or model',
+        shipping_error: 'Shipping logistics error'
       },
       guidelines: {
         title: 'Packaging Guidelines',
@@ -853,8 +1118,59 @@ export const customer = {
         upload: 'Upload Files'
       },
       alerts: {
-        freeze: 'Warning: Amount will be frozen and held by platform until dispute is resolved.',
-        success: 'Request opened successfully. We will review and update you.'
+        freeze: 'Notice: The funds will be held by the platform until the dispute is resolved.',
+        success: 'Request opened successfully. We will review and update shortly.'
+      },
+      statusTimeline: {
+        requested: 'Request Submitted',
+        awaiting_merchant: 'Awaiting Merchant Response',
+        awaiting_admin: 'Awaiting Administrative Review',
+        under_review: 'Admin is currently reviewing evidence',
+        merchant_accepted: 'Merchant Accepted Return',
+        merchant_rejected: 'Merchant Rejected - Escalating to Admin',
+        admin_review: 'Admin is currently reviewing evidence',
+        resolved: 'Final Verdict Issued',
+        final_verdict: 'Final Verdict Issued'
+      },
+      chat: {
+        title: 'Case Discussion',
+        realtimeActive: 'Live Support Active',
+        placeholder: 'Type your message or evidence details...',
+        officialAdmin: 'Official Platform Admin',
+        merchant: 'Store Representative',
+        customer: 'Customer (You)'
+      },
+      details: {
+        back: 'Back to List',
+        statusProtocol: 'Status Protocol',
+        digitalSignature: 'Digital Signature',
+        subject: 'Case Subject',
+        orderRef: 'Order Reference',
+        initiated: 'Initiated At',
+        primaryReason: 'Primary Reason',
+        merchantEntity: 'Merchant Entity',
+        statement: 'Customer Statement',
+        evidence: 'Visual Evidence',
+        secureDiscussion: 'Secure Case Discussion',
+        verdict: 'Governance Verdict',
+        conclusion: 'Final Conclusion',
+        closedAt: 'Closed At',
+        defense: "Merchant's Defense",
+        escrowSecurity: 'Escrow Security',
+        escrowDesc: 'Funds for this order are held in our encrypted escrow. Our team of governance experts audits every dispute manually before releasing capital.',
+        activity: 'Case Activity',
+        opened: 'Case Opened',
+        notified: 'Merchant Notified',
+        update: 'System Update'
+      },
+      initiate: {
+        title: 'Initiate New Request',
+        selectOrder: 'Select Order',
+        noEligible: 'No Eligible Orders',
+        noEligibleDesc: 'Only orders delivered within the last 48 hours are eligible for return/dispute.',
+        returnItem: 'Return & Refund',
+        openDispute: 'Open Formal Dispute',
+        selectPart: 'Select Target Part'
       }
     },
     returns: {
@@ -875,7 +1191,8 @@ export const customer = {
       tabs: {
         unpaid: 'Unpaid Invoices',
         history: 'Payment History',
-        methods: 'Payment Methods'
+        methods: 'Payment Methods',
+        pendingOffers: 'Pending Payments'
       },
       wallet: 'Wallet',
       invoice: {
@@ -920,20 +1237,34 @@ export const customer = {
       }
     },
     support: {
-      subtitle: 'Help Center & Support',
+      title: 'Live Support & Help Center',
+      subtitle: 'We are here to ensure you have the best shopping experience and resolve any challenges.',
       createTicket: 'Open New Ticket',
-      newTicketTitle: 'Ticket Details',
-      subject: 'Subject',
-      message: 'Message',
-      myTickets: 'My Tickets',
-      noTickets: 'No support tickets found',
+      newTicketTitle: 'Submit New Request',
+      subject: 'Request Subject',
+      message: 'Detailed Description',
+      myTickets: 'My Tickets History',
+      noTickets: 'No tickets currently',
+      noTicketsDesc: 'You haven\'t submitted any support tickets yet.',
+      liveChat: 'Live Chat',
+      liveChatDesc: 'Talk to our support team now',
+      categories: {
+        orders: 'Orders & Tracking',
+        returns: 'Returns & Disputes',
+        payment: 'Payments & Wallet',
+        technical: 'Technical & App Support',
+        other: 'Other'
+      },
       faq: {
+        title: 'Customer FAQ',
         q1: 'How can I track my order?',
-        a1: 'You can track your order from "Shipments" or "My Orders" page by clicking track button.',
+        a1: 'You can track your order from the "Shipments" or "My Orders" page by clicking the track button.',
         q2: 'When can I request a refund?',
-        a2: 'You can request refund if not shipped, or within 48h of delivery if defective.',
-        q3: 'How to contact seller?',
-        a3: 'Use the live chat option in the order details page.'
+        a2: 'You can request a refund if the order hasn\'t shipped, or within 48h of delivery if there\'s a defect.',
+        q3: 'How to contact the seller?',
+        a3: 'Use the live chat option in the order details page to talk to merchants directly.',
+        q4: 'What is the expected response time?',
+        a4: 'Our team works 24/7, and urgent tickets are usually answered in less than 2 hours.'
       },
       form: {
         priority: 'Priority',
@@ -941,16 +1272,16 @@ export const customer = {
         medium: 'Medium',
         high: 'High',
         summaryPlaceholder: 'Brief summary of the issue',
-        descPlaceholder: 'Please describe your issue in detail...',
-        upload: 'Click to upload screenshots or relevant files',
-        error: 'Failed to create ticket. Please try again.',
+        descPlaceholder: 'Please explain the issue in detail so we can help you faster...',
+        upload: 'Attach images or explanatory documents',
+        error: 'Failed to submit ticket. Please try again.',
         submitting: 'Submitting...'
       }
     },
     infoCenter: {
-      title: 'Info Center',
-      subtitle: 'Everything you need to know about E-Tashleh',
-      tabs: { about: 'About Us', privacy: 'Privacy', terms: 'Terms', faq: 'FAQ', contact: 'Contact Us' }
+      title: 'Information Center',
+      subtitle: 'Everything you need to know about E-TASHLEH platform',
+      tabs: { about: 'About Us', privacy: 'Privacy Policy', terms: 'Terms of Use', faq: 'F.A.Q', contact: 'Contact Us' }
     },
     threeDS: {
       title: '3D Secure Verification',
@@ -977,7 +1308,7 @@ export const customer = {
     notifications: {
       title: 'Notifications',
       markAllRead: 'Mark all as read',
-      empty: 'No new notifications',
+      empty: 'No new notifications at the moment',
       newOffer: 'New Offer',
       offerAccepted: 'Offer Accepted',
       paymentConfirmed: 'Payment Confirmed',

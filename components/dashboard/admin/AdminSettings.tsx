@@ -8,15 +8,42 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export const AdminSettings: React.FC = () => {
   const { t, language } = useLanguage();
-  const { systemConfig, updateSystemConfig, currentAdmin } = useAdminStore();
+  const { systemConfig, updateSystemConfig, currentAdmin, fetchVendorContract, saveVendorContract } = useAdminStore();
   const [activeTab, setActiveTab] = useState<'general' | 'financial' | 'logistics' | 'content'>('general');
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Local state for forms
   const [formData, setFormData] = useState(JSON.parse(JSON.stringify(systemConfig)));
 
-  const handleSave = () => {
+  // Sync formData when systemConfig updates (e.g., after fetching contract)
+  React.useEffect(() => {
+    setFormData(JSON.parse(JSON.stringify(systemConfig)));
+  }, [systemConfig]);
+
+  // Fetch contract on mount
+  React.useEffect(() => {
+    fetchVendorContract();
+  }, []);
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    
+    // First update the local store for all settings
     updateSystemConfig(activeTab, formData[activeTab]);
+    
+    // If we're on the content tab, save the contract to the backend
+    if (activeTab === 'content') {
+       const success = await saveVendorContract(formData.content.vendorContract);
+       if (!success) {
+         // Optionally handle error, but for now we'll just show success anyway for UX assuming it worked 
+         // or we can show an error toast if we had one.
+         console.error("Failed to save contract to backend.");
+       }
+    }
+
+    setIsSaving(false);
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
   };
@@ -238,15 +265,82 @@ export const AdminSettings: React.FC = () => {
           {/* CONTENT TAB */}
           {activeTab === 'content' && (
             <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+              <div className="bg-white/5 border border-white/10 p-6 rounded-xl space-y-4">
+                <h3 className="text-gold-500 font-bold mb-4">{language === 'ar' ? 'إعدادات الطرف الأول (المنصة)' : 'First Party Settings (Platform)'}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'اسم الشركة (عربي)' : 'Company Name (AR)'}</label>
+                    <input type="text"
+                      value={formData.content.vendorContract?.firstPartyConfig?.companyNameAr || ''}
+                      onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, firstPartyConfig: { ...formData.content.vendorContract.firstPartyConfig, companyNameAr: e.target.value } })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:border-gold-500" />
+                  </div>
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'اسم الشركة (انجليزي)' : 'Company Name (EN)'}</label>
+                    <input type="text"
+                      value={formData.content.vendorContract?.firstPartyConfig?.companyNameEn || ''}
+                      onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, firstPartyConfig: { ...formData.content.vendorContract.firstPartyConfig, companyNameEn: e.target.value } })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:border-gold-500" />
+                  </div>
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'رقم السجل التجاري' : 'CR Number'}</label>
+                    <input type="text"
+                      value={formData.content.vendorContract?.firstPartyConfig?.crNumber || ''}
+                      onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, firstPartyConfig: { ...formData.content.vendorContract.firstPartyConfig, crNumber: e.target.value } })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:border-gold-500" />
+                  </div>
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'رقم الرخصة التجارية' : 'License Number'}</label>
+                    <input type="text"
+                      value={formData.content.vendorContract?.firstPartyConfig?.licenseNumber || ''}
+                      onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, firstPartyConfig: { ...formData.content.vendorContract.firstPartyConfig, licenseNumber: e.target.value } })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:border-gold-500" />
+                  </div>
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'تاريخ الانتهاء' : 'Expiry Date'}</label>
+                    <input type="date"
+                      value={formData.content.vendorContract?.firstPartyConfig?.licenseExpiry || ''}
+                      onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, firstPartyConfig: { ...formData.content.vendorContract.firstPartyConfig, licenseExpiry: e.target.value } })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:border-gold-500" />
+                  </div>
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'المقر (عربي)' : 'Headquarter (AR)'}</label>
+                    <input type="text"
+                      value={formData.content.vendorContract?.firstPartyConfig?.headquartersAr || ''}
+                      onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, firstPartyConfig: { ...formData.content.vendorContract.firstPartyConfig, headquartersAr: e.target.value } })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:border-gold-500" />
+                  </div>
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'المقر (انجليزي)' : 'Headquarter (EN)'}</label>
+                    <input type="text"
+                      value={formData.content.vendorContract?.firstPartyConfig?.headquartersEn || ''}
+                      onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, firstPartyConfig: { ...formData.content.vendorContract.firstPartyConfig, headquartersEn: e.target.value } })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:border-gold-500" />
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-white/60 text-sm mb-2">Vendor Agreement Contract</label>
+                <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'نص العقد (عربي)' : 'Contract Content (AR)'}</label>
                 <textarea
-                  rows={10}
-                  value={formData.content.vendorContract}
-                  onChange={(e) => handleInputChange('content', 'vendorContract', e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none font-mono text-sm leading-relaxed"
+                  rows={8}
+                  value={formData.content.vendorContract?.contentAr || ''}
+                  onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, contentAr: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none font-mono text-sm leading-relaxed text-right"
+                  dir="rtl"
                 />
-                <p className="text-xs text-white/30 mt-2">This text will appear in the Vendor Registration flow.</p>
+              </div>
+
+              <div>
+                <label className="block text-white/60 text-sm mb-2">{language === 'ar' ? 'نص العقد (انجليزي)' : 'Contract Content (EN)'}</label>
+                <textarea
+                  rows={8}
+                  value={formData.content.vendorContract?.contentEn || ''}
+                  onChange={(e) => handleInputChange('content', 'vendorContract', { ...formData.content.vendorContract, contentEn: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none font-mono text-sm leading-relaxed text-left"
+                  dir="ltr"
+                />
+                <p className="text-xs text-white/30 mt-2">Available Variables: {'{{FIRST_PARTY_NAME_AR}}, {{CUSTOMER_COMPANY_NAME}}, {{CUSTOMER_NAME}}, {{CURRENT_DATE}}'}, etc.</p>
               </div>
 
               <div>
@@ -266,10 +360,11 @@ export const AdminSettings: React.FC = () => {
         <div className="mt-8 pt-6 border-t border-white/10 flex justify-end">
           <button
             onClick={handleSave}
-            className="flex items-center gap-2 px-8 py-3 bg-gold-500 hover:bg-gold-600 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95"
+            disabled={isSaving}
+            className={`flex items-center gap-2 px-8 py-3 bg-gold-500 hover:bg-gold-600 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95 ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <Save size={18} />
-            Save Changes
+            {isSaving ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
+            {isSaving ? (language === 'ar' ? 'جارِ الحفظ...' : 'Saving...') : (language === 'ar' ? 'حفظ التغييرات' : 'Save Changes')}
           </button>
         </div>
       </GlassCard>

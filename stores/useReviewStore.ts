@@ -1,61 +1,113 @@
-
 import { create } from 'zustand';
+import { supabase } from '../services/supabase';
+import { getCurrentUserId } from '../utils/auth';
 
 export interface Review {
-  id: number;
-  orderId: number;
-  merchantName: string;
-  partName: string;
+  id: string;
+  orderId: string;
+  customerId: string;
+  storeId: string;
   rating: number;
   comment: string;
-  date: string;
-  status: 'published' | 'pending' | 'rejected'; // Added rejected
-  images?: string[];
+  adminStatus: 'PENDING' | 'PUBLISHED' | 'REJECTED';
+  createdAt: string;
+  store?: { name: string };
+  customer?: { name: string; avatar?: string };
 }
 
 interface ReviewState {
   reviews: Review[];
-  addReview: (review: Omit<Review, 'id' | 'date' | 'status'>) => void;
-  approveReview: (id: number) => void;
-  rejectReview: (id: number) => void;
+  isLoading: boolean;
+  error: string | null;
+  fetchAdminReviews: () => Promise<void>;
+  fetchMerchantReviews: () => Promise<void>;
+  submitReview: (data: { orderId: string; storeId: string; rating: number; comment: string }) => Promise<boolean>;
+  updateReviewStatus: (id: string, status: 'PENDING' | 'PUBLISHED' | 'REJECTED') => Promise<void>;
 }
 
-export const useReviewStore = create<ReviewState>((set) => ({
-  reviews: [
-    {
-        id: 1,
-        orderId: 1004,
-        merchantName: 'Jeddah Parts Center',
-        partName: 'Side Mirror Right',
-        rating: 5,
-        comment: 'Excellent condition, fast delivery. Highly recommended!',
-        date: '12 Jan 2024',
-        status: 'published'
-    },
-    {
-        id: 2,
-        orderId: 1005,
-        merchantName: 'Seoul Auto',
-        partName: 'Radiator Fan',
-        rating: 3,
-        comment: 'Good part but packaging was damaged.',
-        date: '10 Mar 2024',
-        status: 'pending'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+export const useReviewStore = create<ReviewState>((set, get) => ({
+  reviews: [],
+  isLoading: false,
+  error: null,
+
+  fetchAdminReviews: async () => {
+    set({ isLoading: true });
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/reviews/admin`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch reviews');
+      const data = await response.json();
+      set({ reviews: data, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
     }
-  ],
-  addReview: (data) => set((state) => {
-    const newReview: Review = {
-        ...data,
-        id: Date.now(),
-        date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-        status: 'pending' // Default status
-    };
-    return { reviews: [newReview, ...state.reviews] };
-  }),
-  approveReview: (id) => set((state) => ({
-      reviews: state.reviews.map(r => r.id === id ? { ...r, status: 'published' } : r)
-  })),
-  rejectReview: (id) => set((state) => ({
-      reviews: state.reviews.map(r => r.id === id ? { ...r, status: 'rejected' } : r)
-  }))
+  },
+
+  fetchMerchantReviews: async () => {
+    set({ isLoading: true });
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/reviews/merchant`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch reviews');
+      const data = await response.json();
+      set({ reviews: data, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+    }
+  },
+
+  submitReview: async (data) => {
+    set({ isLoading: true });
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Failed to submit review');
+      }
+
+      set({ isLoading: false });
+      return true;
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      return false;
+    }
+  },
+
+  updateReviewStatus: async (id, status) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/reviews/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+
+      if (!response.ok) throw new Error('Failed to update status');
+      
+      // Update local state
+      set(state => ({
+        reviews: state.reviews.map(r => r.id === id ? { ...r, adminStatus: status } : r)
+      }));
+    } catch (error: any) {
+      console.error(error.message);
+    }
+  }
 }));

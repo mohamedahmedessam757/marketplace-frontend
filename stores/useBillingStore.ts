@@ -1,8 +1,5 @@
-
 import { create } from 'zustand';
-import { supabase } from '../services/supabase';
 import { Order } from '../types';
-import { getCurrentUserId } from '../utils/auth';
 
 interface Invoice extends Order {
     invoice_number: string;
@@ -13,73 +10,129 @@ export interface SavedCard {
     id: string;
     last4: string;
     brand: string;
-    expiry_month: number;
-    expiry_year: number;
-    is_default: boolean;
-    card_holder_name?: string;
+    expiryMonth: number;
+    expiryYear: number;
+    isDefault: boolean;
+    cardHolderName?: string;
 }
 
 interface BillingState {
     invoices: Invoice[];
     cards: SavedCard[];
+    pendingPayments: Order[];
     walletBalance: number;
     loading: boolean;
+    cardsLoading: boolean;
     error: string | null;
+    invoicesFetched: boolean;
+    pendingPaymentsFetched: boolean;
 
     fetchInvoices: () => Promise<void>;
+    fetchPendingPayments: () => Promise<void>;
     fetchWallet: () => Promise<void>;
     fetchCards: () => Promise<void>;
-    addCard: (card: Omit<SavedCard, 'id' | 'is_default'>) => Promise<void>;
+    addCard: (card: Omit<SavedCard, 'id' | 'isDefault'>) => Promise<void>;
     deleteCard: (id: string) => Promise<void>;
     setDefaultCard: (id: string) => Promise<void>;
 }
 
+const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const getHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+};
+
 export const useBillingStore = create<BillingState>((set, get) => ({
     invoices: [],
     cards: [],
+    pendingPayments: [],
     walletBalance: 0,
     loading: false,
+    cardsLoading: false,
     error: null,
+    invoicesFetched: false,
+    pendingPaymentsFetched: false,
 
     fetchInvoices: async () => {
-        set({ loading: true });
+        const isInitial = !get().invoicesFetched;
+        if (isInitial) set({ loading: true });
+        set({ error: null });
         try {
-            const userId = getCurrentUserId();
-            if (!userId) {
+            const token = localStorage.getItem('access_token');
+            const userJson = localStorage.getItem('user');
+            if (!token || !userJson) {
                 set({ invoices: [], loading: false });
                 return;
             }
 
-            // Invoices are essentially Completed/Paid orders
-            const { data, error } = await supabase
-                .from('orders')
-                .select(`
-                    *,
-                    offers!fk_orders_accepted_offer(*),
-                    store:stores(*)
-                `)
-                .in('status', ['COMPLETED', 'DELIVERED', 'SHIPPED'])
-                .eq('customer_id', userId)
-                .order('created_at', { ascending: false });
+            const user = JSON.parse(userJson);
+            const isMerchant = user.role === 'VENDOR';
 
-            // Note: Adjusted offers foreign key based on schema (fk_orders_accepted_offer)
+            const endpoint = isMerchant ? 'invoices/merchant' : 'invoices';
+            const response = await fetch(`${getApiUrl()}/${endpoint}`, {
+                headers: getHeaders()
+            });
 
-            if (error) {
-                // Fallback for foreign key name if changed
-                console.warn('Billing fetch error (first attempt):', error);
-            }
+            if (!response.ok) throw new Error('Failed to fetch invoices');
+            const data = await response.json();
 
-            const mappedInvoices = (data || []).map((order: any) => ({
-                ...order,
-                invoice_number: `INV-${order.order_number}`,
-                shipping_bill_number: `SHP-${order.order_number}`,
-                offers: order.offers ? [order.offers] : [],
-                store: order.store || undefined
+            // Preserve all invoice + order + relational data for the InvoiceModal
+            const mappedInvoices = data.map((inv: any) => ({
+                ...inv.order,
+                // Invoice-level financial data
+                invoiceId: inv.id,
+                invoice_number: inv.invoiceNumber ?? inv.invoice_number,
+                invoiceTotal: Number(inv.total || 0),
+                invoiceSubtotal: Number(inv.subtotal || 0),
+                invoiceCommission: Number(inv.commission || 0),
+                invoiceCurrency: inv.currency || 'AED',
+                invoiceStatus: inv.status || 'PAID',
+                invoiceIssuedAt: inv.issuedAt ?? inv.issued_at,
+                shipping_bill_number: `SHP-${inv.order?.orderNumber || ''}`,
+                // Order-level relational data
+                customer: inv.order?.customer || null,
+                offers: inv.order?.offers || [],
+                store: inv.order?.store || undefined,
+                parts: inv.order?.parts || [],
+                shippingAddresses: inv.order?.shippingAddresses || [],
+                status: inv.status
             }));
 
-            set({ invoices: mappedInvoices });
+            set({ invoices: mappedInvoices, invoicesFetched: true });
         } catch (err: any) {
             console.error('Error fetching invoices:', err);
+            set({ error: err.message });
+        } finally {
+            set({ loading: false });
+        }
+    },
+
+    fetchPendingPayments: async () => {
+        const isInitial = !get().pendingPaymentsFetched;
+        if (isInitial) set({ loading: true });
+        set({ error: null });
+        try {
+            const token = localStorage.getItem('access_token');
+            const userJson = localStorage.getItem('user');
+            if (!token || !userJson) return;
+
+            const user = JSON.parse(userJson);
+            const isMerchant = user.role === 'VENDOR';
+
+            const endpoint = isMerchant ? 'payments/merchant/pending' : 'payments/pending';
+            const response = await fetch(`${getApiUrl()}/${endpoint}`, {
+                headers: getHeaders()
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch pending payments');
+            const data = await response.json();
+
+            set({ pendingPayments: data, pendingPaymentsFetched: true });
+        } catch (err: any) {
+            console.error('Error fetching pending payments:', err);
             set({ error: err.message });
         } finally {
             set({ loading: false });
@@ -92,101 +145,104 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     },
 
     fetchCards: async () => {
-        const userId = getCurrentUserId();
-        if (!userId) return;
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
 
-        set({ loading: true });
+        set({ cardsLoading: true, error: null });
         try {
-            const { data, error } = await supabase
-                .from('user_cards')
-                .select('*')
-                .eq('user_id', userId)
-                .order('is_default', { ascending: false });
+            const response = await fetch(`${getApiUrl()}/cards`, {
+                headers: getHeaders()
+            });
 
-            if (error) throw error;
-            set({ cards: data || [] });
+            if (!response.ok) throw new Error('Failed to fetch cards');
+            const data = await response.json();
+
+            // Map snake_case from DB to camelCase for frontend
+            const mappedCards: SavedCard[] = data.map((c: any) => ({
+                id: c.id,
+                last4: c.last4,
+                brand: c.brand,
+                expiryMonth: c.expiryMonth ?? c.expiry_month,
+                expiryYear: c.expiryYear ?? c.expiry_year,
+                isDefault: c.isDefault ?? c.is_default ?? false,
+                cardHolderName: c.cardHolderName ?? c.card_holder_name ?? '',
+            }));
+
+            set({ cards: mappedCards });
         } catch (err: any) {
             console.error('Error fetching cards:', err);
-            // Don't set global error to avoid blocking UI
         } finally {
-            set({ loading: false });
+            set({ cardsLoading: false });
         }
     },
 
     addCard: async (cardData) => {
-        const userId = getCurrentUserId();
-        if (!userId) return;
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
 
-        set({ loading: true });
+        set({ cardsLoading: true, error: null });
         try {
-            // Check if it's the first card (make default)
-            const isFirst = get().cards.length === 0;
+            const response = await fetch(`${getApiUrl()}/cards`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(cardData)
+            });
 
-            const { data, error } = await supabase
-                .from('user_cards')
-                .insert([{
-                    user_id: userId,
-                    ...cardData,
-                    is_default: isFirst
-                }])
-                .select()
-                .single();
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || 'Failed to add card');
+            }
 
-            if (error) throw error;
-
-            set((state) => ({
-                cards: [...state.cards, data]
-            }));
+            // Re-fetch to guarantee correct `isDefault` sorting & data shape
+            await get().fetchCards();
         } catch (err: any) {
-            set({ error: err.message });
+            set({ error: err.message, cardsLoading: false });
             throw err;
-        } finally {
-            set({ loading: false });
         }
     },
 
     deleteCard: async (id) => {
+        set({ error: null });
         try {
-            const { error } = await supabase
-                .from('user_cards')
-                .delete()
-                .eq('id', id);
+            const response = await fetch(`${getApiUrl()}/cards/${id}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
 
-            if (error) throw error;
+            if (!response.ok) throw new Error('Failed to delete card');
 
             set((state) => ({
                 cards: state.cards.filter(c => c.id !== id)
             }));
+
+            // Re-fetch to guarantee correct `isDefault` flag if default was deleted
+            await get().fetchCards();
         } catch (err: any) {
             set({ error: err.message });
         }
     },
 
     setDefaultCard: async (id) => {
-        const userId = getCurrentUserId();
-        if (!userId) return;
-
+        set({ error: null });
         try {
-            // Transaction-like logic to unset others and set new default
-            // Supabase doesn't support complex transactions via client easily, so we do two updates
-            await supabase
-                .from('user_cards')
-                .update({ is_default: false })
-                .eq('user_id', userId);
-
-            const { error } = await supabase
-                .from('user_cards')
-                .update({ is_default: true })
-                .eq('id', id);
-
-            if (error) throw error;
-
+            // Optimistic update
             set((state) => ({
                 cards: state.cards.map(c => ({
                     ...c,
-                    is_default: c.id === id
+                    isDefault: c.id === id
                 }))
             }));
+
+            const response = await fetch(`${getApiUrl()}/cards/${id}/default`, {
+                method: 'PATCH',
+                headers: getHeaders()
+            });
+
+            if (!response.ok) {
+                // Revert on fail
+                await get().fetchCards();
+                throw new Error('Failed to set default card');
+            }
         } catch (err: any) {
             set({ error: err.message });
         }

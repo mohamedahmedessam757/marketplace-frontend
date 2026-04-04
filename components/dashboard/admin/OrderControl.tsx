@@ -5,7 +5,7 @@ import { useOrderStore } from '../../../stores/useOrderStore';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Badge, StatusType } from '../../ui/Badge';
-import { Search, Filter, Download, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Search, Filter, Download, ArrowRight, ArrowLeft, Plus, Trash2, Edit, CheckCircle2 } from 'lucide-react';
 
 export const OrderControl: React.FC<{ onNavigate?: (path: string, id: any) => void }> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
@@ -85,13 +85,13 @@ export const OrderControl: React.FC<{ onNavigate?: (path: string, id: any) => vo
 
             <GlassCard className="p-0 bg-[#151310] overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left rtl:text-right">
                         <thead className="bg-white/5 text-xs text-white/40 uppercase font-bold tracking-wider">
                             <tr>
                                 <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.ordersTable.id}</th>
                                 <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.ordersTable.customer}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.ordersTable.merchant}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.ordersTable.amount}</th>
+                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>القطعة (Parts)</th>
+                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>التفاصيل المالية</th>
                                 <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.ordersTable.status}</th>
                                 <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}></th>
                             </tr>
@@ -109,10 +109,32 @@ export const OrderControl: React.FC<{ onNavigate?: (path: string, id: any) => vo
                                         <div className="text-[10px] text-white/40">{order.car}</div>
                                     </td>
                                     <td className="p-4">
-                                        <div className="text-white/80">{order.merchantName || '-'}</div>
+                                        <div className="text-white font-medium flex justify-start items-center gap-2 flex-wrap max-w-[200px]">
+                                            <span className="truncate">{order.part}</span>
+                                            {order.parts && order.parts.length > 1 && (
+                                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70 border border-white/5 whitespace-nowrap shrink-0 mt-1 sm:mt-0">
+                                                    +{order.parts.length - 1} قطع أخرى
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
-                                    <td className="p-4 font-mono text-white/90">
-                                        {order.price || '-'}
+                                    <td className="p-4">
+                                        {order.price ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="font-mono text-gold-400 font-bold text-sm">
+                                                    {Number(order.price).toFixed(2)} AED
+                                                </div>
+                                                {!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'CANCELLED'].includes(String(order.status).toUpperCase()) && (
+                                                    <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 border border-green-500/20" title="Paid / Approved">
+                                                        <CheckCircle2 size={12} strokeWidth={3} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-white/30 text-xs px-2 py-1 rounded bg-white/5 whitespace-nowrap">
+                                                في انتظار العروض
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="p-4"><Badge status={order.status} /></td>
                                     <td className="p-4 text-right">

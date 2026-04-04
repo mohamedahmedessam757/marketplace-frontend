@@ -22,7 +22,12 @@ interface Review {
 }
 
 interface LoyaltyState {
-    points: number;
+    points: number; 
+    loyaltyPoints: number; // 2026 Field
+    tier: 'BASIC' | 'SILVER' | 'GOLD' | 'VIP' | 'PARTNER';
+    totalSpent: number;
+    referralCode: string;
+    referralCount: number; // 2026 Field
     transactions: LoyaltyTransaction[];
     reviews: Review[];
     loading: boolean;
@@ -33,55 +38,38 @@ interface LoyaltyState {
 
 export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
     points: 0,
+    loyaltyPoints: 0,
+    tier: 'BASIC',
+    totalSpent: 0,
+    referralCode: '',
+    referralCount: 0,
     transactions: [],
     reviews: [],
     loading: false,
     error: null,
 
     fetchLoyaltyData: async () => {
-        const userId = getCurrentUserId();
-        if (!userId) return;
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
 
         set({ loading: true, error: null });
         try {
-            // 1. Fetch User Points
-            const { data: userData, error: userError } = await supabase
-                .from('users')
-                .select('loyalty_points')
-                .eq('id', userId)
-                .single();
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/loyalty/me`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
 
-            if (userError) throw userError;
-
-            // 2. Fetch Transactions
-            const { data: txData, error: txError } = await supabase
-                .from('loyalty_transactions')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false });
-
-            if (txError) throw txError;
-
-            // 3. Fetch Reviews (Real Data)
-            // Note: In real app, we would join with stores table to get store name
-            // For now, we fetch raw reviews. If stores table exists, we'd use:
-            // .select('*, store:stores(name)')
-
-            const { data: reviewsData, error: reviewsError } = await supabase
-                .from('reviews')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false });
-
-            if (reviewsError) {
-                // If reviews table doesn't exist yet (migration pending), just log and default to empty
-                console.warn('Reviews table might be missing:', reviewsError.message);
-            }
+            if (!response.ok) throw new Error('Failed to fetch loyalty data');
+            const data = await response.json();
 
             set({
-                points: userData.loyalty_points || 0,
-                transactions: txData || [],
-                reviews: reviewsData || []
+                tier: data.loyaltyTier || 'BASIC',
+                loyaltyPoints: data.loyaltyPoints || 0,
+                totalSpent: Number(data.totalSpent) || 0,
+                referralCode: data.referralCode || '',
+                referralCount: data.referralCount || 0,
+                reviews: data.submittedReviews || []
             });
 
         } catch (error: any) {

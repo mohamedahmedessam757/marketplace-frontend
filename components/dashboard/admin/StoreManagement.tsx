@@ -33,12 +33,12 @@ export const StoreManagement: React.FC<StoreManagementProps> = ({ onNavigate }) 
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'ACTIVE': return <span className="bg-green-500/10 text-green-400 px-2 py-1 rounded text-[10px] border border-green-500/20 font-bold">Active</span>;
-            case 'PENDING_REVIEW': return <span className="bg-yellow-500/10 text-yellow-400 px-2 py-1 rounded text-[10px] border border-yellow-500/20 font-bold animate-pulse">Pending Review</span>;
-            case 'PENDING_DOCUMENTS': return <span className="bg-orange-500/10 text-orange-400 px-2 py-1 rounded text-[10px] border border-orange-500/20 font-bold">Pending Docs</span>;
-            case 'LICENSE_EXPIRED': return <span className="bg-red-500/10 text-red-400 px-2 py-1 rounded text-[10px] border border-red-500/20 font-bold">License Expired</span>;
-            case 'BLOCKED': return <span className="bg-black text-white/50 px-2 py-1 rounded text-[10px] border border-white/10 font-bold">Blocked</span>;
-            default: return <span className="bg-white/10 text-white/50 px-2 py-1 rounded text-[10px]">Inactive</span>;
+            case 'ACTIVE': return <span className="bg-green-500/10 text-green-400 px-2 py-1 rounded text-[10px] border border-green-500/20 font-bold whitespace-nowrap">{isAr ? 'نشط' : 'Active'}</span>;
+            case 'PENDING_REVIEW': return <span className="bg-yellow-500/10 text-yellow-400 px-2 py-1 rounded text-[10px] border border-yellow-500/20 font-bold animate-pulse whitespace-nowrap">{isAr ? 'قيد المراجعة' : 'Pending Review'}</span>;
+            case 'PENDING_DOCUMENTS': return <span className="bg-orange-500/10 text-orange-400 px-2 py-1 rounded text-[10px] border border-orange-500/20 font-bold whitespace-nowrap">{isAr ? 'بانتظار المستندات' : 'Pending Docs'}</span>;
+            case 'LICENSE_EXPIRED': return <span className="bg-red-500/10 text-red-400 px-2 py-1 rounded text-[10px] border border-red-500/20 font-bold whitespace-nowrap">{isAr ? 'رخصة منتهية' : 'License Expired'}</span>;
+            case 'BLOCKED': return <span className="bg-black text-white/50 px-2 py-1 rounded text-[10px] border border-white/10 font-bold whitespace-nowrap">{isAr ? 'محظور' : 'Blocked'}</span>;
+            default: return <span className="bg-white/10 text-white/50 px-2 py-1 rounded text-[10px] whitespace-nowrap">{isAr ? 'غير نشط' : 'Inactive'}</span>;
         }
     };
 
@@ -57,21 +57,21 @@ export const StoreManagement: React.FC<StoreManagementProps> = ({ onNavigate }) 
                             onChange={e => setSearch(e.target.value)}
                         />
                     </div>
-                    <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${filter === 'all' ? 'bg-gold-500 text-white' : 'bg-white/10 text-white/50'}`}>All</button>
-                    <button onClick={() => setFilter('pending')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${filter === 'pending' ? 'bg-gold-500 text-white' : 'bg-white/10 text-white/50'}`}>Pending</button>
+                    <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${filter === 'all' ? 'bg-gold-500 text-white' : 'bg-white/10 text-white/50'}`}>{isAr ? 'الكل' : 'All'}</button>
+                    <button onClick={() => setFilter('pending')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${filter === 'pending' ? 'bg-gold-500 text-white' : 'bg-white/10 text-white/50'}`}>{isAr ? 'قيد الانتظار' : 'Pending'}</button>
                 </div>
             </div>
 
             <GlassCard className="p-0 overflow-hidden bg-[#151310] min-h-[400px]">
                 {isLoadingStores ? (
-                    <table className="w-full text-left">
+                    <table className="w-full text-start">
                         <thead className="bg-white/5 text-xs text-white/40 uppercase">
                             <tr>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.name}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.owner}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.joined}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.status}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.actions}</th>
+                                <th className="p-4 text-start font-medium">{t.admin.usersTable.name}</th>
+                                <th className="p-4 text-start font-medium">{t.admin.usersTable.owner}</th>
+                                <th className="p-4 text-start font-medium">{t.admin.usersTable.joined}</th>
+                                <th className="p-4 text-start font-medium">{t.admin.usersTable.status}</th>
+                                <th className="p-4 text-start font-medium">{t.admin.usersTable.actions}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -97,14 +97,14 @@ export const StoreManagement: React.FC<StoreManagementProps> = ({ onNavigate }) 
                         </tbody>
                     </table>
                 ) : (
-                    <table className="w-full text-left">
+                    <table className="w-full text-start">
                         <thead className="bg-white/5 text-xs text-white/40 uppercase">
                             <tr>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.name}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.owner}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.joined}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.status}</th>
-                                <th className={`p-4 ${isAr ? 'text-right' : 'text-left'}`}>{t.admin.usersTable.actions}</th>
+                                <th className="p-4 text-start font-medium">{t.admin.usersTable.name}</th>
+                                <th className="p-4 text-start font-medium">{t.admin.usersTable.owner}</th>
+                                <th className="p-4 text-start font-medium w-[15%]">{t.admin.usersTable.joined}</th>
+                                <th className="p-4 text-start font-medium w-[15%]">{t.admin.usersTable.status}</th>
+                                <th className="p-4 text-start font-medium w-[10%]">{t.admin.usersTable.actions}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -128,7 +128,7 @@ export const StoreManagement: React.FC<StoreManagementProps> = ({ onNavigate }) 
                                     <td className="p-4">
                                         {getStatusBadge(store.status)}
                                     </td>
-                                    <td className="p-4">
+                                    <td className="p-4 text-start">
                                         <button
                                             onClick={() => onNavigate && onNavigate('store-profile', store.id)}
                                             className="p-2 bg-white/5 hover:bg-gold-500 hover:text-white text-gold-400 rounded-lg transition-colors border border-white/10"
@@ -145,7 +145,7 @@ export const StoreManagement: React.FC<StoreManagementProps> = ({ onNavigate }) 
                 {!isLoadingStores && filteredStores.length === 0 && (
                     <div className="p-12 text-center flex flex-col items-center justify-center opacity-50">
                         <Store size={48} className="text-white/20 mb-4" />
-                        <p className="text-white/50">No stores found matching your criteria</p>
+                        <p className="text-white/50">{isAr ? 'لا توجد متاجر تطابق بحثك' : 'No stores found matching your criteria'}</p>
                     </div>
                 )}
             </GlassCard>

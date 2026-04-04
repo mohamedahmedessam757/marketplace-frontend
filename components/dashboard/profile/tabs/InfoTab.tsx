@@ -2,20 +2,33 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProfileStore } from '../../../../stores/useProfileStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
-import { Loader2, CheckCircle2 } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Lock } from 'lucide-react';
 
 // 7. Input Group Component
-const InputGroup = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }: any) => (
+const InputGroup = ({ label, value, onChange, type = "text", placeholder = "", disabled = false, onEditRequest = null }: any) => (
     <div className="space-y-2">
-        <label className="text-xs text-white/40 uppercase tracking-wider">{label}</label>
-        <input
-            type={type}
-            value={value}
-            onChange={onChange}
-            placeholder={placeholder}
-            disabled={disabled}
-            className={`w-full bg-[#151310] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none transition-colors placeholder-white/20 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-        />
+        <label className="text-xs text-white/40 uppercase tracking-wider flex items-center justify-between">
+            {label}
+            {onEditRequest && (
+                <button
+                    onClick={onEditRequest}
+                    className="text-gold-500 hover:text-gold-400 text-[10px] px-2 py-0.5 rounded bg-gold-500/10 transition-colors"
+                >
+                    تعديل
+                </button>
+            )}
+        </label>
+        <div className="relative">
+            <input
+                type={type}
+                value={value}
+                onChange={onChange}
+                placeholder={placeholder}
+                disabled={disabled}
+                className={`w-full bg-[#151310] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none transition-colors placeholder-white/20 ${disabled ? 'opacity-50 cursor-not-allowed bg-black/20' : ''}`}
+            />
+            {disabled && <div className="absolute inset-y-0 right-4 flex items-center"><Lock size={14} className="text-white/20" /></div>}
+        </div>
     </div>
 );
 
@@ -25,6 +38,11 @@ export const InfoTab: React.FC = () => {
     const [success, setSuccess] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+
+    // Edit Locks
+    const [isEmailUnlocked, setIsEmailUnlocked] = useState(false);
+    const [isPhoneUnlocked, setIsPhoneUnlocked] = useState(false);
+    const [warningModal, setWarningModal] = useState<{ isOpen: boolean; field: 'email' | 'phone' | null }>({ isOpen: false, field: null });
 
     // Initial Fetch
     useEffect(() => {
@@ -142,15 +160,65 @@ export const InfoTab: React.FC = () => {
                 <InputGroup
                     label={t.dashboard.profile.info.email}
                     value={user.email || ''}
-                    onChange={() => { }}
-                    disabled={true}
+                    onChange={(e: any) => updateUser({ email: e.target.value })}
+                    disabled={!isEmailUnlocked}
+                    onEditRequest={!isEmailUnlocked ? () => setWarningModal({ isOpen: true, field: 'email' }) : null}
                 />
                 <InputGroup
                     label={t.dashboard.profile.info.phone}
                     value={user.phone || ''}
                     onChange={(e: any) => updateUser({ phone: e.target.value })}
+                    disabled={!isPhoneUnlocked}
+                    onEditRequest={!isPhoneUnlocked ? () => setWarningModal({ isOpen: true, field: 'phone' }) : null}
                 />
             </div>
+
+            {/* Warning Modal */}
+            <AnimatePresence>
+                {warningModal.isOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-[#1A1814] w-full max-w-md rounded-2xl border border-red-500/20 overflow-hidden shadow-2xl shadow-red-900/20"
+                        >
+                            <div className="p-6">
+                                <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 text-red-500">
+                                    <AlertCircle size={24} />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">
+                                    {language === 'ar' ? 'تحذير أمني هام' : 'Security Warning'}
+                                </h3>
+                                <p className="text-white/60 text-sm mb-6 leading-relaxed">
+                                    {language === 'ar'
+                                        ? `أنت على وشك تعديل ${warningModal.field === 'email' ? 'البريد الإلكتروني' : 'رقم الجوال'} الخاص بك. تعديل هذه البيانات سيغير وسيلة دخولك للحساب للرقم/البريد الجديد. يرجى التأكد من كتابة وسيلة الدخول الجديدة بشكل صحيح وحفظها جيداً لتجنب فقدان الحساب!`
+                                        : `You are about to edit your ${warningModal.field}. Changing this will alter your login credentials. Please ensure the new information is accurate and saved securely to avoid losing access to your account!`
+                                    }
+                                </p>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setWarningModal({ isOpen: false, field: null })}
+                                        className="flex-1 py-3 px-4 rounded-xl border border-white/10 text-white hover:bg-white/5 transition-colors font-bold"
+                                    >
+                                        {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (warningModal.field === 'email') setIsEmailUnlocked(true);
+                                            if (warningModal.field === 'phone') setIsPhoneUnlocked(true);
+                                            setWarningModal({ isOpen: false, field: null });
+                                        }}
+                                        className="flex-1 py-3 px-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors font-bold shadow-lg shadow-red-500/20"
+                                    >
+                                        {language === 'ar' ? 'أوافق ومسؤول' : 'I Understand'}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             <div className="pt-6 border-t border-white/5 flex items-center justify-end gap-4">
                 <AnimatePresence>

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Package, PlusCircle, MessageSquare, User, Bell, LogOut, Menu, Scale, Info, ChevronDown, Search, Wallet, Grid, Users, ShieldAlert, BarChart3, Settings, ShoppingBag, ListChecks, Truck, FileText, BadgeDollarSign, Store, Star, Database, Headset, ShieldCheck, Lock, CreditCard, RotateCcw } from 'lucide-react';
+import { Home, Package, PlusCircle, MessageSquare, User, Bell, LogOut, Menu, Scale, Info, ChevronDown, Search, Wallet, Grid, Users, ShieldAlert, BarChart3, Settings, ShoppingBag, ListChecks, Truck, FileText, BadgeDollarSign, Store, Star, Award, Database, Headset, ShieldCheck, Lock, CreditCard, RotateCcw, ArrowRight, ArrowLeft, Receipt } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { useProfileStore } from '../../stores/useProfileStore';
@@ -19,6 +19,7 @@ interface DashboardLayoutProps {
   onLogout: () => void;
   currentPath?: string;
   onNavigate: (path: string, id?: number) => void;
+  onBack?: () => void;
   role: 'customer' | 'merchant' | 'admin';
 }
 
@@ -27,13 +28,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onLogout,
   currentPath = 'home',
   onNavigate,
+  onBack,
   role
 }) => {
   const { t, language } = useLanguage();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { unreadCount, fetchNotifications, subscribeToNotifications, unsubscribeFromNotifications } = useNotificationStore(); // Added fetchNotifications
-  const { checkLicenseStatus, vendorStatus } = useVendorStore();
+  const { checkLicenseStatus, vendorStatus, fetchVendorProfile, profile: vendorProfile } = useVendorStore();
   const { currentAdmin } = useAdminStore();
   const { startRealtime, stopRealtime } = useOrderStore();
   const { fetchInvoices, fetchCards } = useBillingStore();
@@ -55,6 +57,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         role === 'customer' ? fetchInvoices() : Promise.resolve(),
         role === 'customer' ? fetchCards() : Promise.resolve(),
         role === 'merchant' ? fetchWallet() : Promise.resolve(),
+        role === 'merchant' ? fetchVendorProfile() : Promise.resolve(), // NEW: Global status fetch
       ]).catch(err => console.warn('Background global pre-fetch warning:', err));
     }
     return () => {
@@ -65,12 +68,26 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const isAr = language === 'ar';
 
   // SECURITY: AUTO-LOGOUT LOGIC
+  const handleSystemLogout = () => {
+    // 1. Clear LocalStorage Leakage
+    localStorage.removeItem('merchant_store_id');
+    
+    // 2. Reset Global Stores
+    useVendorStore.getState().reset();
+    useOrderStore.getState().clearOrders();
+    useProfileStore.getState().clearProfile();
+    useNotificationStore.getState().clearNotifications?.(); // Optional chaining if not implemented
+    
+    // 3. Proceed with standard logout
+    onLogout();
+  };
+
   useEffect(() => {
     const resetTimer = () => {
       if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
       logoutTimerRef.current = setTimeout(() => {
         console.log("Auto-logout triggered due to inactivity.");
-        onLogout(); // Log user out after 15 minutes of inactivity
+        handleSystemLogout(); // Log user out after 15 minutes of inactivity
       }, 15 * 60 * 1000);
     };
 
@@ -120,7 +137,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'shipments', icon: Truck, label: t.dashboard.menu.shipments },
     { id: 'orders', icon: Package, label: t.dashboard.menu.orders },
     { id: 'shipping-cart', icon: ShoppingBag, label: t.dashboard.menu.shippingCart },
-    { id: 'create', icon: PlusCircle, label: t.dashboard.menu.create, isAction: true },
+    { id: 'create-order', icon: PlusCircle, label: t.dashboard.menu.create, isAction: true },
     { id: 'resolution', icon: RotateCcw, label: t.dashboard.menu.resolution },
     { id: 'profile', icon: User, label: t.dashboard.menu.profile },
     { id: 'billing', icon: CreditCard, label: t.dashboard.menu.billing },
@@ -135,14 +152,20 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   // Updated Merchant Items
   const merchantNavItems = [
     { id: 'home', icon: Grid, label: t.dashboard.merchant.menu.home },
+    { id: 'loyalty', icon: Award, label: language === 'ar' ? 'مركز الولاء والسمعة' : 'Loyalty & Reputation Center' },
     { id: 'marketplace', icon: ShoppingBag, label: t.dashboard.merchant.menu.marketplace, isAction: true },
-    { id: 'active-orders', icon: Truck, label: t.dashboard.merchant.menu.activeOrders },
+    { id: 'shipments', icon: Truck, label: t.dashboard.merchant.menu.shipments },
+    { id: 'active-orders', icon: Package, label: t.dashboard.merchant.menu.activeOrders },
     { id: 'my-offers', icon: ListChecks, label: t.dashboard.merchant.menu.myOffers },
+    { id: 'reviews', icon: Star, label: language === 'ar' ? 'التقييمات' : 'Reviews' },
+    { id: 'shipping-cart', icon: ShoppingBag, label: t.dashboard.menu.shippingCart },
+    { id: 'billing', icon: Receipt, label: t.dashboard.menu.billing },
     { id: 'wallet', icon: Wallet, label: t.dashboard.merchant.menu.wallet },
-    { id: 'docs', icon: FileText, label: t.dashboard.merchant.menu.docs },
+    { id: 'resolution', icon: Scale, label: t.dashboard.merchant.resolution.title },
     { id: 'chats', icon: MessageSquare, label: t.dashboard.merchant.menu.chats },
-    { id: 'notifications', icon: Bell, label: t.dashboard.merchant.menu.notifications },
-    { id: 'profile', icon: StoreIcon, label: t.dashboard.merchant.menu.profile },
+    { id: 'support', icon: Headset, label: t.dashboard.merchant.support.title },
+    { id: 'notifications', icon: Bell, label: t.dashboard.merchant.menu.prefsAndNotifications },
+    { id: 'profile', icon: Store, label: t.dashboard.merchant.menu.profile },
     { id: 'settings', icon: Settings, label: t.dashboard.merchant.menu.settings },
   ];
 
@@ -169,6 +192,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
     // New: Support
     { id: 'support', icon: Headset, label: t.admin.support.title, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
+    { id: 'chats', icon: MessageSquare, label: language === 'ar' ? 'المحادثات' : 'Messages', allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
+    { id: 'chat-monitoring', icon: ShieldAlert, label: language === 'ar' ? 'مراقبة المحادثات' : 'Chat Monitoring', allowed: ['SUPER_ADMIN', 'ADMIN'] },
 
     // Settings: Super Admin Only
     { id: 'settings', icon: Settings, label: t.admin.settings, allowed: ['SUPER_ADMIN'] },
@@ -214,7 +239,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         onNavigate={onNavigate}
         currentPath={currentPath}
         navItems={navItems}
-        onLogout={onLogout}
+        onLogout={handleSystemLogout}
         role={role}
         adminRole={adminRole}
       />
@@ -240,6 +265,25 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             >
               <Menu size={24} />
             </button>
+
+            {currentPath !== 'home' && onBack && (
+              <div className="flex items-center gap-1 md:gap-2">
+                <button
+                  onClick={onBack}
+                  title={isAr ? 'الرجوع للصفحة السابقة' : 'Back'}
+                  className="p-2 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                >
+                  {isAr ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
+                </button>
+                <button
+                  onClick={() => onNavigate('home')}
+                  title={isAr ? 'الرئيسية' : 'Home'}
+                  className="p-2 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                >
+                  <Home size={20} />
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gold-500/10 rounded-xl flex items-center justify-center border border-gold-500/20 hidden md:flex">
@@ -287,7 +331,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 <div className="relative">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-gold-600 to-gold-400 p-[1px]">
                     <div className="w-full h-full rounded-full bg-[#1A1814] flex items-center justify-center overflow-hidden">
-                      {user?.avatar ? (
+                      {role === 'merchant' && vendorProfile?.logo ? (
+                        <img src={vendorProfile.logo} alt="Store Logo" className="w-full h-full object-contain p-1.5" />
+                      ) : user?.avatar ? (
                         <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
                         <User size={16} className="text-gold-400" />

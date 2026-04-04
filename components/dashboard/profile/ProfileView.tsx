@@ -15,13 +15,11 @@ import { SavedCards } from '../wallet/SavedCards';
 export const ProfileView: React.FC = () => {
     const { t } = useLanguage();
 
-    const [activeTab, setActiveTab] = useState<'info' | 'security' | 'addresses' | 'methods' | 'reviews' | 'settings' | 'billing' | 'loyalty'>('info');
+    const [activeTab, setActiveTab] = useState<'info' | 'security' | 'settings' | 'billing' | 'loyalty'>('info');
 
     // Consolidated Tabs Configuration
     const tabs = [
         { id: 'info', icon: User, label: t.dashboard.profile.tabs.info },
-        { id: 'addresses', icon: MapPin, label: t.dashboard.profile.tabs.addresses },
-        { id: 'methods', icon: CreditCard, label: t.dashboard.billing?.wallet || 'Payment Methods' },
         { id: 'security', icon: Shield, label: t.dashboard.profile.tabs.security },
     ];
 
@@ -53,12 +51,6 @@ export const ProfileView: React.FC = () => {
                 <GlassCard className="min-h-[500px] p-6 md:p-10">
                     <AnimatePresence mode="wait">
                         {activeTab === 'info' && <InfoTab />}
-                        {activeTab === 'addresses' && <AddressesTab />}
-                        {activeTab === 'methods' && (
-                            <motion.div key="methods" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                                <SavedCards />
-                            </motion.div>
-                        )}
                         {activeTab === 'security' && <SecurityTab />}
                     </AnimatePresence>
                 </GlassCard>

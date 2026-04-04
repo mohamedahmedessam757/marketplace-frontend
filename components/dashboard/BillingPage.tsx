@@ -65,7 +65,7 @@ export const BillingPage: React.FC = () => {
                                                 <h4 className="text-white font-bold">{inv.invoice_number}</h4>
                                                 <p className="text-xs text-white/50 flex items-center gap-1 mt-1">
                                                     <Calendar size={12} />
-                                                    {new Date(inv.created_at).toLocaleDateString()}
+                                                    {new Date(inv.createdAt).toLocaleDateString()}
                                                 </p>
                                             </div>
                                         </div>
@@ -73,7 +73,7 @@ export const BillingPage: React.FC = () => {
                                         <div className="flex items-center gap-8">
                                             <div className="text-right">
                                                 <p className="text-xs text-white/50">Amount</p>
-                                                <p className="text-lg font-bold text-white">{inv.total_amount || 0} SAR</p>
+                                                <p className="text-lg font-bold text-white">{inv.totalAmount || 0} SAR</p>
                                             </div>
 
                                             <div className="flex items-center gap-2">

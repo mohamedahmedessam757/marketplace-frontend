@@ -101,7 +101,7 @@ export const PartDetailsStep: React.FC = () => {
                   <Info size={20} className="shrink-0 mt-1" />
                   <p className="whitespace-pre-line">
                     {isRTL
-                      ? <>خيار تجميع الطلبات يتييح شحن من قطعتين الى 12 قطعة في شحنه واحدة بدلا من شحن كل قطعة لوحدها ،<br />على ان لاتبقى في سلتك لتجميع الشحنات أكثر من 7 أيام<br />ولو لم تقم بطلب الشحن قبل ذلك تشحن تلقائياً..</>
+                      ? <>خيار تجميع الطلبات يتييح شحن من قطعتين الى 12 قطعة في شحنه واحدة بدلا من شحن كل قطعة لوحدها ،<br />على ان لاتبقى في سلتك لتجميع الشحنات أكثر من 7 أيام<br />ولو لم تقم بطلب الشحن قبل ذلك تشحن تلقائياً.</>
                       : "Combined shipping allows 2-12 items in one shipment instead of shipping each part separately.\nItems can remain in your consolidation cart for up to 7 days.\nIf not shipped by then, they will be shipped automatically."
                     }
                   </p>

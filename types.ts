@@ -31,6 +31,8 @@ export type OrderStatus =
   | 'AWAITING_PAYMENT'
   | 'PARTIALLY_PAID'
   | 'PREPARATION'
+  | 'PREPARED'
+  | 'DELAYED_PREPARATION'
   | 'SHIPPED'
   | 'DELIVERED'
   | 'COMPLETED'
@@ -56,6 +58,7 @@ export interface Order {
   customerId: string; // UUID
   storeId?: string; // UUID
   status: OrderStatus;
+  adminNotes?: string;
 
   // Vehicle
   vehicleMake: string;
@@ -80,6 +83,10 @@ export interface Order {
   // Timestamps
   offersDeadlineAt?: string;
   paymentDeadlineAt?: string;
+  offerAcceptedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  delayedPreparationDeadlineAt?: string;
   createdAt: string;
   updatedAt: string;
 

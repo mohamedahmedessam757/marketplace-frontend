@@ -1,0 +1,65 @@
+import { client } from './client';
+
+export interface MerchantResolutionResponse {
+    returns: any[];
+    disputes: any[];
+}
+
+export const returnsApi = {
+    // Customer
+    requestReturn: (data: FormData) => client.post('/returns/request', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+    
+    escalateDispute: (data: FormData) => client.post('/returns/dispute', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+
+    getUserReturns: () => client.get('/returns/my-requests'),
+
+    // Case Messaging (Phase 4)
+    getCaseMessages: (id: string) => client.get(`/returns/${id}/messages`),
+    
+    sendCaseMessage: (id: string, caseType: 'return' | 'dispute', text: string, attachments?: string[]) => 
+        client.post(`/returns/${id}/messages`, { caseType, text, attachments }),
+
+
+    // Merchant
+    getMerchantCases: () => client.get<MerchantResolutionResponse>('/returns/merchant/cases'),
+
+    respondToReturn: (id: string, action: 'APPROVE' | 'REJECT', responseText: string, files?: File[]) => {
+        const formData = new FormData();
+        formData.append('action', action);
+        formData.append('responseText', responseText);
+        if (files) {
+            files.forEach(file => formData.append('files', file));
+        }
+        return client.post(`/returns/${id}/respond-return`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+
+    respondToDispute: (id: string, responseText: string, files?: File[]) => {
+        const formData = new FormData();
+        formData.append('responseText', responseText);
+        if (files) {
+            files.forEach(file => formData.append('files', file));
+        }
+        return client.post(`/returns/${id}/respond-dispute`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+
+    // Admin
+    getAdminCases: () => client.get<MerchantResolutionResponse>('/returns/admin/cases'),
+
+    issueVerdict: (id: string, type: 'return' | 'dispute', verdict: 'REFUND' | 'RELEASE_FUNDS' | 'DENY', notes: string, extra?: any) => 
+        client.post(`/returns/${id}/verdict`, { type, verdict, notes, extra }),
+
+    updateAdminVerdict: (id: string, type: 'return' | 'dispute', verdict: 'REFUND' | 'RELEASE_FUNDS' | 'DENY', notes: string, extra?: any) => 
+        client.patch(`/returns/${id}/verdict`, { type, verdict, notes, extra }),
+
+    getMerchantRiskStats: (storeId: string) => client.get(`/returns/admin/merchant-risk/${storeId}`),
+    
+    getCustomerRiskStats: (customerId: string) => client.get(`/returns/admin/customer-risk/${customerId}`)
+};

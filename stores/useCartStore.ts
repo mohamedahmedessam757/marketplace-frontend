@@ -1,131 +1,139 @@
-
 import { create } from 'zustand';
+import { ordersApi } from '../services/api/orders';
 import { supabase } from '../services/supabase';
-import { getCurrentUserId } from '../utils/auth';
 
 export interface CartItemType {
-    id: string;
+    id: string; // Order ID
+    offerId: string;
+    orderNumber: string;
     name: string;
     price: number;
-    partImage?: string;
+    shippingCost: number;
+    hasWarranty: boolean;
+    warrantyDuration?: string;
+    condition?: string;
+    partType?: string;
+    partImage: string | null;
     expiryDate: Date;
+    paidAt: Date;
     storeName: string;
+    vehicleMake: string;
+    vehicleModel: string;
+    vehicleYear: number;
+    vin: string | null;
+    partsCount: number;
+    requestType: string;
+    shippingType: string;
+    totalPaid: number;
+    shippingAddress: any | null;
+    isMyOffer?: boolean; // Merchant highlight
 }
 
 interface CartState {
     items: CartItemType[];
     loading: boolean;
     error: string | null;
-    shippingMode: 'separate' | 'combined'; // New state
-    shippingCost: number; // New state
-    setShippingMode: (mode: 'separate' | 'combined') => void; // New action
+    requestingShipping: boolean;
     fetchCartItems: () => Promise<void>;
-    removeFromCart: (id: string) => Promise<void>;
+    fetchMerchantCartItems: () => Promise<void>;
+    requestShipping: (orderIds: string[]) => Promise<boolean>;
+    subscription: any;
+    subscribeToRealtime: (userId?: string) => void;
+    unsubscribeFromRealtime: () => void;
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
     items: [],
     loading: false,
     error: null,
-    shippingMode: 'separate', // Default
-    shippingCost: 0,
+    requestingShipping: false,
+    subscription: null,
 
-    setShippingMode: (mode) => {
-        const items = get().items;
-        // Mock calculation logic: 
-        // Separate: 50 SAR per item
-        // Combined: 50 SAR base + 20 SAR per extra item
-        const baseRate = 50;
-        const extraRate = 20;
+    subscribeToRealtime: (userId?: string) => {
+        const { subscription, fetchCartItems, fetchMerchantCartItems } = get();
+        if (subscription) return;
 
-        let cost = 0;
-        if (items.length > 0) {
-            if (mode === 'separate') {
-                cost = items.length * baseRate;
+        const handleRealtimeEvent = () => {
+            const currentHash = window.location.hash || window.location.pathname;
+            if (currentHash.includes('merchant')) {
+                fetchMerchantCartItems();
             } else {
-                cost = baseRate + ((items.length - 1) * extraRate);
+                fetchCartItems();
             }
-        }
+        };
 
-        set({ shippingMode: mode, shippingCost: cost });
+        const channel = supabase.channel(`cart-realtime-${userId || 'global'}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handleRealtimeEvent)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'offers' }, handleRealtimeEvent)
+            .subscribe();
+
+        set({ subscription: channel });
+    },
+
+    unsubscribeFromRealtime: () => {
+        const { subscription } = get();
+        if (subscription) {
+            supabase.removeChannel(subscription);
+            set({ subscription: null });
+        }
     },
 
     fetchCartItems: async () => {
         set({ loading: true, error: null });
         try {
-            const userId = getCurrentUserId();
-            console.log('[useCartStore] getCurrentUserId returned:', userId);
-            if (!userId) {
-                console.log('[useCartStore] No user ID, returning empty cart');
-                set({ items: [], loading: false });
-                return;
-            }
+            const data = await ordersApi.getAssemblyCart();
 
-            // Fetch orders that are ready for checkout/payment
-            // Cart shows orders that have an accepted offer but not yet paid
-            const { data, error } = await supabase
-                .from('orders')
-                .select(`
-                    id,
-                    part_name,
-                    total_amount,
-                    vehicle_make,
-                    vehicle_model,
-                    created_at,
-                    offers_deadline_at,
-                    store_id,
-                    stores(name)
-                `)
-                .eq('status', 'AWAITING_PAYMENT')
-                .eq('customer_id', userId);
-
-            console.log('[useCartStore] Supabase query result:', { data, error });
-
-            if (error) {
-                console.error('[useCartStore] Supabase error:', error);
-                throw error;
-            }
-
-            const realCartItems: CartItemType[] = (data || []).map((order: any) => ({
-                id: order.id,
-                name: `${order.vehicle_make} ${order.vehicle_model} - ${order.part_name}`,
-                price: Number(order.total_amount) || 0,
-                storeName: order.stores?.name || 'Verified Seller',
-                expiryDate: new Date(order.offers_deadline_at || Date.now() + 48 * 3600 * 1000)
+            // Map items and ensure dates are proper Date objects
+            const cartItems: CartItemType[] = data.map((item: any) => ({
+                ...item,
+                expiryDate: new Date(item.expiryDate),
+                paidAt: new Date(item.paidAt),
             }));
 
-            console.log('[useCartStore] Mapped cart items:', realCartItems.length);
-
-            // Recalculate shipping cost based on current mode
-            const currentMode = get().shippingMode;
-            const baseRate = 50;
-            const extraRate = 20;
-            let cost = 0;
-            if (realCartItems.length > 0) {
-                if (currentMode === 'separate') {
-                    cost = realCartItems.length * baseRate;
-                } else {
-                    cost = baseRate + ((realCartItems.length - 1) * extraRate);
-                }
-            }
-
-            set({ items: realCartItems, loading: false, shippingCost: cost });
+            set({ items: cartItems, loading: false });
         } catch (err: any) {
-            console.error('[useCartStore] Error:', err);
+            console.error('[useCartStore] Error fetching assembly cart:', err);
+            set({ error: err.message, loading: false, items: [] });
+        }
+    },
+    
+    fetchMerchantCartItems: async () => {
+        set({ loading: true, error: null });
+        try {
+            const data = await ordersApi.getMerchantAssemblyCart();
+            const cartItems: CartItemType[] = data.map((item: any) => ({
+                ...item,
+                expiryDate: new Date(item.expiryDate),
+                paidAt: new Date(item.paidAt),
+            }));
+            set({ items: cartItems, loading: false });
+        } catch (err: any) {
+            console.error('[useCartStore] Error fetching merchant assembly cart:', err);
             set({ error: err.message, loading: false, items: [] });
         }
     },
 
-    removeFromCart: async (id: string) => {
+    requestShipping: async (orderIds: string[]) => {
+        set({ requestingShipping: true, error: null });
         try {
-            const { error } = await supabase.from('orders').delete().eq('id', id);
-            if (error) throw error;
+            const result = await ordersApi.requestShipping(orderIds);
 
-            set((state) => ({
-                items: state.items.filter(item => item.id !== id)
-            }));
+            if (result.success) {
+                // Remove requested items from the cart
+                set((state) => ({
+                    items: state.items.filter(item => !orderIds.includes(item.id)),
+                    requestingShipping: false
+                }));
+                return true;
+            } else {
+                set({ error: 'Failed to request shipping for some orders', requestingShipping: false });
+                return false;
+            }
         } catch (err: any) {
-            set({ error: err.message });
+            console.error('[useCartStore] Error requesting shipping:', err);
+            set({ error: err.message, requestingShipping: false });
+            return false;
         }
     }
 }));
+

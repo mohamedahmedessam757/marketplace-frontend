@@ -14,7 +14,16 @@ export const merchant = {
       yourOffer: 'عرضك',
       status: 'الحالة',
       waitingPay: 'بانتظار الدفع',
-      expiresIn: 'تنتهي خلال'
+      expiresIn: 'تنتهي خلال',
+      trackingDashboard: 'لوحة التتبع والتحليل',
+      trackingDesc: 'متابعة حية لحالة شحناتك وضمانات القطع المسلمة.'
+    },
+    shippingCart: {
+      subtitle: 'عرض مرآة لسلة تجميع العميل للقطع المباعة والمستعدة للتجميع.',
+      empty: 'لا توجد قطع حالياً في سلال تجميع العملاء.',
+      emptyDesc: 'عندما يقوم عميل بشراء قطع متعددة، ستظهر عروضك المقبولة هنا أثناء فترة تجميع العميل للشحنات.',
+      readOnlyNote: 'ملاحظة للتاجر: هذه الصفحة للعرض فقط لمتابعة حالة تجميع العميل لطلباته.',
+      dataMaskingNote: 'يتم إخفاء بيانات المتاجر المنافسة وأسعارها للحفاظ على خصوصيتك وخصوصية الآخرين.'
     },
     tabs: {
       details: 'التفاصيل',
@@ -48,14 +57,38 @@ export const merchant = {
       note: 'يحتفظ النظام بالسجلات لمدة 90 يوماً لأغراض الأمان.'
     },
     resolution: {
-      activeCases: 'قضايا نشطة',
-      totalResolved: 'تم حلها',
-      yourCases: 'قضاياك',
-      search: 'بحث برقم القضية...',
-      noCases: 'لا توجد قضايا نشطة.'
+      title: 'النزاعات والمرتجعات',
+      subtitle: 'إدارة طلبات الإرجاع والنزاعات الواردة للمتجر',
+      activeCases: 'الطلبات النشطة',
+      pendingMyResponse: 'بانتظار ردي',
+      resolved: 'القضايا المغلقة',
+      totalResolved: 'تم حلها بنجاح',
+      yourCases: 'قائمة القضايا',
+      search: 'بحث برقم الحالة أو الطلب...',
+      noCases: 'لا توجد قضايا نشطة حالياً.',
+      actionRequired: 'مطلوب إجراء',
+      deadline: 'الموعد النهائي للرد',
+      respondNow: 'الرد الآن',
+      caseId: 'رقم الحالة',
+      orderId: 'رقم الطلب',
+      customer: 'العميل',
+      type: 'النوع',
+      status: 'الحالة',
+      deadlineLeft: 'المهلة المتبقية',
+      waybillIssued: 'تم إصدار بوليصة الإرجاع',
+      handoverDeadline: 'الموعد النهائي للتسليم',
+      escalated: 'تم التصعيد للإدارة',
+      tabs: {
+        all: 'الكل',
+        needsAction: 'يحتاج إجراء',
+        returns: 'طلبات إرجاع',
+        disputes: 'نزاعات / شكاوى',
+        resolved: 'المحلولة'
+      }
     },
     kpi: {
       title: 'مؤشرات الأداء (KPIs)',
+      offersSummary: 'ملخص العروض',
       subtitle: 'أداء متجرك بناءً على معايير المنصة',
       responseSpeed: 'سرعة الرد',
       prepSpeed: 'سرعة التجهيز',
@@ -70,6 +103,13 @@ export const merchant = {
       submittedOffers: 'عروض مقدمة',
       acceptedOffers: 'عروض مقبولة',
       preparing: 'قيد التجهيز',
+      negotiating: 'قيد التفاوض',
+      executing: 'قيد التنفيذ',
+      done: 'مكتمله',
+      rejected: 'مرفوضه',
+      offersSent: 'العروض المرسله',
+      offersAccepted: 'العروض المقبوله',
+      offersRejected: 'العروض المرفوضه',
       totalSales: 'إجمالي المبيعات',
       dueBalance: 'الرصيد المستحق',
       earnings: 'الأرباح',
@@ -91,8 +131,7 @@ export const merchant = {
       title: 'إعدادات الحساب',
       tabs: {
         account: 'بيانات الحساب',
-        security: 'الأمان وكلمة المرور',
-        banking: 'البيانات البنكية',
+        sessions: 'الجلسات النشطة',
         prefs: 'التفضيلات'
       },
       banking: {
@@ -107,9 +146,15 @@ export const merchant = {
         notifTitle: 'تفضيلات الإشعارات',
         whatsapp: 'تلقي تنبيهات عبر واتساب',
         email: 'تلقي نشرة بريدية أسبوعية',
-        lang: 'لغة الواجهة'
+      lang: 'لغة الواجهة'
       },
-      sensitiveInfo: '* تم إخفاء المعلومات الحساسة. تواصل مع الإدارة للتعديل.'
+      sensitiveInfo: '* تم إخفاء المعلومات الحساسة. تواصل مع الإدارة للتعديل.',
+      warrantyRemaining: 'الضمان المتبقي',
+      warrantyExpired: 'انتهت فترة الضمان',
+      viewDetails: 'عرض التفاصيل الكاملة',
+      days: 'يوم',
+      hours: 'ساعة',
+      minutes: 'دقيقة'
     },
     shipping: {
       modalTitle: 'إصدار بوليصة شحن',
@@ -135,7 +180,7 @@ export const merchant = {
       noReady: 'لا توجد طلبات جاهزة للشحن'
     },
     marketplace: {
-      filterTitle: 'سوق الطلبات',
+      filterTitle: 'الطلبات الواردة',
       searchPlaceholder: 'بحث برقم الطلب، اسم القطعة...',
       timeRemaining: 'الوقت المتبقي',
       makeOffer: 'تقديم عرض',
@@ -146,7 +191,74 @@ export const merchant = {
         lexus: 'لكزس',
         hyundai: 'هيونداي'
       },
-      noRequests: 'لا توجد طلبات جديدة حالياً'
+      noRequests: 'لا توجد طلبات جديدة حالياً',
+      activeOffers: 'العروض النشطة الحالية',
+      competingOffers: 'عرض منافس',
+      lastUpdate: 'آخر تحديث:',
+      noActiveOffers: 'لا توجد عروض نشطة حالياً',
+      viewOffersHistory: 'عرض سجل العروض',
+      statusBox: {
+        AWAITING_OFFERS: {
+          title: 'تحت المراجعة / تم الحفظ',
+          desc: 'لقد قمت بتقديم عرض على هذا الطلب. بانتظار قرار العميل.',
+          enTitle: 'Under Review / Saved',
+          enDesc: 'You have submitted an offer. Waiting for the customer decision.'
+        },
+        AWAITING_PAYMENT: {
+          title: 'بانتظار الدفع',
+          desc: 'تم قبول عرضك، بانتظار العميل لإتمام عملية الدفع للبدء بتجهيز القطعة.',
+          enTitle: 'Awaiting Payment',
+          enDesc: 'Your offer was accepted. Waiting for the customer to complete payment.'
+        },
+        PREPARATION: {
+          title: 'تم الدفع - ابدأ التجهيز',
+          desc: 'قام العميل بالدفع بنجاح. يرجى البدء بتجهيز القطعة وتعبئتها للشحن.',
+          enTitle: 'Paid - Start Preparing',
+          enDesc: 'Customer paid successfully. Please prepare and package the part for shipment.'
+        },
+        PREPARED: {
+          title: 'بانتظار التوثيق',
+          desc: 'يرجى رفع صور وفيديو التوثيق للقطعة ليتم مراجعتها من قبل الإدارة والموافقة على الشحن.',
+          enTitle: 'Awaiting Verification',
+          enDesc: 'Please upload verification docs for management review and shipping approval.'
+        },
+        VERIFICATION: {
+          title: 'التوثيق قيد المراجعة',
+          desc: 'يتم الآن مراجعة مستندات التوثيق من قبل الإدارة. سيتم إشعارك فور الموافقة عليها.',
+          enTitle: 'Verification Under Review',
+          enDesc: 'Verification documents are currently being reviewed by management.'
+        },
+        VERIFICATION_SUCCESS: {
+          title: 'تم التوثيق بنجاح!',
+          desc: 'مستندات التوثيق مطابقة وجاهزة للتسليم للناقل. يرجى طلب تسليم الشحنة للإدارة الآن.',
+          enTitle: 'Verification Approved!',
+          enDesc: 'Verification approved. Please request shipment handover to management now.'
+        },
+        READY_FOR_SHIPPING: {
+          title: 'تم طلب تسليم الشحنة',
+          desc: 'تم إرسال طلبك للإدارة. بانتظار استلام المندوب للشحنة من موقعك قريباً.',
+          enTitle: 'Handover Requested',
+          enDesc: 'Handover requested. Awaiting courier pickup at your location soon.'
+        },
+        NON_MATCHING: {
+          title: 'التوثيق مرفوض!',
+          desc: 'تم رفض التوثيق من قبل الإدارة بسبب عدم التطابق. يرجى مراجعة الملاحظات وإعادة الرفع.',
+          enTitle: 'Verification Rejected!',
+          enDesc: 'Verification rejected due to non-matching. Please check notes and re-upload.'
+        },
+        SHIPPED: {
+          title: 'تم شحن الطلب',
+          desc: 'الشحنة الآن في طريقها إلى العميل. يمكنك متابعة حالة التتبع من صفحة الشحنات.',
+          enTitle: 'Order Shipped',
+          enDesc: 'The shipment is now on its way to the customer.'
+        },
+        DELIVERED: {
+          title: 'تم تسليم الطلب',
+          desc: 'تم استلام الشحنة من قبل العميل بنجاح. شكراً لتعاونك!',
+          enTitle: 'Order Delivered',
+          enDesc: 'The shipment has been successfully received by the customer.'
+        }
+      }
     },
     offerModal: {
       title: 'تفاصيل الطلب وتقديم العرض',
@@ -168,7 +280,7 @@ export const merchant = {
       deliveryTimeLabel: 'وقت التوصيل المتوقع',
       conditionLabel: 'حالة القطعة',
       notesLabel: 'ملاحظات إضافية',
-      uploadLabel: 'صورة القطعة (اختياري)',
+      uploadLabel: 'صورة القطعة',
       calc: {
         title: 'تفاصيل السعر والأرباح',
         basePrice: 'سعر القطعة',
@@ -201,14 +313,16 @@ export const merchant = {
     menu: {
       home: 'الرئيسية',
       activeOrders: 'الطلبات النشطة',
-      marketplace: 'سوق الطلبات',
+      marketplace: 'الطلبات الواردة',
       myOffers: 'عروضي',
       chats: 'المحادثات',
       profile: 'ملف المتجر',
       docs: 'المستندات',
       settings: 'الإعدادات',
       wallet: 'المحفظة',
-      notifications: 'الإشعارات'
+      shipments: 'الشحنات',
+      notifications: 'الإشعارات',
+      prefsAndNotifications: 'التفضيلات والإشعارات'
     },
     headers: {
       welcome: 'مرحباً،',
@@ -324,6 +438,47 @@ export const merchant = {
       disputeUpdate: 'تحديث نزاع',
       docExpiry: 'تنبيه: اقترب انتهاء صلاحية مستند',
       adminAlert: 'تنبيه إداري'
+    },
+    support: {
+      title: 'مركز الدعم الفني للمتاجر',
+      subtitle: 'نحن هنا لمساعدتك في نجاح متجرك وحل أي مشكلات تقنية أو مالية.',
+      createTicket: 'فتح تذكرة جديدة',
+      myTickets: 'تذاكري السابقة',
+      liveChat: 'محادثة مباشرة',
+      liveChatDesc: 'تحدث مع فريق دعم التجار الآن',
+      noTickets: 'لا توجد تذاكر حالياً',
+      noTicketsDesc: 'لم تقم بإرسال أي طلبات دعم فني حتى الآن.',
+      newTicketTitle: 'أرسل طلباً جديداً',
+      subject: 'عنوان الطلب',
+      message: 'وصف المشكلة بالتفصيل',
+      categories: {
+        financial: 'مشكلة مالية (أرباح/محفظة)',
+        documents: 'تحديث مستندات (سجل/رخصة)',
+        orders: 'مشكلة في طلب (نزاع/شحن)',
+        technical: 'مشكلة تقنية في المنصة',
+        other: 'أخرى'
+      },
+      faq: {
+        title: 'الأسئلة الشائعة للمتاجر',
+        q1: 'كيف يمكنني تحديث السجل التجاري المنتهي؟',
+        a1: 'يمكنك رفع النسخة الجديدة من صفحة "ملف المتجر" -> "المستندات"، وسيتم مراجعتها خلال 24 ساعة.',
+        q2: 'متى يتم تحويل الأرباح للمحفظة؟',
+        a2: 'يتم تحويل الأرباح تلقائياً كل يوم اثنين للحساب البنكي المسجل، بشرط تجاوز فترة الضمان (48 ساعة).',
+        q3: 'المشتري فتح نزاع، ماذا أفعل؟',
+        a3: 'يرجى الرد على النزاع في صفحة "مركز حل النزاعات" وتوفير مستندات الشحن والتوثيق المطلوبة.',
+        q4: 'كيف أزيد من تقييم متجري؟',
+        a4: 'سرعة الرد على الطلبات ودقة توثيق القطع وسرعة التسليم للمندوب هي أهم عوامل رفع التقييم.'
+      },
+      form: {
+        summaryPlaceholder: 'ملخص سريع للمشكلة',
+        descPlaceholder: 'يرجى شرح المشكلة بالتفصيل لنتمكن من مساعدتك...',
+        priority: 'أهمية الطلب',
+        low: 'عادي',
+        medium: 'متوسط',
+        high: 'عاجل جداً',
+        upload: 'ارفق صور أو مستندات توضيحية',
+        submitting: 'جاري الإرسال...'
+      }
     }
   },
   en: {
@@ -340,7 +495,16 @@ export const merchant = {
       yourOffer: 'Your Offer',
       status: 'Status',
       waitingPay: 'Waiting Payment',
-      expiresIn: 'Expires in'
+      expiresIn: 'Expires in',
+      trackingDashboard: 'Tracking & Analytics Dashboard',
+      trackingDesc: 'Live monitoring of your shipments and delivered item warranties.'
+    },
+    shippingCart: {
+      subtitle: 'Mirror view of customer assembly carts for sold parts awaiting consolidation.',
+      empty: 'No parts currently in customer assembly carts.',
+      emptyDesc: 'When a customer purchases multiple parts, your accepted offers will appear here during the consolidation period.',
+      readOnlyNote: 'Merchant Note: This page is read-only for monitoring customer consolidation status.',
+      dataMaskingNote: 'Competitor store data and prices are masked to maintain privacy for all parties.'
     },
     tabs: {
       details: 'Details',
@@ -374,14 +538,38 @@ export const merchant = {
       note: 'System keeps logs for 90 days for security purposes.'
     },
     resolution: {
+      title: 'Disputes & Returns',
+      subtitle: 'Manage incoming return requests and disputes for your store',
       activeCases: 'Active Cases',
-      totalResolved: 'Resolved',
-      yourCases: 'Your Cases',
-      search: 'Search case ID...',
-      noCases: 'No active cases.'
+      pendingMyResponse: 'Pending My Response',
+      resolved: 'Closed cases',
+      totalResolved: 'Successfully Resolved',
+      yourCases: 'Case List',
+      search: 'Search by case ID or order number...',
+      noCases: 'No active cases found.',
+      actionRequired: 'Action Required',
+      deadline: 'Response Deadline',
+      respondNow: 'Respond Now',
+      caseId: 'Case ID',
+      orderId: 'Order #',
+      customer: 'Customer',
+      type: 'Type',
+      status: 'Status',
+      deadlineLeft: 'Deadline Left',
+      waybillIssued: 'Return Waybill Issued',
+      handoverDeadline: 'Handover Deadline',
+      escalated: 'Escalated to Admin',
+      tabs: {
+        all: 'All',
+        needsAction: 'Needs Action',
+        returns: 'Returns',
+        disputes: 'Disputes',
+        resolved: 'Resolved'
+      }
     },
     kpi: {
       title: 'Performance Indicators (KPIs)',
+      offersSummary: 'Offers Summary',
       subtitle: 'Store performance based on platform standards',
       responseSpeed: 'Response Speed',
       prepSpeed: 'Prep Speed',
@@ -396,6 +584,13 @@ export const merchant = {
       submittedOffers: 'Offers Submitted',
       acceptedOffers: 'Offers Accepted',
       preparing: 'Preparing',
+      negotiating: 'Under Negotiation',
+      executing: 'In Progress',
+      done: 'Completed',
+      rejected: 'Rejected',
+      offersSent: 'Offers Sent',
+      offersAccepted: 'Offers Accepted',
+      offersRejected: 'Offers Rejected',
       totalSales: 'Total Sales',
       dueBalance: 'Due Balance',
       earnings: 'Earnings',
@@ -417,8 +612,7 @@ export const merchant = {
       title: 'Account Settings',
       tabs: {
         account: 'Account Info',
-        security: 'Security & Password',
-        banking: 'Banking Info',
+        sessions: 'Active Sessions',
         prefs: 'Preferences'
       },
       banking: {
@@ -433,9 +627,15 @@ export const merchant = {
         notifTitle: 'Notification Preferences',
         whatsapp: 'Receive alerts via WhatsApp',
         email: 'Receive weekly newsletter',
-        lang: 'Interface Language'
+      lang: 'Interface Language'
       },
-      sensitiveInfo: '* Sensitive contact info is masked. Contact admin to change.'
+      sensitiveInfo: '* Sensitive contact info is masked. Contact admin to change.',
+      warrantyRemaining: 'Remaining Warranty',
+      warrantyExpired: 'Warranty Expired',
+      viewDetails: 'View Full Details',
+      days: 'Days',
+      hours: 'Hours',
+      minutes: 'Minutes'
     },
     shipping: {
       modalTitle: 'Issue Waybill',
@@ -461,7 +661,7 @@ export const merchant = {
       noReady: 'No new orders waiting for shipping'
     },
     marketplace: {
-      filterTitle: 'Marketplace Requests',
+      filterTitle: 'Incoming Orders',
       searchPlaceholder: 'Search order ID, part name...',
       timeRemaining: 'Time Remaining',
       makeOffer: 'Make Offer',
@@ -472,7 +672,54 @@ export const merchant = {
         lexus: 'Lexus',
         hyundai: 'Hyundai'
       },
-      noRequests: 'No new requests at the moment'
+      noRequests: 'No new requests at the moment',
+      activeOffers: 'Current Active Offers',
+      competingOffers: 'Competing Offers',
+      lastUpdate: 'Last Update:',
+      noActiveOffers: 'No active offers currently',
+      viewOffersHistory: 'View Offers History',
+      statusBox: {
+        AWAITING_OFFERS: {
+          title: 'Offers Locked!',
+          desc: 'You can bid on remaining parts. To re-price, you must cancel the offer first.'
+        },
+        AWAITING_PAYMENT: {
+          title: 'Awaiting Payment',
+          desc: 'Your offer was accepted. Waiting for the customer to complete payment.'
+        },
+        PREPARATION: {
+          title: 'Paid - Start Preparing',
+          desc: 'Customer paid successfully. Please prepare and package the part for shipment.'
+        },
+        PREPARED: {
+          title: 'Awaiting Verification',
+          desc: 'Please upload verification docs for management review and shipping approval.'
+        },
+        VERIFICATION: {
+          title: 'Verification Under Review',
+          desc: 'Verification documents are currently being reviewed by management.'
+        },
+        VERIFICATION_SUCCESS: {
+          title: 'Verification Approved!',
+          desc: 'Verification approved. Please request shipment handover to management now.'
+        },
+        READY_FOR_SHIPPING: {
+          title: 'Handover Requested',
+          desc: 'Handover requested. Awaiting courier pickup at your location soon.'
+        },
+        NON_MATCHING: {
+          title: 'Verification Rejected!',
+          desc: 'Verification rejected due to non-matching. Please check notes and re-upload.'
+        },
+        SHIPPED: {
+          title: 'Order Shipped',
+          desc: 'The shipment is now on its way to the customer.'
+        },
+        DELIVERED: {
+          title: 'Order Delivered',
+          desc: 'The shipment has been successfully received by the customer.'
+        }
+      }
     },
     offerModal: {
       title: 'Order Details & Submit Offer',
@@ -494,7 +741,7 @@ export const merchant = {
       deliveryTimeLabel: 'Expected Delivery',
       conditionLabel: 'Part Condition',
       notesLabel: 'Additional Notes',
-      uploadLabel: 'Part Image (Optional)',
+      uploadLabel: 'Part Image',
       calc: {
         title: 'Price & Profit Breakdown',
         basePrice: 'Part Price',
@@ -527,14 +774,16 @@ export const merchant = {
     menu: {
       home: 'Dashboard',
       activeOrders: 'Active Orders',
-      marketplace: 'Marketplace',
+      marketplace: 'Incoming Orders',
       myOffers: 'My Offers',
       chats: 'Chats',
       profile: 'Store Profile',
       docs: 'Documents',
       settings: 'Settings',
       wallet: 'Earnings',
-      notifications: 'Notifications'
+      shipments: 'Shipments',
+      notifications: 'Notifications',
+      prefsAndNotifications: 'Preferences & Notifications'
     },
     headers: {
       welcome: 'Welcome,',
@@ -650,7 +899,48 @@ export const merchant = {
       rateRequest: 'Rate Request',
       disputeUpdate: 'Dispute Update',
       docExpiry: 'Alert: Document Expiring Soon',
-      adminAlert: 'Admin Alert'
+      adminAlert: 'Admin Alert',
+    },
+    support: {
+      title: 'Merchant Support Center',
+      subtitle: 'We are here to help your store succeed and resolve any technical or financial issues.',
+      createTicket: 'Open New Ticket',
+      myTickets: 'My Tickets',
+      liveChat: 'Live Chat',
+      liveChatDesc: 'Talk to merchant support now',
+      noTickets: 'No tickets found',
+      noTicketsDesc: 'You haven\'t submitted any support requests yet.',
+      newTicketTitle: 'Submit a New Request',
+      subject: 'Subject',
+      message: 'Issue Description',
+      categories: {
+        financial: 'Financial Issue (Earnings/Wallet)',
+        documents: 'Document Update (CR/License)',
+        orders: 'Order Issue (Dispute/Shipping)',
+        technical: 'Technical Platform Issue',
+        other: 'Other'
+      },
+      faq: {
+        title: 'Merchant FAQ',
+        q1: 'How do I update an expired CR?',
+        a1: 'Upload the new copy in "Store Profile" -> "Documents". It will be reviewed within 24 hours.',
+        q2: 'When are earnings transferred?',
+        a2: 'Earnings are transferred every Monday to your registered bank account, after the 48h warranty period.',
+        q3: 'Customer opened a dispute, what should I do?',
+        a3: 'Respond via the "Resolution Center" and provide all requested shipping and verification docs.',
+        q4: 'How can I improve my store rating?',
+        a4: 'Response speed, accurate verification, and fast handover to couriers are the key factors.'
+      },
+      form: {
+        summaryPlaceholder: 'Quick summary of the issue',
+        descPlaceholder: 'Please describe your issue in detail so we can help...',
+        priority: 'Priority',
+        low: 'Low',
+        medium: 'Medium',
+        high: 'Urgent',
+        upload: 'Attach screenshots or documents',
+        submitting: 'Submitting...'
+      }
     }
   }
 };

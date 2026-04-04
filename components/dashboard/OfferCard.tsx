@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Star, ShieldCheck, Truck, MessageSquare, CheckCircle2, Box, Tag, X, ZoomIn } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -14,17 +14,24 @@ export interface OfferProps {
     condition: string;
     warranty: string | boolean;
     deliveryTime: string;
+    status?: string;
     onAccept: () => void;
     onChat: () => void;
-    isSelected?: boolean;
+    onReject?: () => void;
     offerImage?: string;
     storeLogo?: string | null;
     isShippingIncluded?: boolean;
+    shippingCost?: number;
     weight?: number;
     partType?: string;
+    disabled?: boolean;
+    offerNumber?: string;
+    storeCode?: string;
+    submittedAt?: string;
+    acceptLoading?: boolean;
 }
 
-export const OfferCard: React.FC<OfferProps> = ({
+export const OfferCard: React.FC<OfferProps> = memo(({
     storeName,
     rating,
     reviewCount,
@@ -33,16 +40,24 @@ export const OfferCard: React.FC<OfferProps> = ({
     condition,
     warranty,
     deliveryTime,
+    status,
     onAccept,
     onChat,
+    onReject,
     isSelected,
     storeLogo,
     offerImage,
     notes,
     storeCity,
     isShippingIncluded,
+    shippingCost,
     weight,
-    partType
+    partType,
+    disabled,
+    offerNumber,
+    storeCode,
+    submittedAt,
+    acceptLoading
 }) => {
     const { t, language } = useLanguage();
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -52,22 +67,46 @@ export const OfferCard: React.FC<OfferProps> = ({
     // Based on index.ts, it is inside dashboard.
     const offersT = (t.dashboard as any)?.offers || (t.offers as any);
 
-    const getConditionText = (val: string) => offersT?.conditions?.[val?.trim()] || val;
-    const getWarrantyText = (val: string | boolean) => {
-        const strictVal = typeof val === 'boolean' ? (val ? 'yes' : 'no') : val?.toLowerCase()?.trim();
-        return offersT?.warranties?.[strictVal] || val.toString();
-    };
-    const getDeliveryText = (val: string) => offersT?.delivery?.[val?.trim()] || offersT?.delivery?.[val] || val;
+    const conditionText = useMemo(() => {
+        if (!condition) return '';
+        const lowerVal = condition.toLowerCase().trim();
+        return offersT?.conditions?.[lowerVal] || offersT?.conditions?.[condition.trim()] || condition;
+    }, [condition, offersT]);
+
+    const warrantyText = useMemo(() => {
+        if (warranty === undefined || warranty === null) return offersT?.warranties?.no || 'No Warranty';
+        const strictVal = typeof warranty === 'boolean' ? (warranty ? 'yes' : 'no') : (warranty as string).toLowerCase().trim().replace(/\s/g, '');
+        
+        // Custom 2026 fallbacks
+        if (strictVal === '15days') return language === 'ar' ? '15 يوم' : '15 Days';
+        if (strictVal === '1month') return language === 'ar' ? 'شهر' : '1 Month';
+        if (strictVal === '3months') return language === 'ar' ? '3 أشهر' : '3 Months';
+        if (strictVal === '12months') return language === 'ar' ? '12 شهر' : '12 Months';
+        if (strictVal === 'custom') return warranty.toString();
+        
+        return offersT?.warranties?.[strictVal] || warranty.toString();
+    }, [warranty, offersT, language]);
+
+    const deliveryTimeText = useMemo(() => {
+        if (!deliveryTime) return '';
+        const key = deliveryTime.trim();
+        if (offersT?.delivery?.[key]) return offersT?.delivery?.[key];
+        if (key.match(/^d\d+_\d+$/)) {
+            const [min, max] = key.substring(1).split('_');
+            return language === 'ar' ? `من ${min} إلى ${max} أيام` : `${min}-${max} Days`;
+        }
+        return key;
+    }, [deliveryTime, offersT, language]);
 
     return (
         <>
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`rounded-2xl p-6 mb-4 transition-all duration-300 relative overflow-hidden group ${isSelected
+                className={`rounded-2xl p-6 mb-4 relative overflow-hidden group will-change-[transform,opacity,border-color] transition-[border-color,transform,box-shadow,background-color] duration-300 ${isSelected
                     ? 'bg-gradient-to-br from-gold-500/10 to-transparent border-2 border-gold-500 shadow-[0_0_30px_rgba(234,179,8,0.1)]'
                     : 'bg-white/5 border border-white/10 hover:border-white/20'
-                    }`}
+                    } ${disabled ? 'opacity-50 grayscale-[50%] pointer-events-none' : ''}`}
             >
                 {/* Header: Store & Price */}
                 <div className="flex justify-between items-start gap-4 mb-6">
@@ -76,26 +115,22 @@ export const OfferCard: React.FC<OfferProps> = ({
                         {/* Store Logo */}
                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center font-bold text-white text-xl overflow-hidden shrink-0">
                             {storeLogo ? (
-                                <img src={storeLogo} alt={storeName} className="w-full h-full object-cover" />
+                                <img src={storeLogo} alt="Store" className="w-full h-full object-cover" />
                             ) : (
-                                storeName.charAt(0).toUpperCase()
+                                <ShieldCheck size={18} className="text-gold-400/40" />
                             )}
                         </div>
                         <div>
-                            <h3 className="font-bold text-white text-lg">{storeName}</h3>
+                            <h3 className="font-bold text-white text-lg flex items-center gap-1.5">
+                                <span className="text-gold-400 text-sm font-mono tracking-wide">ID</span>
+                                <span>{storeCode || '---'}</span>
+                            </h3>
                             <div className="flex items-center gap-2 text-sm mt-1">
                                 <div className="flex items-center text-yellow-500">
                                     <Star size={14} fill="currentColor" />
                                     <span className="mx-1 font-bold text-white">{rating.toFixed(1)}</span>
                                 </div>
                                 <span className="text-white/30 text-xs">({reviewCount} {(t.common as any)?.reviews || 'Reviews'})</span>
-
-                                {/* Location Badge */}
-                                {storeCity && (
-                                    <span className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded text-[10px] text-white/50 border border-white/5">
-                                        <Truck size={10} /> {storeCity}
-                                    </span>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -116,7 +151,10 @@ export const OfferCard: React.FC<OfferProps> = ({
                     {/* Price Section */}
                     <div className="text-right shrink-0">
                         <div className="flex flex-col items-end">
-                            <div className="text-3xl font-bold text-gold-400 number-font">{price.toLocaleString()} <span className="text-sm font-medium text-white/50">AED</span></div>
+                            <div className="text-3xl font-bold text-gold-400 number-font">
+                                {price.toLocaleString()}
+                                <span className="text-sm font-medium text-white/50 ml-1">AED</span>
+                            </div>
                             <div className="text-xs text-white/40 mt-1 flex items-center gap-1 justify-end">
                                 {offersT?.finalPrice || 'Final Price'}
                                 {isShippingIncluded && (
@@ -132,6 +170,28 @@ export const OfferCard: React.FC<OfferProps> = ({
                 {/* Separator */}
                 <div className="h-px w-full bg-white/5 my-5" />
 
+                {/* Offer Metadata Row */}
+                <div className="flex flex-wrap items-center gap-4 mb-5 px-2">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.offerNumber || 'Offer No.'}</span>
+                        <span className="text-sm font-medium text-white/80 font-mono tracking-tight">{offerNumber || '---'}</span>
+                    </div>
+                    <div className="w-1 h-1 rounded-full bg-white/20" />
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.storeCode || 'Store ID'}</span>
+                        <span className="text-sm font-medium text-white/80 font-mono tracking-tight">{storeCode || '---'}</span>
+                    </div>
+                    <div className="w-1 h-1 rounded-full bg-white/20" />
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.submittedAt || 'Date'}</span>
+                        <span className="text-sm font-medium text-white/80">
+                             {submittedAt
+                                ? new Date(submittedAt).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                                : '---'}
+                        </span>
+                    </div>
+                </div>
+
                 {/* Details Grid - Enhanced with Translation & New Fields */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     {/* Condition */}
@@ -139,7 +199,7 @@ export const OfferCard: React.FC<OfferProps> = ({
                         <div className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
                         <div className="flex flex-col">
                             <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.condition || 'Condition'}</span>
-                            <span className="text-sm font-medium">{getConditionText(condition)}</span>
+                            <span className="text-sm font-medium">{conditionText}</span>
                         </div>
                     </div>
 
@@ -159,25 +219,18 @@ export const OfferCard: React.FC<OfferProps> = ({
                         <ShieldCheck size={16} className="text-gold-400 shrink-0" />
                         <div className="flex flex-col">
                             <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.warranty || 'Warranty'}</span>
-                            <span className="text-sm font-medium">{getWarrantyText(warranty)}</span>
+                            <span className="text-sm font-medium">{warrantyText}</span>
                         </div>
                     </div>
 
-                    {/* Delivery */}
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-white/80">
-                        <Truck size={16} className="text-green-400 shrink-0" />
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.delivery || 'Delivery'}</span>
-                            <span className="text-sm font-medium">{getDeliveryText(deliveryTime)}</span>
-                        </div>
-                    </div>
 
-                    {/* Part Price (New) */}
+
+                    {/* Part Price (New) - Now showing Final Price */}
                     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-white/80">
                         <div className="text-yellow-400 font-bold shrink-0 text-lg">$</div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.unitPrice || 'Part Price'}</span>
-                            <span className="text-sm font-medium">{(unitPrice || 0).toLocaleString()} AED</span>
+                            <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.finalPrice || 'Final Price'}</span>
+                            <span className="text-sm font-medium">{(price || 0).toLocaleString()} AED</span>
                         </div>
                     </div>
 
@@ -206,21 +259,54 @@ export const OfferCard: React.FC<OfferProps> = ({
                 )}
 
                 {/* Actions */}
-                <div className="flex justify-end gap-3">
-                    <button
-                        onClick={onChat}
-                        className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors flex items-center gap-2"
-                    >
-                        <MessageSquare size={18} />
-                        <span>Chat</span>
-                    </button>
-                    <button
-                        onClick={onAccept}
-                        className="px-8 py-3 rounded-xl bg-gold-500 hover:bg-gold-600 text-white font-bold shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center gap-2"
-                    >
-                        <CheckCircle2 size={18} />
-                        <span>{(t.offers as any)?.accept || 'Accept Offer'}</span>
-                    </button>
+                <div className="flex justify-end gap-3 mt-4">
+                    {status === 'accepted' ? (
+                        <div className="px-6 py-3 rounded-xl bg-green-500/20 border border-green-500/40 text-green-400 font-bold text-sm flex items-center gap-2">
+                            <CheckCircle2 size={18} />
+                            {language === 'ar' ? 'تم القبول' : 'Accepted'}
+                        </div>
+                    ) : status === 'rejected' ? (
+                        <div className="px-6 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-bold text-sm">
+                            {language === 'ar' ? 'تم الرفض' : 'Rejected'}
+                        </div>
+                    ) : disabled ? (
+                        <div className="px-6 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500/60 font-bold text-sm">
+                            {offersT?.orderClosed || 'Order Closed'}
+                        </div>
+                    ) : (
+                        <>
+                            <button
+                                onClick={onChat}
+                                disabled={acceptLoading}
+                                className={`px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors flex items-center gap-2 ${acceptLoading ? 'opacity-50 pointer-events-none' : ''}`}
+                            >
+                                <MessageSquare size={18} />
+                                <span>{offersT?.chat || 'Chat'}</span>
+                            </button>
+                            {onReject && (
+                                <button
+                                    onClick={onReject}
+                                    disabled={acceptLoading}
+                                    className={`px-6 py-3 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 font-bold transition-all flex items-center gap-2 ${acceptLoading ? 'opacity-50 pointer-events-none' : ''}`}
+                                >
+                                    <X size={18} />
+                                    <span>{language === 'ar' ? 'رفض العرض' : 'Reject'}</span>
+                                </button>
+                            )}
+                            <button
+                                onClick={onAccept}
+                                disabled={acceptLoading}
+                                className={`px-8 py-3 rounded-xl bg-gold-500 hover:bg-gold-600 text-white font-bold shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center gap-2 ${acceptLoading ? 'opacity-50 pointer-events-none' : ''}`}
+                            >
+                                {acceptLoading ? (
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <CheckCircle2 size={18} />
+                                )}
+                                <span>{acceptLoading ? (language === 'ar' ? 'جاري القبول...' : 'Accepting...') : (offersT?.acceptOffer || 'Accept Offer')}</span>
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 {/* Image Modal */}
@@ -240,4 +326,6 @@ export const OfferCard: React.FC<OfferProps> = ({
             </motion.div>
         </>
     );
-};
+});
+
+OfferCard.displayName = 'OfferCard';

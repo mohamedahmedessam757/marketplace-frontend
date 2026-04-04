@@ -37,12 +37,19 @@ interface NotificationState {
   subscribeToNotifications: (userId: string, role: string) => void;
   unsubscribeFromNotifications: () => void;
   addNotification: (notification: Partial<Notification>) => Promise<void>;
+  clearNotifications: () => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
   isLoading: false,
+
+  clearNotifications: () => set({
+    notifications: [],
+    unreadCount: 0,
+    isLoading: false
+  }),
 
   fetchNotifications: async (userId: string, role: string) => {
     if (!userId || !role) return;

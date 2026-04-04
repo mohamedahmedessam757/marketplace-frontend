@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '../ui/GlassCard';
@@ -7,11 +5,12 @@ import { Button } from '../ui/Button';
 import { Badge, StatusType } from '../ui/Badge';
 import { StatusTimeline } from '../ui/StatusTimeline';
 import { OfferCard } from './OfferCard';
-import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2 } from 'lucide-react';
+import { PartOffersDrawer } from './PartOffersDrawer';
+import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCheckoutStore } from '../../stores/useCheckoutStore';
 import { useChatStore } from '../../stores/useChatStore';
-import { useOrderStore, Order } from '../../stores/useOrderStore';
+import { useOrderStore, Order, OrderOffer } from '../../stores/useOrderStore';
 import { useOrderChatStore } from '../../stores/useOrderChatStore';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { TrackingView } from './tracking/TrackingView';
@@ -19,6 +18,10 @@ import { ReviewModal } from './reviews/ReviewModal';
 import { ReturnRequestModal } from './resolution/ReturnRequestModal';
 import { DisputeModal } from './resolution/DisputeModal';
 import { OrderExpiredModal } from './OrderExpiredModal';
+import { OrderInvoicesPanel } from './shared/OrderInvoicesPanel';
+import { OrderWaybillsPanel } from './shared/OrderWaybillsPanel';
+import { useShipmentsStore } from '../../stores/useShipmentsStore';
+import { ShipmentTracker } from './shipments/ShipmentTracker';
 
 interface OrderDetailsProps {
     orderId: string | null;
@@ -26,7 +29,10 @@ interface OrderDetailsProps {
     onNavigate: (path: string, id?: any) => void;
 }
 
-export const CountdownTimer = ({ targetDate, label, compact = false }: { targetDate: string, label?: string, compact?: boolean }) => {
+
+
+
+export const CountdownTimer = ({ targetDate, label, compact = false, hideExpiredText = false }: { targetDate: string, label?: string, compact?: boolean, hideExpiredText?: boolean }) => {
     const { t } = useLanguage();
     const [timeLeft, setTimeLeft] = useState<{ h: number, m: number, s: number } | null>(null);
 
@@ -40,7 +46,7 @@ export const CountdownTimer = ({ targetDate, label, compact = false }: { targetD
                 setTimeLeft(null);
                 clearInterval(interval);
             } else {
-                const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const h = Math.floor(diff / (1000 * 60 * 60));
                 const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                 const s = Math.floor((diff % (1000 * 60)) / 1000);
                 setTimeLeft({ h, m, s });
@@ -49,7 +55,7 @@ export const CountdownTimer = ({ targetDate, label, compact = false }: { targetD
         return () => clearInterval(interval);
     }, [targetDate]);
 
-    if (!timeLeft) return <span className="text-red-500 font-bold text-xs">{t.dashboard.common?.expired || 'Expired'}</span>;
+    if (!timeLeft) return hideExpiredText ? null : <span className="text-red-500 font-bold text-xs">{t.dashboard.common?.expired || 'Expired'}</span>;
 
     return (
         <div className={`flex ${compact ? 'flex-row items-center gap-2' : 'flex-col items-end'}`}>
@@ -67,22 +73,41 @@ export const CountdownTimer = ({ targetDate, label, compact = false }: { targetD
 export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
     const { getOrder, checkSLA, updateOrderStatus } = useOrderStore();
-    const { setSelectedOffer } = useCheckoutStore();
-    const { openChatForOrder } = useChatStore();
+    const { setSelectedOffer: setSelectedOfferAction } = useCheckoutStore();
+    const { fetchChat } = useOrderChatStore();
     const { addNotification } = useNotificationStore();
-
-    const [selectedOffer, setSelectedOfferId] = useState<number | null>(null);
+    const { shipments, fetchShipments } = useShipmentsStore();
+    // UI State
+    const [selectedOffer, setSelectedOffer] = useState<number | null>(null);
+    const [acceptLoadingOfferId, setAcceptLoadingOfferId] = useState<number | null>(null);
+    const [chatLoading, setChatLoading] = useState(false);
     const [showTracking, setShowTracking] = useState(false);
     const [isLoadingSupport, setIsLoadingSupport] = useState(false);
-
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [showReturnModal, setShowReturnModal] = useState(false);
     const [showDisputeModal, setShowDisputeModal] = useState(false);
     const [showExpiredModal, setShowExpiredModal] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'waybills'>('overview');
+
+    // Rejection State
+    const [offerToReject, setOfferToReject] = useState<OrderOffer | null>(null);
+    const [rejectReason, setRejectReason] = useState('');
+    const [customRejectReason, setCustomRejectReason] = useState('');
+    const [isRejecting, setIsRejecting] = useState(false);
+
+    // Part Offers Drawer state
+    const [drawerPart, setDrawerPart] = useState<{
+        id: string;
+        name: string;
+        description?: string;
+        image?: string;
+        index: number;
+    } | null>(null);
 
     // Fetch Order
     const order = getOrder(orderId || '');
+    const shipment = shipments.find(s => s.orderId === (orderId || ''));
 
     // Show Expired Modal Logic
     useEffect(() => {
@@ -112,42 +137,159 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
         // Ensure fresh data on mount (Fixes the "Missing Offers" issue)
         useOrderStore.getState().fetchOrders();
         checkSLA();
+        fetchShipments();
     }, [orderId]);
+
+    // Auto-open drawer for specific part if requested from checkout
+    useEffect(() => {
+        const { openDrawerForPartId, setOpenDrawerForPartId } = useCheckoutStore.getState();
+        if (openDrawerForPartId && order?.parts) {
+            const partIdx = order.parts.findIndex(p => p.id === openDrawerForPartId);
+            if (partIdx !== -1) {
+                const p = order.parts[partIdx];
+                const partImgSrc = p.images?.[0]
+                    ? (typeof p.images[0] === 'string' ? p.images[0] : window.URL.createObjectURL(p.images[0] as unknown as File))
+                    : undefined;
+
+                // Small timeout to ensure DOM is ready and modal transitions don't conflict
+                setTimeout(() => {
+                    setDrawerPart({
+                        id: String(p.id),
+                        name: p.name,
+                        description: p.description,
+                        image: partImgSrc,
+                        index: partIdx
+                    });
+                }, 100);
+            }
+            // Clear it so it doesn't trigger again
+            setOpenDrawerForPartId(null);
+        }
+    }, [order]);
 
     if (!order) return <div className="text-white text-center py-10">{t.dashboard.common?.notFound || 'Order not found'}</div>;
 
     const BackIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
-    const handleAcceptOffer = (offer: any) => {
-        // 1. Prepare checkout
-        setSelectedOffer({
-            id: offer.id,
-            merchantName: offer.merchantName,
-            price: offer.price,
-            partName: order.part
-        });
-        onNavigate('checkout');
+    const handleAcceptOffer = async (offer: any) => {
+        setAcceptLoadingOfferId(offer.id);
+
+        try {
+            // Determine the part ID to pass (either the specific part's ID or a dummy 'main' for single-part orders)
+            // It expects orderId, partId, offerId
+            const partId = offer.orderPartId || (order.parts && order.parts[0]?.id) || 'main';
+            if (!offer.orderPartId && order.parts && order.parts.length > 1) {
+                // Should not happen based on UI constraints, but just in case
+                console.warn('Accepting a general offer on a multi-part order not fully supported yet in this flow.');
+            }
+
+            // Call the backend API
+            await useOrderStore.getState().acceptOffer(order.id, partId, offer.id);
+
+            // Set for checkout summary usage
+            useCheckoutStore.getState().reset();
+            useCheckoutStore.getState().setOrderId(order.id);
+            setSelectedOfferAction({
+                id: offer.id,
+                merchantName: offer.merchantName,
+                price: offer.price,
+                partName: order.part
+            });
+
+            // Navigate immediately — optimistic state is preserved (silentFetch is deferred)
+            onNavigate('checkout');
+        } catch (error) {
+            console.error('Failed to accept offer:', error);
+            useNotificationStore.getState().addNotification({
+                type: 'SYSTEM',
+                titleAr: 'فشل قبول العرض',
+                titleEn: 'Failed to accept offer',
+                messageAr: 'حدث خطأ أثناء معالجة طلبك.',
+                messageEn: 'An error occurred while processing your request.',
+                recipientRole: 'CUSTOMER'
+            });
+        } finally {
+            setAcceptLoadingOfferId(null);
+        }
     };
 
-    const handleChat = (offer: any) => {
-        openChatForOrder(String(order.id), offer.merchantName, order.part);
-        onNavigate('chats');
+    const handleChat = async (offer: any) => {
+        setChatLoading(true);
+        try {
+            // Use the REAL backend API — creates/gets chat in order_chats table
+            const newChat = await fetchChat(String(order.id), offer.storeId || offer.vendorId || offer.store_id || '');
+            onNavigate('chats', newChat.id); // Explicitly pass the chat ID
+        } catch (e: any) {
+            console.error('Failed to init chat:', e);
+            useNotificationStore.getState().addNotification({
+                type: 'SYSTEM',
+                titleAr: 'فشل فتح المحادثة',
+                titleEn: 'Failed to Open Chat',
+                messageAr: e?.response?.data?.message || 'حدث خطأ أثناء محاولة بدء المحادثة.',
+                messageEn: e?.response?.data?.message || 'An error occurred while trying to initialize the chat.',
+                recipientRole: 'CUSTOMER'
+            });
+        } finally {
+            setChatLoading(false);
+        }
     };
 
     const handleSupportClick = async () => {
         setIsLoadingSupport(true);
         try {
             const subject = `${language === 'ar' ? 'طلب رقم' : 'Order'} #${order.id}`;
-            const message = `${language === 'ar' ? 'أحتاج مساعدة بخصوص طلبي' : 'I need help with my order'} (${order.part})`;
 
-            // Launch directly via unified chat store
-            await useOrderChatStore.getState().createSupportChat(subject, message, String(order.id));
-
-            onNavigate('chats');
-        } catch (err) {
-            console.error('Failed to launch support chat', err);
+            // We simulate API call
+            await new Promise(res => setTimeout(res, 500));
+            onNavigate('support', { subject });
+        } catch (e) {
+            console.error('Failed to open support ticket dialog', e);
         } finally {
             setIsLoadingSupport(false);
+        }
+    };
+
+    const submitRejectOffer = async () => {
+        if (!offerToReject || !orderId) return;
+        setIsRejecting(true);
+        try {
+            await useOrderStore.getState().rejectOffer(
+                orderId,
+                offerToReject.id,
+                rejectReason,
+                rejectReason === 'أسباب أخرى' ? customRejectReason : undefined
+            );
+
+            // Rejection successful
+            addNotification({
+                type: 'success',
+                titleAr: 'تم رفض العرض',
+                titleEn: 'Offer Rejected',
+                messageAr: 'تم رفض العرض بنجاح',
+                messageEn: 'The offer was successfully rejected'
+            });
+
+            setOfferToReject(null);
+            setRejectReason('');
+            setCustomRejectReason('');
+
+            // If the drawer is open and there are no more offers, close it
+            if (drawerPart) {
+                const remainingOffers = order.offers.filter((o: any) => o.orderPartId === drawerPart.id && o.id !== offerToReject.id && o.status !== 'rejected');
+                if (remainingOffers.length === 0) {
+                    setDrawerPart(null);
+                }
+            }
+        } catch (error) {
+            addNotification({
+                type: 'error',
+                titleAr: 'خطأ',
+                titleEn: 'Error',
+                messageAr: 'تعذر إرسال الرفض',
+                messageEn: 'Could not submit rejection'
+            });
+        } finally {
+            setIsRejecting(false);
         }
     };
 
@@ -168,9 +310,21 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const isExpired = isOrderExpired();
 
     const getPaymentDeadline = () => {
-        if (!order.offerAcceptedAt) return '';
-        const d = new Date(order.offerAcceptedAt);
+        if (order.paymentDeadlineAt) return order.paymentDeadlineAt;
+        const baseDate = order.offerAcceptedAt || order.updatedAt;
+        if (!baseDate) return '';
+        const d = new Date(baseDate);
         d.setHours(d.getHours() + 24);
+        return d.toISOString();
+    };
+
+    const getPreparationDeadline = () => {
+        const paymentDates = order.payments?.map((p: any) => new Date(p.createdAt || p.paidAt).getTime()).filter(Boolean) || [];
+        const paidAt = paymentDates.length > 0 ? new Date(Math.min(...paymentDates)).toISOString() : null;
+        const baseDate = paidAt || order.updatedAt; // timestamp of switching to PREPARATION node
+        if (!baseDate) return '';
+        const d = new Date(baseDate);
+        d.setHours(d.getHours() + 48);
         return d.toISOString();
     };
 
@@ -182,12 +336,23 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+
+            {/* Chat Initiation Loading Overlay */}
+            {chatLoading && (
+                <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+                    <div className="w-12 h-12 border-3 border-gold-500/30 border-t-gold-500 rounded-full animate-spin" />
+                    <p className="text-white font-bold text-lg animate-pulse">
+                        {language === 'ar' ? 'جاري فتح المحادثة...' : 'Opening chat...'}
+                    </p>
+                </div>
+            )}
 
             <ReviewModal
                 isOpen={showReviewModal}
                 onClose={() => setShowReviewModal(false)}
                 orderId={order.id}
+                storeId={order.acceptedOffer?.storeId || order.merchantId || ''}
                 merchantName={order.merchantName || 'Store'}
                 partName={order.part}
             />
@@ -285,12 +450,45 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         <span className="text-sm font-medium">{t.dashboard.orders.backToList}</span>
                     </button>
 
-                    {/* Timers */}
+                    {/* Timers — each status shows its own correct deadline */}
                     {order.status === 'AWAITING_OFFERS' && (
                         <CountdownTimer targetDate={getOfferDeadline()} label={t.dashboard.timers.offers_expires} />
                     )}
-                    {order.status === 'AWAITING_PAYMENT' && order.offerAcceptedAt && (
-                        <CountdownTimer targetDate={getPaymentDeadline()} label={t.dashboard.timers.payment_expires} />
+                    {order.status === 'AWAITING_PAYMENT' && (
+                        <CountdownTimer targetDate={getPaymentDeadline()} label={language === 'ar' ? 'مهلة الدفع' : 'Payment Deadline'} />
+                    )}
+                    {order.status === 'PREPARATION' && (
+                        <CountdownTimer targetDate={getPreparationDeadline()} label={language === 'ar' ? 'مهلة التجهيز (48س)' : 'Prep Deadline (48h)'} />
+                    )}
+                    {order.status === 'DELAYED_PREPARATION' && order.delayedPreparationDeadlineAt && (
+                        <div className="flex flex-col items-end gap-1">
+                            <span className="text-[10px] text-red-400/80 font-bold uppercase tracking-wider animate-pulse">
+                                {language === 'ar' ? '⚠️ مهلة التجهيز الأخيرة (24س)' : '⚠️ Final Grace Deadline (24h)'}
+                            </span>
+                            <div className="flex gap-1 text-red-400 font-mono font-bold text-sm bg-red-500/10 px-3 py-1 rounded-full border border-red-500/30 animate-pulse">
+                                <CountdownTimer
+                                    targetDate={order.delayedPreparationDeadlineAt}
+                                    label=""
+                                    compact
+                                    hideExpiredText={false}
+                                />
+                            </div>
+                        </div>
+                    )}
+                    {order.status === 'CORRECTION_PERIOD' && (
+                        <div className="flex flex-col items-end gap-1">
+                            <span className="text-[10px] text-orange-400 font-bold uppercase tracking-wider animate-pulse">
+                                {language === 'ar' ? '⚠️ مهلة تصحيح التوثيق (48س)' : '⚠️ Correction Deadline (48h)'}
+                            </span>
+                            <div className="flex gap-1 text-orange-400 font-mono font-bold text-sm bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/30 animate-pulse">
+                                <CountdownTimer
+                                    targetDate={order.correctionDeadlineAt || new Date(new Date().getTime() + 48*60*60*1000).toISOString()}
+                                    label=""
+                                    compact
+                                    hideExpiredText={false}
+                                />
+                            </div>
+                        </div>
                     )}
                     {order.status === 'DELIVERED' && order.deliveredAt && (
                         <CountdownTimer targetDate={getReturnDeadline()} label={t.dashboard.timers.return_window} />
@@ -317,6 +515,30 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         <div className="flex flex-wrap items-center gap-3">
 
                             {/* Simulation buttons removed for production/customer view */}
+
+                            {/* Continue Checkout Button */}
+                            {['AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && order.offers?.some(o => o.status === 'accepted') && (
+                                <button
+                                    onClick={() => {
+                                        useCheckoutStore.getState().reset();
+                                        useCheckoutStore.getState().setOrderId(order.id);
+                                        const accOffer = order.offers.find(o => o.status === 'accepted');
+                                        if (accOffer) {
+                                            setSelectedOfferAction({
+                                                id: accOffer.id,
+                                                merchantName: accOffer.merchantName,
+                                                price: accOffer.price,
+                                                partName: order.part
+                                            });
+                                        }
+                                        onNavigate('checkout');
+                                    }}
+                                    className="hidden md:flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-black rounded-lg transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_20px_rgba(212,175,55,0.5)] font-bold text-sm"
+                                >
+                                    <CheckCircle2 size={16} />
+                                    {language === 'ar' ? 'إكمال تفاصيل الدفع' : 'Continue Checkout'}
+                                </button>
+                            )}
 
 
                             {/* Review Button */}
@@ -363,7 +585,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     </div>
 
                     {/* Extended Tracking View Trigger */}
-                    {(order.status === 'SHIPPED' || order.status === 'PREPARATION') ? (
+                    {!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'CANCELLED'].includes(order.status) ? (
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-6">
                                 <StatusTimeline currentStatus={order.status} />
@@ -377,7 +599,33 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                         exit={{ height: 0, opacity: 0 }}
                                         className="overflow-hidden border-t border-white/5 pt-6 mt-6"
                                     >
-                                        <TrackingView trackingNumber="TRK-12345678" />
+                                        {shipment ? (
+                                            <div className="space-y-6">
+                                                {/* Meta Info */}
+                                                <div className="flex flex-wrap gap-4 items-center justify-between bg-white/5 p-4 rounded-xl border border-white/10">
+                                                    <div>
+                                                        <p className="text-sm text-white/50">{language === 'ar' ? 'رقم التتبع' : 'Tracking Num'}</p>
+                                                        <p className="font-mono font-bold text-lg text-gold-400">{shipment.trackingNumber || 'PENDING'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm text-white/50">{language === 'ar' ? 'الشركة الناقلة' : 'Carrier'}</p>
+                                                        <p className="font-bold text-white flex items-center gap-2">
+                                                            <Truck size={16} />
+                                                            {shipment.carrier || (language === 'ar' ? 'تشليح السريعة' : 'Tashleh Express')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* 14-Step Tracker */}
+                                                <ShipmentTracker status={shipment.status} />
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <Truck size={48} className="mx-auto text-white/10 mb-4" />
+                                                <p className="text-white/50 mb-2">{language === 'ar' ? 'جاري تجهيز بيانات الشحن...' : 'Preparing shipping details...'}</p>
+                                                <p className="text-sm text-gold-400">{language === 'ar' ? 'سيتم تحديث التتبع قريباً' : 'Tracking will be updated soon'}</p>
+                                            </div>
+                                        )}
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -404,55 +652,62 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 {/* Main Content Area (Offers, Tracking, etc) - Spans 2 cols */}
                 <div className="lg:col-span-2 space-y-6">
 
-                    {/* Requested Parts List */}
-                    {(order.parts && order.parts.length > 0) && (
-                        <div className="space-y-4">
-                            <h3 className="text-white font-bold flex items-center gap-2">
-                                <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
-                                {language === 'ar' ? 'القطع المطلوبة' : 'Requested Parts'}
-                            </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {order.parts.map((p, idx) => (
-                                    <GlassCard key={p.id || idx} className="p-4 border-white/5 bg-[#1A1814] flex flex-col justify-between">
-                                        <div>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="font-bold text-white">{p.name}</h4>
-                                                <span className="text-xs font-mono text-white/30 bg-white/5 px-2 py-1 rounded">Part {idx + 1}</span>
-                                            </div>
-                                            {p.description && <p className="text-white/60 text-sm mb-3 line-clamp-2">{p.description}</p>}
-                                        </div>
+                    {/* Tab Navigation */}
+                    <div className="flex gap-4 border-b border-white/10 pb-2 overflow-x-auto hide-scrollbar">
+                        <button
+                            onClick={() => setActiveTab('overview')}
+                            className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap ${
+                                activeTab === 'overview' ? 'bg-gold-500 text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'
+                            }`}
+                        >
+                            {language === 'ar' ? 'نظرة عامة' : 'Overview'}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('invoices')}
+                            className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${
+                                activeTab === 'invoices' ? 'bg-gold-500 text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'
+                            }`}
+                        >
+                            <FileText size={16} />
+                            {language === 'ar' ? 'الفواتير' : 'Invoices'}
+                        </button>
+                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                            <button
+                                onClick={() => setActiveTab('waybills')}
+                                className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${
+                                    activeTab === 'waybills' ? 'bg-gold-500 text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'
+                                }`}
+                            >
+                                <Truck size={16} />
+                                {language === 'ar' ? 'البوليصة' : 'Waybills'}
+                            </button>
+                        )}
+                    </div>
 
-                                        {p.images && p.images.length > 0 && (
-                                            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none mt-2">
-                                                {p.images.map((img: any, i: number) => {
-                                                    const src = typeof img === 'string' ? img : URL.createObjectURL(img);
-                                                    return (
-                                                        <button
-                                                            key={i}
-                                                            onClick={() => setLightboxImage(src)}
-                                                            className="shrink-0 relative group rounded-lg overflow-hidden border border-white/10 hover:border-gold-500/50 transition-colors cursor-zoom-in"
-                                                        >
-                                                            <img
-                                                                src={src}
-                                                                alt={p.name}
-                                                                className="w-16 h-16 object-cover transition-transform group-hover:scale-110"
-                                                            />
-                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                                                <Search size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </GlassCard>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    {/* Panels */}
+                    <div className={activeTab === 'invoices' ? 'block' : 'hidden'}>
+                        <OrderInvoicesPanel 
+                            orderId={order.id} 
+                            role="CUSTOMER" 
+                            initialData={order.invoices} 
+                        />
+                    </div>
+                    <div className={activeTab === 'waybills' ? 'block' : 'hidden'}>
+                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                            <OrderWaybillsPanel 
+                                orderId={order.id} 
+                                orderStatus={order.status} 
+                                role="CUSTOMER" 
+                                initialData={order.shippingWaybills}
+                            />
+                        )}
+                    </div>
 
-                    {/* STATE: AWAITING OFFERS */}
-                    {order.status === 'AWAITING_OFFERS' && !isExpired && (
+                    {/* OVERVIEW CONTENT */}
+                    <div className={activeTab === 'overview' ? 'space-y-6' : 'hidden'}>
+
+                    {/* STATE: AWAITING OFFERS - Only show if NO offers yet */}
+                    {order.status === 'AWAITING_OFFERS' && !isExpired && order.offers.filter(o => o.status !== 'rejected').length === 0 && (
                         <GlassCard className="flex flex-col items-center justify-center text-center py-16 border-dashed border-white/10 bg-white/5">
                             <div className="w-20 h-20 bg-[#1A1814] rounded-full flex items-center justify-center mb-6 relative">
                                 <div className="absolute inset-0 bg-gold-500 rounded-full opacity-20 animate-ping" />
@@ -465,94 +720,176 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         </GlassCard>
                     )}
 
-                    {/* STATE: EXPIRED */}
-                    {isExpired && (
-                        <GlassCard className="flex flex-col items-center justify-center text-center py-16 border border-red-500/20 bg-red-500/5">
-                            <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/20">
-                                <AlertTriangle size={32} className="text-red-400" />
+                    {/* STATE: EXPIRED / CANCELLED WITH 0 OFFERS */}
+                    {((order.status === 'AWAITING_OFFERS' && isExpired) || (order.status === 'CANCELLED' && (!order.offers || order.offers.filter(o => o.status !== 'rejected').length === 0))) && (
+                        <GlassCard className="flex flex-col items-center justify-center text-center py-16 border-dashed border-red-500/20 bg-red-500/5">
+                            <div className="w-20 h-20 bg-red-950/20 rounded-full flex items-center justify-center mb-6 relative border border-red-500/10">
+                                <div className="absolute inset-0 bg-red-500 rounded-full opacity-10 animate-pulse" />
+                                <AlertTriangle size={32} className="text-red-400 relative z-10" />
                             </div>
-                            <h3 className="text-xl font-bold text-white mb-2">{language === 'ar' ? 'انتهت صلاحية الطلب' : 'Request Expired'}</h3>
-                            <p className="text-white/50 max-w-md mx-auto mb-8">
-                                {language === 'ar'
-                                    ? 'لم يتم استلام عروض خلال 24 ساعة. يرجى إنشاء طلب جديد.'
-                                    : 'No offers received within 24 hours. Please create a new request.'}
+                            <h3 className="text-xl font-bold text-white mb-2">
+                                {language === 'ar' ? 'نعتذر منك لعدم توفر عروض حالياً' : 'We apologize for the lack of offers'}
+                            </h3>
+                            <p className="text-white/60 max-w-md mx-auto mb-4 text-sm">
+                                {language === 'ar' 
+                                   ? 'يمكنك اعادة أرسال الطلب خلال أيام العمل من الاثنين الى الخميس'
+                                   : 'You can resubmit the order during working days from Monday to Thursday'}
                             </p>
                         </GlassCard>
                     )}
 
-                    {/* STATE: AWAITING PAYMENT (Show Offers) */}
-                    {(order.status === 'AWAITING_PAYMENT' || ((order.status === 'AWAITING_OFFERS' || order.status === 'CANCELLED') && order.offers.length > 0)) && (
-                        <div>
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-white font-bold flex items-center gap-2">
-                                    <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
-                                    {(t.dashboard.orders as any).receivedOffers}
-                                </h3>
-                                {isExpired && (
-                                    <span className="px-3 py-1 bg-red-500/10 text-red-400 text-xs font-bold rounded border border-red-500/20">
-                                        {language === 'ar' ? 'منتهى الصلاحية' : 'EXPIRED'}
-                                    </span>
-                                )}
-                            </div>
+
+                    {/* Requested Parts List + View Offers Button */}
+                    {(order.parts && order.parts.length > 0) && (
+                        <div className="space-y-6">
+                            <h3 className="text-white font-bold flex items-center gap-2">
+                                <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
+                                {language === 'ar' ? 'القطع المطلوبة والعروض' : 'Requested Parts & Offers'}
+                            </h3>
 
                             <div className="space-y-4">
-                                {/* Render Real Offers from Store */}
-                                {order.offers.map((offer) => {
-                                    // Check if specific offer is expired (>24h) OR Order is expired/cancelled
-                                    const offerTime = new Date(offer.submittedAt).getTime();
-                                    const isOfferOld = (new Date().getTime() - offerTime) > (24 * 60 * 60 * 1000);
-                                    const isOfferExpired = isExpired || order.status === 'CANCELLED' || isOfferOld;
+                                {order.parts.map((p, idx) => {
+                                    const partOffers = order.offers
+                                        .filter((o: any) => o.orderPartId === p.id && o.status !== 'rejected')
+                                        .slice(0, 10); // Hard cap: max 10
+
+                                    const hasOffers = partOffers.length > 0;
+                                    const partImgSrc = p.images?.[0]
+                                        ? (typeof p.images[0] === 'string' ? p.images[0] : URL.createObjectURL(p.images[0] as File))
+                                        : undefined;
 
                                     return (
-                                        <div key={offer.id} className="relative">
-                                            {isOfferExpired && (
-                                                <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-[2px] rounded-2xl flex items-center justify-center cursor-not-allowed border border-white/5">
-                                                    <div className="bg-black/80 px-4 py-2 rounded-full border border-white/10 text-white/50 text-xs font-bold flex items-center gap-2">
-                                                        <Clock size={14} />
-                                                        {language === 'ar' ? 'عرض منتهي' : 'Offer Expired'}
+                                        <GlassCard key={p.id || idx} className="p-0 overflow-hidden border-white/5 bg-[#1A1814]">
+                                            {/* Part Row */}
+                                            <div className="p-5 flex flex-wrap items-center justify-between gap-4">
+                                                {/* Part Info */}
+                                                <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                                                    <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                                                        {partImgSrc ? (
+                                                            <img src={partImgSrc} alt={p.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <Package size={24} className="text-white/20" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-white text-lg">{p.name}</h4>
+                                                        {p.description && <p className="text-white/60 text-sm line-clamp-1">{p.description}</p>}
+                                                        <span className="text-[10px] font-mono text-gold-500/50 uppercase mt-1 block tracking-wider">
+                                                            {language === 'ar' ? `قطعة ${idx + 1}` : `Part ${idx + 1}`}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            )}
-                                            <div className={isOfferExpired ? 'opacity-50 pointer-events-none grayscale-[0.5]' : ''}>
-                                                <OfferCard
-                                                    id={offer.id}
-                                                    storeName={offer.merchantName}
-                                                    rating={(offer as any).storeRating || 0}
-                                                    reviewCount={(offer as any).storeReviewCount || 0}
-                                                    storeLogo={(offer as any).storeLogo}
-                                                    storeCity={(offer as any).storeCity}
-                                                    notes={offer.notes}
-                                                    isShippingIncluded={(offer as any).isShippingIncluded}
-                                                    weight={(offer as any).weight}
-                                                    partType={(offer as any).partType}
-                                                    price={offer.price}
-                                                    unitPrice={(offer as any).unitPrice || offer.price}
-                                                    condition={offer.condition}
-                                                    warranty={offer.warranty}
-                                                    deliveryTime={offer.deliveryTime}
-                                                    offerImage={(offer as any).offerImage}
-                                                    isSelected={selectedOffer === offer.id}
-                                                    onAccept={() => {
-                                                        if (isOfferExpired) return;
-                                                        setSelectedOfferId(offer.id);
-                                                        handleAcceptOffer(offer);
-                                                    }}
-                                                    onChat={() => {
-                                                        if (isOfferExpired) return;
-                                                        handleChat(offer);
-                                                    }}
-                                                />
+
+                                                {/* Actions */}
+                                                <div className="flex items-center gap-4">
+                                                    {/* Offer Count Badge */}
+                                                    <div className="flex flex-col items-center">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg mb-1 ${hasOffers ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30' : 'bg-white/5 text-white/20 border border-white/5'}`}>
+                                                            {partOffers.length}
+                                                        </div>
+                                                        <span className="text-[10px] text-white/40 uppercase tracking-tighter">
+                                                            {language === 'ar' ? 'عرض' : partOffers.length === 1 ? 'Offer' : 'Offers'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Image preview circles */}
+                                                    {p.images && p.images.length > 0 && (
+                                                        <div className="flex -space-x-3 rtl:space-x-reverse overflow-hidden">
+                                                            {p.images.slice(0, 3).map((img: any, i: number) => {
+                                                                const src = typeof img === 'string' ? img : URL.createObjectURL(img as File);
+                                                                return (
+                                                                    <button key={i} onClick={() => setLightboxImage(src)}
+                                                                        className="w-10 h-10 rounded-full border-2 border-[#1A1814] overflow-hidden hover:scale-110 transition-transform">
+                                                                        <img src={src} alt="" className="w-full h-full object-cover" />
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+
+                                                    {/* ★ KEY: View Offers Button → opens PartOffersDrawer */}
+                                                    <button
+                                                        onClick={() => setDrawerPart({ id: p.id, name: p.name, description: p.description, image: partImgSrc, index: idx })}
+                                                        disabled={!hasOffers}
+                                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${hasOffers
+                                                            ? 'bg-gold-500/10 hover:bg-gold-500/20 text-gold-400 border border-gold-500/20 hover:border-gold-500/40 hover:shadow-[0_0_12px_rgba(212,175,55,0.15)]'
+                                                            : 'bg-white/3 text-white/15 border border-white/5 cursor-not-allowed'
+                                                            }`}
+                                                    >
+                                                        <Eye size={16} />
+                                                        <span>{language === 'ar' ? 'عرض التفاصيل' : 'View Offers'}</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+
+                                            {/* No offers hint */}
+                                            {!hasOffers && (
+                                                <div className="border-t border-white/5 px-5 py-3 text-xs text-white/25 flex items-center gap-2">
+                                                    <Search size={11} />
+                                                    <span>{language === 'ar' ? 'لا توجد عروض لهذه القطعة بعد' : 'No offers yet for this part'}</span>
+                                                </div>
+                                            )}
+                                        </GlassCard>
                                     );
                                 })}
+                            </div>
 
-                                {order.offers.length === 0 && (
-                                    <div className="text-center text-white/40 py-8">{(t.dashboard.orders as any).noOffers}</div>
-                                )}
+                            {/* ★ PartOffersDrawer — full-screen slide-over */}
+                            {drawerPart && (
+                                <PartOffersDrawer
+                                    isOpen={!!drawerPart}
+                                    onClose={() => setDrawerPart(null)}
+                                    partName={drawerPart.name}
+                                    partDescription={drawerPart.description}
+                                    partImage={drawerPart.image}
+                                    partIndex={drawerPart.index}
+                                    offers={order.offers.filter((o: any) => o.orderPartId === drawerPart.id && o.status !== 'rejected')}
+                                    selectedOffer={selectedOffer}
+                                    onAcceptOffer={handleAcceptOffer}
+                                    onChat={handleChat}
+                                    onRejectOffer={(offer) => setOfferToReject(offer)}
+                                    disabled={isExpired || ['CANCELLED', 'COMPLETED', 'REJECTED'].includes(order.status)}
+                                />
+                            )}
+                        </div>
+                    )}
+
+                    {/* General Offers (Unlinked) */}
+                    {order.offers.filter(o => !o.orderPartId && o.status !== 'rejected').length > 0 && (
+                        <div className="space-y-4">
+                            <h3 className="text-white font-bold flex items-center gap-2">
+                                <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
+                                {language === 'ar' ? 'عروض عامة' : 'General Offers'}
+                            </h3>
+                            <div className="space-y-4">
+                                {order.offers
+                                    .filter(o => !o.orderPartId && o.status !== 'rejected')
+                                    .slice(0, 10)
+                                    .map(offer => (
+                                        <div key={offer.id} className="relative">
+                                            <OfferCard
+                                                {...offer}
+                                                storeName={offer.merchantName}
+                                                rating={offer.storeRating || 0}
+                                                reviewCount={offer.storeReviewCount || 0}
+                                                unitPrice={offer.unitPrice || offer.price}
+                                                isSelected={selectedOffer === offer.id}
+                                                onAccept={() => handleAcceptOffer(offer)}
+                                                onChat={() => handleChat(offer)}
+                                                onReject={() => setOfferToReject(offer)}
+                                                disabled={isExpired || ['CANCELLED', 'COMPLETED', 'REJECTED'].includes(order.status) || acceptLoadingOfferId !== null}
+                                            />
+                                            {/* Disable Cover during loading */}
+                                            {acceptLoadingOfferId !== null && acceptLoadingOfferId !== offer.id && (
+                                                <div className="absolute inset-0 bg-black/20 z-10 rounded-2xl pointer-events-none backdrop-blur-[1px]" />
+                                            )}
+                                        </div>
+                                    ))
+                                }
                             </div>
                         </div>
                     )}
+                    </div>{/* end overview */}
                 </div>
 
                 {/* Sidebar Summary - Spans 1 col */}
@@ -646,8 +983,180 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             <div className="text-xs text-white/40">{(t.dashboard.orders as any).supportDesc}</div>
                         </div>
                     </button>
+
+                    {/* Mobile Continue Checkout Button (Sticky/prominent for mobile) */}
+                    {['AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && order.offers?.some(o => o.status === 'accepted') && (
+                        <button
+                            onClick={() => {
+                                useCheckoutStore.getState().reset();
+                                useCheckoutStore.getState().setOrderId(order.id);
+                                const accOffer = order.offers.find(o => o.status === 'accepted');
+                                if (accOffer) {
+                                    setSelectedOfferAction({
+                                        id: accOffer.id,
+                                        merchantName: accOffer.merchantName,
+                                        price: accOffer.price,
+                                        partName: order.part
+                                    });
+                                }
+                                onNavigate('checkout');
+                            }}
+                            className="md:hidden w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-black rounded-2xl transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] font-bold text-lg mb-4"
+                        >
+                            <CheckCircle2 size={24} />
+                            {language === 'ar' ? 'إكمال تفاصيل الدفع' : 'Continue Checkout'}
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Reject Offer Modal */}
+            <AnimatePresence>
+                {offerToReject && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+                            dir={language === 'ar' ? 'rtl' : 'ltr'}
+                        >
+                            {/* Header */}
+                            <div className="p-4 flex items-center justify-between border-b border-gray-100">
+                                <h3 className="text-lg font-bold text-gray-800">
+                                    {language === 'ar' ? 'سبب رفض العرض' : 'Reason for Rejection'}
+                                </h3>
+                                <button
+                                    onClick={() => {
+                                        setOfferToReject(null);
+                                        setRejectReason('');
+                                        setCustomRejectReason('');
+                                    }}
+                                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                                >
+                                    <X className="w-5 h-5 text-gray-500" />
+                                </button>
+                            </div>
+
+                            {/* Body */}
+                            <div className="p-6 space-y-6">
+                                {/* Offer Details Summary */}
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
+                                    <h4 className="text-sm font-bold text-gray-700 mb-2">
+                                        {language === 'ar' ? 'تفاصيل العرض' : 'Offer Details'}
+                                    </h4>
+
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-500">{language === 'ar' ? 'رقم العرض:' : 'Offer No:'}</span>
+                                        <span className="font-mono text-gold-600 font-bold">{offerToReject.offerNumber || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-500">{language === 'ar' ? 'السعر:' : 'Price:'}</span>
+                                        <span className="font-bold text-gray-900 flex items-center gap-1">
+                                            {offerToReject.price.toLocaleString()} <span className="text-xs">AED</span>
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-500">{language === 'ar' ? 'القطعة:' : 'Part:'}</span>
+                                        <span className="font-medium text-gray-800">{offerToReject.partName || order.part}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-500">{language === 'ar' ? 'التاجر:' : 'Merchant:'}</span>
+                                        <span className="font-mono text-gray-600">{offerToReject.storeCode || 'N/A'}</span>
+                                    </div>
+                                </div>
+
+                                {/* Form */}
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            {language === 'ar' ? 'اختر سبب الرفض *' : 'Select Rejection Reason *'}
+                                        </label>
+                                        <div className="relative">
+                                            <select
+                                                value={rejectReason}
+                                                onChange={(e) => setRejectReason(e.target.value)}
+                                                className="w-full appearance-none bg-white border border-gray-200 rounded-xl px-4 py-3 text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="" disabled>{language === 'ar' ? '— اضغط للاختيار —' : '— Select —'}</option>
+                                                <option value="السعر مرتفع جداً">{language === 'ar' ? 'السعر مرتفع جداً' : 'Price is too high'}</option>
+                                                <option value="لا يوجد ضمان">{language === 'ar' ? 'لا يوجد ضمان' : 'No warranty'}</option>
+                                                <option value="وقت التسليم طويل">{language === 'ar' ? 'وقت التسليم طويل' : 'Delivery time is too long'}</option>
+                                                <option value="القطعة غير متوفرة">{language === 'ar' ? 'القطعة غير متوفرة' : 'Part is not available'}</option>
+                                                <option value="جودة القطعة غير مناسبة">{language === 'ar' ? 'جودة القطعة غير مناسبة' : 'Part quality is not suitable'}</option>
+                                                <option value="مشكلة في التواصل مع التاجر">{language === 'ar' ? 'مشكلة في التواصل مع التاجر' : 'Issue communicating with merchant'}</option>
+                                                <option value="وجدت عرض أفضل">{language === 'ar' ? 'وجدت عرض أفضل' : 'Found a better offer'}</option>
+                                                <option value="غير مهتم بالعرض">{language === 'ar' ? 'غير مهتم بالعرض' : 'Not interested'}</option>
+                                                <option value="أسباب أخرى">{language === 'ar' ? 'أسباب أخرى' : 'Other reasons'}</option>
+                                            </select>
+                                            <div className="absolute inset-y-0 left-0 pr-3 rtl:left-auto rtl:right-0 rtl:pl-3 flex items-center pointer-events-none">
+                                                <ChevronDown className="w-5 h-5 text-gray-400" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Custom Reason Area */}
+                                    <AnimatePresence>
+                                        {rejectReason === 'أسباب أخرى' && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <label className="block text-sm font-medium text-gray-700 mb-2 mt-4">
+                                                    {language === 'ar' ? 'اكتب سبب الرفض *' : 'Write Rejection Reason *'}
+                                                </label>
+                                                <textarea
+                                                    value={customRejectReason}
+                                                    onChange={(e) => setCustomRejectReason(e.target.value)}
+                                                    placeholder={language === 'ar' ? 'يرجى كتابة التفاصيل هنا (بحد أقصى 500 حرف)...' : 'Please provide details here (max 500 chars)...'}
+                                                    maxLength={500}
+                                                    rows={4}
+                                                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 resize-none transition-all placeholder:text-gray-400"
+                                                />
+                                                <div className="flex justify-end mt-1">
+                                                    <span className={`text-xs ${customRejectReason.length >= 500 ? 'text-red-500' : 'text-gray-400'}`}>
+                                                        {customRejectReason.length} / 500
+                                                    </span>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            </div>
+
+                            {/* Footer Actions */}
+                            <div className="p-4 border-t border-gray-100 flex gap-3 bg-gray-50/50">
+                                <button
+                                    onClick={() => {
+                                        setOfferToReject(null);
+                                        setRejectReason('');
+                                        setCustomRejectReason('');
+                                    }}
+                                    disabled={isRejecting}
+                                    className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-100 transition-colors bg-white disabled:opacity-50"
+                                >
+                                    {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                                </button>
+                                <button
+                                    onClick={submitRejectOffer}
+                                    disabled={!rejectReason || (rejectReason === 'أسباب أخرى' && !customRejectReason.trim()) || isRejecting}
+                                    className="flex-1 py-3 px-4 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold shadow hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isRejecting && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    {language === 'ar' ? 'رفض العرض' : 'Reject Offer'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
         </div >
     );

@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '../../ui/GlassCard';
 import { Badge, StatusType } from '../../ui/Badge';
-import { RefreshCw, RotateCcw, AlertTriangle, ChevronRight, ChevronLeft, Box, FileText, Upload, Package } from 'lucide-react';
+import { RefreshCw, RotateCcw, AlertTriangle, ChevronRight, ChevronLeft, Box, FileText, CheckCircle } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
-import { Order } from '../../../types';
+import { ReturnRequestModal } from './ReturnRequestModal';
+import { DisputeModal } from './DisputeModal';
 
 interface ReturnsExchangePageProps {
     onNavigate: (path: string) => void;
@@ -17,6 +17,10 @@ export const ReturnsExchangePage: React.FC<ReturnsExchangePageProps> = ({ onNavi
     const { returns, disputes, loading, fetchReturnsAndDisputes, cancelReturn } = useReturnsStore();
     const [activeTab, setActiveTab] = useState<'returns' | 'disputes' | 'guidelines'>('returns');
 
+    // Modal State
+    const [returnModalOpen, setReturnModalOpen] = useState(false);
+    const [disputeModalOpen, setDisputeModalOpen] = useState(false);
+
     useEffect(() => {
         fetchReturnsAndDisputes();
     }, [fetchReturnsAndDisputes]);
@@ -25,10 +29,28 @@ export const ReturnsExchangePage: React.FC<ReturnsExchangePageProps> = ({ onNavi
 
     return (
         <div className="space-y-8">
-            {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-white mb-2">{t.dashboard.menu.returns}</h1>
-                <p className="text-white/50">{t.dashboard.returns.subtitle}</p>
+            {/* Header & Actions */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-white mb-2">{t.dashboard.menu.returns}</h1>
+                    <p className="text-white/50">{t.dashboard.returns.subtitle}</p>
+                </div>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setReturnModalOpen(true)}
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-cyan-600/20"
+                    >
+                        <RotateCcw size={18} />
+                        {language === 'ar' ? 'تقديم طلب إرجاع' : 'Request Return'}
+                    </button>
+                    <button
+                        onClick={() => setDisputeModalOpen(true)}
+                        className="bg-red-600 hover:bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-red-600/20"
+                    >
+                        <AlertTriangle size={18} />
+                        {language === 'ar' ? 'فتح نزاع جديد' : 'Open Dispute'}
+                    </button>
+                </div>
             </div>
 
             {/* Tabs */}
@@ -70,7 +92,7 @@ export const ReturnsExchangePage: React.FC<ReturnsExchangePageProps> = ({ onNavi
                         : 'text-white/60 hover:text-white hover:bg-white/5'
                         }`}
                 >
-                    <Package size={18} />
+                    <FileText size={18} />
                     {t.dashboard.returns.tabs.guidelines}
                 </button>
             </div>
@@ -162,19 +184,43 @@ export const ReturnsExchangePage: React.FC<ReturnsExchangePageProps> = ({ onNavi
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Modals */}
+            <ReturnRequestModal
+                isOpen={returnModalOpen}
+                onClose={() => setReturnModalOpen(false)}
+                onSuccess={() => {
+                    fetchReturnsAndDisputes();
+                }}
+            />
+            <DisputeModal
+                isOpen={disputeModalOpen}
+                onClose={() => setDisputeModalOpen(false)}
+                onSuccess={() => {
+                    fetchReturnsAndDisputes();
+                }}
+            />
         </div>
     );
 };
 
-// Helper Components
+// --- Helper Components ---
+
+const EmptyState = ({ icon: Icon, title, desc }: any) => (
+    <div className="py-20 text-center border border-dashed border-white/10 rounded-2xl bg-white/5">
+        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Icon size={24} className="text-white/20" />
+        </div>
+        <h3 className="text-white font-bold mb-1">{title}</h3>
+        <p className="text-white/40 text-sm max-w-sm mx-auto">{desc}</p>
+    </div>
+);
 
 const ReturnCard = ({ order, type, onCancel, t, language, ArrowIcon }: any) => {
     // Determine status color
     const isDispute = type === 'dispute';
-    const statusColor = isDispute ? 'red' : 'gold';
 
     // Access joined order details
-    // Ensure we handle both potential structures if there's any legacy mix, but standardizing on camelCase now.
     const orderDetails = order.order || {};
     // Fallback logic for Part Name: partName -> parts[0].name -> "Unknown Item"
     const partName = orderDetails.partName || (orderDetails.parts && orderDetails.parts.length > 0 ? orderDetails.parts[0].name : null) || (language === 'ar' ? 'منتج غير معروف' : 'Unknown Item');
@@ -255,16 +301,3 @@ const ReturnCard = ({ order, type, onCancel, t, language, ArrowIcon }: any) => {
         </GlassCard>
     );
 };
-
-const EmptyState = ({ icon: Icon, title, desc }: any) => (
-    <div className="py-20 text-center border border-dashed border-white/10 rounded-2xl bg-white/5">
-        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icon size={24} className="text-white/20" />
-        </div>
-        <h3 className="text-white font-bold mb-1">{title}</h3>
-        <p className="text-white/40 text-sm max-w-sm mx-auto">{desc}</p>
-    </div>
-);
-
-// Add missing icon
-import { CheckCircle } from 'lucide-react';

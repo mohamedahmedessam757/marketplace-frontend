@@ -7,68 +7,10 @@ import { Search, Filter, Calendar, Box, ChevronRight, ChevronLeft, RefreshCw, XC
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useOrdersStore } from '../../stores/useOrdersStore';
 import { Order } from '../../types';
+import { CountdownTimer } from './OrderDetails';
+import { getDynamicOrderDeadline, isOrderExpired } from '../../utils/dateUtils';
 
-// Timer Component for 24h Expiration
-const OrderTimer = ({ createdAt, status }: { createdAt: string, status: string }) => {
-    const { language } = useLanguage();
-    const [timeLeft, setTimeLeft] = useState<{ hours: number, minutes: number, seconds: number } | null>(null);
-    const [isExpired, setIsExpired] = useState(false);
 
-    useEffect(() => {
-        if (status !== 'AWAITING_OFFERS') {
-            setTimeLeft(null);
-            return;
-        }
-
-        const calculateTimeLeft = () => {
-            const created = new Date(createdAt).getTime();
-            const now = new Date().getTime();
-            const expiresAt = created + (24 * 60 * 60 * 1000); // 24 hours in ms
-            const diff = expiresAt - now;
-
-            if (diff <= 0) {
-                setIsExpired(true);
-                setTimeLeft(null);
-                return;
-            }
-
-            const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-            const minutes = Math.floor((diff / 1000 / 60) % 60);
-            const seconds = Math.floor((diff / 1000) % 60);
-
-            setTimeLeft({ hours, minutes, seconds });
-        };
-
-        calculateTimeLeft(); // Initial call
-        const timer = setInterval(calculateTimeLeft, 1000);
-
-        return () => clearInterval(timer);
-    }, [createdAt, status]);
-
-    if (status !== 'AWAITING_OFFERS') return null;
-
-    if (isExpired) {
-        return (
-            <div className="flex items-center gap-1 text-red-400 bg-red-500/10 px-2 py-1 rounded text-xs font-bold">
-                <AlertCircle size={12} />
-                <span>{language === 'ar' ? 'منتهى' : 'Expired'}</span>
-            </div>
-        );
-    }
-
-    if (!timeLeft) return null;
-
-    return (
-        <div className="flex items-center gap-2 text-gold-400 bg-gold-500/10 px-3 py-1 rounded-full text-xs font-mono font-bold border border-gold-500/20">
-            <Clock size={12} />
-            <span>
-                {String(timeLeft.hours).padStart(2, '0')}:
-                {String(timeLeft.minutes).padStart(2, '0')}:
-                {String(timeLeft.seconds).padStart(2, '0')}
-            </span>
-        </div>
-    );
-};
 
 interface MyOrdersProps {
     onNavigate: (path: string, id?: number) => void;
@@ -90,14 +32,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
         fetchOrders();
     }, [fetchOrders]);
 
-    // Helper for Expiration
-    const isOrderExpired = (order: Order) => {
-        if (order.status === 'CANCELLED') return true;
-        if (order.status !== 'AWAITING_OFFERS') return false;
-        const created = new Date(order.createdAt).getTime();
-        const now = new Date().getTime();
-        return (now - created) > (24 * 60 * 60 * 1000);
-    };
+
 
     // Filtering Logic (Matching Vue implementation)
     const filteredOrders = orders.filter(order => {
@@ -130,7 +65,8 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
         // 3. Offers Filter
         if (offersFilter !== 'ALL') {
             const expired = isOrderExpired(order);
-            const hasOffers = (order.offers?.length || 0) > 0;
+            const activeOffers = (order.offers?.filter(o => o.status !== 'rejected') || []);
+            const hasOffers = activeOffers.length > 0;
             if (offersFilter === 'WITH_OFFERS' && !hasOffers) return false;
             if (offersFilter === 'WITHOUT_OFFERS' && hasOffers) return false;
             if (offersFilter === 'EXPIRED' && !expired) return false;
@@ -279,11 +215,12 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                             p-6 cursor-pointer hover:border-gold-500/30 transition-all group bg-[#151310]
                             ${language === 'ar' ? 'border-r-4' : 'border-l-4'}
                             ${order.status === 'COMPLETED' ? 'border-r-green-500' :
-                                            order.status === 'AWAITING_PAYMENT' ? 'border-r-orange-500' :
-                                                expired ? 'border-r-red-500' : // Red for Expired
-                                                    order.status === 'AWAITING_OFFERS' ? 'border-r-yellow-500' :
-                                                        order.status === 'CANCELLED' ? 'border-r-gray-600' :
-                                                            'border-r-gold-500'}
+                                            order.status === 'SHIPPED' ? 'border-r-purple-500' : 
+                                                order.status === 'AWAITING_PAYMENT' ? 'border-r-orange-500' :
+                                                    isOrderExpired(order) ? 'border-r-red-500' : 
+                                                        order.status === 'AWAITING_OFFERS' ? 'border-r-yellow-500' :
+                                                            order.status === 'CANCELLED' ? 'border-r-gray-600' :
+                                                                'border-r-gold-500'}
                         `}>
                                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
 
@@ -311,24 +248,44 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
 
                                             <div className="flex items-center justify-between md:justify-end gap-6 pl-16 md:pl-0">
                                                 <div className="flex flex-col items-end gap-2">
-                                                    {expired ? (
-                                                        <div className="flex items-center gap-1 text-red-400 bg-red-500/10 px-2 py-1 rounded text-xs font-bold">
-                                                            <AlertCircle size={12} />
-                                                            <span>{language === 'ar' ? 'منتهى' : 'Expired'}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <Badge status={order.status as StatusType} />
-                                                    )}
+                                                    {/* Always show actual status badge */}
+                                                    <Badge status={order.status as StatusType} />
 
-                                                    {!expired && (
-                                                        <OrderTimer createdAt={order.createdAt} status={order.status} />
-                                                    )}
+                                                    {/* Independent Timer: only for specific pending/tracking states */}
+                                                    {(() => {
+                                                        const deadline = getDynamicOrderDeadline(order);
+                                                        const isAwaiting = ['AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status);
+                                                        const isTracking = ['PREPARATION', 'DELAYED_PREPARATION', 'CORRECTION_PERIOD', 'DELIVERED'].includes(order.status);
+                                                        
+                                                        // Hide timer for SHIPPED or statuses where internal detail doesn't show it
+                                                        if (!deadline || (!isAwaiting && !isTracking)) return null;
+                                                        
+                                                        const expiredNow = new Date(deadline).getTime() < new Date().getTime();
+                                                        if (expiredNow && !isAwaiting) return null; // Hide expired SLA for post-acceptance states
 
-                                                    {(order.offers?.length || 0) > 0 && order.status === 'AWAITING_OFFERS' && (
-                                                        <span className={`text-xs font-medium ${expired ? 'text-white/60' : 'text-gold-400 animate-pulse'}`}>
-                                                            {order.offers?.length} {t.dashboard.orders.newOffers}
-                                                        </span>
-                                                    )}
+                                                        return (
+                                                            <div className="flex justify-end border border-gold-500/20 bg-gold-500/10 rounded-full px-3 py-1">
+                                                                <CountdownTimer 
+                                                                    targetDate={deadline} 
+                                                                    compact={true} 
+                                                                    hideExpiredText={!isAwaiting}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })()}
+
+                                                    {/* New Offers Count */}
+                                                    {(() => {
+                                                        const activeOffersCount = order.offers?.filter(o => o.status !== 'rejected').length || 0;
+                                                        if (activeOffersCount > 0 && order.status === 'AWAITING_OFFERS') {
+                                                            return (
+                                                                <span className="text-xs font-medium text-gold-400 animate-pulse">
+                                                                    {activeOffersCount} {t.dashboard.orders.newOffers}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
 
                                                 <div className="flex items-center gap-2">

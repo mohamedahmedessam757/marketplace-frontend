@@ -1,13 +1,14 @@
 
 import React, { useMemo, useState } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
-import { Users, Store, Activity, DollarSign, Package, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight, MoreHorizontal, ShieldCheck } from 'lucide-react';
+import { Users, Store, Activity, DollarSign, Package, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight, MoreHorizontal, ShieldCheck, CheckCircle2, Download, Filter, Search, Plus, Trash2, Edit } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { useSystemAutomation } from '../../../stores/useSystemAutomation'; // Import Automation Store
+import { useShipmentStore } from '../../../stores/useShipmentStore';
 import { LineChart, DonutChart, BarChart } from '../../ui/Charts';
 import { AdminAlerts } from './AdminAlerts';
 
@@ -19,7 +20,7 @@ import { AdminOrderDetails } from './AdminOrderDetails';
 import { CustomerManagement } from './CustomerManagement';
 import { AdminCustomerProfile } from './AdminCustomerProfile';
 import { ReviewsControl } from './ReviewsControl';
-import { AdminDisputes } from './AdminDisputes';
+import { AdminResolutionPage } from './AdminResolutionPage';
 import { AdminDisputeDetails } from './AdminDisputeDetails';
 import { AdminBilling } from './AdminBilling';
 import { InvoiceViewer } from './InvoiceViewer';
@@ -118,13 +119,17 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
 
     const isAr = language === 'ar';
 
-    // Fetch Real-time Stats on Mount
+    // Fetch Real-time Stats & Shipments on Mount
     React.useEffect(() => {
         fetchDashboardStats();
         subscribeToStats();
+        
+        // Start Global Shipment Sync
+        useShipmentStore.getState().startRealtime();
 
         return () => {
             unsubscribeFromStats();
+            useShipmentStore.getState().stopRealtime();
         };
     }, []);
 
@@ -191,7 +196,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     // --- SUB-VIEW ROUTING --- (Kept same)
     if (subPath === 'billing' || subPath === 'financials') return <AdminBilling onNavigate={navigate} />;
     if (subPath === 'invoice-details' && viewId) return <InvoiceViewer invoiceId={viewId} onBack={() => navigate('billing')} />;
-    if (subPath === 'resolution') return <AdminDisputes onNavigate={navigate} />;
+    if (subPath === 'resolution') return <AdminResolutionPage onNavigate={navigate} />;
     if (subPath === 'admin-dispute-details' && viewId) return <AdminDisputeDetails caseId={viewId} onBack={() => navigate('resolution')} />;
     if (subPath === 'users') return <StoreManagement onNavigate={navigate} />;
     if (subPath === 'store-profile' && viewId) return <AdminStoreProfile vendorId={viewId} onBack={() => navigate('users')} />;
@@ -199,9 +204,9 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     if (subPath === 'customer-profile' && viewId) return <AdminCustomerProfile customerId={viewId} onBack={() => navigate('customers')} onNavigate={navigate} />;
     if (subPath === 'reviews') return <ReviewsControl />;
     if (subPath === 'orders-control') return <OrderControl onNavigate={navigate} />;
-    if (subPath === 'admin-order-details' && viewId) return <AdminOrderDetails orderId={viewId} onBack={() => navigate('orders-control')} />;
+    if (subPath === 'admin-order-details' && viewId) return <AdminOrderDetails orderId={viewId} onBack={() => navigate('orders-control')} onNavigate={navigate} />;
     if (subPath === 'audit-logs') return <AdminAuditLogs />;
-    if (subPath === 'shipping') return <AdminShipping />;
+    if (subPath === 'shipping') return <AdminShipping initialSearch={viewId} />;
     if (subPath === 'settings') return <AdminSettings />;
     if (subPath === 'support') return <AdminSupport />;
     if (subPath === 'security-audit') return <SecurityAudit />;
@@ -347,25 +352,30 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left rtl:text-right">
                         <thead className="bg-[#0F0E0C] text-[10px] uppercase text-white/30 font-bold tracking-wider">
                             <tr>
                                 <th className="p-4">{t.admin.ordersTable.id}</th>
-                                <th className="p-4">{t.admin.billing.invoiceViewer.item}</th>
+                                <th className="p-4">القطعة (Parts)</th>
                                 <th className="p-4">{t.admin.ordersTable.date}</th>
                                 <th className="p-4">{t.admin.ordersTable.status}</th>
-                                <th className="p-4 text-right">{t.admin.ordersTable.amount}</th>
+                                <th className="p-4 text-right">التفاصيل المالية</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5 text-sm">
                             {orders.slice(0, 5).map((order) => (
-                                <tr key={order.id} className="hover:bg-white/5 transition-colors group">
+                                <tr key={order.id} className="hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate('admin-order-details', order.id)}>
                                     <td className="p-4 font-mono text-gold-400 font-bold group-hover:text-gold-300">
                                         #{order.id}
                                     </td>
-                                    <td className="p-4 text-white font-medium">
-                                        {order.part}
-                                        <div className="text-[10px] text-white/40">{order.car}</div>
+                                    <td className="p-4 text-white font-medium flex justify-start items-center gap-2 flex-wrap">
+                                        <span className="truncate max-w-[120px]">{order.part}</span>
+                                        {order.parts && order.parts.length > 1 && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70 border border-white/5 whitespace-nowrap shrink-0 mt-1 sm:mt-0">
+                                                +{order.parts.length - 1} أخرى
+                                            </span>
+                                        )}
+                                        <div className="text-[10px] text-white/40 mt-1 w-full">{order.car}</div>
                                     </td>
                                     <td className="p-4 text-white/50 text-xs">
                                         {order.date}
@@ -379,8 +389,23 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
                                             {t.common.status[order.status]}
                                         </span>
                                     </td>
-                                    <td className="p-4 text-right font-mono text-white">
-                                        {order.price || '-'}
+                                    <td className="p-4 text-right">
+                                        {order.price ? (
+                                            <div className="flex items-center justify-end gap-2">
+                                                <div className="font-mono text-gold-400 font-bold text-sm">
+                                                    {Number(order.price).toFixed(2)} AED
+                                                </div>
+                                                {!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'CANCELLED'].includes(String(order.status).toUpperCase()) && (
+                                                    <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 border border-green-500/20" title="Paid / Approved">
+                                                        <CheckCircle2 size={10} strokeWidth={3} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-white/30 text-[10px] px-2 py-1 rounded bg-white/5 whitespace-nowrap inline-block mt-1">
+                                                في انتظار العروض
+                                            </span>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

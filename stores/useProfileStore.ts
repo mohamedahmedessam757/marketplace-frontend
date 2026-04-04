@@ -60,13 +60,16 @@ interface ProfileState {
   setDefaultAddress: (id: string) => void;
 
   // Session Actions
-  terminateSession: (id: string) => void;
-  terminateAllSessions: () => void;
+  terminateSession: (id: string) => Promise<void>;
+  terminateAllSessions: () => Promise<void>;
 
   // Security Actions
   updatePassword: (current: string, newPass: string) => Promise<void>;
-  detectCurrentSession: () => void;
+  detectCurrentSession: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+  
+  // System Actions
+  clearProfile: () => void;
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
@@ -85,6 +88,14 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     theme: 'dark',
     autoTranslateChat: false
   },
+
+  clearProfile: () => set({ 
+    user: null, 
+    addresses: [], 
+    sessions: [], 
+    error: null,
+    // Note: Settings preserved based on device or reset to default if preferred
+  }),
 
   fetchProfile: async () => {
     const userId = getCurrentUserId();
@@ -257,14 +268,11 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     if (!userId) return;
 
     try {
-      // 1. Delete Settings
-      await supabase.from('user_settings').delete().eq('user_id', userId);
+      // Use Backend API to safely delete user from Supabase Auth & DB
+      const { authApi } = await import('../services/api/auth');
+      await authApi.deleteAccount();
 
-      // 2. Delete Public User Data
-      // Note: This matches common RLS policies where users can delete their own data
-      await supabase.from('users').delete().eq('id', userId);
-
-      // 3. Sign Out
+      // Sign Out locally
       await supabase.auth.signOut();
 
       set({ user: null, sessions: [], addresses: [] });
@@ -296,13 +304,31 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }))
   })),
 
-  terminateSession: (id) => set((state) => ({
-    sessions: state.sessions.filter(s => s.id !== id)
-  })),
+  terminateSession: async (id) => {
+    try {
+      const { authApi } = await import('../services/api/auth');
+      await authApi.terminateSession(id);
+      set((state) => ({
+        sessions: state.sessions.filter(s => s.id !== id)
+      }));
+    } catch (err) {
+      console.error('Failed to terminate session:', err);
+      throw err;
+    }
+  },
 
-  terminateAllSessions: () => set((state) => ({
-    sessions: state.sessions.filter(s => s.isCurrent)
-  })),
+  terminateAllSessions: async () => {
+    try {
+      const { authApi } = await import('../services/api/auth');
+      await authApi.terminateAllSessions();
+      set((state) => ({
+        sessions: state.sessions.filter(s => s.isCurrent) // Keep only current
+      }));
+    } catch (err) {
+      console.error('Failed to terminate all sessions:', err);
+      throw err;
+    }
+  },
 
   updatePassword: async (currentPassword, newPassword) => {
     set({ loading: true });
@@ -376,37 +402,36 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }
   },
 
-  detectCurrentSession: () => {
-    // Safety check for SSR
-    if (typeof navigator === 'undefined') return;
+  detectCurrentSession: async () => {
+    try {
+      const { authApi } = await import('../services/api/auth');
 
-    const ua = navigator.userAgent;
-    let browser = 'Unknown';
-    if (ua.indexOf('Chrome') > -1) browser = 'Chrome';
-    else if (ua.indexOf('Safari') > -1) browser = 'Safari';
-    else if (ua.indexOf('Firefox') > -1) browser = 'Firefox';
+      // Fetch Real Sessions from Database
+      const dbSessions = await authApi.getSessions();
 
-    let os = 'Unknown OS';
-    if (ua.indexOf('Win') > -1) os = 'Windows';
-    else if (ua.indexOf('Mac') > -1) os = 'MacOS';
-    else if (ua.indexOf('Linux') > -1) os = 'Linux';
-    else if (ua.indexOf('Android') > -1) os = 'Android';
-    else if (ua.indexOf('like Mac') > -1) os = 'iOS';
+      // Parse token from local storage to identify "current"
+      const currentToken = localStorage.getItem('token');
 
-    const currentSession: Session = {
-      id: 'current-session',
-      device: `${browser} on ${os}`,
-      os: os,
-      location: 'Riyadh, KSA', // Mock Location
-      ip: '192.168.1.1', // Mock IP
-      lastActive: 'Now',
-      isCurrent: true
-    };
+      // Map DB schema to Frontend Store schema
+      const mappedSessions = dbSessions.map((s: any) => ({
+        id: s.id,
+        device: s.device || 'Unknown Device',
+        os: s.os || 'Unknown OS',
+        location: s.location || 'Unknown Location',
+        ip: s.ip || 'Unknown IP',
+        lastActive: s.lastActive || s.createdAt,
+        isCurrent: s.token === currentToken // Mark whichever matches our active token
+      }));
 
-    set(state => {
-      // Prevent duplicate current session
-      const others = state.sessions.filter(s => !s.isCurrent);
-      return { sessions: [currentSession, ...others] };
-    });
+      // Sort so current is always first
+      mappedSessions.sort((a: any, b: any) => (a.isCurrent === b.isCurrent) ? 0 : a.isCurrent ? -1 : 1);
+
+      set({ sessions: mappedSessions });
+
+    } catch (err) {
+      console.error('Failed to fetch real sessions:', err);
+      // Fallback: Clear if it fails to load real DB list
+      set({ sessions: [] });
+    }
   }
 }));

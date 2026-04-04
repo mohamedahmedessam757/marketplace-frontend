@@ -6,7 +6,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 
 export const SavedCards: React.FC = () => {
     const { t, language } = useLanguage();
-    const { cards, fetchCards, addCard, deleteCard, setDefaultCard, loading } = useBillingStore();
+    const { cards, fetchCards, addCard, deleteCard, setDefaultCard, cardsLoading: loading } = useBillingStore();
     const [showAddCard, setShowAddCard] = useState(false);
     const [newCard, setNewCard] = useState({ number: '', name: '', expiry: '', cvc: '' });
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -70,11 +70,11 @@ export const SavedCards: React.FC = () => {
         setIsSubmitting(true);
         try {
             await addCard({
-                last4: newCard.number.slice(-4),
-                brand: 'visa', // Mock detection
-                expiry_month: parseInt(newCard.expiry.split('/')[0]),
-                expiry_year: 2000 + parseInt(newCard.expiry.split('/')[1]),
-                card_holder_name: newCard.name
+                last4: newCard.number.replace(/\s/g, '').slice(-4),
+                brand: newCard.number.startsWith('4') ? 'Visa' : 'Mastercard',
+                expiryMonth: parseInt(newCard.expiry.split('/')[0]),
+                expiryYear: 2000 + parseInt(newCard.expiry.split('/')[1]),
+                cardHolderName: newCard.name
             });
             setShowAddCard(false);
             setNewCard({ number: '', name: '', expiry: '', cvc: '' });
@@ -229,7 +229,7 @@ export const SavedCards: React.FC = () => {
                             variants={itemVariant}
                             initial="hidden"
                             animate="show"
-                            className={`p-6 rounded-xl border flex items-center justify-between ${card.is_default ? 'bg-gold-500/5 border-gold-500/50' : 'bg-white/5 border-white/10'}`}
+                            className={`p-6 rounded-xl border flex items-center justify-between ${card.isDefault ? 'bg-gold-500/5 border-gold-500/50' : 'bg-white/5 border-white/10'}`}
                         >
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-8 bg-white/10 rounded-md flex items-center justify-center">
@@ -238,13 +238,13 @@ export const SavedCards: React.FC = () => {
                                 <div>
                                     <h4 className="font-bold text-white flex items-center gap-3">
                                         •••• •••• •••• {card.last4}
-                                        {card.is_default && <span className="text-[10px] bg-gold-500 text-black px-2 py-0.5 rounded-full">{t.dashboard.billing?.cardForm?.default || (language === 'ar' ? 'الافتراضي' : 'Default')}</span>}
+                                        {card.isDefault && <span className="text-[10px] bg-gold-500 text-black px-2 py-0.5 rounded-full">{t.dashboard.billing?.cardForm?.default || (language === 'ar' ? 'الافتراضي' : 'Default')}</span>}
                                     </h4>
-                                    <p className="text-sm text-white/50 uppercase">{card.brand} - {t.dashboard.billing?.cardForm?.expires || (language === 'ar' ? 'ينتهي' : 'Expires')} {card.expiry_month}/{card.expiry_year}</p>
+                                    <p className="text-sm text-white/50 uppercase">{card.brand} - {t.dashboard.billing?.cardForm?.expires || (language === 'ar' ? 'ينتهي' : 'Expires')} {card.expiryMonth}/{card.expiryYear}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                {!card.is_default && (
+                                {!card.isDefault && (
                                     <button
                                         onClick={() => setDefaultCard(card.id)}
                                         className="px-3 py-1.5 text-xs text-white/50 hover:text-white border border-white/10 hover:border-white/30 rounded-lg transition-colors"

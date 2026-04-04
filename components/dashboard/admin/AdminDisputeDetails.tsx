@@ -78,7 +78,7 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
         onBack();
     };
 
-    const orderPrice = parseFloat(order.price?.replace(/[^0-9.]/g, '') || '0');
+    const orderPrice = order.price || 0;
 
     const returnSteps: { id: ReturnPhase, label: string, icon: any }[] = [
         { id: 'REQUESTED', label: t.admin.disputeManager.steps.requested, icon: FileText },
@@ -161,7 +161,7 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                                 <DollarSign size={24} />
                             </div>
                             <div>
-                                <div className="text-2xl font-mono font-bold text-white">{orderPrice.toLocaleString()} SAR</div>
+                                <div className="text-2xl font-mono font-bold text-white">{orderPrice.toLocaleString()} AED</div>
                                 <div className="text-[10px] text-white/40">FROZEN IN ESCROW</div>
                             </div>
                         </div>

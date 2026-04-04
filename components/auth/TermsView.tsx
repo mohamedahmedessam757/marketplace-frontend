@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { FileText, Shield, ChevronDown } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
-export const TermsView: React.FC<{ initialSection?: 'terms' | 'privacy' }> = ({ initialSection = 'terms' }) => {
+export const TermsView: React.FC<{ initialSection?: 'terms' | 'privacy', isModal?: boolean }> = ({ initialSection = 'terms', isModal = false }) => {
     const { t, language } = useLanguage();
     // Default to first item if terms, or first privacy item if privacy.
     // Logic below will handle valid setting.
@@ -41,7 +41,7 @@ export const TermsView: React.FC<{ initialSection?: 'terms' | 'privacy' }> = ({ 
                 <p className="text-white/60 text-sm">{t.legal.summary.termsTitle}</p>
             </div>
 
-            <div ref={containerRef} className="h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gold-500/30 scrollbar-track-white/5 space-y-4">
+            <div ref={containerRef} className={`space-y-4 ${isModal ? '' : 'h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gold-500/30 scrollbar-track-white/5'}`}>
                 {/* Terms Content */}
                 {t.legal.termsContent.map((item, idx) => (
                     <motion.div

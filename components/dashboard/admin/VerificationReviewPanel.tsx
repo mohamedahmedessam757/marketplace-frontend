@@ -1,0 +1,440 @@
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    ShieldCheck, CheckCircle2, XCircle, AlertTriangle, User, Calendar,
+    Clock, FileText, Camera, Video, MessageCircle, Upload, X, Eye
+} from 'lucide-react';
+import { useLanguage } from '../../../contexts/LanguageContext';
+import { GlassCard } from '../../ui/GlassCard';
+import { supabase } from '../../../services/supabase';
+
+interface VerificationReviewPanelProps {
+    orderId: string;
+    status: string;
+    documents: any[];
+    onReviewSubmit: (action: 'APPROVE' | 'REJECT', payload?: {
+        reason?: string;
+        rejectionImages?: string[];
+        rejectionVideo?: string;
+    }) => Promise<void>;
+}
+
+export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = ({
+    orderId, status, documents, onReviewSubmit
+}) => {
+    const { language } = useLanguage();
+    const isAr = language === 'ar';
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [actionType, setActionType] = useState<'APPROVE' | 'REJECT' | null>(null);
+    const [rejectionReason, setRejectionReason] = useState('');
+    const [rejectionImages, setRejectionImages] = useState<File[]>([]);
+    const [rejectionImageUrls, setRejectionImageUrls] = useState<string[]>([]);
+    const [rejectionVideo, setRejectionVideo] = useState<File | null>(null);
+    const [rejectionVideoUrl, setRejectionVideoUrl] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [error, setError] = useState('');
+    const imgInputRef = useRef<HTMLInputElement>(null);
+    const vidInputRef = useRef<HTMLInputElement>(null);
+
+    const activeDoc = documents?.[0];
+    const isPending = status === 'VERIFICATION' || status === 'CORRECTION_SUBMITTED';
+
+    if (!documents || documents.length === 0) return null;
+
+    const uploadFile = async (file: File, folder: string): Promise<string> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('orderId', orderId);
+        formData.append('folder', `admin-rejection/${folder}`);
+
+        const token = localStorage.getItem('access_token');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        
+        const response = await fetch(`${API_URL}/uploads/verification`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'File upload failed');
+        }
+
+        const data = await response.json();
+        return data.url;
+    };
+
+    const handleAddRejectionImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files) return;
+        const newFiles = Array.from(e.target.files) as File[];
+        setRejectionImages(prev => [...prev, ...newFiles]);
+        setRejectionImageUrls(prev => [...prev, ...newFiles.map((f: File) => URL.createObjectURL(f))]);
+    };
+
+    const handleRejectionVideo = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files?.[0]) return;
+        const file: File = e.target.files[0];
+        if (file.size > 50 * 1024 * 1024) {
+            setError(isAr ? 'حجم الفيديو يتجاوز 50 ميجابايت' : 'Video exceeds 50MB limit');
+            return;
+        }
+        setRejectionVideo(file);
+        setRejectionVideoUrl(URL.createObjectURL(file));
+    };
+
+    const handleSubmit = async (action: 'APPROVE' | 'REJECT') => {
+        if (action === 'REJECT' && !rejectionReason.trim()) {
+            setError(isAr ? 'سبب الرفض مطلوب' : 'Rejection reason is required');
+            return;
+        }
+
+        setIsSubmitting(true);
+        setError('');
+        setUploadProgress(10);
+
+        try {
+            let uploadedImages: string[] = [];
+            let uploadedVideoUrl: string | undefined;
+
+            if (action === 'REJECT') {
+                // Upload rejection images
+                for (let i = 0; i < rejectionImages.length; i++) {
+                    const url = await uploadFile(rejectionImages[i], 'images');
+                    uploadedImages.push(url);
+                    setUploadProgress(10 + Math.floor((60 / Math.max(rejectionImages.length, 1)) * (i + 1)));
+                }
+                // Upload rejection video
+                if (rejectionVideo) {
+                    uploadedVideoUrl = await uploadFile(rejectionVideo, 'video');
+                    setUploadProgress(80);
+                }
+            }
+
+            setUploadProgress(90);
+            await onReviewSubmit(action, {
+                reason: rejectionReason || undefined,
+                rejectionImages: uploadedImages.length > 0 ? uploadedImages : undefined,
+                rejectionVideo: uploadedVideoUrl
+            });
+            
+            setUploadProgress(100);
+            // Artificial delay for UX polish so it doesn't snap away instantly
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        } catch (err: any) {
+            setError(err.message || (isAr ? 'حدث خطأ غير متوقع' : 'An unexpected error occurred'));
+            setActionType(null);
+        } finally {
+            setIsSubmitting(false);
+            setUploadProgress(0);
+        }
+    };
+
+    return (
+        <GlassCard className={`p-6 border-l-4 mb-6 ${
+            status === 'NON_MATCHING' ? 'border-l-red-500 bg-red-500/5' :
+            status === 'VERIFICATION_SUCCESS' ? 'border-l-green-500 bg-green-500/5' :
+            'border-l-amber-500 bg-amber-500/5'
+        }`}>
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+                <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                        <ShieldCheck className={
+                            status === 'NON_MATCHING' ? 'text-red-400' :
+                            status === 'VERIFICATION_SUCCESS' ? 'text-green-400' : 'text-amber-400'
+                        } size={24} />
+                        {isAr ? 'المراجعة والوثائق الإلزامية قبل التسليم' : 'Mandatory Handover Verification Review'}
+                    </h3>
+                    <p className="text-sm text-white/50 mt-1">
+                        {status === 'NON_MATCHING'
+                            ? (isAr ? 'تم رفض توثيق القطعة وينتظر إعادة الإرسال من التاجر' : 'Part verification rejected, awaiting merchant correction')
+                            : status === 'VERIFICATION_SUCCESS'
+                            ? (isAr ? 'تم الموافقة على التوثيق، الشحنة جاهزة' : 'Verification Approved, Ready for Shipment')
+                            : status === 'CORRECTION_SUBMITTED'
+                            ? (isAr ? 'قام التاجر بإعادة رفع التوثيق المصحح - بانتظار مراجعتك' : 'Merchant submitted corrected verification - awaiting your review')
+                            : (isAr ? 'قام البائع برفع حالة القطعة للمراجعة قبل التسليم' : 'Merchant uploaded part condition for pre-handover review')}
+                    </p>
+                </div>
+                <div className={`px-3 py-1 border rounded-lg text-xs font-bold shrink-0 ${
+                    status === 'NON_MATCHING' ? 'bg-red-500/10 border-red-500/20 text-red-500' :
+                    status === 'VERIFICATION_SUCCESS' ? 'bg-green-500/10 border-green-500/20 text-green-500' :
+                    'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                }`}>
+                    {isAr ? (
+                        status === 'VERIFICATION' ? 'قيد التوثيق' :
+                        status === 'VERIFICATION_SUCCESS' ? 'التوثيق ناجح' :
+                        status === 'NON_MATCHING' ? 'طلب مراجعة' :
+                        status === 'CORRECTION_PERIOD' ? 'فترة التصحيح' : 
+                        status === 'CORRECTION_SUBMITTED' ? 'تم إرسال التصحيح' : status
+                    ) : status}
+                </div>
+            </div>
+
+            {/* Evidence Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* Photos & Video */}
+                <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-white/70 flex items-center gap-2">
+                        <Camera size={16} /> {isAr ? 'الصور والفيديو المرفق' : 'Attached Photos & Video'}
+                    </h4>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                        {activeDoc.images?.map((img: string, i: number) => (
+                            <a href={img} target="_blank" rel="noopener noreferrer" key={i}
+                                className="aspect-square rounded-xl overflow-hidden border border-white/10 hover:border-gold-500/50 block group relative">
+                                <img src={img} alt={`Part ${i}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                    <Eye size={18} className="text-white" />
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                    {activeDoc.videoUrl && (
+                        <div>
+                            <h4 className="text-sm font-bold text-white/70 flex items-center gap-2 mb-2 mt-4">
+                                <Video size={16} /> {isAr ? 'الفيديو المرفق' : 'Attached Video'}
+                            </h4>
+                            <div className="aspect-video w-full rounded-xl overflow-hidden border border-white/10">
+                                <video src={activeDoc.videoUrl} controls className="w-full h-full object-contain bg-black/50" />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Handover Receipt Info */}
+                <div className="space-y-6">
+                    <div>
+                        <h4 className="text-sm font-bold text-white/70 flex items-center gap-2 mb-3">
+                            <FileText size={16} /> {isAr ? 'ملاحظات المعاينة' : 'Condition Notes'}
+                        </h4>
+                        <div className="bg-white/5 rounded-xl p-4 border border-white/10 text-sm text-white/80 min-h-[60px]">
+                            {activeDoc.description || <span className="text-white/30 italic">{isAr ? 'لا توجد ملاحظات إضافية' : 'No additional notes'}</span>}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="text-sm font-bold text-white/70 flex items-center gap-2 mb-3">
+                            <User size={16} /> {isAr ? 'وصل تفويض الاستلام (المندوب)' : 'Courier Handover Receipt'}
+                        </h4>
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3 font-mono text-sm">
+                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                                <span className="text-white/40">{isAr ? 'الاسم' : 'Name'}</span>
+                                <span className="text-white font-bold">{activeDoc.recipientName || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                                <span className="text-white/40">{isAr ? 'تاريخ التسليم' : 'Handover Date'}</span>
+                                <span className="text-white flex items-center gap-2">
+                                    <Calendar size={14} className="text-white/40" />
+                                    {activeDoc.handoverDate ? new Date(activeDoc.handoverDate).toLocaleDateString('en-GB') : 'N/A'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                                <span className="text-white/40">{isAr ? 'وقت التسليم' : 'Handover Time'}</span>
+                                <span className="text-white flex items-center gap-2">
+                                    <Clock size={14} className="text-white/40" />
+                                    {activeDoc.handoverTime || 'N/A'}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="text-white/40 block mb-2">
+                                    {isAr ? 'التوقيع الرقمي' : 'Digital Signature'} 
+                                    {activeDoc.signatureType === 'TYPED' && <span className="text-amber-400/80 text-xs ms-1">({isAr ? 'مكتوب' : 'Typed'})</span>}
+                                </span>
+                                {activeDoc.signatureType === 'TYPED' && activeDoc.signatureText ? (
+                                    <div className="bg-white/10 p-4 rounded-lg text-center flex items-center justify-center min-h-[60px] border border-white/10">
+                                        <p className="text-2xl text-amber-500 font-bold tracking-wider" style={{ fontFamily: '"Brush Script MT", cursive, sans-serif' }}>
+                                            {activeDoc.signatureText}
+                                        </p>
+                                    </div>
+                                ) : activeDoc.recipientSignature ? (
+                                    <div className="bg-white/10 p-2 rounded-lg text-center h-24 overflow-hidden border border-white/10">
+                                        <img src={activeDoc.recipientSignature} alt="Signature" className="h-full mx-auto object-contain" />
+                                    </div>
+                                ) : (
+                                    <div className="bg-white/5 p-4 rounded-lg text-center text-red-400 italic text-xs">
+                                        {isAr ? 'لا يوجد توقيع' : 'No Signature'}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Admin Rejection Evidence (if already rejected and docs exist) */}
+            {(status === 'NON_MATCHING' || status === 'CORRECTION_PERIOD') && activeDoc.adminRejectionReason && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-3">
+                    <h4 className="text-sm font-bold text-red-400 flex items-center gap-2">
+                        <XCircle size={16} /> {isAr ? 'سبب الرفض المسجّل من الإدارة' : 'Admin Rejection Reason on Record'}
+                    </h4>
+                    <p className="text-white/80 text-sm">{activeDoc.adminRejectionReason}</p>
+                    {activeDoc.adminRejectionImages?.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 mt-2">
+                            {activeDoc.adminRejectionImages.map((img: string, i: number) => (
+                                <a key={i} href={img} target="_blank" rel="noopener noreferrer"
+                                    className="aspect-square rounded-xl overflow-hidden border border-red-500/20">
+                                    <img src={img} alt="" className="w-full h-full object-cover" />
+                                </a>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Error Display */}
+            {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl flex items-center gap-3 mb-6">
+                    <AlertTriangle size={20} />
+                    <p className="text-sm font-bold">{error}</p>
+                </div>
+            )}
+
+            {/* Upload Progress */}
+            {isSubmitting && uploadProgress > 0 && (
+                <div className="mb-4">
+                    <div className="flex justify-between text-xs text-white/50 mb-1">
+                        <span>{isAr ? 'جارٍ الرفع...' : 'Uploading...'}</span>
+                        <span>{uploadProgress}%</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-1.5">
+                        <motion.div
+                            className="bg-primary-500 h-1.5 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${uploadProgress}%` }}
+                            transition={{ duration: 0.3 }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Action Buttons */}
+            {isPending && (
+                <div className="pt-6 border-t border-white/10">
+                    <AnimatePresence>
+                        {actionType === 'REJECT' ? (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="space-y-4"
+                            >
+                                {/* Rejection Reason */}
+                                <div>
+                                    <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
+                                        <MessageCircle size={16} /> {isAr ? 'سبب عدم المطابقة / الرفض' : 'Reason for Non-Matching / Rejection'} <span className="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                        value={rejectionReason}
+                                        onChange={(e) => { setRejectionReason(e.target.value); if (error) setError(''); }}
+                                        placeholder={isAr
+                                            ? 'اكتب ملاحظاتك بوضوح وتوضيح سبب رفض التوثيق للتاجر ليقوم بالتصحيح...'
+                                            : 'Write clear notes explaining the rejection for the merchant to correct...'}
+                                        className="w-full bg-white/5 border border-red-500/30 focus:border-red-500 rounded-xl p-4 text-white focus:outline-none transition-colors resize-none"
+                                        rows={3}
+                                    />
+                                </div>
+
+                                {/* Rejection Evidence - Images */}
+                                <div>
+                                    <label className="text-sm font-bold text-white/70 flex items-center gap-2 mb-2">
+                                        <Camera size={16} /> {isAr ? 'صور دليل الرفض (اختياري)' : 'Rejection Evidence Photos (Optional)'}
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {rejectionImageUrls.map((url, i) => (
+                                            <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-white/10 group">
+                                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setRejectionImages(p => p.filter((_, idx) => idx !== i));
+                                                        setRejectionImageUrls(p => p.filter((_, idx) => idx !== i));
+                                                    }}
+                                                    className="absolute top-1 right-1 bg-red-500/80 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <label className="aspect-square rounded-xl border-2 border-dashed border-white/20 hover:border-red-500/40 flex flex-col items-center justify-center cursor-pointer bg-white/5 hover:bg-white/10 transition-colors">
+                                            <Camera size={18} className="text-white/40 mb-1" />
+                                            <span className="text-[10px] text-white/40">{isAr ? 'إضافة' : 'Add'}</span>
+                                            <input ref={imgInputRef} type="file" multiple accept="image/*" onChange={handleAddRejectionImages} className="hidden" />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Rejection Evidence - Video */}
+                                <div>
+                                    <label className="text-sm font-bold text-white/70 flex items-center gap-2 mb-2">
+                                        <Video size={16} /> {isAr ? 'فيديو دليل الرفض (اختياري، حد 50MB)' : 'Rejection Evidence Video (Optional, max 50MB)'}
+                                    </label>
+                                    {rejectionVideoUrl ? (
+                                        <div className="relative aspect-video rounded-xl overflow-hidden border border-white/10">
+                                            <video src={rejectionVideoUrl} controls className="w-full h-full object-contain bg-black/50" />
+                                            <button
+                                                type="button"
+                                                onClick={() => { setRejectionVideo(null); setRejectionVideoUrl(null); }}
+                                                className="absolute top-2 right-2 bg-red-500/90 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors z-10"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <label className="flex flex-col items-center justify-center py-6 rounded-xl border-2 border-dashed border-white/20 hover:border-red-500/40 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                                            <Upload size={20} className="text-white/40 mb-2" />
+                                            <span className="text-sm text-white/50">{isAr ? 'اضغط لرفع فيديو' : 'Click to upload video'}</span>
+                                            <input ref={vidInputRef} type="file" accept="video/*" onChange={handleRejectionVideo} className="hidden" />
+                                        </label>
+                                    )}
+                                </div>
+
+                                {/* Submit / Cancel */}
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        onClick={() => { setActionType(null); setError(''); }}
+                                        disabled={isSubmitting}
+                                        className="px-6 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white disabled:opacity-50 transition-colors"
+                                    >
+                                        {isAr ? 'تراجع' : 'Cancel'}
+                                    </button>
+                                    <button
+                                        onClick={() => handleSubmit('REJECT')}
+                                        disabled={isSubmitting || !rejectionReason.trim()}
+                                        className="px-6 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold disabled:opacity-50 flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20"
+                                    >
+                                        {isSubmitting ? (
+                                            <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                        ) : <XCircle size={18} />}
+                                        {isAr ? 'رفض وإرسال إشعار التصحيح' : 'Reject & Issue Correction Notice'}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                                <button
+                                    onClick={() => setActionType('REJECT')}
+                                    className="w-full py-4 rounded-xl border-2 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-500 font-bold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <XCircle size={20} />
+                                    {isAr ? 'رفض لعدم المطابقة' : 'Reject - Non Matching'}
+                                </button>
+                                <button
+                                    onClick={() => handleSubmit('APPROVE')}
+                                    disabled={isSubmitting}
+                                    className="w-full py-4 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold transition-colors shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isSubmitting
+                                        ? <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                        : <CheckCircle2 size={20} />}
+                                    {isAr ? 'اعتماد التوثيق - مطابق' : 'Approve Verification - Matching'}
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            )}
+        </GlassCard>
+    );
+};

@@ -1,35 +1,63 @@
-
-
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Store, MapPin, Clock, FileText, UploadCloud, Edit3, Save, CheckCircle2, User, Phone, Mail, Shield, Lock, Smartphone, Globe, LogOut } from 'lucide-react';
+import { Store, MapPin, Clock, FileText, UploadCloud, Edit3, Save, CheckCircle2, User, Phone, Mail, Shield, Lock, Smartphone, Globe, LogOut, Eye, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { useProfileStore } from '../../../stores/useProfileStore';
 import { GlassCard } from '../../ui/GlassCard';
+import { MultiSelectDropdown } from '../../ui/MultiSelectDropdown';
+import { manufacturers } from '../../../data/manufacturers';
 
 export const MerchantProfile: React.FC = () => {
     const { t, language } = useLanguage();
-    const { storeInfo, account, profile, updateStoreInfo, updateProfile } = useVendorStore();
-    const { sessions, terminateSession, terminateAllSessions } = useProfileStore();
+    const { 
+        storeInfo, account, profile, vendorStatus,
+        updateStoreInfo, fetchVendorProfile, 
+        documents, isLoadingProfile, performance, 
+        updateVendorProfile, uploadLogo, uploadDocument 
+    } = useVendorStore();
+    
+    React.useEffect(() => {
+        fetchVendorProfile();
+    }, [fetchVendorProfile]);
 
-    const [activeTab, setActiveTab] = useState<'details' | 'security'>('details');
     const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+    const logoInputRef = React.useRef<HTMLInputElement>(null);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
-    const isAr = language === 'ar';
-
-    const handleSave = () => {
-        setIsEditing(false);
-        setShowSaveSuccess(true);
-        setTimeout(() => setShowSaveSuccess(false), 3000);
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await updateVendorProfile();
+            setIsEditing(false);
+            setShowSaveSuccess(true);
+            setTimeout(() => setShowSaveSuccess(false), 3000);
+        } catch (error) {
+            console.error('Save failed', error);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    const InputGroup = ({ label, value, onChange, disabled = false, type = "text", warning = false }: any) => (
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploadingLogo(true);
+        try {
+            await uploadLogo(file);
+        } catch (error) {
+            console.error('Logo upload failed', error);
+        } finally {
+            setIsUploadingLogo(false);
+        }
+    };
+
+    const InputGroup = ({ label, value, onChange, disabled = false, type = "text" }: any) => (
         <div className="space-y-2">
-            <div className="flex justify-between">
-                <label className="text-xs text-white/40 uppercase tracking-wider">{label}</label>
-            </div>
+            <label className="text-xs text-white/40 uppercase tracking-wider">{label}</label>
             <input
                 type={type}
                 value={value}
@@ -37,58 +65,82 @@ export const MerchantProfile: React.FC = () => {
                 disabled={!isEditing || disabled}
                 className={`
             w-full bg-[#1A1814] border rounded-xl px-4 py-3 text-white outline-none transition-colors 
-            ${isEditing ? 'border-white/10 focus:border-gold-500' : 'border-transparent text-white/70'}
+            ${isEditing ? 'border-white/10 focus:border-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.1)]' : 'border-transparent text-white/70'}
             ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
           `}
             />
         </div>
     );
 
+    const ProfileSkeleton = () => (
+        <div className="space-y-8 animate-pulse">
+            <div className="grid lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-1 space-y-6">
+                    <GlassCard className="p-6 h-64 bg-white/5" />
+                    <GlassCard className="p-6 h-48 bg-white/5" />
+                </div>
+                <div className="lg:col-span-2 space-y-6">
+                    <GlassCard className="p-6 h-96 bg-white/5" />
+                </div>
+            </div>
+        </div>
+    );
+
+    if (isLoadingProfile) return <ProfileSkeleton />;
+
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-
-            <div className="flex justify-between items-center">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="flex justify-between items-center bg-black/20 p-4 rounded-2xl border border-white/5 backdrop-blur-xl sticky top-0 z-40">
                 <div className="flex items-center gap-4">
-                    <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                        <Store className="text-gold-500" size={32} />
-                        {t.dashboard.merchant.storeProfile.title}
-                    </h1>
-
-                    <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
-                        <button
-                            onClick={() => setActiveTab('details')}
-                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'details' ? 'bg-gold-500 text-white' : 'text-white/50 hover:text-white'}`}
-                        >
-                            {t.dashboard.merchant.tabs.details}
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('security')}
-                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'security' ? 'bg-gold-500 text-white' : 'text-white/50 hover:text-white'}`}
-                        >
-                            {t.dashboard.merchant.tabs.security}
-                        </button>
+                    <div className="p-3 bg-gold-500/10 rounded-xl border border-gold-500/20">
+                        <Store className="text-gold-500" size={28} />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold text-white leading-none mb-1">
+                            {t.dashboard.merchant.storeProfile.title}
+                        </h1>
+                        <p className="text-xs text-white/40">{t.dashboard.merchant.profile.verified}</p>
                     </div>
                 </div>
 
-                {activeTab === 'details' && (
-                    <button
-                        onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all ${isEditing
-                                ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg'
-                                : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
-                            }`}
-                    >
-                        {isEditing ? <Save size={18} /> : <Edit3 size={18} />}
-                        {isEditing ? t.dashboard.merchant.storeProfile.actions.save : t.dashboard.merchant.storeProfile.actions.edit}
-                    </button>
-                )}
+                <div className="flex items-center gap-3">
+                    {isEditing ? (
+                        <>
+                            <button
+                                onClick={() => setIsEditing(false)}
+                                className="px-5 py-2 rounded-xl font-bold transition-all text-white/60 hover:text-white"
+                            >
+                                {t.common?.cancel || (language === 'ar' ? 'إلغاء' : 'Cancel')}
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold bg-gold-500 hover:bg-gold-600 text-black shadow-[0_0_20px_rgba(212,175,55,0.3)] transition-all disabled:opacity-50"
+                            >
+                                {isSaving ? (
+                                    <RefreshCw className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <Save size={18} />
+                                )}
+                                {language === 'ar' ? 'حفظ التغييرات' : 'Save Changes'}
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={() => setIsEditing(true)}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all"
+                        >
+                            <Edit3 size={18} />
+                            {t.dashboard.merchant.storeProfile.actions.edit}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {showSaveSuccess && (
                 <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     className="bg-green-500/10 border border-green-500/20 text-green-400 p-4 rounded-xl flex items-center gap-3"
                 >
                     <CheckCircle2 size={20} />
@@ -96,248 +148,439 @@ export const MerchantProfile: React.FC = () => {
                 </motion.div>
             )}
 
-            {activeTab === 'details' && (
-                <div className="grid lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-1 space-y-6">
-                        <GlassCard className="p-6 text-center relative group">
-                            <div className="w-32 h-32 mx-auto bg-white/5 border-2 border-dashed border-white/20 rounded-full flex items-center justify-center mb-4 overflow-hidden relative">
-                                {profile.logo ? (
-                                    <img src={profile.logo} alt="Logo" className="w-full h-full object-cover" />
-                                ) : (
-                                    <Store size={40} className="text-white/20" />
-                                )}
-                                {isEditing && (
-                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                        <UploadCloud className="text-white" />
-                                    </div>
-                                )}
-                            </div>
-                            <h2 className="text-xl font-bold text-white mb-1">{storeInfo.storeName || t.dashboard.merchant.storeProfile.fields.name}</h2>
-                            <div className="text-gold-400 text-xs font-bold bg-gold-500/10 inline-block px-3 py-1 rounded-full border border-gold-500/20">
-                                {t.dashboard.merchant.profile.verified}
-                            </div>
+            {(() => {
+                const getDaysLeft = (expiryDate?: string) => {
+                    if (!expiryDate) return 999;
+                    const diff = new Date(expiryDate).getTime() - new Date().getTime();
+                    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+                };
 
-                            <div className="mt-6 flex justify-center gap-1">
-                                {[1, 2, 3, 4, 5].map(s => <div key={s} className="w-1.5 h-1.5 rounded-full bg-green-500" />)}
-                            </div>
-                            <p className="text-xs text-white/40 mt-1">5.0 {t.dashboard.merchant.profile.rating}</p>
-                        </GlassCard>
+                const minDaysLeft = Math.min(
+                    ...['cr', 'license', 'id', 'iban', 'authLetter'].map(
+                        key => getDaysLeft(documents[key as keyof typeof documents]?.expiryDate)
+                    )
+                );
 
-                        <GlassCard className="p-6">
-                            <h3 className="text-sm font-bold text-white/50 uppercase tracking-wider mb-4 pb-2 border-b border-white/5">
-                                {t.dashboard.merchant.storeProfile.sections.contact}
-                            </h3>
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-                                    <User size={18} className="text-gold-500" />
-                                    <div>
-                                        <div className="text-[10px] text-white/40">{t.dashboard.merchant.profile.manager}</div>
-                                        <div className="text-white text-sm font-medium">{account.name}</div>
+                if (vendorStatus === 'PENDING_REVIEW') {
+                    return (
+                        <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl flex items-start gap-3 animate-pulse">
+                            <Shield className="text-orange-500 mt-0.5" size={20} />
+                            <div>
+                                <h4 className="text-sm font-bold text-orange-500 mb-1">
+                                    {language === 'ar' ? 'حسابك قيد المراجعة المؤقتة' : 'Account Temporarily Under Review'}
+                                </h4>
+                                <p className="text-xs text-orange-400/80 leading-relaxed">
+                                    {language === 'ar' 
+                                        ? 'لقد قمت بتحديث مستندات قانونية هامة. تم إيقاف الحساب مؤقتاً في انتظار موافقة الإدارة.' 
+                                        : 'You have updated important legal documents. The account is temporarily suspended pending admin approval.'}
+                                </p>
+                            </div>
+                        </div>
+                    );
+                }
+
+                if (minDaysLeft <= 0 && minDaysLeft >= -15) {
+                    return (
+                        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3 animate-pulse">
+                            <Shield className="text-red-500 mt-0.5" size={20} />
+                            <div>
+                                <h4 className="text-sm font-bold text-red-500 mb-1">
+                                    {language === 'ar' ? 'تنبيه: فترة السماح تنتهي قريباً' : 'Alert: Grace Period Ending Soon'}
+                                </h4>
+                                <p className="text-xs text-red-400/80 leading-relaxed">
+                                    {language === 'ar' 
+                                        ? `لقد انتهت صلاحية أحد المستندات. لديك ${15 + minDaysLeft} يوم لتحديثها قبل إيقاف الحساب نهائياً.` 
+                                        : `One of your documents has expired. You have ${15 + minDaysLeft} days to update them before account suspension.`}
+                                </p>
+                            </div>
+                        </div>
+                    );
+                } else if (minDaysLeft > 0 && minDaysLeft <= 30) {
+                    return (
+                        <div className="bg-gold-500/10 border border-gold-500/20 p-4 rounded-xl flex items-start gap-3">
+                            <Clock className="text-gold-500 mt-0.5" size={20} />
+                            <div>
+                                <h4 className="text-sm font-bold text-gold-500 mb-1">
+                                    {language === 'ar' ? 'تنبيه: مستندات ستنتهي قريباً' : 'Alert: Documents Expiring Soon'}
+                                </h4>
+                                <p className="text-xs text-gold-500/70 leading-relaxed">
+                                    {language === 'ar' 
+                                        ? `يرجى تجديد مستنداتك وتراخيصك خلال ${minDaysLeft} يوم لتجنب أي إيقاف للخدمة.` 
+                                        : `Please renew your documents within ${minDaysLeft} days to avoid any service interruption.`}
+                                </p>
+                            </div>
+                        </div>
+                    );
+                }
+                return null;
+            })()}
+
+            <div className="grid lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-1 space-y-6">
+                    <GlassCard className="p-8 text-center relative group overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4">
+                            <div className="bg-green-500/10 text-green-400 text-[10px] font-bold px-2 py-1 rounded-md border border-green-500/20 uppercase">
+                                {language === 'ar' ? 'نشط' : 'Active'}
+                            </div>
+                        </div>
+                        
+                        <input 
+                            type="file" 
+                            ref={logoInputRef} 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handleLogoUpload}
+                        />
+                        <div className={`w-32 h-32 mx-auto border-2 border-dashed rounded-full flex items-center justify-center mb-6 overflow-hidden relative group/logo transition-all ${profile.logo ? 'border-gold-500/20 bg-transparent' : 'bg-gradient-to-br from-white/10 to-white/5 border-white/20'}`}>
+                            {isUploadingLogo ? (
+                                <RefreshCw size={32} className="text-gold-500 animate-spin" />
+                            ) : profile.logo ? (
+                                <img src={profile.logo} alt="Logo" className="w-3/4 h-3/4 object-contain transition-transform duration-500 group-hover/logo:scale-110" />
+                            ) : (
+                                <Store size={48} className="text-white/10" />
+                            )}
+                            {isEditing && !isUploadingLogo && (
+                                <div 
+                                    onClick={() => logoInputRef.current?.click()}
+                                    className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-all cursor-pointer"
+                                >
+                                    <UploadCloud className="text-white w-8 h-8" />
+                                </div>
+                            )}
+                        </div>
+                        <h2 className="text-xl font-bold text-white mb-2">{storeInfo.storeName || t.dashboard.merchant.storeProfile.fields.name}</h2>
+                        
+                        <div className="flex items-center justify-center gap-1 mb-6">
+                            {[1, 2, 3, 4, 5].map(s => (
+                                <div key={s} className={`w-1.5 h-1.5 rounded-full ${s <= Math.round(performance?.rating || 0) ? 'bg-gold-500' : 'bg-white/10'}`} />
+                            ))}
+                            <span className="text-xs text-white/40 ml-2">{performance?.rating?.toFixed(1)} {t.dashboard.merchant.profile.rating}</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mt-8 pt-6 border-t border-white/5">
+                            {[
+                                { 
+                                    label: t.dashboard.merchant.kpi.responseSpeed, 
+                                    value: `${performance.responseSpeed}h`, 
+                                    status: performance.responseSpeed < 4 ? 'good' : 'bad' 
+                                },
+                                { 
+                                    label: t.dashboard.merchant.kpi.prepSpeed, 
+                                    value: `${performance.prepSpeed}h`, 
+                                    status: performance.prepSpeed < 24 ? 'good' : 'bad' 
+                                },
+                                { 
+                                    label: t.dashboard.merchant.kpi.acceptanceRate, 
+                                    value: `${performance.acceptanceRate}%`, 
+                                    status: performance.acceptanceRate > 50 ? 'good' : 'bad' 
+                                },
+                                { 
+                                    label: t.dashboard.merchant.kpi.rating, 
+                                    value: performance.rating, 
+                                    status: performance.rating > 4.5 ? 'good' : 'risk' 
+                                }
+                            ].map((kpi, idx) => (
+                                <div key={idx} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-center group/kpi hover:border-gold-500/20 transition-all">
+                                    <div className="text-[9px] text-white/40 uppercase tracking-wider mb-1 group-hover/kpi:text-gold-500/60 transition-colors">{kpi.label}</div>
+                                    <div className={`text-base font-bold ${
+                                        kpi.status === 'good' ? 'text-green-400' : 
+                                        kpi.status === 'risk' ? 'text-yellow-400' : 'text-red-400'
+                                    }`}>
+                                        {kpi.value}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-                                    <Phone size={18} className="text-gold-500" />
-                                    <div>
-                                        <div className="text-[10px] text-white/40">{t.dashboard.merchant.profile.mobile}</div>
-                                        <div className="text-white text-sm font-mono">{account.phone}</div>
+                            ))}
+                        </div>
+                    </GlassCard>
+
+                    <GlassCard className="p-6">
+                        <h3 className="text-sm font-bold text-gold-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <Phone size={14} />
+                            {t.dashboard.merchant.storeProfile.sections.contact}
+                        </h3>
+                        <div className="space-y-3">
+                            {[
+                                { icon: User, label: t.dashboard.merchant.profile.manager, value: account.name, color: 'text-blue-400' },
+                                { icon: Phone, label: t.dashboard.merchant.profile.mobile, value: account.phone, color: 'text-green-400' },
+                                { icon: Mail, label: t.dashboard.merchant.profile.email, value: account.email, color: 'text-purple-400' }
+                            ].map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.04] transition-colors">
+                                    <div className={`p-2 rounded-lg bg-white/5 ${item.color}`}>
+                                        <item.icon size={18} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-[10px] text-white/40 uppercase tracking-wider">{item.label}</div>
+                                        <div className="text-white text-sm font-medium truncate">{item.value}</div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-                                    <Mail size={18} className="text-gold-500" />
-                                    <div>
-                                        <div className="text-[10px] text-white/40">{t.dashboard.merchant.profile.email}</div>
-                                        <div className="text-white text-sm">{account.email}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </GlassCard>
+                            ))}
+                        </div>
+                    </GlassCard>
+                </div>
 
-                    </div>
-
-                    <div className="lg:col-span-2 space-y-6">
-                        <GlassCard className="p-6 md:p-8">
-                            <h3 className="text-lg font-bold text-white mb-6 border-b border-white/5 pb-4">
+                <div className="lg:col-span-2 space-y-6">
+                    <GlassCard className="p-8 relative z-[3]">
+                        <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-6">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                                <div className="w-1 h-6 bg-gold-500 rounded-full" />
                                 {t.dashboard.merchant.storeProfile.sections.basic}
                             </h3>
-                            <div className="grid md:grid-cols-2 gap-6 mb-6">
-                                <InputGroup
-                                    label={t.dashboard.merchant.storeProfile.fields.name}
-                                    value={storeInfo.storeName}
-                                    onChange={(e: any) => updateStoreInfo('storeName', e.target.value)}
-                                    warning
-                                />
-                                <InputGroup
-                                    label={t.dashboard.merchant.storeProfile.fields.categories}
-                                    value={profile.categories.join(', ')}
-                                    disabled
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs text-white/40 uppercase tracking-wider">{t.dashboard.merchant.storeProfile.fields.bio}</label>
-                                <textarea
-                                    value={storeInfo.bio}
-                                    onChange={(e) => updateStoreInfo('bio', e.target.value)}
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-6 mb-8">
+                            <InputGroup
+                                label={t.dashboard.merchant.storeProfile.fields.name}
+                                value={storeInfo.storeName}
+                                onChange={(e: any) => updateStoreInfo('storeName', e.target.value)}
+                            />
+                            
+                            <div className="space-y-6">
+                                <MultiSelectDropdown
+                                    label={language === 'ar' ? 'تخصص شركات السيارات' : 'Car Makes Specialization'}
+                                    items={manufacturers.map(m => ({ id: m.name, name: m.name, nameAr: m.nameAr }))}
+                                    selectedItems={storeInfo.selectedMakes ?? []}
                                     disabled={!isEditing}
-                                    rows={4}
-                                    className={`
-                                    w-full bg-[#1A1814] border rounded-xl px-4 py-3 text-white outline-none transition-colors resize-none
-                                    ${isEditing ? 'border-white/10 focus:border-gold-500' : 'border-transparent text-white/70'}
-                                `}
+                                    onChange={(newMakes) => {
+                                        updateStoreInfo('selectedMakes', newMakes as any);
+                                        const availableModels = manufacturers
+                                            .filter(m => newMakes.includes(m.name))
+                                            .flatMap(m => m.types);
+                                        const availableModelNames = availableModels.map(m => m.name);
+                                        const filteredModels = (storeInfo.selectedModels ?? []).filter(sm => availableModelNames.includes(sm));
+                                        if (filteredModels.length !== (storeInfo.selectedModels ?? []).length) {
+                                            updateStoreInfo('selectedModels', filteredModels as any);
+                                        }
+                                    }}
+                                    customValue={storeInfo.customMake}
+                                    onCustomValueChange={(val) => updateStoreInfo('customMake', val)}
                                 />
-                            </div>
-                        </GlassCard>
 
-                        <GlassCard className="p-6 md:p-8">
-                            <h3 className="text-lg font-bold text-white mb-6 border-b border-white/5 pb-4 flex items-center gap-2">
-                                <Clock size={20} className="text-gold-500" />
-                                {t.dashboard.merchant.storeProfile.sections.hours}
+                                { (storeInfo.selectedMakes ?? []).length > 0 && (
+                                    <MultiSelectDropdown
+                                        label={language === 'ar' ? 'تخصص موديلات السيارات' : 'Car Models Specialization'}
+                                        items={manufacturers
+                                            .filter(m => (storeInfo.selectedMakes ?? []).includes(m.name))
+                                            .flatMap(m => m.types.map(t => ({ 
+                                                id: t.name, 
+                                                name: t.name, 
+                                                nameAr: t.nameAr, 
+                                                subtext: m.name 
+                                            })))}
+                                        selectedItems={storeInfo.selectedModels ?? []}
+                                        disabled={!isEditing}
+                                        onChange={(newModels) => updateStoreInfo('selectedModels', newModels as any)}
+                                        customValue={storeInfo.customModel}
+                                        onCustomValueChange={(val) => updateStoreInfo('customModel', val)}
+                                    />
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="text-xs text-white/40 uppercase tracking-wider block">{t.dashboard.merchant.storeProfile.fields.bio}</label>
+                            <textarea
+                                value={storeInfo.bio}
+                                onChange={(e) => updateStoreInfo('bio', e.target.value)}
+                                disabled={!isEditing}
+                                rows={4}
+                                className={`
+                                w-full bg-[#1A1814] border rounded-2xl px-5 py-4 text-white outline-none transition-all resize-none
+                                ${isEditing ? 'border-white/10 focus:border-gold-500 shadow-[0_0_20px_rgba(212,175,55,0.05)]' : 'border-transparent text-white/70'}
+                            `}
+                            />
+                        </div>
+                    </GlassCard>
+
+                    <GlassCard className="p-8 relative z-[2]">
+                        <div className="flex items-center gap-3 mb-6">
+                            <MapPin size={24} className="text-gold-500" />
+                            <h3 className="text-lg font-bold text-white">
+                                {t.dashboard.merchant.profile.location}
                             </h3>
-                            <div className="grid md:grid-cols-2 gap-6">
-                                <InputGroup
-                                    label={t.dashboard.merchant.profile.openTime}
-                                    type="time"
-                                    value={profile.workingHours.start}
-                                    onChange={(e: any) => updateProfile({ workingHours: { ...profile.workingHours, start: e.target.value } })}
-                                />
-                                <InputGroup
-                                    label={t.dashboard.merchant.profile.closeTime}
-                                    type="time"
-                                    value={profile.workingHours.end}
-                                    onChange={(e: any) => updateProfile({ workingHours: { ...profile.workingHours, end: e.target.value } })}
-                                />
-                            </div>
-                            <div className="mt-6 pt-6 border-t border-white/5">
-                                <div className="flex items-center gap-2 text-white/60 mb-2">
-                                    <MapPin size={16} />
-                                    <span className="text-sm">{t.dashboard.merchant.profile.location}</span>
+                        </div>
+                        <div className="relative group/map h-auto min-h-[12rem] bg-white/5 rounded-2xl border border-white/10 flex flex-col items-center justify-center p-6 text-white/40 transition-all hover:bg-white/[0.07]">
+                            <Globe className="mb-3 opacity-20 group-hover/map:scale-110 group-hover/map:opacity-40 transition-all" size={32} />
+                            
+                            {isEditing ? (
+                                <div className="w-full space-y-4">
+                                    <InputGroup 
+                                        label={language === 'ar' ? 'العنوان' : 'Address'}
+                                        value={storeInfo.address}
+                                        onChange={(e: any) => updateStoreInfo('address', e.target.value)}
+                                        placeholder={language === 'ar' ? 'أدخل العنوان التفصيلي' : 'Enter detailed address'}
+                                    />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-white/40 uppercase tracking-widest">{language === 'ar' ? 'خط العرض' : 'Latitude'}</label>
+                                            <input 
+                                                type="number" 
+                                                step="any"
+                                                value={storeInfo.lat || ''} 
+                                                onChange={(e) => updateStoreInfo('lat', parseFloat(e.target.value))}
+                                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-gold-500 outline-none"
+                                                placeholder="e.g. 24.7136"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-white/40 uppercase tracking-widest">{language === 'ar' ? 'خط الطول' : 'Longitude'}</label>
+                                            <input 
+                                                type="number" 
+                                                step="any"
+                                                value={storeInfo.lng || ''} 
+                                                onChange={(e) => updateStoreInfo('lng', parseFloat(e.target.value))}
+                                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-gold-500 outline-none"
+                                                placeholder="e.g. 46.6753"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="h-32 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/20">
-                                    {t.dashboard.merchant.profile.location}
-                                </div>
-                            </div>
-                        </GlassCard>
+                            ) : (
+                                <>
+                                    <div className="text-xs font-mono px-6 text-center leading-relaxed text-white/70">
+                                        {storeInfo.address || (language === 'ar' ? 'الموقع غير محدد' : 'Location not specified')}
+                                    </div>
+                                    <div className="mt-4 flex gap-2">
+                                        <div className="text-[10px] bg-black/30 px-3 py-1.5 rounded-lg border border-white/5 font-mono text-gold-500/80">
+                                            LAT: {storeInfo.lat?.toFixed(6) || '---'}
+                                        </div>
+                                        <div className="text-[10px] bg-black/30 px-3 py-1.5 rounded-lg border border-white/5 font-mono text-gold-500/80">
+                                            LNG: {storeInfo.lng?.toFixed(6) || '---'}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </GlassCard>
 
-                        <GlassCard className="p-6 md:p-8 bg-[#1A1814]/50">
-                            <h3 className="text-lg font-bold text-white mb-6 border-b border-white/5 pb-4 flex items-center gap-2">
+                    <GlassCard className="p-8 bg-gradient-to-b from-[#1A1814]/50 to-transparent relative z-[1]">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-3">
                                 <FileText size={20} className="text-gold-500" />
                                 {t.dashboard.merchant.storeProfile.sections.docs}
                             </h3>
-                            <div className="space-y-4">
-                                {[
-                                    { label: t.dashboard.merchant.storeProfile.fields.cr, status: 'Active', date: '2025-12-01' },
-                                    { label: t.dashboard.merchant.storeProfile.fields.license, status: 'Active', date: '2024-10-15' },
-                                ].map((doc, idx) => (
-                                    <div key={idx} className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <FileText className="text-white/40" size={18} />
-                                            <div>
-                                                <div className="text-sm font-bold text-white">{doc.label}</div>
-                                                <div className="text-[10px] text-white/40">{t.dashboard.merchant.storeProfile.fields.expiry}: {doc.date}</div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded border border-green-500/10">{t.common.active}</span>
-                                            {isEditing && (
-                                                <button className="text-xs text-gold-400 hover:underline">{t.dashboard.merchant.documents.actions.update}</button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </GlassCard>
-
-                    </div>
-                </div>
-            )}
-
-            {activeTab === 'security' && (
-                <GlassCard className="p-8">
-                    <div className="max-w-2xl mx-auto space-y-10">
-                        <div>
-                            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                <Lock size={20} className="text-gold-500" />
-                                {t.dashboard.profile.security.update}
-                            </h3>
-                            <div className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                    <div className="md:col-span-2">
-                                        <label className="text-xs text-white/40 uppercase tracking-wider block mb-2">{t.dashboard.profile.security.current}</label>
-                                        <input type="password" className="w-full bg-[#1A1814] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs text-white/40 uppercase tracking-wider block mb-2">{t.dashboard.profile.security.new}</label>
-                                        <input type="password" className="w-full bg-[#1A1814] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs text-white/40 uppercase tracking-wider block mb-2">{t.dashboard.profile.security.confirm}</label>
-                                        <input type="password" className="w-full bg-[#1A1814] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold-500 outline-none" />
-                                    </div>
-                                </div>
-                                <div className="flex justify-end">
-                                    <button className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-bold transition-colors">
-                                        {t.dashboard.merchant.storeProfile.actions.save}
-                                    </button>
-                                </div>
-                            </div>
+                            <div className="text-[10px] text-white/20 uppercase tracking-[0.2em]">Mandatory Records</div>
                         </div>
 
-                        <div className="h-px bg-white/10" />
+                        <div className="grid gap-4">
+                            {[
+                                { key: 'cr', label: language === 'ar' ? 'السجل التجاري' : 'Commercial Record' },
+                                { key: 'license', label: language === 'ar' ? 'رخصة البلدية' : 'Municipal License' },
+                                { key: 'id', label: language === 'ar' ? 'الهوية الوطنية' : 'National ID' },
+                                { key: 'iban', label: language === 'ar' ? 'شهادة الآيبان' : 'IBAN Certificate' },
+                                { key: 'authLetter', label: language === 'ar' ? 'خطاب التفويض' : 'Authorization Letter' },
+                            ].map((docItem) => {
+                                const doc = documents[docItem.key as keyof typeof documents];
+                                let displayStatus = doc?.status || 'empty';
+                                
+                                const daysLeft = doc?.expiryDate ? Math.ceil((new Date(doc.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 999;
+                                
+                                if (displayStatus === 'approved' && daysLeft <= 0) {
+                                    displayStatus = 'expired';
+                                }
 
-                        <div>
-                            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                <Globe size={20} className="text-gold-500" />
-                                {t.dashboard.profile.security.activeSessions}
-                            </h3>
+                                const dateLabel = doc?.expiryDate 
+                                    ? (language === 'ar' ? 'ينتهي في: ' : 'Expires: ') + new Date(doc.expiryDate).toLocaleDateString('en-GB')
+                                    : doc?.lastUpdated 
+                                        ? new Date(doc.lastUpdated).toLocaleDateString('en-GB') 
+                                        : '---';
 
-                            <div className="space-y-3 mb-6">
-                                {sessions.map(session => (
-                                    <div key={session.id} className="p-4 rounded-xl border border-white/5 bg-[#151310] flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`p-3 rounded-full ${session.device.toLowerCase().includes('phone') ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
-                                                {session.device.toLowerCase().includes('phone') ? <Smartphone size={20} /> : <Shield size={20} />}
+                                const hasActiveBusiness = (performance?.activeOrdersCount || 0) > 0;
+
+                                return (
+                                    <div key={docItem.key} className="group/doc relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white/[0.02] rounded-2xl border border-white/5 hover:border-white/10 transition-all hover:bg-white/[0.04]">
+                                        <div className="flex items-center gap-4 min-w-0">
+                                            <div className={`p-3 rounded-xl ${
+                                                displayStatus === 'approved' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
+                                                displayStatus === 'expired' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                                                displayStatus === 'rejected' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 
+                                                'bg-white/5 text-white/30 border border-white/10'
+                                            }`}>
+                                                <FileText size={20} />
                                             </div>
-                                            <div>
+                                            <div className="min-w-0">
+                                                <div className="text-sm font-bold text-white mb-1">{docItem.label}</div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-white text-sm">{session.device}</span>
-                                                    {session.isCurrent && (
-                                                        <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/20">
-                                                            {t.dashboard.profile.security.thisDevice}
-                                                        </span>
+                                                    <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold tracking-tight ${
+                                                        displayStatus === 'approved' ? 'text-green-400 bg-green-500/5 border-green-500/20' :
+                                                        displayStatus === 'expired' ? 'text-orange-400 bg-orange-500/5 border-orange-500/20 animate-pulse' :
+                                                        displayStatus === 'pending' || displayStatus === 'uploading' ? 'text-blue-400 bg-blue-500/5 border-blue-500/20' :
+                                                        displayStatus === 'rejected' ? 'text-red-400 bg-red-500/5 border-red-500/20' :
+                                                        'text-white/20 bg-white/5 border-white/10'
+                                                    }`}>
+                                                        {displayStatus === 'approved' ? (language === 'ar' ? 'مفعل' : 'Active') : 
+                                                         displayStatus === 'expired' ? (language === 'ar' ? 'منتهي الصلاحية' : 'Expired') :
+                                                         displayStatus === 'pending' ? (language === 'ar' ? 'قيد المراجعة' : 'In Review') : 
+                                                         displayStatus === 'uploading' ? (language === 'ar' ? 'جاري الرفع' : 'Uploading') :
+                                                         displayStatus === 'rejected' ? (language === 'ar' ? 'مرفوض' : 'Rejected') : 
+                                                         (language === 'ar' ? 'غير متوفر' : 'Not Provided')}
+                                                    </span>
+                                                    <span className="text-[10px] text-white/20">•</span>
+                                                    <span className="text-[10px] text-white/30 font-mono italic">{dateLabel}</span>
+                                                    {displayStatus === 'approved' && doc?.expiryDate && daysLeft > 0 && (
+                                                        <>
+                                                            <span className="text-[10px] text-white/20">•</span>
+                                                            <span className={`text-[10px] font-bold ${daysLeft <= 30 ? 'text-gold-500 animate-pulse' : 'text-green-400/80'}`}>
+                                                                {language === 'ar' ? `متبقي ${daysLeft} يوم` : `${daysLeft} days left`}
+                                                            </span>
+                                                        </>
                                                     )}
                                                 </div>
-                                                <div className="text-xs text-white/40 mt-1 flex items-center gap-2">
-                                                    <span>{session.os}</span>
-                                                    <span>•</span>
-                                                    <span>{session.location}</span>
-                                                    <span>•</span>
-                                                    <span className="font-mono">{session.ip}</span>
-                                                </div>
                                             </div>
                                         </div>
-                                        {!session.isCurrent && (
-                                            <button
-                                                onClick={() => terminateSession(session.id)}
-                                                className="p-2 hover:bg-red-500/10 text-white/30 hover:text-red-500 rounded-lg transition-colors text-xs border border-transparent hover:border-red-500/20"
-                                            >
-                                                {t.dashboard.profile.security.terminate}
-                                            </button>
-                                        )}
+                                        
+                                        <div className="flex items-center gap-2 sm:self-center">
+                                            {doc?.fileUrl && (
+                                                <button 
+                                                    onClick={() => window.open(doc.fileUrl!, '_blank')}
+                                                    className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-white/40 hover:text-white transition-all"
+                                                    title={language === 'ar' ? 'عرض المستند' : 'View Document'}
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                            )}
+
+                                            <label className={`p-2.5 rounded-xl transition-all relative group/btn ${
+                                                hasActiveBusiness 
+                                                    ? 'bg-white/5 text-white/10 cursor-not-allowed border border-white/5'
+                                                    : displayStatus === 'expired' || displayStatus === 'rejected' || displayStatus === 'empty'
+                                                        ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 animate-pulse cursor-pointer'
+                                                        : 'bg-gold-500/5 hover:bg-gold-500/10 text-gold-500/40 hover:text-gold-500 border border-transparent cursor-pointer'
+                                            }`} title={
+                                                hasActiveBusiness 
+                                                    ? (language === 'ar' ? 'لا يمكن التعديل بوجود (طلبات نشطة، شحنات، نزاعات، إرجاعات)' : 'Cannot edit. Active orders, shipments, disputes, or returns in progress.')
+                                                    : (language === 'ar' ? 'تحديث المستند' : 'Update Document')
+                                            }>
+                                                <input 
+                                                    type="file" 
+                                                    className="hidden" 
+                                                    accept=".pdf,.jpg,.png"
+                                                    disabled={hasActiveBusiness}
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            let shouldUpload = true;
+                                                            if (docItem.key === 'cr' || docItem.key === 'license') {
+                                                                const confirmMsg = language === 'ar' 
+                                                                    ? 'تحديث هذا المستند القانوني سيؤدي إلى إيقاف الحساب مؤقتاً للمراجعة. هل أنت متأكد؟'
+                                                                    : 'Updating this legal document will temporarily suspend the account for review. Are you sure?';
+                                                                shouldUpload = window.confirm(confirmMsg);
+                                                            }
+                                                            if (shouldUpload) {
+                                                                uploadDocument(docItem.key as any, file);
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                                <RefreshCw size={18} className={`${displayStatus === 'uploading' ? 'animate-spin' : 'group-hover/btn:rotate-180 transition-transform duration-500'}`} />
+                                            </label>
+                                        </div>
                                     </div>
-                                ))}
-                            </div>
-
-                            <button
-                                onClick={terminateAllSessions}
-                                className="w-full py-4 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                            >
-                                <LogOut size={18} />
-                                {t.dashboard.profile.security.terminateAll}
-                            </button>
+                                );
+                            })}
                         </div>
-
-                    </div>
-                </GlassCard>
-            )}
+                    </GlassCard>
+                </div>
+            </div>
         </div>
     );
 };

@@ -85,15 +85,15 @@ export const SettingsTab: React.FC = () => {
             <div className="space-y-4">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     <Globe size={20} className="text-gold-500" />
-                    {t.dashboard.profile.settings?.global || (language === 'ar' ? 'الإعدادات العامة' : 'Global Preferences')}
+                    {t.dashboard.profile.settings?.global || 'Global Preferences'}
                 </h3>
 
                 <div className="grid md:grid-cols-2 gap-4">
                     {/* Language */}
                     <div className="p-4 bg-[#151310] rounded-xl border border-white/10 flex items-center justify-between">
                         <div>
-                            <h4 className="font-bold text-white">{t.dashboard.profile.settings?.lang || (language === 'ar' ? 'اللغة' : 'Language')}</h4>
-                            <p className="text-xs text-white/40">{t.dashboard.profile.settings?.langDesc || (language === 'ar' ? 'اختر لغة العرض' : 'Select display language')}</p>
+                            <h4 className="font-bold text-white">{t.dashboard.profile.settings?.lang || 'Language'}</h4>
+                            <p className="text-xs text-white/40">{t.dashboard.profile.settings?.langDesc || 'Select display language'}</p>
                         </div>
                         <div className="flex gap-2 rounded-lg bg-black/40 p-1">
                             <button
@@ -110,48 +110,6 @@ export const SettingsTab: React.FC = () => {
                             </button>
                         </div>
                     </div>
-
-                    {/* Currency */}
-                    <div className="p-4 bg-[#151310] rounded-xl border border-white/10 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-green-500/10 text-green-500 rounded-lg"><DollarSign size={20} /></div>
-                            <div>
-                                <h4 className="font-bold text-white">{t.dashboard.profile.settings?.currency || (language === 'ar' ? 'العملة' : 'Currency')}</h4>
-                                <p className="text-xs text-white/40">{t.dashboard.profile.settings?.currencyDesc || (language === 'ar' ? 'عملة العرض الافتراضية' : 'Default display currency')}</p>
-                            </div>
-                        </div>
-                        <select
-                            value={localSettings.currency}
-                            onChange={(e) => handleChange('currency', e.target.value)}
-                            className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-gold-500 transition-colors"
-                        >
-                            <option value="AED">AED (UAE Dirham)</option>
-                            <option value="SAR">SAR (Saudi Riyal)</option>
-                            <option value="USD">USD (US Dollar)</option>
-                            <option value="KWD">KWD (Kuwaiti Dinar)</option>
-                        </select>
-                    </div>
-
-                    {/* Auto-Translate Checkbox */}
-                    <div className="p-4 bg-[#151310] rounded-xl border border-white/10 flex items-center justify-between col-span-2">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg"><Globe size={20} /></div>
-                            <div>
-                                <h4 className="font-bold text-white">{language === 'ar' ? 'ترجمة فورية للمحادثات' : 'Auto-Translate Chat'}</h4>
-                                <p className="text-xs text-white/40">{language === 'ar' ? 'ترجمة الرسائل الواردة تلقائياً للعربية' : 'Automatically translate incoming messages'}</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => handleToggle('autoTranslateChat')}
-                            className={`w-12 h-6 rounded-full p-1 flex items-center transition-colors relative ${localSettings.autoTranslateChat ? 'bg-gold-500' : 'bg-white/10'}`}
-                        >
-                            <motion.div
-                                layout
-                                transition={{ type: "spring", stiffness: 700, damping: 30 }}
-                                className={`w-4 h-4 rounded-full shadow-md bg-white ${localSettings.autoTranslateChat ? 'ml-auto' : ''}`}
-                            />
-                        </button>
-                    </div>
                 </div>
             </div>
 
@@ -159,7 +117,7 @@ export const SettingsTab: React.FC = () => {
             <div className="space-y-4">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     <Bell size={20} className="text-gold-500" />
-                    {t.dashboard.profile.settings?.notif || (language === 'ar' ? 'الإشعارات' : 'Notifications')}
+                    {t.dashboard.profile.settings?.notif || 'Notifications'}
                 </h3>
 
                 <div className="bg-[#151310] rounded-xl border border-white/10 divide-y divide-white/5">
@@ -178,7 +136,11 @@ export const SettingsTab: React.FC = () => {
                                 <motion.div
                                     layout
                                     transition={{ type: "spring", stiffness: 700, damping: 30 }}
-                                    className={`w-4 h-4 rounded-full shadow-md bg-white ${localSettings[item.key as keyof typeof localSettings] ? 'ml-auto' : ''}`}
+                                    className={`w-4 h-4 rounded-full shadow-md bg-white flex-shrink-0 ${localSettings[item.key as keyof typeof localSettings] ? 'ml-auto' : 'mr-auto'}`}
+                                    style={{
+                                        [language === 'ar' ? 'marginRight' : 'marginLeft']: localSettings[item.key as keyof typeof localSettings] ? 'auto' : '0',
+                                        [language === 'ar' ? 'marginLeft' : 'marginRight']: !localSettings[item.key as keyof typeof localSettings] ? 'auto' : '0'
+                                    }}
                                 />
                             </button>
                         </div>
@@ -217,15 +179,15 @@ export const SettingsTab: React.FC = () => {
             <div className="pt-8 mt-8 border-t border-red-500/10">
                 <div className="p-4 border border-red-500/20 rounded-xl bg-red-500/5 flex items-center justify-between group hover:border-red-500/40 transition-colors">
                     <div>
-                        <h4 className="font-bold text-red-500">{t.dashboard.profile.settings?.delete || (language === 'ar' ? 'حذف الحساب' : 'Delete Account')}</h4>
-                        <p className="text-xs text-red-400/60 mt-1">{t.dashboard.profile.settings?.dangerDesc || (language === 'ar' ? 'حذف الحساب والبيانات نهائياً' : 'Permanently remove account and data')}</p>
+                        <h4 className="font-bold text-red-500">{t.dashboard.profile.settings?.delete || 'Delete Account'}</h4>
+                        <p className="text-xs text-red-400/60 mt-1">{t.dashboard.profile.settings?.dangerDesc || 'Permanently remove account and data'}</p>
                     </div>
                     <button
                         onClick={() => setShowDeleteConfirm(true)}
                         className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
                     >
                         <Trash2 size={16} />
-                        {language === 'ar' ? 'حذف' : 'Delete'}
+                        {t.dashboard.profile.settings?.cancel || 'Delete'}
                     </button>
                 </div>
             </div>
@@ -245,17 +207,15 @@ export const SettingsTab: React.FC = () => {
                             </div>
 
                             <h3 className="text-xl font-bold text-white text-center mb-2">
-                                {language === 'ar' ? 'هل أنت متأكد؟' : 'Are you sure?'}
+                                {t.dashboard.profile.settings?.deleteConfirm || 'Are you sure?'}
                             </h3>
                             <p className="text-white/60 text-center text-sm mb-6">
-                                {language === 'ar'
-                                    ? 'هذا الإجراء نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك وفواتيرك.'
-                                    : 'This action cannot be undone. All your data and invoices will be permanently deleted.'}
+                                {t.dashboard.profile.settings?.deleteWarning || 'This action cannot be undone. All your data and invoices will be permanently deleted.'}
                             </p>
 
                             <div className="bg-black/40 p-4 rounded-xl border border-white/5 mb-6">
                                 <label className="text-xs text-white/40 uppercase block mb-2">
-                                    {language === 'ar' ? 'اكتب كلمة "DELETE" للتأكيد' : 'Type "DELETE" to confirm'}
+                                    {t.dashboard.profile.settings?.typeToConfirm || 'Type "DELETE" to confirm'}
                                 </label>
                                 <input
                                     type="text"
@@ -271,7 +231,7 @@ export const SettingsTab: React.FC = () => {
                                     onClick={() => setShowDeleteConfirm(false)}
                                     className="flex-1 py-3 rounded-xl font-bold text-white/60 hover:text-white hover:bg-white/5 transition-colors"
                                 >
-                                    {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                                    {t.common?.cancel || 'Cancel'}
                                 </button>
                                 <button
                                     onClick={handleDeleteAccount}
@@ -279,7 +239,7 @@ export const SettingsTab: React.FC = () => {
                                     className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
                                 >
                                     {isDeleting && <Loader2 size={16} className="animate-spin" />}
-                                    {language === 'ar' ? 'حذف الحساب' : 'Delete Account'}
+                                    {t.dashboard.profile.settings?.delete || 'Delete Account'}
                                 </button>
                             </div>
                         </motion.div>

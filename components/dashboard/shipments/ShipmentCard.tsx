@@ -1,71 +1,79 @@
-
 import React, { useState } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
-import { Box, MapPin, Calendar, ArrowRight, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { Box, MapPin, Package, ChevronDown, ChevronUp, ArrowRight, Eye } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { ShipmentTracker } from './ShipmentTracker';
+import { ShipmentTracker, statusTranslations } from './ShipmentTracker';
 import { AnimatePresence, motion } from 'framer-motion';
-
-export interface Shipment {
-    id: string;
-    trackingNumber: string;
-    carrier: string;
-    carrierLogo?: string;
-    status: 'received' | 'transit' | 'distribution' | 'out' | 'delivered';
-    estimatedDelivery: string;
-    origin: string;
-    destination: string;
-    items: { name: string; quantity: number; image?: string }[];
-}
+import { Shipment } from '../../../stores/useShipmentsStore';
 
 interface ShipmentCardProps {
     shipment: Shipment;
+    onNavigate?: (path: string, id?: any) => void;
 }
 
-export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment }) => {
-    const { t } = useLanguage();
+export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment, onNavigate }) => {
+    const { t, language } = useLanguage();
+    const isAr = language === 'ar';
     const [expanded, setExpanded] = useState(false);
 
     return (
         <GlassCard className="relative overflow-hidden group">
             {/* Header Row */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-
-                {/* ID & Carrier */}
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center border border-white/10">
-                        <Box className="text-gold-500" />
+                {/* Info & Status Group */}
+                <div className="flex flex-col md:flex-row md:items-center gap-4 min-w-0 flex-1">
+                    {/* ID & Carrier */}
+                    <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
+                            <Box className="text-gold-500" />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-lg font-bold text-white font-mono">{shipment.trackingNumber?.toUpperCase()}</h3>
+                                <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold text-gold-500/80 uppercase tracking-wider">
+                                    {t.dashboard.shipments.orderNo} #{shipment.orderNumber}
+                                </span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-0.5">
+                                <p className="text-sm text-white/50 font-medium">{shipment.carrier || 'Tashleh Carrier'}</p>
+                                <span className="hidden sm:block w-1 h-1 rounded-full bg-white/20" />
+                                <p className="text-xs text-gold-500/60 font-medium truncate max-w-[250px]">
+                                    {shipment.vehicleMake} {shipment.vehicleModel} — {shipment.partName}
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-white">#{shipment.trackingNumber}</h3>
-                        <p className="text-sm text-white/50">{shipment.carrier}</p>
+
+                    {/* Status Badge - Now closer to info */}
+                    <div className="flex items-center shrink-0">
+                        <div className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border ${shipment.status === 'DELIVERED_TO_CUSTOMER'
+                            ? 'bg-green-500/10 border-green-500/20 text-green-400'
+                            : 'bg-gold-500/10 border-gold-500/20 text-gold-400'
+                            }`}>
+                            {statusTranslations[shipment.status]?.[isAr ? 'ar' : 'en'] || shipment.status}
+                        </div>
                     </div>
                 </div>
 
-                {/* Status Badge */}
-                <div className="flex items-center gap-2">
-                    <div className={`px-3 py-1 rounded-full text-xs font-bold border ${shipment.status === 'delivered'
-                        ? 'bg-green-500/10 border-green-500/20 text-green-400'
-                        : 'bg-gold-500/10 border-gold-500/20 text-gold-400'
-                        }`}>
-                        {t.dashboard.tracking.steps[shipment.status]}
-                    </div>
-                </div>
+                {/* Actions Group */}
+                <div className="flex items-center justify-end gap-2 shrink-0">
 
-                {/* Date & Action */}
-                <div className="flex items-center justify-between md:justify-end gap-6 flex-1">
-                    <div className="text-right hidden md:block">
-                        <p className="text-xs text-white/30">{t.dashboard.tracking.estimated}</p>
-                        <p className="text-sm font-medium text-white">{shipment.estimatedDelivery}</p>
-                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => onNavigate?.('shipment-details', shipment.id)}
+                            className="p-2.5 rounded-xl bg-white/5 hover:bg-gold-500/10 text-white/50 hover:text-gold-400 border border-white/5 hover:border-gold-500/20 transition-all flex items-center gap-2 group/eye"
+                            title={isAr ? 'عرض التفاصيل' : 'View Details'}
+                        >
+                            <Eye size={18} className="group-hover/eye:scale-110 transition-transform" />
+                        </button>
 
-                    <button
-                        onClick={() => setExpanded(!expanded)}
-                        className="flex items-center gap-2 text-sm text-gold-400 hover:text-gold-300 transition-colors"
-                    >
-                        {expanded ? t.dashboard.actions.hideTracking : t.dashboard.actions.viewTracking}
-                        {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
+                        <button
+                            onClick={() => setExpanded(!expanded)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gold-400 hover:text-gold-300 transition-all text-sm font-bold border border-white/5"
+                        >
+                            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -80,7 +88,7 @@ export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment }) => {
                     >
                         <div className="pt-6 mt-6 border-t border-white/5 space-y-8">
 
-                            {/* Visual Tracker */}
+                            {/* Visual 12-Step Tracker */}
                             <ShipmentTracker status={shipment.status} />
 
                             {/* Info Grid */}
@@ -104,8 +112,8 @@ export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment }) => {
                                     <div className="space-y-2">
                                         {shipment.items.map((item, idx) => (
                                             <div key={idx} className="flex justify-between text-sm">
-                                                <span className="text-white/60">{item.name}</span>
-                                                <span className="text-white/30">x{item.quantity}</span>
+                                                <span className="text-white/60 text-left">{item.name}</span>
+                                                <span className="text-white/30 whitespace-nowrap ml-4">x{item.quantity}</span>
                                             </div>
                                         ))}
                                     </div>

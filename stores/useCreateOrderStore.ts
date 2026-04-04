@@ -56,15 +56,15 @@ export interface OrderState {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const initialPart: PartItem = {
-  id: 'initial-part',
+const getInitialPart = (): PartItem => ({
+  id: generateId(),
   name: '',
   description: '',
   images: [],
   video: null,
   videoPreview: null,
   notes: ''
-};
+});
 
 export const useCreateOrderStore = create<OrderState>((set, get) => ({
   step: 1,
@@ -79,7 +79,7 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
 
   requestType: 'single',
   shippingType: 'separate',
-  parts: [initialPart],
+  parts: [getInitialPart()],
 
   preferences: {
     condition: null
@@ -116,7 +116,7 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
     return {
       parts: [
         ...state.parts,
-        { id: generateId(), name: '', description: '', images: [], video: null, videoPreview: null, notes: '' }
+        getInitialPart()
       ]
     };
   }),
@@ -152,6 +152,7 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
     vehicle: { make: '', model: '', year: '', vin: '', vinImage: null },
     requestType: 'single',
     shippingType: 'separate',
+    parts: [getInitialPart()],
     preferences: { condition: null },
     isSubmitting: false,
     showErrors: false

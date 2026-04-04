@@ -1,7 +1,7 @@
 
 import React, { useState, Suspense, lazy, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { LanguageProvider } from './contexts/LanguageContext';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { LoadingScreen } from './components/LoadingScreen';
 import { RoleSelectionScreen } from './components/RoleSelectionScreen';
 import { WholesaleScreen } from './components/WholesaleScreen';
@@ -30,15 +30,21 @@ import { MerchantOffers } from './components/dashboard/merchant/MerchantOffers';
 import { MerchantOrders } from './components/dashboard/merchant/MerchantOrders';
 import { MerchantWallet } from './components/dashboard/merchant/MerchantWallet';
 import { MerchantProfile } from './components/dashboard/merchant/MerchantProfile';
-import { MerchantDocuments } from './components/dashboard/merchant/MerchantDocuments';
 import { MerchantSettings } from './components/dashboard/merchant/MerchantSettings';
 import { MerchantNotifications } from './components/dashboard/merchant/MerchantNotifications';
 import { MerchantStatusGuard } from './components/dashboard/merchant/MerchantStatusGuard';
 import { MerchantDisputeDetails } from './components/dashboard/merchant/MerchantDisputeDetails';
+import { MerchantShippingCartPage } from './components/dashboard/merchant/MerchantShippingCartPage';
+import { MerchantSupportPage } from './components/dashboard/merchant/support/MerchantSupportPage';
+import { MerchantResolutionPage } from './components/dashboard/merchant/MerchantResolutionPage';
+import { MerchantReviews } from './components/dashboard/merchant/MerchantReviews';
+import { MerchantLoyalty } from './components/dashboard/merchant/MerchantLoyalty';
 
 // Admin Imports
 import { AdminHome } from './components/dashboard/admin/AdminHome';
 import { SecurityAudit } from './components/dashboard/admin/SecurityAudit'; // NEW
+import { AdminChatOversight } from './components/dashboard/admin/chat/AdminChatOversight'; // NEW
+import { AdminChatMonitoring } from './components/dashboard/admin/chat/AdminChatMonitoring'; // NEW
 
 import { MyOrders } from './components/dashboard/MyOrders';
 import { OrderDetails } from './components/dashboard/OrderDetails';
@@ -58,10 +64,20 @@ import { ReturnsExchangePage } from './components/dashboard/resolution/ReturnsEx
 import { SupportPage } from './components/dashboard/support/SupportPage';
 import { PreferencesPage } from './components/dashboard/preferences/PreferencesPage';
 import { LoyaltyPage } from './components/dashboard/loyalty/LoyaltyPage';
+import { ShipmentDetailsPage } from './components/dashboard/shipments/ShipmentDetailsPage';
+import { CustomerResolutionCenter } from './components/dashboard/customer/CustomerResolutionCenter';
+import { CustomerDisputeDetails } from './components/dashboard/customer/CustomerDisputeDetails';
 
 // Store
 import { useVendorStore } from './stores/useVendorStore';
+import { useProfileStore } from './stores/useProfileStore';
 import { useSystemAutomation } from './stores/useSystemAutomation'; // NEW
+
+// Navigation
+import { useNavigationHistory, parseUrlToState } from './utils/useNavigationHistory';
+
+// Auth Setup
+import { getCurrentUser, mapBackendRoleToFrontend } from './utils/auth';
 
 // Auth Components
 import { AuthLayout } from './components/auth/AuthLayout';
@@ -94,6 +110,7 @@ type ViewState =
 type UserRole = 'customer' | 'merchant' | 'admin' | null;
 
 function AppContent() {
+  const { language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<ViewState>('landing');
   const [legalInitialSection, setLegalInitialSection] = useState<'terms' | 'privacy'>('terms');
@@ -121,6 +138,44 @@ function AppContent() {
   // Dashboard State
   const [dashboardPath, setDashboardPath] = useState('home');
   const [viewId, setViewId] = useState<any>(null); // Generic ID
+
+  // --- NAVIGATION HISTORY API ---
+  const { pushView, replaceView } = useNavigationHistory((state) => {
+    if (state.view) setCurrentView(state.view as ViewState);
+    if (state.dashboardPath) setDashboardPath(state.dashboardPath);
+    if (state.viewId !== undefined) setViewId(state.viewId);
+  });
+
+  // Restore state from URL on initial load and setup pending redirect
+  const [pendingRedirect, setPendingRedirect] = useState<{ path: string, id?: any } | null>(null);
+
+  // --- IMMEDIATE ROLE & URL SYNC ON MOUNT ---
+  // This prevents the "Flash of Black Screen" by ensuring role is set before loading finishes
+  useEffect(() => {
+    // 1. Sync Role From Storage
+    const user = getCurrentUser();
+    if (user) {
+      const normalizedRole = mapBackendRoleToFrontend(user.role);
+      setUserRole(normalizedRole as UserRole);
+    }
+
+    // 2. Sync URL State Immediately (Prevents delay in route calculation)
+    const initialState = parseUrlToState();
+    if (initialState.view === 'dashboard') {
+      if (user) {
+        setCurrentView('dashboard');
+        setDashboardPath(initialState.dashboardPath || 'home');
+        setViewId(initialState.viewId);
+      } else {
+        // Not logged in but trying to access dashboard
+        setPendingRedirect({ path: initialState.dashboardPath || 'home', id: initialState.viewId });
+        setCurrentView('role-selection');
+        replaceView('role-selection');
+      }
+    } else {
+      setCurrentView(initialState.view as ViewState);
+    }
+  }, []);
 
   // --- AUTOMATION ENGINE ---
   const { startAutomation, stopAutomation } = useSystemAutomation();
@@ -156,56 +211,116 @@ function AppContent() {
       const { path, id } = e.detail;
       setDashboardPath(path);
       if (id) setViewId(id);
+      pushView('dashboard', path, id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     window.addEventListener('admin-nav', handleAdminNav);
     return () => window.removeEventListener('admin-nav', handleAdminNav);
-  }, []);
+  }, [pushView]);
+
+  const handleNavigate = (view: ViewState) => {
+    setCurrentView(view);
+    pushView(view);
+  };
 
   const handleLoadingComplete = () => {
     setLoading(false);
-    setCurrentView('role-selection');
+    
+    // Safety: ensure final state is synced
+    const initialState = parseUrlToState();
+    const user = getCurrentUser();
+
+    if (initialState.view === 'dashboard' && user) {
+        const normalizedRole = mapBackendRoleToFrontend(user.role);
+        setUserRole(normalizedRole as UserRole);
+        setDashboardPath(initialState.dashboardPath || 'home');
+        setViewId(initialState.viewId);
+        setCurrentView('dashboard');
+    } else if (initialState.view === 'dashboard' && !user) {
+        setPendingRedirect({ path: initialState.dashboardPath || 'home', id: initialState.viewId });
+        setCurrentView('role-selection');
+        replaceView('role-selection');
+    } else {
+        setCurrentView(initialState.view as ViewState);
+    }
   };
 
-  const handleBackToHome = () => setCurrentView('role-selection');
+  const handleBackToHome = () => {
+    setCurrentView('role-selection');
+    pushView('role-selection');
+  };
   const handleBackToLogin = () => {
     // Intelligent back navigation
-    if (previousView === 'customer-login' || currentView === 'customer-register') return setCurrentView('customer-login');
-    if (previousView === 'merchant-login' || currentView === 'vendor-register') return setCurrentView('merchant-login');
+    if (previousView === 'customer-login' || currentView === 'customer-register') {
+      setCurrentView('customer-login');
+      pushView('customer-login');
+      return;
+    }
+    if (previousView === 'merchant-login' || currentView === 'vendor-register') {
+      setCurrentView('merchant-login');
+      pushView('merchant-login');
+      return;
+    }
     setCurrentView('role-selection');
+    pushView('role-selection');
   };
 
   const handleNavigateToTerms = () => {
     setPreviousView(currentView);
     setLegalInitialSection('terms');
     setCurrentView('terms');
+    pushView('terms');
   };
 
   const handleNavigateToLegal = (section: 'terms' | 'privacy') => {
     setPreviousView(currentView);
     setLegalInitialSection(section);
     setCurrentView('terms');
+    pushView('terms');
   };
 
   const handleNavigateToLandingSection = (section: string) => {
     setLandingInitialSection(section);
     setCurrentView('landing');
+    pushView('landing');
   };
 
   const handleBackFromTerms = () => {
     setCurrentView(previousView);
+    pushView(previousView);
   };
 
   const handleLoginSuccess = (role: UserRole) => {
+    // SECURITY: Clear stale state from previous sessions/roles before entering dashboard
+    useVendorStore.getState().reset();
+    useProfileStore.getState().clearProfile();
+    // useOrderStore.getState().clearOrders(); // If implemented, or use resetForRole below in layout
+
     setUserRole(role);
-    setDashboardPath('home');
-    setCurrentView('dashboard');
+    
+    // Redirect Flow: Check if there's a pending URL the user wanted to visit
+    if (pendingRedirect) {
+        setDashboardPath(pendingRedirect.path);
+        setViewId(pendingRedirect.id);
+        setCurrentView('dashboard');
+        pushView('dashboard', pendingRedirect.path, pendingRedirect.id);
+        setPendingRedirect(null); // Clear it
+    } else {
+        setDashboardPath('home');
+        setCurrentView('dashboard');
+        pushView('dashboard', 'home');
+    }
   };
 
   const handleDashboardNavigate = (path: string, id?: any) => {
     setDashboardPath(path);
     if (id !== undefined) setViewId(id);
+    pushView('dashboard', path, id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDashboardBack = () => {
+    window.history.back();
   };
 
   const getTitle = () => {
@@ -270,60 +385,89 @@ function AppContent() {
                 exit={{ opacity: 0 }}
                 className="h-full"
               >
-                <DashboardLayout
-                  role={userRole || 'customer'}
-                  onLogout={() => { setUserRole(null); handleBackToHome(); }}
-                  currentPath={dashboardPath}
-                  onNavigate={handleDashboardNavigate}
-                >
-                  {/* ROUTING LOGIC BASED ON ROLE */}
+                  {/* Session Loading Guard */}
+                  {!userRole && (
+                    <div className="fixed inset-0 bg-[#0F0E0C] flex flex-col items-center justify-center z-50">
+                        <div className="w-16 h-16 border-4 border-gold-500/20 border-t-gold-500 rounded-full animate-spin mb-4"></div>
+                        <p className="text-gold-400/60 font-medium animate-pulse">
+                            {language === 'ar' ? 'جاري استعادة الجلسة...' : 'Restoring session...'}
+                        </p>
+                    </div>
+                  )}
 
                   {/* A. Customer Routes */}
                   {userRole === 'customer' && (
-                    <>
+                    <DashboardLayout
+                      role="customer"
+                      onLogout={() => { setUserRole(null); handleBackToHome(); }}
+                      currentPath={dashboardPath}
+                      onNavigate={handleDashboardNavigate}
+                      onBack={handleDashboardBack}
+                    >
                       {dashboardPath === 'home' && <DashboardHome onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'shipments' && <ShipmentsPage />}
                       {dashboardPath === 'orders' && <MyOrders onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'shipping-cart' && <ShippingCartPage />}
-                      {dashboardPath === 'create' && <CreateOrderWizard onComplete={() => handleDashboardNavigate('orders')} onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'order-details' && <OrderDetails orderId={viewId} onBack={() => handleDashboardNavigate('orders')} onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'chats' && <ChatLayout onNavigateToCheckout={() => handleDashboardNavigate('checkout')} viewId={viewId} />}
-                      {dashboardPath === 'checkout' && <CheckoutWizard onComplete={() => { alert('Order Success!'); handleDashboardNavigate('orders'); }} />}
+                      {dashboardPath === 'create-order' && <CreateOrderWizard onComplete={() => handleDashboardNavigate('orders')} onCancel={() => handleDashboardNavigate('orders')} />}
+                      {dashboardPath === 'checkout' && <CheckoutWizard onComplete={() => handleDashboardNavigate('orders')} onNavigate={handleDashboardNavigate} />}
+                      {dashboardPath === 'chats' && <ChatLayout viewId={viewId} onNavigateToCheckout={(orderId) => handleDashboardNavigate('checkout', orderId)} />}
                       {dashboardPath === 'profile' && <ProfileView />}
-                      {dashboardPath === 'billing' && <BillingPage onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'resolution' && <ReturnsExchangePage onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'support' && <SupportPage onNavigate={handleDashboardNavigate} />}
+                      {dashboardPath === 'wallet' && <WalletView onNavigate={handleDashboardNavigate} />}
+                      {dashboardPath === 'billing' && <BillingPage />}
+                      {dashboardPath === 'shipments' && <ShipmentsPage onNavigate={handleDashboardNavigate} />}
+                      {dashboardPath === 'shipment-details' && <ShipmentDetailsPage shipmentId={viewId} onBack={() => handleDashboardNavigate('shipments')} role="customer" />}
+                      {dashboardPath === 'shipping-cart' && <ShippingCartPage onNavigate={handleDashboardNavigate} />}
+                      {dashboardPath === 'resolution' && <CustomerResolutionCenter onNavigate={handleDashboardNavigate} />}
+                      {dashboardPath === 'dispute-details' && <CustomerDisputeDetails caseId={viewId} onBack={() => handleDashboardNavigate('resolution')} />}
+                      {dashboardPath === 'support' && <SupportPage />}
                       {dashboardPath === 'preferences' && <PreferencesPage />}
                       {dashboardPath === 'loyalty' && <LoyaltyPage />}
-                      {/* Kept for fallback/historical */}
-                      {dashboardPath === 'wallet' && <WalletView />}
                       {dashboardPath === 'info-center' && <InfoCenter />}
-                    </>
+                    </DashboardLayout>
                   )}
 
-                  {/* B. Merchant Routes - WRAPPED IN STATUS GUARD */}
+                  {/* B. Merchant Routes - LOCKDOWN AT LAYOUT LEVEL */}
                   {userRole === 'merchant' && (
                     <MerchantStatusGuard>
-                      {dashboardPath === 'home' && <MerchantHome />}
-                      {dashboardPath === 'marketplace' && <MerchantMarketplace onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'explore-offer' && <MarketplaceOfferDetails orderId={viewId} onBack={() => handleDashboardNavigate('marketplace')} />}
-                      {dashboardPath === 'active-orders' && <MerchantOrders />}
-                      {dashboardPath === 'my-offers' && <MerchantOffers />}
-                      {dashboardPath === 'profile' && <MerchantProfile />}
-                      {dashboardPath === 'wallet' && <MerchantWallet />}
-                      {dashboardPath === 'docs' && <MerchantDocuments />}
-                      {dashboardPath === 'settings' && <MerchantSettings />}
-                      {dashboardPath === 'notifications' && <MerchantNotifications />}
-                      {dashboardPath === 'chats' && <ChatLayout onNavigateToCheckout={() => { }} />}
-                      {dashboardPath === 'resolution' && <ResolutionCenter onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'dispute-details' && <MerchantDisputeDetails caseId={viewId} onBack={() => handleDashboardNavigate('resolution')} />}
-                      {dashboardPath === 'info-center' && <InfoCenter />}
+                      <DashboardLayout
+                        role="merchant"
+                        onLogout={() => { setUserRole(null); handleBackToHome(); }}
+                        currentPath={dashboardPath}
+                        onNavigate={handleDashboardNavigate}
+                        onBack={handleDashboardBack}
+                      >
+                        {dashboardPath === 'home' && <MerchantHome onNavigate={handleDashboardNavigate} />}
+                        {dashboardPath === 'loyalty' && <MerchantLoyalty />}
+                        {dashboardPath === 'marketplace' && <MerchantMarketplace onNavigate={handleDashboardNavigate} />}
+                        {(dashboardPath === 'explore-offer' || (dashboardPath === 'orders' && viewId)) && <MarketplaceOfferDetails orderId={viewId} onBack={handleDashboardBack} />}
+                        {(dashboardPath === 'active-orders' || (dashboardPath === 'orders' && !viewId)) && <MerchantOrders onNavigate={handleDashboardNavigate} />}
+                        {dashboardPath === 'my-offers' && <MerchantOffers onNavigate={handleDashboardNavigate} />}
+                        {dashboardPath === 'reviews' && <MerchantReviews />}
+                        {dashboardPath === 'profile' && <MerchantProfile />}
+                        {dashboardPath === 'wallet' && <MerchantWallet />}
+                        {dashboardPath === 'shipments' && <ShipmentsPage onNavigate={handleDashboardNavigate} />}
+                        {dashboardPath === 'shipment-details' && <ShipmentDetailsPage shipmentId={viewId} onBack={() => handleDashboardNavigate('shipments')} role="merchant" />}
+                        {dashboardPath === 'settings' && <MerchantSettings />}
+                        {dashboardPath === 'support' && <MerchantSupportPage onNavigate={handleDashboardNavigate} />}
+                        {dashboardPath === 'notifications' && <MerchantNotifications />}
+                        {dashboardPath === 'chats' && <ChatLayout viewId={viewId} onNavigateToCheckout={() => { }} />}
+                        {dashboardPath === 'shipping-cart' && <MerchantShippingCartPage />}
+                        {dashboardPath === 'billing' && <BillingPage />}
+                        {dashboardPath === 'resolution' && <MerchantResolutionPage onNavigate={handleDashboardNavigate} />}
+                        {dashboardPath === 'dispute-details' && <MerchantDisputeDetails caseId={viewId} onBack={() => handleDashboardNavigate('resolution')} />}
+                        {dashboardPath === 'info-center' && <InfoCenter />}
+                      </DashboardLayout>
                     </MerchantStatusGuard>
                   )}
 
                   {/* C. Admin Routes */}
                   {userRole === 'admin' && (
-                    <>
+                    <DashboardLayout
+                      role="admin"
+                      onLogout={() => { setUserRole(null); handleBackToHome(); }}
+                      currentPath={dashboardPath}
+                      onNavigate={handleDashboardNavigate}
+                      onBack={handleDashboardBack}
+                    >
                       {dashboardPath === 'home' && <AdminHome />}
                       {dashboardPath === 'users' && <AdminHome subPath="users" />}
                       {dashboardPath === 'store-profile' && <AdminHome subPath="store-profile" viewId={viewId} />}
@@ -340,51 +484,50 @@ function AppContent() {
                       {dashboardPath === 'settings' && <AdminHome subPath="settings" />}
                       {dashboardPath === 'support' && <AdminHome subPath="support" />}
                       {dashboardPath === 'resolution' && <AdminHome subPath="resolution" />}
-                      {/* LINKED: The Digital Courtroom Route */}
                       {dashboardPath === 'admin-dispute-details' && <AdminHome subPath="admin-dispute-details" viewId={viewId} />}
                       {dashboardPath === 'security-audit' && <AdminHome subPath="security-audit" />}
+                      {dashboardPath === 'chats' && <AdminChatOversight />}
+                      {dashboardPath === 'chat-monitoring' && <AdminChatMonitoring />}
                       {dashboardPath === 'profile' && <ProfileView />}
-                    </>
+                    </DashboardLayout>
                   )}
-
-                </DashboardLayout>
               </motion.div>
             ) : currentView === 'role-selection' ? (
               <RoleSelectionScreen
                 onCustomerClick={() => {
-                  setCurrentView('how-we-work');
+                  handleNavigate('how-we-work');
                 }}
                 onMerchantClick={() => {
-                  setCurrentView('merchant-login');
+                  handleNavigate('merchant-login');
                 }}
-                onWholesaleClick={() => setCurrentView('wholesale')}
-                onHowWeWorkClick={() => setCurrentView('landing')}
+                onWholesaleClick={() => handleNavigate('wholesale')}
+                onHowWeWorkClick={() => handleNavigate('landing')}
                 onOpenSupport={() => setIsSupportOpen(true)}
-                onAdminClick={() => setCurrentView('admin-login')}
+                onAdminClick={() => handleNavigate('admin-login')}
                 onNavigateToLegal={handleNavigateToLegal}
                 onNavigateToLandingSection={handleNavigateToLandingSection}
               />
             ) : currentView === 'wholesale' ? (
-              <WholesaleScreen onBack={() => setCurrentView('role-selection')} />
+              <WholesaleScreen onBack={() => handleNavigate('role-selection')} />
             ) : currentView === 'how-we-work' ? (
               <HowWeWorkScreen
                 onComplete={() => {
-                  setCurrentView('customer-login');
+                  handleNavigate('customer-login');
                 }}
-                onTutorial={() => setCurrentView('how-we-work-tutorial')}
-                onBack={() => setCurrentView('role-selection')}
+                onTutorial={() => handleNavigate('how-we-work-tutorial')}
+                onBack={() => handleNavigate('role-selection')}
                 onTermsClick={() => handleNavigateToLegal('terms')}
                 onOpenSupport={() => setIsSupportOpen(true)}
-                onAdminClick={() => setCurrentView('admin-login')}
+                onAdminClick={() => handleNavigate('admin-login')}
                 onNavigateToLegal={handleNavigateToLegal}
                 onNavigateToLandingSection={handleNavigateToLandingSection}
               />
             ) : currentView === 'how-we-work-tutorial' ? (
               <HowWeWorkTutorial
-                onComplete={() => setCurrentView('customer-login')}
-                onBack={() => setCurrentView('how-we-work')}
+                onComplete={() => handleNavigate('customer-login')}
+                onBack={() => handleNavigate('how-we-work')}
                 onOpenSupport={() => setIsSupportOpen(true)}
-                onAdminClick={() => setCurrentView('admin-login')}
+                onAdminClick={() => handleNavigate('admin-login')}
                 onNavigateToLegal={handleNavigateToLegal}
                 onNavigateToLandingSection={handleNavigateToLandingSection}
               />
@@ -400,22 +543,22 @@ function AppContent() {
                 className="relative will-change-opacity"
               >
                 <Navbar
-                  onLoginClick={() => setCurrentView('role-selection')}
-                  onHomeClick={() => setCurrentView('role-selection')}
+                  onLoginClick={() => handleNavigate('role-selection')}
+                  onHomeClick={() => handleNavigate('role-selection')}
                 />
                 <Hero
-                  onLogin={() => setCurrentView('login')}
-                  onRequestNow={() => setCurrentView('role-selection')}
+                  onLogin={() => handleNavigate('login')}
+                  onRequestNow={() => handleNavigate('role-selection')}
                 />
                 <TrustStats />
                 <AboutCompany />
                 <Guarantees />
                 <HowItWorks />
-                <MerchantCallout onRegister={() => setCurrentView('vendor-register')} />
+                <MerchantCallout onRegister={() => handleNavigate('vendor-register')} />
                 <LegalDocs />
                 <Footer
                   onOpenSupport={() => setIsSupportOpen(true)}
-                  onAdminClick={() => setCurrentView('admin-login')}
+                  onAdminClick={() => handleNavigate('admin-login')}
                 />
               </motion.main>
             ) : (
@@ -438,11 +581,11 @@ function AppContent() {
                     {currentView === 'login' && (
                       <LoginPage
                         initialTab={loginInitialTab}
-                        onRegisterClick={() => setCurrentView('vendor-register')}
-                        onCustomerRegisterClick={() => setCurrentView('customer-register')}
+                        onRegisterClick={() => handleNavigate('vendor-register')}
+                        onCustomerRegisterClick={() => handleNavigate('customer-register')}
                         onLoginSuccess={handleLoginSuccess}
-                        onForgotPasswordClick={() => setCurrentView('forgot-password')}
-                        onRecoveryClick={(r) => { setRecoveryRole(r); setCurrentView('account-recovery'); }}
+                        onForgotPasswordClick={() => handleNavigate('forgot-password')}
+                        onRecoveryClick={(r) => { setRecoveryRole(r); handleNavigate('account-recovery'); }}
                       />
                     )}
 
@@ -450,28 +593,28 @@ function AppContent() {
                       <LoginPage
                         forcedRole="customer"
                         onRegisterClick={() => { /* Should not happen in forced mode usually */ }}
-                        onCustomerRegisterClick={() => setCurrentView('customer-register')}
+                        onCustomerRegisterClick={() => handleNavigate('customer-register')}
                         onLoginSuccess={handleLoginSuccess}
-                        onForgotPasswordClick={() => setCurrentView('forgot-password')}
-                        onRecoveryClick={(r) => { setRecoveryRole(r); setCurrentView('account-recovery'); }}
+                        onForgotPasswordClick={() => handleNavigate('forgot-password')}
+                        onRecoveryClick={(r) => { setRecoveryRole(r); handleNavigate('account-recovery'); }}
                       />
                     )}
 
                     {currentView === 'merchant-login' && (
                       <LoginPage
                         forcedRole="merchant"
-                        onRegisterClick={() => setCurrentView('vendor-register')}
+                        onRegisterClick={() => handleNavigate('vendor-register')}
                         onCustomerRegisterClick={() => { /* Should not happen */ }}
                         onLoginSuccess={handleLoginSuccess}
-                        onForgotPasswordClick={() => setCurrentView('forgot-password')}
-                        onRecoveryClick={(r) => { setRecoveryRole(r); setCurrentView('account-recovery'); }}
+                        onForgotPasswordClick={() => handleNavigate('forgot-password')}
+                        onRecoveryClick={(r) => { setRecoveryRole(r); handleNavigate('account-recovery'); }}
                       />
                     )}
 
                     {currentView === 'vendor-register' && (
                       <VendorRegister
-                        onComplete={() => handleLoginSuccess('merchant')}
-                        onBack={() => setCurrentView('merchant-login')} // NEW
+                        onComplete={() => handleNavigate('merchant-login')}
+                        onBack={() => handleNavigate('merchant-login')} // NEW
                       />
                     )}
 
@@ -490,7 +633,7 @@ function AppContent() {
                     {currentView === 'forgot-password' && (
                       <ForgotPassword
                         onBackToLogin={handleBackToLogin}
-                        onSuccess={() => setCurrentView('reset-password')}
+                        onSuccess={() => handleNavigate('reset-password')}
                       />
                     )}
 

@@ -1,8 +1,8 @@
 import { client } from './client';
 
 export const storesApi = {
-    updateStatus: async (storeId: string, status: 'ACTIVE' | 'BLOCKED') => {
-        const response = await client.patch(`/stores/${storeId}/status`, { status });
+    updateStatus: async (storeId: string, status: 'ACTIVE' | 'BLOCKED' | 'REJECTED', reason?: string) => {
+        const response = await client.patch(`/stores/${storeId}/status`, { status, reason });
         return response.data;
     },
 

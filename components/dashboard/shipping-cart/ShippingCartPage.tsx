@@ -1,34 +1,38 @@
-
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, ArrowRight, Info } from 'lucide-react';
+import { ShoppingBag, ArrowRight, Info, PackageCheck } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { CartItem } from './CartItem';
 import { GlassCard } from '../../ui/GlassCard';
 import { useCartStore } from '../../../stores/useCartStore';
+import { getCurrentUserId } from '../../../utils/auth';
 
 export const ShippingCartPage: React.FC = () => {
     const { t } = useLanguage();
-    const { items, loading, fetchCartItems, removeFromCart, shippingMode, setShippingMode, shippingCost } = useCartStore();
+    const { items, loading, fetchCartItems, requestShipping, requestingShipping, subscribeToRealtime, unsubscribeFromRealtime } = useCartStore();
 
     useEffect(() => {
         fetchCartItems();
-    }, [fetchCartItems]);
+        subscribeToRealtime(getCurrentUserId() || undefined);
+        return () => unsubscribeFromRealtime();
+    }, [fetchCartItems, subscribeToRealtime, unsubscribeFromRealtime]);
 
-    const handleRemove = (id: string) => {
-        removeFromCart(id);
+    const handleRequestShipping = async () => {
+        if (items.length === 0) return;
+        const success = await requestShipping(items.map(i => i.id));
+        if (success) {
+            window.history.pushState({ view: 'dashboard', dashboardPath: 'shipments' }, '', '/dashboard/shipments');
+            window.dispatchEvent(new PopStateEvent('popstate', { state: { view: 'dashboard', dashboardPath: 'shipments' } }));
+        }
     };
 
-    const subtotal = items.reduce((sum, item) => sum + item.price, 0);
-    const total = subtotal + shippingCost;
-
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 max-w-4xl mx-auto pb-56 md:pb-48">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                        <ShoppingBag className="text-gold-500" size={32} />
+                        <PackageCheck className="text-gold-500" size={32} />
                         {t.dashboard.menu.shippingCart}
                     </h1>
                     <p className="text-white/50 mt-2">{t.dashboard.shippingCart.subtitle}</p>
@@ -39,101 +43,61 @@ export const ShippingCartPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                {/* Items List */}
-                <div className="lg:col-span-2 space-y-4">
-                    <AnimatePresence>
-                        {items.map((item) => (
-                            <motion.div
-                                key={item.id}
-                                layout
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.9 }}
-                            >
-                                <CartItem item={item} onRemove={handleRemove} />
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-
-                    {items.length === 0 && !loading && (
-                        <GlassCard className="text-center py-20 border border-dashed border-white/10">
-                            <ShoppingBag className="mx-auto mb-4 text-white/20" size={48} />
-                            <p className="text-white/50 font-medium mb-2">{t.dashboard.shippingCart.empty}</p>
-                            <p className="text-white/30 text-sm max-w-md mx-auto">
-                                {t.dashboard.shippingCart.emptyDesc || 'Items will appear here after accepting an offer from a vendor. Browse your orders and accept offers to add items to your cart.'}
-                            </p>
-                        </GlassCard>
-                    )}
-                </div>
-
-                {/* Summary Panel */}
-                <div className="space-y-6">
-                    <GlassCard className="p-6 space-y-6 sticky top-24">
-                        <h3 className="text-xl font-bold text-white">{t.dashboard.shippingCart.summary}</h3>
-
-                        <div className="space-y-3 pt-4 border-t border-white/10">
-                            <div className="flex justify-between text-white/60">
-                                <span>{t.dashboard.shippingCart.subtotal}</span>
-                                <span>{subtotal.toFixed(2)} SAR</span>
-                            </div>
-
-                            {/* Shipping Toggle */}
-                            <div className="py-3">
-                                <label className="flex items-center justify-between cursor-pointer mb-2">
-                                    <span className="text-sm text-white/80 font-medium">{t.dashboard.shippingCart.modes?.title || 'Shipping Mode'}</span>
-                                    <div className="flex bg-white/10 rounded-lg p-1">
-                                        <button
-                                            onClick={() => setShippingMode('separate')}
-                                            className={`px-3 py-1 text-xs rounded-md transition-all ${shippingMode === 'separate' ? 'bg-gold-500 text-black font-bold' : 'text-white/50 hover:text-white'}`}
-                                        >
-                                            {t.dashboard.shippingCart.modes?.faster || 'Faster'}
-                                        </button>
-                                        <button
-                                            onClick={() => setShippingMode('combined')}
-                                            className={`px-3 py-1 text-xs rounded-md transition-all ${shippingMode === 'combined' ? 'bg-gold-500 text-black font-bold' : 'text-white/50 hover:text-white'}`}
-                                        >
-                                            {t.dashboard.shippingCart.modes?.cheaper || 'Cheaper'}
-                                        </button>
-                                    </div>
-                                </label>
-                                <p className="text-xs text-white/40 mb-2">
-                                    {shippingMode === 'separate'
-                                        ? (t.dashboard.shippingCart.modes?.fasterDesc || 'Items shipped as they arrive (Faster)')
-                                        : (t.dashboard.shippingCart.modes?.cheaperDesc || 'Items shipped together in one box (Ecofriendly & Cheaper)')}
-                                </p>
-                            </div>
-
-                            <div className="flex justify-between text-white/60">
-                                <span>{t.dashboard.shippingCart.shippingEst}</span>
-                                <span className={shippingMode === 'combined' ? 'text-green-400' : 'text-gold-500'}>
-                                    {shippingCost.toFixed(2)} SAR
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-between text-xl font-bold text-white pt-4 border-t border-white/10">
-                            <span>{t.dashboard.shippingCart.total}</span>
-                            <span>{total.toFixed(2)} SAR</span>
-                        </div>
-
-                        <button
-                            disabled={items.length === 0}
-                            className="w-full py-4 bg-gold-500 text-black font-bold rounded-xl hover:bg-gold-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            {/* Content List */}
+            <div className="space-y-4">
+                <AnimatePresence>
+                    {items.map((item) => (
+                        <motion.div
+                            key={`${item.id}-${item.offerId}`}
+                            layout
+                            initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.98, y: -10 }}
                         >
-                            {t.dashboard.shippingCart.proceed}
-                            <ArrowRight size={20} />
-                        </button>
+                            <CartItem item={item} />
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
 
-                        <div className="flex items-start gap-3 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 text-xs text-blue-300">
-                            <Info size={16} className="shrink-0 mt-0.5" />
-                            <p>{t.dashboard.shippingCart.timerNote}</p>
-                        </div>
+                {items.length === 0 && !loading && (
+                    <GlassCard className="text-center py-20 border border-dashed border-white/10">
+                        <ShoppingBag className="mx-auto mb-4 text-white/20" size={48} />
+                        <p className="text-white/50 font-medium mb-2">{t.dashboard.shippingCart.empty}</p>
+                        <p className="text-white/30 text-sm max-w-md mx-auto">
+                            {t.dashboard.shippingCart.emptyDesc}
+                        </p>
                     </GlassCard>
-                </div>
+                )}
             </div>
+
+            {/* Bottom Floating Bar */}
+            {items.length > 0 && (
+                <motion.div
+                    initial={{ y: 100, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="fixed bottom-0 left-0 right-0 bg-[#0a0f1a]/95 backdrop-blur-2xl border-t border-white/10 z-30 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+                >
+                    <div className="max-w-4xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div className="flex-1 w-full">
+                            <div className="flex items-start gap-4 p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 text-xs sm:text-sm text-blue-300/90 shadow-inner">
+                                <Info size={20} className="shrink-0 text-blue-400 mt-0.5" />
+                                <div className="space-y-1">
+                                    <p className="font-bold text-blue-200">{t.dashboard.shippingCart.timerNote}</p>
+                                    <p className="opacity-80 leading-relaxed font-medium">{t.dashboard.shippingCart.autoShipNote}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleRequestShipping}
+                            disabled={requestingShipping || items.length === 0}
+                            className="w-full sm:w-auto px-10 py-4 bg-gold-500 text-black font-extrabold rounded-xl hover:bg-gold-400 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 whitespace-nowrap shadow-[0_0_20px_rgba(168,139,62,0.3)] group"
+                        >
+                            <span>{requestingShipping ? t.common.loading : t.dashboard.shippingCart.requestShipping}</span>
+                            {!requestingShipping && <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />}
+                        </button>
+                    </div>
+                </motion.div>
+            )}
         </div>
     );
 };

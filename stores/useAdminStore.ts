@@ -52,7 +52,11 @@ export interface SystemConfig {
     baseShippingCost: number;
   };
   content: {
-    vendorContract: string;
+    vendorContract: {
+      contentAr: string;
+      contentEn: string;
+      firstPartyConfig: Record<string, string>;
+    };
     privacyPolicy: string;
     invoiceFooter: string;
   };
@@ -98,9 +102,15 @@ export interface AdminState {
   fetchAllStores: () => Promise<void>;
   silentFetchStores: () => Promise<void>;
   fetchStoreProfile: (id: string) => Promise<void>;
+  silentFetchStoreProfile: (id: string) => Promise<void>;
+  clearStoreProfile: () => void;
   getVendorById: (id: string) => Vendor | undefined;
   updateVendorStatus: (id: string, status: MerchantStatus) => void;
   updateVendorDocStatus: (vendorId: string, docType: 'cr' | 'license', status: 'approved' | 'rejected') => void;
+
+  // Contract Management
+  fetchVendorContract: () => Promise<void>;
+  saveVendorContract: (contractData: any) => Promise<boolean>;
 
   // Real-time
   subscription: any;
@@ -111,6 +121,10 @@ export interface AdminState {
   storeSubscription: any;
   subscribeToStores: () => void;
   unsubscribeFromStores: () => void;
+
+  storeProfileSubscription: any;
+  subscribeToStoreProfile: (id: string) => void;
+  unsubscribeFromStoreProfile: () => void;
 }
 
 const MOCK_VENDORS: Vendor[] = [
@@ -155,7 +169,19 @@ export const useAdminStore = create<AdminState>()(
           ]
         },
         content: {
-          vendorContract: DEFAULT_CONTRACT,
+          vendorContract: {
+            contentAr: '',
+            contentEn: '',
+            firstPartyConfig: {
+              companyNameAr: '',
+              companyNameEn: '',
+              crNumber: '',
+              licenseNumber: '',
+              licenseExpiry: '',
+              headquartersAr: '',
+              headquartersEn: ''
+            }
+          },
           privacyPolicy: '...',
           invoiceFooter: 'ELLIPP FZ LLC...'
         }
@@ -280,7 +306,7 @@ export const useAdminStore = create<AdminState>()(
       },
 
       fetchStoreProfile: async (id: string) => {
-        set({ isLoadingStores: true });
+        set({ isLoadingStores: true, currentStoreProfile: null }); // CLEAR old profile
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
@@ -299,6 +325,25 @@ export const useAdminStore = create<AdminState>()(
         }
       },
 
+      silentFetchStoreProfile: async (id: string) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          if (token) {
+            const response = await fetch(`${API_URL}/stores/${id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              set({ currentStoreProfile: data });
+            }
+          }
+        } catch (error) {
+          console.error("Failed to silently fetch store profile", error);
+        }
+      },
+
+      clearStoreProfile: () => set({ currentStoreProfile: null }),
+
       getVendorById: (id) => get().vendorsList.find(v => v.id === id),
 
       updateVendorStatus: (id, status) => set((state) => ({
@@ -314,6 +359,65 @@ export const useAdminStore = create<AdminState>()(
           };
         })
       })),
+
+      fetchVendorContract: async () => {
+        try {
+          const res = await fetch(`${API_URL}/contracts/active`);
+          if (res.ok) {
+            const data = await res.json();
+            set(state => ({
+              systemConfig: {
+                ...state.systemConfig,
+                content: {
+                  ...state.systemConfig.content,
+                  vendorContract: {
+                    contentAr: data.contentAr || '',
+                    contentEn: data.contentEn || '',
+                    firstPartyConfig: data.firstPartyConfig || {}
+                  }
+                }
+              }
+            }));
+          }
+        } catch (e) {
+          console.error("Failed to fetch contract", e);
+        }
+      },
+
+      saveVendorContract: async (contractData: any) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          if (!token) return false;
+          
+          const res = await fetch(`${API_URL}/contracts`, {
+            method: 'PUT',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify(contractData)
+          });
+          
+          if (res.ok) {
+            set(state => ({
+              systemConfig: {
+                ...state.systemConfig,
+                content: {
+                  ...state.systemConfig.content,
+                  vendorContract: contractData
+                }
+              }
+            }));
+            return true;
+          }
+          return false;
+        } catch (e) {
+          console.error("Failed to save contract", e);
+          return false;
+        }
+      },
+
+
 
       subscription: null,
 
@@ -387,6 +491,45 @@ export const useAdminStore = create<AdminState>()(
           supabase.removeChannel(storeSubscription);
           set({ storeSubscription: null });
         }
+      },
+
+      storeProfileSubscription: null,
+
+      subscribeToStoreProfile: (id: string) => {
+        const { storeProfileSubscription, fetchStoreProfile, silentFetchStoreProfile } = get();
+        if (storeProfileSubscription) return; // Already subscribed
+
+        fetchStoreProfile(id); // Initial fetch with skeleton loader
+
+        const channel = supabase.channel(`admin-store-profile-${id}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'stores', filter: `id=eq.${id}` },
+            () => {
+              console.log(`🔔 Admin Store Profile Update Received for ${id}`);
+              silentFetchStoreProfile(id);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'verification_documents', filter: `store_id=eq.${id}` },
+            () => {
+              console.log(`🔔 Admin Store Documents Update Received for ${id}`);
+              silentFetchStoreProfile(id);
+            }
+          )
+          .subscribe();
+
+        set({ storeProfileSubscription: channel });
+      },
+
+      unsubscribeFromStoreProfile: () => {
+        const { storeProfileSubscription, clearStoreProfile } = get();
+        if (storeProfileSubscription) {
+          supabase.removeChannel(storeProfileSubscription);
+          set({ storeProfileSubscription: null });
+        }
+        clearStoreProfile(); // Cleanup on unmount!
       }
     }),
     {

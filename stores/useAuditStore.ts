@@ -30,6 +30,7 @@ interface AuditState {
   getLogsByOrderId: (orderId: string) => AuditLog[];
   getLogsByActor: (actorType: ActorType) => AuditLog[];
   clearLogs: () => void;
+  logAction: (log: Partial<AuditLog>) => void;
 }
 
 export const useAuditStore = create<AuditState>()(
@@ -68,7 +69,10 @@ export const useAuditStore = create<AuditState>()(
 
       getLogsByOrderId: (orderId) => get().logs.filter(l => l.orderId === orderId),
       getLogsByActor: (actorType) => get().logs.filter(l => l.actorType === actorType),
-      clearLogs: () => set({ logs: [] })
+      clearLogs: () => set({ logs: [] }),
+      logAction: (log) => set((state) => ({
+        logs: [{ id: Date.now().toString(), timestamp: new Date().toISOString(), ...log } as AuditLog, ...state.logs]
+      }))
     }),
     {
       name: 'etashleh-audit-storage',

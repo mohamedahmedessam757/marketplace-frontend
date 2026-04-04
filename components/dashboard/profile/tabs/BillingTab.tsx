@@ -7,6 +7,7 @@ import { useLanguage } from '../../../../contexts/LanguageContext';
 import { InvoiceModal } from '../../wallet/InvoiceModal';
 import { Order } from '../../../../types';
 import { SavedCards } from '../../wallet/SavedCards';
+import { useCheckoutStore } from '../../../../stores/useCheckoutStore';
 
 interface BillingTabProps {
     onNavigate: (path: string, id?: any) => void;
@@ -32,7 +33,7 @@ export const BillingTab: React.FC<BillingTabProps> = ({ onNavigate }) => {
     // Simulate Late/Overdue Logic: In real app, check due_date < now
     // For now, let's assume any UNPAID order older than 7 days is OVERDUE
     const overdueInvoices = unpaidInvoices.filter(o => {
-        const created = new Date(o.created_at).getTime();
+        const created = new Date(o.createdAt).getTime();
         const now = Date.now();
         const diffDays = (now - created) / (1000 * 3600 * 24);
         return diffDays > 7;
@@ -179,8 +180,8 @@ export const BillingTab: React.FC<BillingTabProps> = ({ onNavigate }) => {
                         ) : (
                             (activeTab === 'unpaid' ? unpaidInvoices : activeTab === 'overdue' ? overdueInvoices : historyInvoices).map((order) => {
                                 const acceptedOffer = order.offers?.find(o => o.status === 'accepted');
-                                const price = acceptedOffer?.final_price || order.total_amount || 0;
-                                const date = new Date(order.created_at).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US');
+                                const price = acceptedOffer?.finalPrice || order.totalAmount || 0;
+                                const date = new Date(order.createdAt).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US');
                                 const isOverdue = overdueInvoices.includes(order);
 
                                 return (
@@ -190,21 +191,21 @@ export const BillingTab: React.FC<BillingTabProps> = ({ onNavigate }) => {
                                                 {/* Left: Info */}
                                                 <div className="flex items-center gap-4 w-full md:w-auto">
                                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-red-500/20 text-red-500' :
-                                                            activeTab === 'unpaid' ? 'bg-yellow-500/20 text-yellow-500' :
-                                                                'bg-green-500/20 text-green-500'
+                                                        activeTab === 'unpaid' ? 'bg-yellow-500/20 text-yellow-500' :
+                                                            'bg-green-500/20 text-green-500'
                                                         }`}>
                                                         {isOverdue ? <AlertOctagon className="w-6 h-6" /> :
                                                             activeTab === 'unpaid' ? <AlertTriangle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
                                                     </div>
                                                     <div>
                                                         <h4 className="text-lg font-bold text-white flex items-center gap-2">
-                                                            INV-{order.order_number}
+                                                            INV-{order.orderNumber}
                                                             {isOverdue && <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full">OVERDUE</span>}
                                                         </h4>
                                                         <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">
                                                             <span>{date}</span>
                                                             <span className="w-1 h-1 bg-gray-600 rounded-full"></span>
-                                                            <span>{order.part_name}</span>
+                                                            <span>{order.partName || 'Unknown Part'}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -223,7 +224,12 @@ export const BillingTab: React.FC<BillingTabProps> = ({ onNavigate }) => {
                                                         <button
                                                             className={`flex-1 md:flex-none px-6 py-2.5 text-black font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${isOverdue ? 'bg-red-500 hover:bg-red-400 text-white' : 'bg-gold-500 hover:bg-gold-600'
                                                                 }`}
-                                                            onClick={() => onNavigate?.('checkout', order.id)}
+                                                            onClick={() => {
+                                                                const store = useCheckoutStore.getState();
+                                                                store.reset();
+                                                                store.setOrderId(order.id);
+                                                                onNavigate?.('checkout', order.id);
+                                                            }}
                                                         >
                                                             {t.dashboard.billing.invoice.pay}
                                                             <ArrowRight className="w-4 h-4" />

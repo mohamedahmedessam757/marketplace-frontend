@@ -5,7 +5,7 @@ export const admin = {
     users: 'إدارة المتاجر',
     customers: 'العملاء',
     reviews: 'التقييمات',
-    orders: 'التحكم بالطلبات',
+    orders: 'الطلبات الواردة',
     settings: 'إعدادات النظام',
     disputes: 'فض النزاعات',
     shipping: 'إدارة الشحن',
@@ -45,7 +45,17 @@ export const admin = {
     },
     support: {
       title: 'الدعم الفني',
-      tickets: 'التذاكر'
+      tickets: 'التذاكر',
+      subtitle: 'مركز المساعدة والدعم الفني',
+      createTicket: 'فتح تذكرة جديدة',
+      newTicketTitle: 'تفاصيل التذكرة',
+      subject: 'الموضوع',
+      message: 'الرسالة',
+      myTickets: 'تذاكري',
+      noTickets: 'لا توجد تذاكر دعم سابقة',
+      noTicketsDesc: 'لم تقم بتقديم أي تذاكر دعم فني حتى الآن.',
+      liveChat: 'المحادثة الفورية',
+      liveChatDesc: 'تحدث مع ممثل الدعم الفني الآن'
     },
     settingsTabs: {
       general: 'عام',
@@ -122,24 +132,42 @@ export const admin = {
       readOnly: 'حساب دعم فني: لديك صلاحية القراءة فقط.'
     },
     customersTable: {
-      name: 'الاسم',
+      name: 'اسم العميل',
       contact: 'معلومات الاتصال',
       orders: 'الطلبات',
       status: 'الحالة',
       joined: 'تاريخ التسجيل',
-      actions: 'الإجراءات'
+      actions: 'إجراءات',
+      ltv: 'القيمة الشرائية (LTV)',
+      successRate: 'نسبة النجاح',
+      adminNotes: 'ملاحظات إدارية خاصة'
     },
     customerProfile: {
       title: 'ملف العميل',
-      info: 'البيانات الشخصية',
-      security: 'الأمان والجلسات',
-      activity: 'سجل النشاط',
+      identity: 'الهوية والمعلومات',
+      activity: 'النشاط والجلسات',
+      notes: 'ملاحظات إدارية',
+      status: 'حالة الحساب',
       orders: 'سجل الطلبات',
       disputes: 'الشكاوى والنزاعات',
       devices: 'الأجهزة المتصلة',
       lastLogin: 'آخر دخول',
       resetPass: 'إعادة تعيين كلمة المرور',
       suspendAccount: 'تعليق الحساب'
+    },
+    chatOversight: {
+      title: 'رقابة المحادثات',
+      subtitle: 'مراقبة المحادثات النشطة بين العملاء والتجار',
+      joinChat: 'انضمام للمحادثة',
+      deleteChat: 'حذف المحادثة للطرفين',
+      deleteMessage: 'حذف الرسالة',
+      takeEvidence: 'أخذ إثبات (Snapshot)',
+      evidenceCaptured: 'تم حفظ الدليل بنجاح',
+      originalLanguage: 'اللغة الأصلية',
+      translated: 'مترجم (AI)',
+      systemIntervention: 'تدخل إداري: انضم المسؤول للمراقبة',
+      banUser: 'حظر المستخدم',
+      chatDeletedByAdmin: 'تم حذف هذه المحادثة بواسطة الإدارة'
     },
     reviewsControl: {
       title: 'إدارة التقييمات',
@@ -184,7 +212,36 @@ export const admin = {
       vin: 'رقم الهيكل',
       offersCount: 'العروض',
       pendingFinancials: 'البيانات المالية بانتظار قبول العرض',
-      notFound: 'الطلب غير موجود'
+      notFound: 'الطلب غير موجود',
+      editOfferModal: {
+        title: 'تعديل شامل للعرض',
+        unitPrice: 'سعر القطعة',
+        shippingCost: 'تكلفة الشحن',
+        weight: 'الوزن',
+        deliveryDays: 'أيام التوصيل',
+        condition: 'حالة القطعة',
+        partType: 'نوع القطعة',
+        hasWarranty: 'يوجد ضمان',
+        warrantyDuration: 'مدة الضمان',
+        merchantName: 'اسم التاجر',
+        isShippingIncluded: 'الشحن مشمول في السعر',
+        notes: 'ملاحظات العرض',
+        save: 'حفظ التعديلات',
+        cancel: 'إلغاء',
+        placeholderNotes: 'أضف أي ملاحظات إضافية هنا...',
+        conditions: {
+          new: 'جديد',
+          used_clean: 'مستعمل - نظيف',
+          used_scratched: 'مستعمل - مخدوش',
+          for_parts: 'للقطع (سكراب)'
+        },
+        partTypes: {
+          oem: 'أصلي (OEM)',
+          aftermarket: 'تجاري (Aftermarket)',
+          commercial: 'تجاري نخب أول',
+          rebuilt: 'مجدد (Rebuilt)'
+        }
+      }
     },
     storeProfile: {
       title: 'ملف المتجر',
@@ -212,6 +269,7 @@ export const admin = {
       evidence: 'مقارنة الأدلة',
       customerEvidence: 'أدلة العميل',
       merchantEvidence: 'رد التاجر',
+      investigationNotes: 'ملاحظات التحقيق الداخلي',
       timeline: 'سجل النزاع',
       adminNotes: 'ملاحظات الحكم',
       confirmVerdict: 'تأكيد الحكم وإغلاق القضية',
@@ -229,8 +287,60 @@ export const admin = {
         open: 'مفتوح',
         awaiting_merchant: 'بانتظار التاجر',
         awaiting_admin: 'بانتظار الحكم',
+        under_review: 'قيد المراجعة الإدارية',
         resolved: 'تم الحل',
-        refunded: 'تم الاسترداد'
+        refunded: 'تم الاسترداد',
+        escalated: 'تم التصعيد (تجاوز الوقت)'
+      },
+      verdictTypes: {
+        refund_full: 'استرداد كامل للعميل',
+        refund_partial: 'استرداد جزئي',
+        release_merchant: 'تحرير المبلغ للتاجر',
+        replace: 'استبدال القطعة (ضمان)',
+        deny: 'رفض النزاع'
+      },
+      faultParties: {
+        customer: 'العميل',
+        merchant: 'التاجر',
+        both: 'كلاهما',
+        shipping: 'شركة الشحن',
+        platform: 'المنصة'
+      },
+      tabs: {
+        all: 'الرقابة الشاملة',
+        escrow: 'الضمان والتدقيق',
+        urgent: 'عاجل / الساعات الأخيرة',
+        closed: 'القضايا المغلقة'
+      },
+      intelligence: {
+        title: 'ذكاء الرقابة (Case Intelligence)',
+        logisticsLinkage: 'الارتباط اللوجستي',
+        invoiceRef: 'مرجع الفاتورة',
+        shipmentRef: 'مرجع الشحنة',
+        userIntegrity: 'سجل نزاهة المستخدم',
+        integrityAlert: 'تنبيه النزاهة',
+        returnDisputeRate: 'معدل الإرجاع/النزاع',
+        evidenceAudit: 'تدقيق الأدلة',
+        noCustomerFiles: 'لا توجد مستندات مرفوعة من العميل',
+        executeVerdict: 'تنفيذ الحكم الاستراتيجي',
+        viewFullOrderAudit: 'عرض السجل الكامل للطلب',
+        escrowClock: 'ساعة الضمان (Escrow)',
+        merchantSla: 'مهلة الرد (SLA)'
+      },
+      verdictTerminal: {
+        title: 'محطة الحكم الاستراتيجي',
+        subtitle: 'المرحلة الرابعة: التسوية المالية متعددة المتغيرات للقضية رقم',
+        assignFaultParty: '1. تحديد الطرف المخطئ',
+        financialBreakdown: '2. تفصيل التسوية المالية (ريال)',
+        refundAmount: 'مبلغ الاسترداد',
+        shippingRefund: 'استرداد قيمة الشحن',
+        platformFeeLoss: 'خسارة رسوم المنصة (Stripe)',
+        totalPayout: 'إجمالي المبلغ المستحق',
+        selectVerdictPath: '3. اختيار مسار الحكم النهائي',
+        investigationNotes: '4. ملاحظات التحقيق (داخلية)',
+        decisionRationale: '5. منطق القرار النهائي (علني للعميل والمتجر)',
+        noActiveDisputes: 'لا توجد نزاعات نشطة في النطاق المحدد',
+        selectCasePrompt: 'اختر قضية من القائمة لعرض بيانات الرقابة والتحليل.'
       }
     },
     shippingPage: {
@@ -343,7 +453,17 @@ export const admin = {
     },
     support: {
       title: 'Technical Support',
-      tickets: 'Tickets'
+      tickets: 'Tickets',
+      subtitle: 'Support Center',
+      createTicket: 'Open New Ticket',
+      newTicketTitle: 'Ticket Details',
+      subject: 'Subject',
+      message: 'Message',
+      myTickets: 'My Tickets',
+      noTickets: 'No past support tickets',
+      noTicketsDesc: 'You haven\'t submitted any support tickets yet.',
+      liveChat: 'Live Chat',
+      liveChatDesc: 'Talk to a representative now'
     },
     settingsTabs: {
       general: 'General',
@@ -420,24 +540,42 @@ export const admin = {
       readOnly: 'Support Account: Read-only access enabled.'
     },
     customersTable: {
-      name: 'Name',
+      name: 'Customer Name',
       contact: 'Contact Info',
       orders: 'Orders',
       status: 'Status',
       joined: 'Joined Date',
-      actions: 'Actions'
+      actions: 'Actions',
+      ltv: 'Lifetime Value (LTV)',
+      successRate: 'Success Rate',
+      adminNotes: 'Private Admin Notes'
     },
     customerProfile: {
       title: 'Customer Profile',
-      info: 'Personal Info',
-      security: 'Security & Sessions',
-      activity: 'Activity Log',
+      identity: 'Identity & Info',
+      activity: 'Activity & Sessions',
+      notes: 'Admin Notes',
+      status: 'Account Status',
       orders: 'Order History',
       disputes: 'Disputes & Complaints',
       devices: 'Connected Devices',
       lastLogin: 'Last Login',
       resetPass: 'Reset Password',
       suspendAccount: 'Suspend Account'
+    },
+    chatOversight: {
+      title: 'Chat Oversight',
+      subtitle: 'Monitor active conversations between customers and merchants',
+      joinChat: 'Join Chat',
+      deleteChat: 'Delete Chat (Global)',
+      deleteMessage: 'Delete Message',
+      takeEvidence: 'Take Evidence (Snapshot)',
+      evidenceCaptured: 'Evidence captured successfully',
+      originalLanguage: 'Original',
+      translated: 'Translated (AI)',
+      systemIntervention: 'Admin Intervention: Monitoring started',
+      banUser: 'Ban User',
+      chatDeletedByAdmin: 'This chat was deleted by administration'
     },
     reviewsControl: {
       title: 'Reviews Management',
@@ -482,7 +620,36 @@ export const admin = {
       vin: 'VIN',
       offersCount: 'Offers',
       pendingFinancials: 'Financial data pending offer acceptance',
-      notFound: 'Order not found'
+      notFound: 'Order not found',
+      editOfferModal: {
+        title: 'Comprehensive Edit Offer',
+        unitPrice: 'Unit Price',
+        shippingCost: 'Shipping Cost',
+        weight: 'Weight',
+        deliveryDays: 'Delivery Days',
+        condition: 'Condition',
+        partType: 'Part Type',
+        hasWarranty: 'Has Warranty',
+        warrantyDuration: 'Warranty Duration',
+        merchantName: 'Merchant Name',
+        isShippingIncluded: 'Shipping Included in Price',
+        notes: 'Offer Notes',
+        save: 'Save Changes',
+        cancel: 'Cancel',
+        placeholderNotes: 'Add any additional notes here...',
+        conditions: {
+          new: 'New',
+          used_clean: 'Used - Clean',
+          used_scratched: 'Used - Scratched',
+          for_parts: 'For Parts (Scrap)'
+        },
+        partTypes: {
+          oem: 'Original (OEM)',
+          aftermarket: 'Aftermarket',
+          commercial: 'First Class Commercial',
+          rebuilt: 'Rebuilt'
+        }
+      }
     },
     storeProfile: {
       title: 'Store Profile',
@@ -510,6 +677,7 @@ export const admin = {
       evidence: 'Evidence Comparison',
       customerEvidence: 'Customer Evidence',
       merchantEvidence: 'Merchant Response',
+      investigationNotes: 'Internal Investigation Notes',
       timeline: 'Dispute Log',
       adminNotes: 'Judge Notes',
       confirmVerdict: 'Confirm Verdict & Close',
@@ -527,8 +695,60 @@ export const admin = {
         open: 'Open',
         awaiting_merchant: 'Awaiting Merchant',
         awaiting_admin: 'Awaiting Admin',
+        under_review: 'Under Administrative Review',
         resolved: 'Resolved',
-        refunded: 'Refunded'
+        refunded: 'Refunded',
+        escalated: 'Escalated (Timeout)'
+      },
+      verdictTypes: {
+        refund_full: 'Full Refund to Customer',
+        refund_partial: 'Partial Refund',
+        release_merchant: 'Release Funds to Merchant',
+        replace: 'Warranty Replacement',
+        deny: 'Deny Dispute'
+      },
+      faultParties: {
+        customer: 'Customer',
+        merchant: 'Merchant',
+        both: 'Both Parties',
+        shipping: 'Shipping Company',
+        platform: 'Platform'
+      },
+      tabs: {
+        all: 'All Oversight',
+        escrow: 'Escrow / Audit',
+        urgent: 'Urgent / Timeout',
+        closed: 'Closed Cases'
+      },
+      intelligence: {
+        title: 'Case Intelligence',
+        logisticsLinkage: 'Logistics Linkage',
+        invoiceRef: 'Invoice Ref',
+        shipmentRef: 'Shipment Ref',
+        userIntegrity: 'User Integrity Score',
+        integrityAlert: 'Integrity Alert',
+        returnDisputeRate: 'Return-Dispute Rate',
+        evidenceAudit: 'Evidence Audit',
+        noCustomerFiles: 'No customer files uploaded',
+        executeVerdict: 'Execute Strategic Verdict',
+        viewFullOrderAudit: 'View Full Order Audit',
+        escrowClock: 'Escrow Clock',
+        merchantSla: 'Merchant SLA'
+      },
+      verdictTerminal: {
+        title: 'Strategic Verdict Terminal',
+        subtitle: 'Phase 4: Multi-variable Financial Resolution for Case #',
+        assignFaultParty: '1. Assign Fault Party',
+        financialBreakdown: '2. Financial Breakdown (SAR)',
+        refundAmount: 'Refund Amount',
+        shippingRefund: 'Shipping Refund',
+        platformFeeLoss: 'Platform Fee Loss (Stripe)',
+        totalPayout: 'Total Payout',
+        selectVerdictPath: '3. Select Verdict Path',
+        investigationNotes: '4. Investigation Notes (Internal)',
+        decisionRationale: '5. Final Decision Rationale (Public)',
+        noActiveDisputes: 'No Active Disputes in Range',
+        selectCasePrompt: 'Select a case for oversight intelligence'
       }
     },
     shippingPage: {
