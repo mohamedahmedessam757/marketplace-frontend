@@ -155,7 +155,7 @@ function AppContent() {
     // 1. Sync Role From Storage
     const user = getCurrentUser();
     if (user) {
-      const normalizedRole = mapBackendRoleToFrontend(user.role);
+      const normalizedRole = mapBackendRoleToFrontend(user?.role);
       setUserRole(normalizedRole as UserRole);
     }
 
@@ -231,7 +231,7 @@ function AppContent() {
     const user = getCurrentUser();
 
     if (initialState.view === 'dashboard' && user) {
-        const normalizedRole = mapBackendRoleToFrontend(user.role);
+        const normalizedRole = mapBackendRoleToFrontend(user?.role);
         setUserRole(normalizedRole as UserRole);
         setDashboardPath(initialState.dashboardPath || 'home');
         setViewId(initialState.viewId);

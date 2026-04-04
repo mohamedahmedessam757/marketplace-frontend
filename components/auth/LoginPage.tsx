@@ -125,8 +125,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       const fullPhone = `${countryCode}${phone}`;
       const data = await authApi.initiateMobileLogin(fullPhone);
 
-      // Access user data from response
-      const user = data.user;
+      // Access user data from response with extreme caution
+      const user = data?.user;
+      
+      if (!user) {
+        throw new Error(t.auth.errors?.accountNotFound || (language === 'ar' ? 'الحساب غير موجود' : 'Account not found'));
+      }
+
       const backendRole = user.role;
 
       // 2. Role Verification
@@ -139,13 +144,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       }
 
       // Store details
-      setUserName(user.name);
-      setUserEmail(user.email); // Used for email method if selected
+      setUserName(user.name || '');
+      setUserEmail(user.email || ''); // Used for email method if selected
       setOtpStep('verify');
 
     } catch (err: any) {
       console.error('Login Init Failed', err);
-      if (err.response?.status === 401 || err.response?.status === 404) {
+      
+      // Handle technical TypeErrors (like undefined role) as readable errors
+      if (err instanceof TypeError) {
+        setError(t.auth.errors?.loginFailed || (language === 'ar' ? 'فشل الاتصال بالخادم. يرجى المحاولة لاحقاً.' : 'Connection error. Please try again later.'));
+      } else if (err.response?.status === 401 || err.response?.status === 404) {
         setError(t.auth.errors?.accountNotFound || (language === 'ar' ? 'الحساب غير موجود' : 'Account not found'));
       } else if (err.message) {
         setError(err.message);

@@ -36,6 +36,12 @@ export function getCurrentUser(): { id: string; email: string; role: string } | 
 
         const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
 
+        // Defensive check: If payload is empty or missing sub/role, it's an invalid session
+        if (!payload || !payload.sub || !payload.role) {
+            console.warn('[auth.ts] Invalid JWT payload detected:', payload);
+            return null;
+        }
+
         return {
             id: payload.sub,
             email: payload.email,
