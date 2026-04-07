@@ -382,11 +382,35 @@ export const customer = {
       addresses: { title: 'العناوين المحفوظة', add: 'إضافة عنوان جديد', default: 'الافتراضي', setDefault: 'تعيين كافتراضي', noAddresses: 'لا توجد عناوين محفوظة', save: 'حفظ العنوان' },
       reviews: { title: 'تقييماتي', noReviews: 'لم تقم بكتابة أي تقييم بعد' },
       loyalty: {
-        title: 'نقاط الولاء',
+        title: 'التقييم والولاء',
+        subtitle: 'اجمع النقاط واستبدلها بمكافآت حصرية',
         catalog: 'كتالوج المكافآت',
         redeem: 'استبدال',
         insufficient: 'رصيد غير كاف',
-        success: 'تم الاستبدال بنجاح'
+        success: 'تم الاستبدال بنجاح',
+        currentLevel: 'مستوى الولاء الحالي',
+        nextTier: 'المستوى القادم',
+        remainingToNext: 'تبقّى لك {amount} درهم للوصول إلى المستوى القادم',
+        referralProgram: 'برنامج الإحالة',
+        referralDesc: 'شارك كودك الخاص واحصل على مكافآت مستقبلاً',
+        copied: 'تم النسخ!',
+        tiersTab: 'المستويات والمميزات',
+        reviewsTab: 'التقييمات',
+        currentBadge: 'مستواك الحالي',
+        noReviews: 'لا توجد تقييمات حتى الآن',
+        noReviewsDesc: 'قم بتقييم طلباتك المكتملة لجمع المزيد من المميزات',
+        tiers: {
+            basic: 'أساسي',
+            silver: 'فضي',
+            gold: 'ذهبي',
+            vip: 'شخصية هامة (VIP)',
+            partner: 'شريك'
+        },
+        benefits: {
+            prioritySupport: 'أولوية في الدعم الفني',
+            exclusiveOffers: 'عروض حصرية دورية',
+            commissionEarn: 'ربح يصل إلى {percent} من العمولة'
+        }
       }
     },
     tracking: {
@@ -1042,11 +1066,35 @@ export const customer = {
       addresses: { title: 'Saved Addresses', add: 'Add New Address', default: 'Default', setDefault: 'Set Default', noAddresses: 'No saved addresses', save: 'Save Address' },
       reviews: { title: 'My Reviews', noReviews: 'You haven\'t written any reviews yet' },
       loyalty: {
-        title: 'Loyalty Points',
-        catalog: 'Rewards Catalog',
+        title: 'Loyalty & Rewards',
+        subtitle: 'Earn points and redeem exclusive rewards',
+        catalog: 'Reward Catalog',
         redeem: 'Redeem',
         insufficient: 'Insufficient Balance',
-        success: 'Redeemed Successfully'
+        success: 'Redeemed successfully',
+        currentLevel: 'Current Loyalty Level',
+        nextTier: 'Next Tier',
+        remainingToNext: 'Only {amount} AED left to reach the next tier',
+        referralProgram: 'Referral Program',
+        referralDesc: 'Share your code and get rewards soon',
+        copied: 'Copied!',
+        tiersTab: 'Tiers & Benefits',
+        reviewsTab: 'My Reviews',
+        currentBadge: 'Current',
+        noReviews: 'No reviews yet',
+        noReviewsDesc: 'Review your completed orders to unlock more benefits',
+        tiers: {
+            basic: 'Basic',
+            silver: 'Silver',
+            gold: 'Gold',
+            vip: 'VIP',
+            partner: 'Partner'
+        },
+        benefits: {
+            prioritySupport: 'Priority Support',
+            exclusiveOffers: 'Exclusive Monthly Offers',
+            commissionEarn: 'Earn up to {percent} commission'
+        }
       }
     },
     tracking: {

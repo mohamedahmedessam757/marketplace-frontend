@@ -418,7 +418,7 @@ function AppContent() {
                       {dashboardPath === 'shipping-cart' && <ShippingCartPage onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'resolution' && <CustomerResolutionCenter onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'dispute-details' && <CustomerDisputeDetails caseId={viewId} onBack={() => handleDashboardNavigate('resolution')} />}
-                      {dashboardPath === 'support' && <SupportPage />}
+                      {dashboardPath === 'support' && <SupportPage onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'preferences' && <PreferencesPage />}
                       {dashboardPath === 'loyalty' && <LoyaltyPage />}
                       {dashboardPath === 'info-center' && <InfoCenter />}

@@ -14,10 +14,10 @@ export const LoyaltyPage: React.FC = () => {
                 <div>
                     <h1 className="text-3xl font-bold text-white flex items-center gap-3">
                         <Star className="text-gold-500" size={32} />
-                        {t.dashboard.menu.loyalty || 'Loyalty & Rewards'}
+                        {t.dashboard.menu.loyalty}
                     </h1>
                     <p className="text-white/50 mt-2">
-                        {t.dashboard.loyalty?.subtitle || 'Earn points and redeem exclusive rewards'}
+                        {t.dashboard.profile.loyalty.subtitle}
                     </p>
                 </div>
             </div>

@@ -17,11 +17,11 @@ export const LoyaltyTab: React.FC = () => {
     }, []);
 
     const tiers = {
-        BASIC: { min: 0, next: 1000, label: language === 'ar' ? 'أساسي' : 'Basic', color: 'text-gray-400', bg: 'bg-gray-400/10' },
-        SILVER: { min: 1000, next: 3000, label: language === 'ar' ? 'فضي' : 'Silver', color: 'text-slate-300', bg: 'bg-slate-300/10' },
-        GOLD: { min: 3000, next: 10000, label: language === 'ar' ? 'ذهبي' : 'Gold', color: 'text-gold-500', bg: 'bg-gold-500/10' },
-        VIP: { min: 10000, next: 20000, label: 'VIP', color: 'text-purple-400', bg: 'bg-purple-400/10' },
-        PARTNER: { min: 20000, next: Infinity, label: language === 'ar' ? 'شريك' : 'Partner', color: 'text-red-500', bg: 'bg-red-500/10' }
+        BASIC: { min: 0, next: 1000, label: t.dashboard.profile.loyalty.tiers.basic, color: 'text-gray-400', bg: 'bg-gray-400/10' },
+        SILVER: { min: 1000, next: 3000, label: t.dashboard.profile.loyalty.tiers.silver, color: 'text-slate-300', bg: 'bg-slate-300/10' },
+        GOLD: { min: 3000, next: 10000, label: t.dashboard.profile.loyalty.tiers.gold, color: 'text-gold-500', bg: 'bg-gold-500/10' },
+        VIP: { min: 10000, next: 20000, label: t.dashboard.profile.loyalty.tiers.vip, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+        PARTNER: { min: 20000, next: Infinity, label: t.dashboard.profile.loyalty.tiers.partner, color: 'text-red-500', bg: 'bg-red-500/10' }
     };
 
     const currentTierInfo = tiers[tier || 'BASIC'];
@@ -60,7 +60,7 @@ export const LoyaltyTab: React.FC = () => {
 
                         <div className="flex-1 w-full text-center md:text-start">
                             <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                                <h2 className="text-2xl font-bold text-white">{language === 'ar' ? 'مستوى الولاء الحالي' : 'Current Loyalty Level'}</h2>
+                                <h2 className="text-2xl font-bold text-white">{t.dashboard.profile.loyalty.currentLevel}</h2>
                                 <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter ${currentTierInfo.bg} ${currentTierInfo.color}`}>
                                     {currentTierInfo.label}
                                 </span>
@@ -70,7 +70,7 @@ export const LoyaltyTab: React.FC = () => {
                                 <div className="flex justify-between text-sm">
                                     <span className="text-white/40">{totalSpent.toLocaleString()} AED</span>
                                     {currentTierInfo.next !== Infinity && (
-                                        <span className="text-gold-500/60">{language === 'ar' ? 'المستوى القادم' : 'Next Tier'}: {currentTierInfo.next.toLocaleString()} AED</span>
+                                        <span className="text-gold-500/60">{t.dashboard.profile.loyalty.nextTier}: {currentTierInfo.next.toLocaleString()} AED</span>
                                     )}
                                 </div>
                                 <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/10 p-0.5">
@@ -85,9 +85,7 @@ export const LoyaltyTab: React.FC = () => {
                                 </div>
                                 {currentTierInfo.next !== Infinity && (
                                     <p className="text-xs text-white/30 italic">
-                                        {language === 'ar' 
-                                            ? `تبقّى لك ${remainingToNext.toLocaleString()} درهم للوصول إلى المستوى القادم` 
-                                            : `Only ${remainingToNext.toLocaleString()} AED left to reach the next tier`}
+                                        {t.dashboard.profile.loyalty.remainingToNext.replace('{amount}', remainingToNext.toLocaleString())}
                                     </p>
                                 )}
                             </div>
@@ -100,8 +98,8 @@ export const LoyaltyTab: React.FC = () => {
                     <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 mb-4 shadow-inner">
                         <Share2 size={24} />
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2">{language === 'ar' ? 'برنامج الإحالة' : 'Referral Program'}</h3>
-                    <p className="text-xs text-white/40 mb-6">{language === 'ar' ? 'شارك كودك الخاص واحصل على مكافآت مستقبلاً' : 'Share your special code and get rewards soon'}</p>
+                    <h3 className="text-lg font-bold text-white mb-2">{t.dashboard.profile.loyalty.referralProgram}</h3>
+                    <p className="text-xs text-white/40 mb-6">{t.dashboard.profile.loyalty.referralDesc}</p>
                     
                     <div className="w-full relative group">
                         <input 
@@ -124,7 +122,7 @@ export const LoyaltyTab: React.FC = () => {
                                 exit={{ opacity: 0 }}
                                 className="text-[10px] text-emerald-400 mt-2 font-bold uppercase tracking-tighter"
                             >
-                                {language === 'ar' ? 'تم النسخ!' : 'Copied!'}
+                                {t.dashboard.profile.loyalty.copied}
                             </motion.span>
                         )}
                     </AnimatePresence>
@@ -139,7 +137,7 @@ export const LoyaltyTab: React.FC = () => {
                 >
                     <div className="flex items-center gap-2">
                         <Zap size={16} />
-                        {language === 'ar' ? 'المستويات والمميزات' : 'Tiers & Benefits'}
+                        {t.dashboard.profile.loyalty.tiersTab}
                     </div>
                     {activeSubTab === 'rewards' && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-gold-500 rounded-t-full shadow-[0_-4px_10px_rgba(234,179,8,0.4)]" />}
                 </button>
@@ -149,7 +147,7 @@ export const LoyaltyTab: React.FC = () => {
                 >
                     <div className="flex items-center gap-2">
                         <MessageSquare size={16} />
-                        {language === 'ar' ? 'التقييمات' : 'My Reviews'}
+                        {t.dashboard.profile.loyalty.reviewsTab}
                     </div>
                     {activeSubTab === 'reviews' && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-gold-500 rounded-t-full shadow-[0_-4px_10px_rgba(234,179,8,0.4)]" />}
                 </button>
@@ -164,22 +162,22 @@ export const LoyaltyTab: React.FC = () => {
                                 <div className={`p-3 rounded-xl ${info.bg} ${info.color}`}>
                                     <Award size={24} />
                                 </div>
-                                {tier === key && <Badge text={language === 'ar' ? 'مستواك الحالي' : 'Current'} color="gold" />}
+                                {tier === key && <Badge text={t.dashboard.profile.loyalty.currentBadge} color="gold" />}
                             </div>
                             <h3 className={`text-xl font-bold ${info.color} mb-4`}>{info.label}</h3>
                             <ul className="space-y-3">
                                 <li className="flex items-center gap-2 text-xs text-white/50">
                                     <CheckCircle2 size={14} className="text-gold-500" />
-                                    {language === 'ar' ? 'أولوية في الدعم الفني' : 'Priority Support'}
+                                    {t.dashboard.profile.loyalty.benefits.prioritySupport}
                                 </li>
                                 <li className="flex items-center gap-2 text-xs text-white/50">
                                     <CheckCircle2 size={14} className="text-gold-500" />
-                                    {language === 'ar' ? 'عروض حصرية دورية' : 'Exclusive Monthly Offers'}
+                                    {t.dashboard.profile.loyalty.benefits.exclusiveOffers}
                                 </li>
                                 {key !== 'BASIC' && (
                                     <li className="flex items-center gap-2 text-xs text-white/80 font-bold">
                                         <TrendingUp size={14} className="text-emerald-400" />
-                                        {language === 'ar' ? `ربح يصل إلى ${key === 'PARTNER' ? '6%' : '4%'} من العمولة` : `Earn up to ${key === 'PARTNER' ? '6%' : '4%'} commission`}
+                                        {t.dashboard.profile.loyalty.benefits.commissionEarn.replace('{percent}', key === 'PARTNER' ? '6%' : '4%')}
                                     </li>
                                 )}
                             </ul>
@@ -199,7 +197,7 @@ export const LoyaltyTab: React.FC = () => {
                                     <div className="flex-1">
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
-                                                <h4 className="font-bold text-white text-lg">{review.store?.name || (language === 'ar' ? 'متجر إي تشليح' : 'E-Tashleh Store')}</h4>
+                                                <h4 className="font-bold text-white text-lg">{review.store?.name || t.common.store}</h4>
                                                 <div className="flex gap-1 text-gold-500 mt-1">
                                                     {[...Array(5)].map((_, i) => (
                                                         <Star key={i} size={14} fill={i < review.rating ? "currentColor" : "none"} className={i < review.rating ? "" : "text-white/10"} />
@@ -229,8 +227,8 @@ export const LoyaltyTab: React.FC = () => {
                                 <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 text-white/20">
                                     <MessageSquare size={40} />
                                 </div>
-                                <h3 className="text-xl font-bold text-white/40 mb-2">{language === 'ar' ? 'لا توجد تقييمات حتى الآن' : 'No reviews yet'}</h3>
-                                <p className="text-white/20 text-sm">{language === 'ar' ? 'قم بتقييم طلباتك المكتملة لجمع المزيد من المميزات' : 'Review your completed orders to unlock more benefits'}</p>
+                                <h3 className="text-xl font-bold text-white/40 mb-2">{t.dashboard.profile.loyalty.noReviews}</h3>
+                                <p className="text-white/20 text-sm">{t.dashboard.profile.loyalty.noReviewsDesc}</p>
                             </div>
                         )}
                     </div>

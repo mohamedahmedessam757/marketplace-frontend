@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOrderChatStore } from '../../../stores/useOrderChatStore';
 import { storageApi } from '../../../services/api/storage';
 import { Send, Upload, X, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
@@ -7,15 +7,23 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 interface TicketFormProps {
     onSuccess: () => void;
     onCancel: () => void;
+    defaultCategory?: string;
 }
 
-export const TicketForm: React.FC<TicketFormProps> = ({ onSuccess, onCancel }) => {
+export const TicketForm: React.FC<TicketFormProps> = ({ onSuccess, onCancel, defaultCategory }) => {
     const { t, language } = useLanguage();
     const { createSupportChat } = useOrderChatStore();
     
     // Form State
     const [subject, setSubject] = useState('');
-    const [category, setCategory] = useState('ORDERS');
+    const [category, setCategory] = useState(defaultCategory || 'ORDERS');
+
+    // Sync with prop if it changes
+    useEffect(() => {
+        if (defaultCategory) {
+            setCategory(defaultCategory);
+        }
+    }, [defaultCategory]);
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState('MEDIUM');
     const [isSubmitting, setIsSubmitting] = useState(false);

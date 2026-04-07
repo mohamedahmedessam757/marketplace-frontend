@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, LifeBuoy, Plus, History, HelpCircle, ChevronRight, Package, RefreshCcw, Wallet, Zap } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
@@ -14,6 +14,33 @@ interface SupportPageProps {
 export const SupportPage: React.FC<SupportPageProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const [view, setView] = useState<'list' | 'new'>('list');
+    const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+    const formRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll logic when opening the form
+    useEffect(() => {
+        if (view === 'new') {
+            // Small delay to ensure the form is mounted and AnimatePresence has started
+            setTimeout(() => {
+                if (formRef.current) {
+                    formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
+        }
+    }, [view]);
+
+    const handleActionClick = (categoryId: string) => {
+        // Map UI IDs to Form Category IDs
+        const categoryMap: Record<string, string> = {
+            'orders': 'ORDERS',
+            'returns': 'RETURNS',
+            'payment': 'PAYMENT',
+            'technical': 'TECHNICAL'
+        };
+        
+        setSelectedCategory(categoryMap[categoryId] || 'ORDERS');
+        setView('new');
+    };
 
     const faqs = [
         { q: t.dashboard.support.faq.q1, a: t.dashboard.support.faq.a1 },
@@ -72,7 +99,10 @@ export const SupportPage: React.FC<SupportPageProps> = ({ onNavigate }) => {
                 <div className="flex items-center gap-3">
                     {view === 'list' ? (
                         <button
-                            onClick={() => setView('new')}
+                            onClick={() => {
+                                setSelectedCategory(undefined);
+                                setView('new');
+                            }}
                             className="px-6 py-3 bg-gold-500 hover:bg-gold-400 text-black font-bold rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 shadow-lg shadow-gold-500/20"
                         >
                             <Plus size={20} />
@@ -96,7 +126,7 @@ export const SupportPage: React.FC<SupportPageProps> = ({ onNavigate }) => {
                     <GlassCard 
                         key={idx}
                         className="p-5 hover:bg-white/5 transition-all cursor-pointer group border-white/5 hover:border-gold-500/30"
-                        onClick={() => setView('new')}
+                        onClick={() => handleActionClick(action.id)}
                     >
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${action.color}`}>
                             <action.icon size={24} />
@@ -130,7 +160,7 @@ export const SupportPage: React.FC<SupportPageProps> = ({ onNavigate }) => {
                     </GlassCard>
 
                     {/* Support Content (List or Form) */}
-                    <GlassCard className="p-6 md:p-10 min-h-[550px] relative overflow-hidden">
+                    <GlassCard className="p-6 md:p-10 min-h-[550px] relative overflow-hidden" ref={formRef}>
                          {/* Background Decor */}
                         <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 blur-[100px] pointer-events-none" />
                         
@@ -162,7 +192,11 @@ export const SupportPage: React.FC<SupportPageProps> = ({ onNavigate }) => {
                                     exit={{ opacity: 0, y: -20 }}
                                     transition={{ duration: 0.3 }}
                                 >
-                                    <TicketForm onSuccess={() => setView('list')} onCancel={() => setView('list')} />
+                                    <TicketForm 
+                                        onSuccess={() => setView('list')} 
+                                        onCancel={() => setView('list')} 
+                                        defaultCategory={selectedCategory} 
+                                    />
                                 </motion.div>
                             )}
                         </AnimatePresence>

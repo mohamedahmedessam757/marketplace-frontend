@@ -80,7 +80,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                             {t.dashboard.headers.welcome} Mohammed
                         </div>
                         <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 leading-tight">
-                            {isAr ? 'هل تحتاج لقطعة غيار جديدة؟' : 'Need a new spare part?'}
+                            {isAr ? 'هل تحتاج لقطعة غيار؟' : 'Need a spare part?'}
                         </h1>
                         <p className="text-white/80 text-sm md:text-base max-w-lg leading-relaxed">
                             {isAr

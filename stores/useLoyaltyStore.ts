@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import { getCurrentUserId } from '../utils/auth';
+import { io, Socket } from 'socket.io-client';
 
 interface LoyaltyTransaction {
     id: string;
@@ -32,8 +33,11 @@ interface LoyaltyState {
     reviews: Review[];
     loading: boolean;
     error: string | null;
+    socket: Socket | null;
+    initSocket: () => void;
     fetchLoyaltyData: () => Promise<void>;
     redeemPoints: (amount: number, description: string) => Promise<boolean>;
+    disconnectSocket: () => void;
 }
 
 export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
@@ -47,10 +51,52 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
     reviews: [],
     loading: false,
     error: null,
+    socket: null,
+
+    initSocket: () => {
+        const currentSocket = get().socket;
+        if (currentSocket) return;
+
+        const userId = getCurrentUserId();
+        if (!userId) return;
+
+        const newSocket = io(`${import.meta.env.VITE_API_URL}/loyalty`, {
+            transports: ['websocket'],
+            autoConnect: true,
+        });
+
+        newSocket.on('connect', () => {
+            console.log('Connected to Loyalty WebSockets');
+            newSocket.emit('joinLoyalty', { targetId: userId, role: 'CUSTOMER' });
+        });
+
+        newSocket.on('loyaltyUpdated', (data: any) => {
+            console.log('Real-time loyalty update:', data);
+            set(state => ({
+                tier: data.tier || state.tier,
+                totalSpent: data.totalSpent !== undefined ? data.totalSpent : state.totalSpent,
+                loyaltyPoints: data.loyaltyPoints !== undefined ? data.loyaltyPoints : state.loyaltyPoints,
+                points: data.loyaltyPoints !== undefined ? data.loyaltyPoints : state.points
+            }));
+        });
+
+        set({ socket: newSocket });
+    },
+
+    disconnectSocket: () => {
+        const socket = get().socket;
+        if (socket) {
+            socket.disconnect();
+            set({ socket: null });
+        }
+    },
 
     fetchLoyaltyData: async () => {
         const token = localStorage.getItem('access_token');
         if (!token) return;
+
+        // Initialize WebSockets when data is fetched
+        get().initSocket();
 
         set({ loading: true, error: null });
         try {
@@ -133,3 +179,4 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
         }
     }
 }));
+

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { motion } from 'framer-motion';
 
 interface GlassCardProps {
@@ -8,15 +8,17 @@ interface GlassCardProps {
   onClick?: () => void;
   enableHover?: boolean;
 }
-export const GlassCard: React.FC<GlassCardProps> = ({
+
+export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(({
   children,
   className = '',
   delay = 0,
   onClick,
   enableHover = true
-}) => {
+}, ref) => {
   return (
     <motion.div
+      ref={ref}
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
@@ -38,4 +40,6 @@ export const GlassCard: React.FC<GlassCardProps> = ({
       {children}
     </motion.div>
   );
-};
+});
+
+GlassCard.displayName = 'GlassCard';
