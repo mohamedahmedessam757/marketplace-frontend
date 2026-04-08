@@ -731,6 +731,49 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                         </div>
                     </GlassCard>
 
+                    {/* Store Instructions Section */}
+                    <GlassCard className="p-6 overflow-hidden relative border-gold-500/10 bg-[#1A1814]">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/50 via-gold-500/50 to-green-500/50" />
+                        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                            <ShieldCheck className="text-gold-500" size={24} />
+                            {t.dashboard.merchant.marketplace.instructions.title}
+                        </h2>
+                        
+                        <div className="grid md:grid-cols-2 gap-6">
+                            {/* Forbidden Section */}
+                            <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-5 space-y-4">
+                                <div className="flex items-center gap-2 text-red-400 font-bold mb-2">
+                                    <XCircle size={20} />
+                                    <span>{t.dashboard.merchant.marketplace.instructions.forbidden.title}</span>
+                                </div>
+                                <ul className="space-y-3">
+                                    {t.dashboard.merchant.marketplace.instructions.forbidden.items.map((item: string, i: number) => (
+                                        <li key={i} className="flex items-start gap-2 text-sm text-white/70">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 shrink-0" />
+                                            {item}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {/* Mandatory Section */}
+                            <div className="bg-green-500/5 border border-green-500/10 rounded-2xl p-5 space-y-4">
+                                <div className="flex items-center gap-2 text-green-400 font-bold mb-2">
+                                    <CheckCircle2 size={20} />
+                                    <span>{t.dashboard.merchant.marketplace.instructions.mandatory.title}</span>
+                                </div>
+                                <ul className="space-y-3">
+                                    {t.dashboard.merchant.marketplace.instructions.mandatory.items.map((item: string, i: number) => (
+                                        <li key={i} className="flex items-start gap-2 text-sm text-white/70">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-green-400 mt-1.5 shrink-0" />
+                                            {item}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </GlassCard>
+
                     {/* Parts List */}
                     <div className="space-y-4">
                         <h2 className="text-xl font-bold text-white flex items-center gap-2">

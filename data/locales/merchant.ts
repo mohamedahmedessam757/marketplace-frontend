@@ -258,6 +258,25 @@ export const merchant = {
           enTitle: 'Order Delivered',
           enDesc: 'The shipment has been successfully received by the customer.'
         }
+      },
+      instructions: {
+        title: 'تعليمات المتاجر',
+        forbidden: {
+          title: 'ممنوع:',
+          items: [
+            'بيع القطع المقلدة',
+            'بيع قطع غير أصلية بدون توضيح',
+            'بيع محركات غير نظيفة'
+          ]
+        },
+        mandatory: {
+          title: 'إلزامي:',
+          items: [
+            'تنظيف القطع',
+            'كتابة مستعمل على القطع المستعملة',
+            'تغليف جيد للشحن'
+          ]
+        }
       }
     },
     offerModal: {
@@ -398,6 +417,29 @@ export const merchant = {
       },
       alerts: {
         review: 'تنبيه: تعديل هذا الحقل يتطلب مراجعة من الإدارة وقد يؤدي لتعليق الحساب مؤقتاً.'
+      },
+      contract: {
+          title: 'العقد الإلكتروني المشترك',
+          tab: 'العقد',
+          noContract: 'لم يتم العثور على عقد إلكتروني موقع حالياً لهذا المتجر.',
+          snapshot: 'لقطة العقد الموقع (Snapshot)',
+          secondParty: {
+              title: 'بيانات الطرف الثاني (المدخلة)',
+              company: 'الشركة',
+              manager: 'المدير المسؤول',
+              crNumber: 'رقم السجل التجاري',
+              license: 'الرخصة / انتهاء الصلاحية',
+              location: 'الإمارة / الدولة'
+          },
+          signature: {
+              title: 'بيانات التوقيع والتحقق',
+              signedBy: 'تم التوقيع بواسطة',
+              contact: 'البريد / الجوال',
+              date: 'تاريخ ووقت التوقيع',
+              security: 'بصمة الأمان (Security Context)',
+              ip: 'عنوان IP',
+              userAgent: 'معلومات المتصفح'
+          }
       }
     },
     documents: {
@@ -719,6 +761,25 @@ export const merchant = {
           title: 'Order Delivered',
           desc: 'The shipment has been successfully received by the customer.'
         }
+      },
+      instructions: {
+        title: 'Merchant Guidelines',
+        forbidden: {
+          title: 'Forbidden:',
+          items: [
+            'Selling counterfeit parts',
+            'Selling non-original parts without clarification',
+            'Selling dirty engines'
+          ]
+        },
+        mandatory: {
+          title: 'Mandatory:',
+          items: [
+            'Cleaning parts',
+            'Labeling used parts as "Used"',
+            'High-quality packaging for shipping'
+          ]
+        }
       }
     },
     offerModal: {
@@ -769,6 +830,29 @@ export const merchant = {
         d1_3: '1 - 3 Days',
         d3_5: '3 - 5 Days',
         d5_7: '5 - 7 Days'
+      },
+      contract: {
+          title: 'Electronic Partnership Agreement',
+          tab: 'Contract',
+          noContract: 'No signed electronic contract found for this store at the moment.',
+          snapshot: 'Signed Contract Snapshot',
+          secondParty: {
+              title: 'Second Party Data (Inputted)',
+              company: 'Company Name',
+              manager: 'Authorized Manager',
+              crNumber: 'CR Number',
+              license: 'License / Expiry Date',
+              location: 'Emirate / Country'
+          },
+          signature: {
+              title: 'Signature & Verification Data',
+              signedBy: 'Signed By',
+              contact: 'Email / mobile',
+              date: 'Signed At',
+              security: 'Security Context',
+              ip: 'IP Address',
+              userAgent: 'User Agent'
+          }
       }
     },
     menu: {

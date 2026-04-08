@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useNotificationStore } from './useNotificationStore';
+import { supabase } from '../services/supabase';
 
 export type MerchantStatus = 'IDLE' | 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'BLOCKED' | 'LICENSE_EXPIRED';
 
@@ -110,6 +111,7 @@ export interface VendorState {
     iban: DocState;
     authLetter: DocState;
   };
+  contractAcceptance: any | null;
 
   isLoadingProfile: boolean;
   
@@ -142,6 +144,11 @@ export interface VendorState {
   adminApproveVendor: (id: string) => Promise<void>;
   adminRejectVendor: (id: string, reason: string) => Promise<void>;
   adminBanVendor: () => void;
+  
+  // Real-time
+  vendorProfileSubscription: any;
+  subscribeToVendorProfile: () => void;
+  unsubscribeFromVendorProfile: () => void;
 }
 
 const initialDocState: DocState = { file: null, status: 'empty', progress: 0 };
@@ -201,6 +208,7 @@ export const useVendorStore = create<VendorState>()(
     iban: { ...initialDocState },
     authLetter: { ...initialDocState }
   },
+  contractAcceptance: null,
 
   setStep: (step) => set({ step }),
   setVendorStatus: (status) => set({ vendorStatus: status }),
@@ -465,6 +473,7 @@ export const useVendorStore = create<VendorState>()(
             iban: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'IBAN')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'IBAN')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'IBAN')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'IBAN')?.updatedAt },
             authLetter: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.updatedAt }
           },
+          contractAcceptance: data.contractAcceptances?.[0] || null,
           isLoadingProfile: false
         });
       }
@@ -594,6 +603,41 @@ export const useVendorStore = create<VendorState>()(
 
   adminBanVendor: () => set({ vendorStatus: 'BLOCKED' }),
 
+  vendorProfileSubscription: null,
+  subscribeToVendorProfile: () => {
+    const { vendorProfileSubscription, fetchVendorProfile, storeId } = get();
+    if (vendorProfileSubscription || !storeId) return;
+
+    const channel = supabase.channel(`vendor-profile-${storeId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` },
+        () => {
+          console.log('🔔 Vendor Store Profile Update Received Real-time');
+          fetchVendorProfile();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'contract_acceptances', filter: `store_id=eq.${storeId}` },
+        () => {
+          console.log('🔔 Vendor Contract Update Received Real-time');
+          fetchVendorProfile();
+        }
+      )
+      .subscribe();
+
+    set({ vendorProfileSubscription: channel });
+  },
+
+  unsubscribeFromVendorProfile: () => {
+    const { vendorProfileSubscription } = get();
+    if (vendorProfileSubscription) {
+      supabase.removeChannel(vendorProfileSubscription);
+      set({ vendorProfileSubscription: null });
+    }
+  },
+
   reset: () => {
     // SECURITY: Explicitly clear local identifiers
     localStorage.removeItem('merchant_store_id');
@@ -635,25 +679,26 @@ export const useVendorStore = create<VendorState>()(
         license: { ...initialDocState },
         id: { ...initialDocState },
         iban: { ...initialDocState },
-          authLetter: { ...initialDocState }
-        },
-        isLoadingProfile: false // Set to false on reset to avoid perpetual loading UI
-      });
-    }
-  }),
-  {
-    name: 'vendor-storage',
-    storage: createJSONStorage(() => sessionStorage),
-    partialize: (state) => ({ 
-      vendorStatus: state.vendorStatus, 
-      storeId: state.storeId, 
-      storeRejectionReason: state.storeRejectionReason,
-      storeInfo: { 
-        storeName: state.storeInfo.storeName,
-        selectedMakes: state.storeInfo.selectedMakes,
-        selectedModels: state.storeInfo.selectedModels
-      } 
-    }),
+        authLetter: { ...initialDocState }
+      },
+      vendorProfileSubscription: null,
+      isLoadingProfile: false // Set to false on reset to avoid perpetual loading UI
+    });
   }
+}),
+{
+  name: 'vendor-storage',
+  storage: createJSONStorage(() => sessionStorage),
+  partialize: (state) => ({ 
+    vendorStatus: state.vendorStatus, 
+    storeId: state.storeId, 
+    storeRejectionReason: state.storeRejectionReason,
+    storeInfo: { 
+      storeName: state.storeInfo.storeName,
+      selectedMakes: state.storeInfo.selectedMakes,
+      selectedModels: state.storeInfo.selectedModels
+    } 
+  }),
+}
 )
 );

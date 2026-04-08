@@ -407,9 +407,30 @@ export const customer = {
             partner: 'شريك'
         },
         benefits: {
-            prioritySupport: 'أولوية في الدعم الفني',
-            exclusiveOffers: 'عروض حصرية دورية',
-            commissionEarn: 'ربح يصل إلى {percent} من العمولة'
+            BASIC: [
+                'دعم فني قياسي',
+                'اكتساب نقاط على كل طلب'
+            ],
+            SILVER: [
+                'أولوية في الدعم الفني',
+                'ربح 3% من عمولة المنصة',
+                'عروض حصرية دورية'
+            ],
+            GOLD: [
+                'أولوية مميزة في الدعم الفني',
+                'ربح 4% من عمولة المنصة',
+                'عروض حصرية دورية'
+            ],
+            VIP: [
+                'دعم فني مخصص (VIP)',
+                'ربح 5% من عمولة المنصة',
+                'عروض حصرية دورية'
+            ],
+            PARTNER: [
+                'دعم فني خاص بالشركاء',
+                'ربح 6% من عمولة المنصة',
+                'عروض استثنائية'
+            ]
         }
       }
     },
@@ -1091,9 +1112,30 @@ export const customer = {
             partner: 'Partner'
         },
         benefits: {
-            prioritySupport: 'Priority Support',
-            exclusiveOffers: 'Exclusive Monthly Offers',
-            commissionEarn: 'Earn up to {percent} commission'
+            BASIC: [
+                'Standard Support',
+                'Earn points on every order'
+            ],
+            SILVER: [
+                'Priority Support',
+                '3% share of platform commission',
+                'Periodic exclusive offers'
+            ],
+            GOLD: [
+                'Premium Priority Support',
+                '4% share of platform commission',
+                'Periodic exclusive offers'
+            ],
+            VIP: [
+                'Dedicated VIP Support',
+                '5% share of platform commission',
+                'Periodic exclusive offers'
+            ],
+            PARTNER: [
+                'Partner Dedicated Support',
+                '6% share of platform commission',
+                'Exceptional offers'
+            ]
         }
       }
     },

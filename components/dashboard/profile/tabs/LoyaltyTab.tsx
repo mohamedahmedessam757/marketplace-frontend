@@ -41,19 +41,15 @@ export const LoyaltyTab: React.FC = () => {
             {/* Tier & Progress Header */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <GlassCard className="lg:col-span-2 p-8 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-32 bg-gold-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-gold-500/10 transition-colors duration-700"></div>
+                    <div className="absolute top-0 right-0 p-32 bg-gradient-to-bl from-gold-500/10 to-transparent rounded-full -mr-16 -mt-16 group-hover:from-gold-500/20 transition-colors duration-700 pointer-events-none"></div>
                     
                     <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
                         <div className="relative">
-                            <motion.div 
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                                className="absolute inset-0 bg-gradient-to-tr from-gold-500/40 to-transparent rounded-full blur-xl"
-                            />
-                            <div className={`w-24 h-24 rounded-full bg-gradient-to-tr from-[#1A1814] to-[#2A2824] border-2 border-gold-500/30 flex items-center justify-center shadow-2xl relative z-10`}>
+                            <div className="absolute inset-0 bg-gradient-to-tr from-gold-500/30 to-transparent rounded-full opacity-50 blur-lg pointer-events-none" />
+                            <div className={`w-24 h-24 rounded-full bg-gradient-to-tr from-[#1A1814] to-[#2A2824] border border-gold-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(234,179,8,0.15)] relative z-10`}>
                                 <Award className={`${currentTierInfo.color} w-12 h-12`} />
                             </div>
-                            <div className="absolute -bottom-2 -right-2 bg-gold-500 text-black text-[10px] font-black px-2 py-1 rounded-full shadow-lg">
+                            <div className="absolute -bottom-2 -right-3 bg-gold-500 text-black text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-30 border-2 border-[#1A1814]">
                                 {tier}
                             </div>
                         </div>
@@ -73,15 +69,13 @@ export const LoyaltyTab: React.FC = () => {
                                         <span className="text-gold-500/60">{t.dashboard.profile.loyalty.nextTier}: {currentTierInfo.next.toLocaleString()} AED</span>
                                     )}
                                 </div>
-                                <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/10 p-0.5">
+                                <div className="h-3 bg-black/50 rounded-full overflow-hidden border border-white/10 p-0.5 relative shadow-inner">
                                     <motion.div 
                                         initial={{ width: 0 }}
                                         animate={{ width: `${progress}%` }}
                                         transition={{ duration: 1.5, ease: "easeOut" }}
-                                        className="h-full bg-gradient-to-r from-gold-600 to-gold-400 rounded-full shadow-[0_0_15px_rgba(234,179,8,0.4)] relative"
-                                    >
-                                        <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1.5rem_1.5rem] animate-[progress_2s_linear_infinite]" />
-                                    </motion.div>
+                                        className="h-full bg-gradient-to-r from-gold-600 to-gold-400 rounded-full relative shadow-[0_0_15px_rgba(234,179,8,0.4)]"
+                                    />
                                 </div>
                                 {currentTierInfo.next !== Infinity && (
                                     <p className="text-xs text-white/30 italic">
@@ -104,8 +98,8 @@ export const LoyaltyTab: React.FC = () => {
                     <div className="w-full relative group">
                         <input 
                             readOnly 
-                            value={referralCode || '----'} 
-                            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-center font-mono text-gold-500 text-lg uppercase tracking-widest outline-none focus:border-gold-500/50 transition-all"
+                            value={referralCode ? `https://e-tashleh.com/register?ref=${referralCode}` : 'https://e-tashleh.com/register?ref=....'} 
+                            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-center font-mono text-gold-500 text-[10px] md:text-sm outline-none focus:border-gold-500/50 transition-all font-bold"
                         />
                         <button 
                             onClick={handleCopyReferral}
@@ -166,20 +160,16 @@ export const LoyaltyTab: React.FC = () => {
                             </div>
                             <h3 className={`text-xl font-bold ${info.color} mb-4`}>{info.label}</h3>
                             <ul className="space-y-3">
-                                <li className="flex items-center gap-2 text-xs text-white/50">
-                                    <CheckCircle2 size={14} className="text-gold-500" />
-                                    {t.dashboard.profile.loyalty.benefits.prioritySupport}
-                                </li>
-                                <li className="flex items-center gap-2 text-xs text-white/50">
-                                    <CheckCircle2 size={14} className="text-gold-500" />
-                                    {t.dashboard.profile.loyalty.benefits.exclusiveOffers}
-                                </li>
-                                {key !== 'BASIC' && (
-                                    <li className="flex items-center gap-2 text-xs text-white/80 font-bold">
-                                        <TrendingUp size={14} className="text-emerald-400" />
-                                        {t.dashboard.profile.loyalty.benefits.commissionEarn.replace('{percent}', key === 'PARTNER' ? '6%' : '4%')}
+                                {t.dashboard.profile.loyalty.benefits[key as keyof typeof t.dashboard.profile.loyalty.benefits]?.map((benefit: string, i: number) => (
+                                    <li key={i} className={`flex items-center gap-2 text-xs ${benefit.includes('%') ? 'text-white/80 font-bold' : 'text-white/50'}`}>
+                                        {benefit.includes('%') ? (
+                                            <TrendingUp size={14} className="text-emerald-400 shrink-0" />
+                                        ) : (
+                                            <CheckCircle2 size={14} className="text-gold-500 shrink-0" />
+                                        )}
+                                        {benefit}
                                     </li>
-                                )}
+                                ))}
                             </ul>
                         </GlassCard>
                     ))}
