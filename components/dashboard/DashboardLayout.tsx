@@ -141,6 +141,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'resolution', icon: RotateCcw, label: t.dashboard.menu.resolution },
     { id: 'profile', icon: User, label: t.dashboard.menu.profile },
     { id: 'billing', icon: CreditCard, label: t.dashboard.menu.billing },
+    { id: 'wallet', icon: Wallet, label: language === 'ar' ? 'المحفظة' : 'Wallet' },
     { id: 'chats', icon: MessageSquare, label: t.dashboard.menu.chats },
     { id: 'support', icon: Headset, label: t.dashboard.menu.support },
     { id: 'preferences', icon: Settings, label: t.dashboard.profile.tabs.settings }, // New

@@ -23,6 +23,8 @@ export interface StoreProfileData {
     start: string;
     end: string;
   };
+  stripeAccountId?: string | null;
+  stripeOnboarded?: boolean;
 }
 
 export interface BankDetails {
@@ -144,6 +146,8 @@ export interface VendorState {
   adminApproveVendor: (id: string) => Promise<void>;
   adminRejectVendor: (id: string, reason: string) => Promise<void>;
   adminBanVendor: () => void;
+  connectStripe: () => Promise<void>;
+  openStripeDashboard: () => Promise<void>;
   
   // Real-time
   vendorProfileSubscription: any;
@@ -451,7 +455,9 @@ export const useVendorStore = create<VendorState>()(
           profile: {
             logo: data.logo,
             categories: data.categories || ['Spare Parts'],
-            workingHours: data.workingHours || { start: '09:00', end: '21:00' }
+            workingHours: data.workingHours || { start: '09:00', end: '21:00' },
+            stripeAccountId: data.stripeAccountId,
+            stripeOnboarded: data.stripeOnboarded
           },
           account: {
             name: data.owner?.name || '',
@@ -602,6 +608,32 @@ export const useVendorStore = create<VendorState>()(
   },
 
   adminBanVendor: () => set({ vendorStatus: 'BLOCKED' }),
+
+  connectStripe: async () => {
+    try {
+      const { client } = await import('../services/api/client');
+      const response = await client.post('/stripe/onboarding-link');
+      if (response && response.data && response.data.url) {
+        window.location.href = response.data.url;
+      }
+    } catch (error) {
+      console.error('Failed to get Stripe link', error);
+      useNotificationStore.getState().addNotification({ type: 'error', titleEn: 'Error', message: 'Could not generate Stripe link', priority: 'high' });
+    }
+  },
+
+  openStripeDashboard: async () => {
+    try {
+      const { client } = await import('../services/api/client');
+      const response = await client.get('/stripe/dashboard-link');
+      if (response && response.data && response.data.url) {
+        window.open(response.data.url, '_blank');
+      }
+    } catch (error) {
+      console.error('Failed to get dashboard link', error);
+      useNotificationStore.getState().addNotification({ type: 'error', titleEn: 'Error', message: 'Could not access Stripe dashboard', priority: 'high' });
+    }
+  },
 
   vendorProfileSubscription: null,
   subscribeToVendorProfile: () => {

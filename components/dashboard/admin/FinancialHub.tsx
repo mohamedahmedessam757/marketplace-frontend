@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { DollarSign, TrendingUp, Save, Lock } from 'lucide-react';
+import { DollarSign, TrendingUp, Save, Lock, ShieldAlert, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 export const FinancialHub: React.FC = () => {
   const { t, language } = useLanguage();
@@ -13,9 +13,28 @@ export const FinancialHub: React.FC = () => {
   const isSuperAdmin = currentAdmin?.role === 'SUPER_ADMIN';
   const isAr = language === 'ar';
 
+  const [orderToRelease, setOrderToRelease] = useState('');
+  const [isReleasing, setIsReleasing] = useState(false);
+
   const handleSave = () => {
       setCommissionRate(tempRate);
       alert('Commission rate updated successfully!');
+  };
+
+  const handleReleaseEscrow = async () => {
+      if (!orderToRelease) return;
+      setIsReleasing(true);
+      try {
+          const { client } = await import('../../../services/api/client');
+          await client.post('/payments/admin/release-escrow', { orderId: orderToRelease });
+          alert(isAr ? 'تم تحرير الأموال بنجاح' : 'Funds released successfully');
+          setOrderToRelease('');
+      } catch (error) {
+          console.error(error);
+          alert(isAr ? 'فشل تحرير الأموال' : 'Failed to release funds');
+      } finally {
+          setIsReleasing(false);
+      }
   };
 
   return (
@@ -87,6 +106,40 @@ export const FinancialHub: React.FC = () => {
                         <h3 className="text-2xl font-bold text-white mt-1">45,200 SAR</h3>
                     </div>
                     <div className="text-white/20">Thursday Next</div>
+                </GlassCard>
+                <GlassCard className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <ShieldAlert className="text-orange-400" size={20} />
+                            <h3 className="font-bold text-white">{isAr ? 'التحكم في الضمان (Escrow)' : 'Escrow Control'}</h3>
+                        </div>
+                    </div>
+                    <p className="text-white/40 text-xs mb-4">
+                        {isAr 
+                            ? 'حرر الأموال المجمدة للتاجر يدوياً في حال وجود مشاكل في التسليم التلقائي.' 
+                            : 'Manually release held funds to the merchant if auto-release fails.'}
+                    </p>
+                    <div className="flex gap-2">
+                        <input 
+                            type="text" 
+                            placeholder={isAr ? 'رقم الطلب (Order ID)' : 'Order ID'}
+                            value={orderToRelease}
+                            onChange={(e) => setOrderToRelease(e.target.value)}
+                            disabled={!isSuperAdmin || isReleasing}
+                            className="bg-black/50 border border-white/10 rounded-xl px-4 py-2 w-full text-white text-sm outline-none focus:border-gold-500"
+                        />
+                        <button 
+                            onClick={handleReleaseEscrow}
+                            disabled={!isSuperAdmin || isReleasing || !orderToRelease}
+                            className={`px-4 py-2 rounded-xl font-bold flex items-center justify-center min-w-[120px] transition-colors ${
+                                isSuperAdmin && orderToRelease && !isReleasing 
+                                ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+                                : 'bg-white/5 text-white/30 cursor-not-allowed'
+                            }`}
+                        >
+                            {isReleasing ? <RefreshCw size={18} className="animate-spin" /> : (isAr ? 'تحرير' : 'Release')}
+                        </button>
+                    </div>
                 </GlassCard>
             </div>
         </div>
