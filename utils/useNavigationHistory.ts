@@ -88,6 +88,13 @@ export function useNavigationHistory(
  */
 export function parseUrlToState(): NavigationState {
     const path = window.location.pathname;
+    const params = new URLSearchParams(window.location.search);
+
+    // Capture ?ref= referral code from URL and persist it for the registration flow
+    const refCode = params.get('ref');
+    if (refCode) {
+        sessionStorage.setItem('pending_referral_code', refCode.toUpperCase());
+    }
 
     if (path === '/' || path === '/role-selection') return { view: 'role-selection' };
     if (path === '/landing') return { view: 'landing' };

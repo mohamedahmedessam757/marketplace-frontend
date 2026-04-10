@@ -197,6 +197,9 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
       const selectedCountry = countries.find(c => c.code === countryCode);
       const countryName = selectedCountry ? selectedCountry.name : 'Unknown';
 
+      // Read referral code stored from the ?ref= URL param at time of landing
+      const pendingReferralCode = sessionStorage.getItem('pending_referral_code') || undefined;
+
       // Register the user
       const registerResponse = await authApi.registerCustomer({
         email: formData.email,
@@ -204,8 +207,13 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
         name: formData.name,
         phone: fullPhone,
         countryCode: countryCode,
-        country: countryName
+        country: countryName,
+        // Pass referral code if present — backend will link it to the referrer
+        ...(pendingReferralCode && { referralCode: pendingReferralCode })
       });
+
+      // Clear referral code after a successful registration to prevent re-use
+      sessionStorage.removeItem('pending_referral_code');
 
       // Automatically log them in right after registration
       const loginResponse = await authApi.login(formData.email, generatedPassword);
@@ -224,6 +232,7 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
       setIsLoading(false);
     }
   };
+
 
   if (otpStep === 'verify') {
     return (
