@@ -144,8 +144,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'wallet', icon: Wallet, label: language === 'ar' ? 'المحفظة' : 'Wallet' },
     { id: 'chats', icon: MessageSquare, label: t.dashboard.menu.chats },
     { id: 'support', icon: Headset, label: t.dashboard.menu.support },
-    { id: 'preferences', icon: Settings, label: t.dashboard.profile.tabs.settings }, // New
-    { id: 'loyalty', icon: Star, label: t.dashboard.menu.loyalty }, // New
+    { id: 'preferences', icon: Settings, label: t.dashboard.profile.tabs.settings },
+    { id: 'loyalty', icon: MessageSquare, label: language === 'ar' ? 'التقييمات' : 'Reviews' },
   ];
 
 

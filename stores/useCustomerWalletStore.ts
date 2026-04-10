@@ -12,12 +12,17 @@ export interface WalletTransaction {
 
 export interface WalletStats {
   totalSpent: number;
+  monthlySpent: number;
   loyaltyPoints: number;
   loyaltyTier: string;
+  referralCode: string;
   referralCount: number;
   customerBalance: number;
   completedOrders: number;
+  totalOrdersCount: number;
+  acceptanceRate: number;
   refundedAmount: number;
+  pendingEarnings: number;
 }
 
 interface CustomerWalletState {
@@ -60,7 +65,8 @@ export const subscribeToWalletUpdates = () => {
     const userId = getCurrentUserId();
     if (!userId) return;
 
-    return supabase
+    // 1. Listen for new transactions
+    const txSub = supabase
         .channel('public:payment_transactions')
         .on(
             'postgres_changes',
@@ -70,4 +76,33 @@ export const subscribeToWalletUpdates = () => {
             }
         )
         .subscribe();
+
+    // 2. Listen for balance changes in users table (Real-time Balance Sync)
+    const userSub = supabase
+        .channel('public:users')
+        .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${userId}` },
+            (payload) => {
+                const currentStats = useCustomerWalletStore.getState().stats;
+                if (currentStats) {
+                    useCustomerWalletStore.setState({
+                        stats: {
+                            ...currentStats,
+                            customerBalance: Number(payload.new.customer_balance),
+                            loyaltyPoints: payload.new.loyalty_points,
+                            loyaltyTier: payload.new.loyalty_tier
+                        }
+                    });
+                }
+            }
+        )
+        .subscribe();
+
+    return {
+        unsubscribe: () => {
+            txSub.unsubscribe();
+            userSub.unsubscribe();
+        }
+    };
 };

@@ -33,7 +33,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [countryCode, setCountryCode] = useState('+966');
 
   const [phone, setPhone] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  const [loginEmail, setLoginEmail] = useState(''); // New state for input
+  const [userEmail, setUserEmail] = useState(''); // Used for storage after init
   const [userName, setUserName] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
@@ -112,7 +113,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setError(null);
 
     // Validation
-    const validationError = validatePhone();
+    let validationError = null;
+    if (activationMethod === 'whatsapp') {
+      validationError = validatePhone();
+    } else {
+      if (!loginEmail) {
+        validationError = language === 'ar' ? 'البريد الإلكتروني مطلوب' : 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail)) {
+        validationError = language === 'ar' ? 'البريد الإلكتروني غير صحيح' : 'Invalid email address';
+      }
+    }
+
     if (validationError) {
       setError(validationError);
       return;
@@ -121,9 +132,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsLoading(true);
 
     try {
-      // 1. Initiate Login (Concatenate Country Code + Phone)
-      const fullPhone = `${countryCode}${phone}`;
-      const data = await authApi.initiateMobileLogin(fullPhone);
+      let data;
+      if (activationMethod === 'whatsapp') {
+        // 1. Initiate Mobile Login
+        const fullPhone = `${countryCode}${phone}`;
+        data = await authApi.initiateMobileLogin(fullPhone);
+      } else {
+        // 1. Initiate Email Login
+        data = await authApi.initiateEmailLogin(loginEmail);
+        setUserEmail(loginEmail); // Set it early for the verify step
+      }
 
       // Access user data from response with extreme caution
       const user = data?.user;
@@ -145,7 +163,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
       // Store details
       setUserName(user.name || '');
-      setUserEmail(user.email || ''); // Used for email method if selected
+      if (activationMethod === 'whatsapp') {
+        setUserEmail(user.email || ''); // Secondary storage if needed
+      }
       setOtpStep('verify');
 
     } catch (err: any) {
@@ -176,9 +196,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           onVerify={async (code) => {
             try {
               setIsLoading(true);
-              const fullPhone = `${countryCode}${phone}`;
-              // Pass fingerprint to ensure unique session mapping
-              const response = await authApi.verifyMobileLogin(fullPhone, code, fingerprint || undefined);
+              let response;
+              
+              if (activationMethod === 'whatsapp') {
+                const fullPhone = `${countryCode}${phone}`;
+                // Pass fingerprint to ensure unique session mapping
+                response = await authApi.verifyMobileLogin(fullPhone, code, fingerprint || undefined);
+              } else {
+                response = await authApi.verifyEmailLogin(userEmail, code, fingerprint || undefined);
+              }
 
               localStorage.setItem('access_token', response.access_token);
               if (response.user) {
@@ -281,79 +307,110 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
         </div>
 
-        {/* Phone Input with Country Code */}
-        <div>
-          {/* Requirement 4: Full Number Display Above Input */}
-          <div className="mb-3 text-center" dir="ltr">
-            <label className="text-sm text-gold-200/50 mb-1 block">{t.auth.login.phoneInfo}</label>
-            <div className={`text-xl font-mono font-bold tracking-widest ${phone ? 'text-gold-400' : 'text-white/20'}`}>
-              {countryCode} {getFormattedPhone() || '5 XX XX XX XX'}
+        {/* Primary Input - Toggles based on method */}
+        {activationMethod === 'whatsapp' ? (
+          <div>
+            {/* Requirement 4: Full Number Display Above Input */}
+            <div className="mb-3 text-center" dir="ltr">
+              <label className="text-sm text-gold-200/50 mb-1 block">{t.auth.login.phoneInfo}</label>
+              <div className={`text-xl font-mono font-bold tracking-widest ${phone ? 'text-gold-400' : 'text-white/20'}`}>
+                {countryCode} {getFormattedPhone() || '5 XX XX XX XX'}
+              </div>
             </div>
+
+            <div className="flex gap-2" dir="ltr">
+              {/* Country Code Dropdown */}
+              <div className="relative w-1/3 min-w-[120px]">
+                <select
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  className="w-full h-full bg-white/5 border border-white/10 rounded-xl px-3 py-4 text-white appearance-none outline-none focus:border-gold-500 transition-all text-sm cursor-pointer font-sans"
+                  style={{ direction: 'ltr' }}
+                >
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code} className="bg-[#1A1814] text-white">
+                      {c.flag} {c.code}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/50">
+                  <ArrowRight className="w-4 h-4 rotate-90" />
+                </div>
+              </div>
+
+              {/* Phone Number Input with Masking */}
+              <div className="relative flex-1">
+                <div className="absolute top-1/2 -translate-y-1/2 left-4 pointer-events-none z-10">
+                  <Phone className={`w-5 h-5 transition-colors ${error ? 'text-red-500' : 'text-gold-500'}`} />
+                </div>
+
+                {/* Mask Visualization Overlay - "Typing Animation" */}
+                <div
+                  className="absolute inset-0 pl-12 pr-4 py-4 flex items-center text-lg tracking-wider pointer-events-none select-none font-sans"
+                  aria-hidden="true"
+                >
+                  <span className="text-transparent">{getFormattedPhone()}</span>
+                  <span className="text-white/10">
+                    {'5 XX XX XX XX'.slice(getFormattedPhone().length)}
+                  </span>
+                </div>
+
+                <input
+                  type="tel"
+                  required
+                  className={`w-full bg-white/5 border rounded-xl pl-12 pr-4 py-4 text-white outline-none transition-all placeholder-transparent text-lg tracking-wider text-center z-0 font-sans ${error ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
+                  placeholder="5 XX XX XX XX"
+                  value={getFormattedPhone()}
+                  onChange={handlePhoneChange}
+                  maxLength={14}
+                />
+              </div>
+            </div>
+
+            {error && activationMethod === 'whatsapp' && (validationError => {
+              if (validationError) return (
+                <div className="mt-2 text-xs flex items-center justify-end gap-1 text-red-400 font-bold animate-pulse">
+                  <AlertCircle size={12} />
+                  <span>{error}</span>
+                </div>
+              );
+            })(validatePhone())}
           </div>
-
-          <div className="flex gap-2" dir="ltr">
-            {/* Country Code Dropdown */}
-            <div className="relative w-1/3 min-w-[120px]">
-              <select
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                className="w-full h-full bg-white/5 border border-white/10 rounded-xl px-3 py-4 text-white appearance-none outline-none focus:border-gold-500 transition-all text-sm cursor-pointer font-sans"
-                style={{ direction: 'ltr' }}
-              >
-                {countries.map((c) => (
-                  <option key={c.code} value={c.code} className="bg-[#1A1814] text-white">
-                    {c.flag} {c.code}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/50">
-                <ArrowRight className="w-4 h-4 rotate-90" />
-              </div>
+        ) : (
+          <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+             <div className="mb-3 text-center">
+              <label className="text-sm text-gold-200/50 mb-1 block">
+                {language === 'ar' ? 'البريد الإلكتروني المسجل' : 'Registered Email Address'}
+              </label>
             </div>
-
-            {/* Phone Number Input with Masking */}
-            <div className="relative flex-1">
+            <div className="relative">
               <div className="absolute top-1/2 -translate-y-1/2 left-4 pointer-events-none z-10">
-                <Phone className={`w-5 h-5 transition-colors ${error ? 'text-red-500' : 'text-gold-500'}`} />
+                <AlertCircle className={`w-5 h-5 transition-colors ${error ? 'text-red-500' : 'text-gold-500'}`} />
               </div>
-
-              {/* Mask Visualization Overlay - "Typing Animation" */}
-              <div
-                className="absolute inset-0 pl-12 pr-4 py-4 flex items-center text-lg tracking-wider pointer-events-none select-none font-sans"
-                aria-hidden="true"
-              >
-                <span className="text-transparent">{getFormattedPhone()}</span>
-                <span className="text-white/10">
-                  {'5 XX XX XX XX'.slice(getFormattedPhone().length)}
-                </span>
-              </div>
-
               <input
-                type="tel"
+                type="email"
                 required
-                className={`w-full bg-white/5 border rounded-xl pl-12 pr-4 py-4 text-white outline-none transition-all placeholder-transparent text-lg tracking-wider text-center z-0 font-sans ${error ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
-                placeholder="5 XX XX XX XX"
-                value={getFormattedPhone()}
-                onChange={handlePhoneChange}
-                maxLength={14}
+                className={`w-full bg-white/5 border rounded-xl pl-12 pr-4 py-4 text-white outline-none transition-all text-lg z-0 font-sans text-center ${error ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
+                placeholder="example@mail.com"
+                value={loginEmail}
+                onChange={(e) => {
+                   setLoginEmail(e.target.value);
+                   setError(null);
+                }}
               />
             </div>
-          </div>
-
-          {/* Requirement 1, 2, 3: Specific Frontend Alerts */}
-          {error && (validationError => {
-            if (validationError) return (
-              <div className="mt-2 text-xs flex items-center justify-end gap-1 text-red-400 font-bold animate-pulse">
+            {error && activationMethod === 'email' && (
+              <div className="mt-2 text-xs flex items-center justify-center gap-1 text-red-400 font-bold animate-pulse">
                 <AlertCircle size={12} />
                 <span>{error}</span>
               </div>
-            );
-          })(validatePhone())}
-        </div>
+            )}
+          </div>
+        )}
 
         <button
           type="submit"
-          disabled={isLoading || phone.length !== 9 || !phone.startsWith('5')}
+          disabled={isLoading || (activationMethod === 'whatsapp' ? (phone.length !== 9 || !phone.startsWith('5')) : (!loginEmail || !loginEmail.includes('@')))}
           className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white rounded-xl font-bold text-lg shadow-[0_4px_20px_rgba(168,139,62,0.3)] hover:shadow-[0_6px_25px_rgba(168,139,62,0.4)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isLoading ? (

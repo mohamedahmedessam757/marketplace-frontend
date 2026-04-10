@@ -31,6 +31,11 @@ export const authApi = {
         return response.data;
     },
 
+    initiateEmailLogin: async (email: string) => {
+        const response = await client.post('/auth/email-login-init', { email });
+        return response.data;
+    },
+
     sendOTP: async (email: string) => {
         const response = await client.post('/auth/otp/send', { email });
         return response.data;
@@ -43,6 +48,11 @@ export const authApi = {
 
     verifyMobileLogin: async (phone: string, code: string, fingerprint?: string) => {
         const response = await client.post('/auth/mobile-login-verify', { phone, code, fingerprint });
+        return response.data;
+    },
+
+    verifyEmailLogin: async (email: string, code: string, fingerprint?: string) => {
+        const response = await client.post('/auth/email-login-verify', { email, code, fingerprint });
         return response.data;
     },
 
