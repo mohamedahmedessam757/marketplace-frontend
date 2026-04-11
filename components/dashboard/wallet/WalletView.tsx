@@ -31,6 +31,7 @@ import { GlassCard } from '../../ui/GlassCard';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useCustomerWalletStore, subscribeToWalletUpdates } from '../../../stores/useCustomerWalletStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
+import { getCurrentUserId } from '../../../utils/auth';
 
 interface WalletViewProps {
     onNavigate?: (path: string, id?: any) => void;
@@ -42,6 +43,9 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
     const { notifications, fetchNotifications } = useNotificationStore();
     const [copied, setCopied] = useState(false);
     const [filter, setFilter] = useState<'ALL' | 'COMPLETED' | 'PENDING'>('ALL');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     
     const isAr = language === 'ar';
 
@@ -83,11 +87,159 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
     };
 
     const filteredTransactions = useMemo(() => {
-        if (filter === 'ALL') return transactions;
-        if (filter === 'COMPLETED') return transactions.filter(tx => tx.status === 'SUCCESS' || tx.status === 'COMPLETED');
-        if (filter === 'PENDING') return transactions.filter(tx => tx.status === 'PENDING');
-        return transactions;
-    }, [transactions, filter]);
+        let result = transactions;
+
+        // 1. Status Filter
+        if (filter === 'COMPLETED') {
+            result = result.filter(tx => tx.status === 'SUCCESS' || tx.status === 'COMPLETED');
+        } else if (filter === 'PENDING') {
+            result = result.filter(tx => tx.status === 'PENDING');
+        }
+
+        // 2. Search Query (Order #, Type, Amount)
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            result = result.filter(tx => 
+                (tx.id && tx.id.toLowerCase().includes(q)) || 
+                (tx.orderId && tx.orderId.toLowerCase().includes(q)) ||
+                (tx.transactionType && tx.transactionType.toLowerCase().includes(q)) ||
+                (tx.amount?.toString().includes(q)) ||
+                (tx.order?.orderNumber?.toLowerCase().includes(q))
+            );
+        }
+
+        // 3. Date Range Filter
+        if (dateRange.start) {
+            const start = new Date(dateRange.start);
+            result = result.filter(tx => new Date(tx.createdAt) >= start);
+        }
+        if (dateRange.end) {
+            const end = new Date(dateRange.end);
+            end.setHours(23, 59, 59, 999);
+            result = result.filter(tx => new Date(tx.createdAt) <= end);
+        }
+
+        return result;
+    }, [transactions, filter, searchQuery, dateRange]);
+
+    const handleDownloadReport = async () => {
+        setIsGeneratingReport(true);
+        try {
+            // v2026 Professional Report Generation Logic
+            // We create a pixel-perfect "Statement of Account" based on the filtered data
+            const printableContent = document.createElement('div');
+            printableContent.className = 'statement-print-template';
+            
+            const logoUrl = 'https://e-tashleh.com/logo.png'; // Fallback to public asset
+            const date = new Date().toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+
+            const html = `
+                <div style="padding: 40px; font-family: 'Inter', 'Segoe UI', sans-serif; color: #1a1a1a; background: white; min-height: 100vh; line-height: 1.5; position: relative;" dir="${isAr ? 'rtl' : 'ltr'}">
+                    
+                    <!-- Professional Watermark -->
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 150px; color: rgba(168, 139, 62, 0.03); font-weight: 900; white-space: nowrap; pointer-events: none; z-index: 0; user-select: none;">
+                        E-TASHLEH OFFICIAL
+                    </div>
+
+                    <!-- Standard Invoice Header -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #E5E7EB; padding-bottom: 30px; margin-bottom: 40px; position: relative; z-index: 1;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <img src="/logo.png" style="width: 50px; height: 50px; object-contain: fit;" />
+                            <div>
+                                <h1 style="color: #A88B3E; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: 1px;">E-TASHLEH</h1>
+                                <p style="margin: 5px 0 0; font-size: 14px; color: #666; font-weight: 800; text-transform: uppercase;">${isAr ? 'كشف حساب مالي رسمي' : 'Official Financial Statement'}</p>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <h2 style="margin: 0; font-size: 14px; font-weight: 800; color: #999; text-transform: uppercase; letter-spacing: 1px;">${isAr ? 'رقم الكشف' : 'Statement No.'}</h2>
+                            <p style="margin: 2px 0 0; font-size: 16px; font-weight: 700; color: #1a1a1a; font-family: monospace;">#ST-${new Date().getTime().toString().slice(-8)}</p>
+                        </div>
+                    </div>
+
+                    <!-- Client and Account Summary Grid -->
+                    <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 40px; margin-bottom: 40px; position: relative; z-index: 1;">
+                        <div style="background: #FAFAFA; padding: 20px; border-radius: 8px; border: 1px solid #F3F4F6;">
+                            <h4 style="margin: 0 0 12px; font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800; letter-spacing: 1px;">${isAr ? 'بيانات العميل' : 'Customer Information'}</h4>
+                            <p style="margin: 0; font-size: 18px; font-weight: 800; color: #111827;">${stats?.name || '---'}</p>
+                            <p style="margin: 6px 0; font-size: 12px; color: #6B7280; font-weight: 500;"><strong>ID:</strong> ${getCurrentUserId()}</p>
+                            <p style="margin: 0; font-size: 12px; color: #6B7280; font-weight: 500;"><strong>${isAr ? 'المستوى' : 'Loyalty Tier'}:</strong> ${stats?.loyaltyTier || 'BASIC'}</p>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div style="border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                                <span style="font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800;">${isAr ? 'الرصيد المتاح' : 'Available Balance'}</span>
+                                <div style="font-size: 16px; font-weight: 800; color: #A88B3E;">${(stats?.customerBalance || 0).toLocaleString()} <small style="font-size: 9px;">AED</small></div>
+                            </div>
+                            <div style="border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                                <span style="font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800;">${isAr ? 'إجمالي المشتريات' : 'Total Purchases'}</span>
+                                <div style="font-size: 16px; font-weight: 800; color: #111827;">${(stats?.totalPurchases || 0).toLocaleString()} <small style="font-size: 9px;">AED</small></div>
+                            </div>
+                            <div style="border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                                <span style="font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800;">${isAr ? 'تاريخ الإصدار' : 'Issued Date'}</span>
+                                <div style="font-size: 13px; font-weight: 700; color: #111827;">${date}</div>
+                            </div>
+                            <div style="border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                                <span style="font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800;">${isAr ? 'حالة الحساب' : 'Account Status'}</span>
+                                <div style="font-size: 11px; font-weight: 900; color: #10B981; text-transform: uppercase;">ACTIVE / مُفعل</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ledger Table -->
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px; position: relative; z-index: 1;">
+                        <thead>
+                            <tr style="background: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                                <th style="padding: 15px 12px; text-align: ${isAr ? 'right' : 'left'}; font-size: 11px; font-weight: 800; color: #4B5563; text-transform: uppercase;">${isAr ? 'رقم المرجع / الطلب' : 'REF / ORDER #'}</th>
+                                <th style="padding: 15px 12px; text-align: ${isAr ? 'right' : 'left'}; font-size: 11px; font-weight: 800; color: #4B5563; text-transform: uppercase;">${isAr ? 'التاريخ' : 'DATE'}</th>
+                                <th style="padding: 15px 12px; text-align: center; font-size: 11px; font-weight: 800; color: #4B5563; text-transform: uppercase;">${isAr ? 'نوع العملية' : 'TYPE'}</th>
+                                <th style="padding: 15px 12px; text-align: center; font-size: 11px; font-weight: 800; color: #4B5563; text-transform: uppercase;">${isAr ? 'الحالة' : 'STATUS'}</th>
+                                <th style="padding: 15px 12px; text-align: right; font-size: 11px; font-weight: 800; color: #4B5563; text-transform: uppercase;">${isAr ? 'المبلغ الصافي' : 'NET AMOUNT'}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredTransactions.map(tx => {
+                                const isCredit = tx.type === 'CREDIT';
+                                return `
+                                    <tr style="border-bottom: 1px solid #F3F4F6;">
+                                        <td style="padding: 15px 12px; font-size: 12px; font-family: monospace; font-weight: 700; color: #111827;">#${tx.order?.orderNumber || (tx.id.length > 10 ? tx.id.slice(0, 8).toUpperCase() : tx.id)}</td>
+                                        <td style="padding: 15px 12px; font-size: 12px; color: #6B7280; font-weight: 500;">${new Date(tx.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US')}</td>
+                                        <td style="padding: 15px 12px; text-align: center; font-size: 11px; font-weight: 600; color: #4B5563;">${(tx.transactionType || 'PAYMENT').toUpperCase()}</td>
+                                        <td style="padding: 15px 12px; text-align: center;">
+                                            <span style="font-size: 9px; font-weight: 900; padding: 4px 8px; border-radius: 4px; border: 1px solid #E5E7EB; background: #F9FAFB; color: #4B5563; text-transform: uppercase;">
+                                                ${tx.status || 'SUCCESS'}
+                                            </span>
+                                        </td>
+                                        <td style="padding: 15px 12px; text-align: right; font-size: 13px; font-weight: 800; color: ${isCredit ? '#10B981' : '#111827'};">
+                                            ${isCredit ? '+' : '-'}${(tx.amount || 0).toLocaleString()} AED
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+
+                    <!-- Footer -->
+                    <div style="margin-top: 80px; text-align: center; border-top: 1px solid #E5E7EB; padding-top: 30px; position: relative; z-index: 1;">
+                        <p style="font-size: 11px; color: #9CA3AF; margin: 0 0 5px;">${isAr ? 'تم إنشاء كشف الحساب هذا إلكترونياً من قبل نظام محاسبة E-TASHLEH' : 'This statement was automatically generated by the E-TASHLEH accounting system.'}</p>
+                        <p style="font-size: 12px; font-weight: 800; color: #A88B3E; margin: 0;">E-TASHLEH PLATFORM — 2026</p>
+                    </div>
+                </div>
+            `;
+
+            // Open a new window for professional printing
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(`<html><head><title>Account Statement - ${date}</title></head><body>${html}</body></html>`);
+                printWindow.document.close();
+                setTimeout(() => {
+                    printWindow.print();
+                    setIsGeneratingReport(false);
+                }, 500);
+            }
+        } catch (error) {
+            console.error('Report generation failed', error);
+            setIsGeneratingReport(false);
+        }
+    };
 
     const getStatusStyle = (status: string) => {
         const styles: Record<string, string> = {
@@ -151,17 +303,36 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                    <div className="relative group flex-1 md:flex-initial">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-gold-500 transition-colors" size={14} />
-                        <input 
-                            type="text" 
-                            placeholder={isAr ? 'البحث...' : 'Search...'} 
-                            className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-xs outline-none focus:border-gold-500/50 transition-all w-full md:w-48"
-                        />
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="relative group flex-1 md:flex-initial">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-gold-500 transition-colors" size={14} />
+                            <input 
+                                type="text" 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder={isAr ? 'بحث برقم الطلب...' : 'Search Order ID...'} 
+                                className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-xs outline-none focus:border-gold-500/50 transition-all w-full md:w-56"
+                            />
+                        </div>
+                        <div className="relative group">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
+                            <input 
+                                type="date" 
+                                value={dateRange.start}
+                                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-2 py-2 text-[10px] outline-none focus:border-gold-500/50 transition-all w-40 text-white/70"
+                            />
+                        </div>
                     </div>
-                    <button className="p-2.5 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors text-white/70">
-                        <Download size={16} />
+                    <button 
+                        disabled={isGeneratingReport}
+                        onClick={handleDownloadReport}
+                        className="p-2.5 bg-white/5 border border-white/10 rounded-lg hover:bg-gold-500/20 hover:border-gold-500/40 transition-all text-white/70 hover:text-gold-500 flex items-center gap-2 disabled:opacity-50"
+                        title={isAr ? 'تنزيل كشف الحساب' : 'Download Statement'}
+                    >
+                        {isGeneratingReport ? <RotateCcw size={16} className="animate-spin" /> : <Download size={16} />}
+                        <span className="text-[10px] font-bold uppercase tracking-widest sm:hidden">{isAr ? 'تحميل' : 'PDF'}</span>
                     </button>
                 </div>
             </div>
@@ -178,10 +349,12 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     borderClass="border-emerald-500/10"
                 />
                 <StatCard 
-                    label={isAr ? 'إجمالي المشتريات' : 'Total Spent'}
-                    value={Number(stats?.totalSpent || 0).toLocaleString()}
+                    label={isAr ? 'إجمالي المشتريات' : 'Total Purchases'}
+                    value={Number(stats?.totalPurchases || 0).toLocaleString()}
                     unit="AED"
                     icon={ShoppingBag}
+                    bgClass="bg-blue-500/5"
+                    colorClass="text-blue-300"
                 />
                 <StatCard 
                     label={isAr ? 'الطلبات المكتملة' : 'Completed Orders'}
@@ -225,7 +398,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         <div>
                             <p className="text-white/40 text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2">{isAr ? 'أرباح مكافآت (قيد الانتظار)' : 'Loyalty Profits (Pending)'}</p>
                             <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-baseline gap-2">
-                                {Number(stats?.pendingEarnings || 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
+                                {Number(stats?.pendingRewards || 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
                             </h2>
                         </div>
                         <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 shadow-lg shadow-amber-500/5 group-hover:bg-amber-500/20 transition-colors">
@@ -239,11 +412,11 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         <div>
                             <p className="text-white/40 text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2">{isAr ? 'أرباح مكافآت هذا الشهر' : 'Loyalty Profits (Monthly)'}</p>
                             <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-baseline gap-2">
-                                {Number(stats?.monthlySpent || 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
+                                {Number(stats?.monthlyRewards || 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
                             </h2>
                         </div>
-                        <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 shadow-lg shadow-blue-500/5 group-hover:bg-blue-500/20 transition-colors">
-                            <TrendingUp className="text-blue-400" size={20} />
+                        <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 shadow-lg shadow-emerald-500/5 group-hover:bg-emerald-500/20 transition-colors">
+                            <TrendingUp className="text-emerald-400" size={20} />
                         </div>
                     </div>
                 </GlassCard>
@@ -253,14 +426,16 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         <p className="text-[10px] text-white/30 uppercase font-black">{isAr ? 'نسبة القبول' : 'Acceptance'}</p>
                         <div className="flex items-center gap-2 mt-1.5 text-emerald-400">
                             <ShieldCheck size={16} />
-                            <span className="text-lg font-bold sm:text-xl tracking-tighter">{stats?.acceptanceRate || 0}%</span>
+                            <span className="text-lg font-bold sm:text-xl tracking-tighter">{stats?.acceptanceRate ?? 0}%</span>
                         </div>
                     </GlassCard>
                     <GlassCard className="p-4 flex flex-col justify-center bg-white/[0.02] border-white/5 border-l-2 border-l-purple-500/30">
-                        <p className="text-[10px] text-white/30 uppercase font-black">{isAr ? 'نسبة الربح' : 'Profit'}</p>
+                        <p className="text-[10px] text-white/30 uppercase font-black">{isAr ? 'نسبة الربح' : 'Profit Rate'}</p>
                         <div className="flex items-center gap-2 mt-1.5 text-purple-400">
                             <Percent size={16} />
-                            <span className="text-lg font-bold sm:text-xl tracking-tighter">4%</span>
+                            <span className="text-lg font-bold sm:text-xl tracking-tighter">
+                                {stats?.profitPercentage ?? 2}%
+                            </span>
                         </div>
                     </GlassCard>
                 </div>
@@ -314,36 +489,53 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                         filteredTransactions.map((tx) => (
                                             <tr key={tx.id} className="border-b border-white/[0.02] hover:bg-white/[0.02] transition-colors group">
                                                 <td className="px-4 py-4">
-                                                    <span className="font-mono font-bold text-white group-hover:text-gold-500 transition-colors">#{tx.order?.orderNumber || '---'}</span>
+                                                    <span className="font-mono font-bold text-white group-hover:text-gold-500 transition-colors">#{tx.order?.orderNumber || (tx.metadata?.orderId ? '---' : tx.id.slice(0, 8))}</span>
                                                 </td>
                                                 <td className="px-4 py-4 font-mono text-white/40 text-[11px]">
-                                                    {new Date(tx.createdAt).toLocaleDateString('en-US')}
+                                                    {new Date(tx.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US')}
                                                 </td>
                                                 <td className="px-4 py-4 font-bold text-white">
-                                                    {Number(tx.totalAmount).toLocaleString()} <span className="text-[10px] text-white/20">AED</span>
+                                                    <span className={tx.type === 'CREDIT' ? 'text-emerald-400' : 'text-white'}>
+                                                        {tx.type === 'CREDIT' ? '+' : '-'}{Number(tx.amount || tx.totalAmount || 0).toLocaleString()}
+                                                    </span>
+                                                    <span className="text-[10px] text-white/20 ml-1">AED</span>
                                                 </td>
                                                 <td className="px-4 py-4">
-                                                    <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase border tracking-tight ${getStatusStyle(tx.status)}`}>
-                                                        {getStatusLabel(tx.status)}
+                                                    <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase border tracking-tight ${getStatusStyle(tx.status || 'SUCCESS')}`}>
+                                                        {getStatusLabel(tx.status || 'SUCCESS')}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase border bg-white/5 border-white/10 text-white/60 tracking-tight`}>
-                                                        {getStatusLabel(tx.order?.status || '---')}
+                                                        {getStatusLabel(tx.order?.status || 'COMPLETED')}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-4">
-                                                    <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-white/60">
-                                                        <span className={tx.status === 'REFUNDED' ? 'text-rose-400' : 'text-emerald-400 font-bold'}>
-                                                            {tx.status === 'REFUNDED' ? '↙' : '↗'}
-                                                        </span>
-                                                        {tx.status === 'REFUNDED' ? (isAr ? 'استرداد' : 'Refund') : (isAr ? 'دفع' : 'Payment')}
+                                                    <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase whitespace-nowrap">
+                                                        {(() => {
+                                                            const type = tx.transactionType?.toUpperCase() || 'PAYMENT';
+                                                            const typeLabels = t.dashboard.profile.wallet.transactionTypes;
+                                                            const iconStyle = type === 'ORDER_PROFIT' ? 'text-gold-500' : 
+                                                                             type === 'REFERRAL_PROFIT' ? 'text-blue-400' : 
+                                                                             type === 'REFUND' ? 'text-rose-400' : 'text-white/40';
+                                                            
+                                                            return (
+                                                                <div className={`flex items-center gap-1.5 ${iconStyle}`}>
+                                                                    {type === 'ORDER_PROFIT' && <Star size={10} />}
+                                                                    {type === 'REFERRAL_PROFIT' && <LinkIcon size={10} />}
+                                                                    {type === 'REFUND' && <RotateCcw size={10} />}
+                                                                    {type === 'PAYMENT' && <CreditCard size={10} />}
+                                                                    <span>{typeLabels[type] || type}</span>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <button 
-                                                        onClick={() => onNavigate?.('order-details', tx.order?.id)}
-                                                        className="p-2 bg-white/5 hover:bg-gold-500 hover:text-black text-white/30 rounded-lg transition-all border border-white/10 group-hover:border-gold-500/50"
+                                                        onClick={() => tx.order?.id && onNavigate?.('order-details', tx.order.id)}
+                                                        disabled={!tx.order?.id}
+                                                        className={`p-2 rounded-lg transition-all border border-white/10 ${tx.order?.id ? 'bg-white/5 hover:bg-gold-500 hover:text-black text-white/30 group-hover:border-gold-500/50' : 'opacity-20 cursor-not-allowed'}`}
                                                     >
                                                         <FileText size={14} />
                                                     </button>
@@ -362,41 +554,103 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         </div>
                     </GlassCard>
 
-                    {/* Integrated Loyalty Progress */}
-                    <GlassCard className="p-6 sm:p-8 relative overflow-hidden border-white/5 group">
-                        <div className="absolute top-0 right-0 p-32 bg-gold-500/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none group-hover:bg-gold-500/10 transition-colors" />
-                        <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-8 relative z-10">
-                            <div className="relative shrink-0">
-                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-black to-white/5 border border-gold-500/30 flex items-center justify-center shadow-[0_10px_40px_rgba(212,175,55,0.1)] group-hover:shadow-[0_10px_40px_rgba(212,175,55,0.2)] transition-shadow">
-                                    <Crown className="text-gold-500 w-10 h-10 sm:w-12 sm:h-12" />
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 bg-gold-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full border-2 border-[#1A1814] uppercase tracking-tighter">
-                                    {stats?.loyaltyTier || 'BASIC'}
-                                </div>
-                            </div>
+                    {/* 2026 REVOLUTION: Integrated Loyalty Progress (Advanced Mathematical Logic) */}
+                    {(() => {
+                        const spent = Number(stats?.totalSpent || 0);
+                        const tiers = [
+                            { id: 'BASIC', label: t.dashboard.profile.loyalty.tiers.basic, limit: 1000, rate: '2%' },
+                            { id: 'SILVER', label: t.dashboard.profile.loyalty.tiers.silver, limit: 3000, rate: '3%' },
+                            { id: 'GOLD', label: t.dashboard.profile.loyalty.tiers.gold, limit: 10000, rate: '4%' },
+                            { id: 'VIP', label: t.dashboard.profile.loyalty.tiers.vip, limit: 20000, rate: '5%' },
+                            { id: 'PARTNER', label: t.dashboard.profile.loyalty.tiers.partner, limit: 100000, rate: '6%' },
+                        ];
+                        
+                        const currentTierIdx = tiers.findIndex(tier => tier.id === (stats?.loyaltyTier || 'BASIC'));
+                        const nextTier = currentTierIdx < tiers.length - 1 ? tiers[currentTierIdx + 1] : null;
+                        
+                        // v2026 Relative Progression Logic:
+                        // (CurrentSpent - LevelStart) / (LevelEnd - LevelStart)
+                        const startLimit = currentTierIdx === 0 ? 0 : tiers[currentTierIdx - 1].limit;
+                        const endLimit = nextTier ? nextTier.limit : tiers[currentTierIdx].limit;
+                        
+                        const range = endLimit - startLimit;
+                        const relativeSpent = spent - startLimit;
+                        const progress = nextTier ? Math.max(0, Math.min((relativeSpent / range) * 100, 100)) : 100;
+                        const remaining = nextTier ? endLimit - spent : 0;
 
-                            <div className="flex-1 w-full text-center md:text-start">
-                                <h3 className="text-lg sm:text-xl font-bold text-white mb-1 uppercase tracking-tighter">{isAr ? 'تطور مستوى العضوية المستحقة' : 'Membership Loyalty Progression'}</h3>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between text-[10px] uppercase font-black tracking-widest text-white/40">
-                                        <span className="flex items-center gap-2"><CreditCard size={12} className="text-gold-500/50" /> {Number(stats?.totalSpent || 0).toLocaleString()} AED</span>
-                                        <span className="text-gold-500 flex items-center gap-1">GOAL: 25,000 <TrendingUp size={12} /></span>
+                        return (
+                            <GlassCard className="p-6 sm:p-8 relative overflow-hidden border-white/5 group bg-gradient-to-br from-gold-500/5 to-transparent">
+                                <div className="absolute top-0 right-0 p-32 bg-gold-500/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none group-hover:bg-gold-500/10 transition-colors" />
+                                <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-8 relative z-10">
+                                    <div className="relative shrink-0">
+                                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-black to-white/5 border border-gold-500/30 flex items-center justify-center shadow-[0_10px_40px_rgba(212,175,55,0.1)] group-hover:shadow-[0_10px_40px_rgba(212,175,55,0.2)] transition-shadow">
+                                            <Crown className="text-gold-500 w-10 h-10 sm:w-12 sm:h-12" />
+                                        </div>
+                                        <div className="absolute -bottom-1 -right-1 bg-gold-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full border-2 border-[#1A1814] uppercase tracking-tighter">
+                                            {stats?.loyaltyTier || 'BASIC'}
+                                        </div>
                                     </div>
-                                    <div className="h-4 bg-black/60 rounded-full border border-white/10 p-1 relative overflow-hidden">
-                                        <motion.div 
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${Math.min(((Number(stats?.totalSpent || 0)) / 25000) * 100, 100)}%` }}
-                                            transition={{ duration: 1.5, ease: "easeOut" }}
-                                            className="h-full bg-gradient-to-r from-gold-600 via-gold-500 to-gold-400 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.4)]"
-                                        />
+
+                                    <div className="flex-1 w-full text-center md:text-start">
+                                        <div className="flex justify-between items-end mb-2">
+                                            <h3 className="text-sm sm:text-lg font-bold text-white uppercase tracking-tighter">
+                                                {t.dashboard.profile.loyalty.progression.title}
+                                            </h3>
+                                            {nextTier && (
+                                                <span className="text-[10px] font-black text-gold-500 uppercase tracking-widest bg-gold-500/10 px-2 py-1 rounded">
+                                                    NEXT: {nextTier.label}
+                                                </span>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between text-[10px] uppercase font-black tracking-widest text-white/40">
+                                                <span className="flex items-center gap-2">
+                                                    <TrendingUp size={12} className="text-gold-500/50" /> 
+                                                    {isAr ? 'إجمالي الإنفاق المكتمل (المعتمد): ' : 'Total Approved (Completed) Spent: '}
+                                                    <span className="text-white font-black">{spent.toLocaleString()}</span> <span className="text-[8px] font-medium opacity-60">AED</span>
+                                                </span>
+                                                {nextTier && (
+                                                    <span className="text-gold-500 flex items-center gap-1">
+                                                        {t.dashboard.profile.loyalty.progression.goal}: {endLimit.toLocaleString()} <ChevronRight size={12} />
+                                                    </span>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="h-5 bg-black/60 rounded-full border border-white/10 p-1 relative overflow-hidden">
+                                                <motion.div 
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${progress}%` }}
+                                                    transition={{ duration: 1.5, ease: "easeOut" }}
+                                                    className="h-full bg-gradient-to-r from-gold-700 via-gold-500 to-gold-400 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.4)] relative"
+                                                >
+                                                    {/* Animated glow on the edge of progress */}
+                                                    <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/20 blur-md animate-pulse" />
+                                                </motion.div>
+                                            </div>
+                                            
+                                            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                                                <p className="text-[9px] text-white/40 uppercase font-black tracking-tighter flex items-center gap-2">
+                                                    {nextTier 
+                                                        ? t.dashboard.profile.loyalty.progression.almostThere.replace('{amount}', Math.max(0, remaining).toLocaleString())
+                                                        : (isAr ? 'لقد وصلت إلى أعلى مستوى كشريك! 👑' : 'YOU HAVE REACHED THE MAXIMUM PARTNER TIER! 👑')
+                                                    }
+                                                </p>
+                                                {nextTier && (
+                                                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg">
+                                                        <Star size={12} className="text-gold-500" />
+                                                        <span className="text-[9px] font-black text-white/60">
+                                                            {t.dashboard.profile.loyalty.progression.nextLvlPerks}: {nextTier.rate} Profit Share
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <p className="text-[9px] text-white/20 uppercase font-black text-center md:text-start leading-relaxed">
-                                        {isAr ? 'قم بإنفاق المزيد للوصول إلى المستوى الفضي والاستمتاع بمكافآت حصرية' : 'SPEND MORE TO REACH SILVER TIER AND UNLOCK EXCLUSIVE BENEFITS'}
-                                    </p>
                                 </div>
-                            </div>
-                        </div>
-                    </GlassCard>
+                            </GlassCard>
+                        );
+                    })()}
                 </div>
 
                 {/* 4b. Sidebar (Real Notifications & Referrals) */}
@@ -447,67 +701,99 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         <div className="absolute top-0 right-0 p-24 bg-blue-500/10 rounded-full -mr-12 -mt-12 blur-3xl pointer-events-none group-hover:bg-blue-500/20 transition-colors" />
                         
                         <div className="flex items-center gap-3 mb-5 relative z-10">
-                            <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-400/20 text-blue-400">
-                                <Share2 size={16} />
-                            </div>
-                            <h3 className="text-[10px] font-black text-white uppercase tracking-widest">{isAr ? 'نظام الإحالات الذهبي' : 'Affiliate Power'}</h3>
-                        </div>
-                        
-                        <div className="space-y-4 relative z-10">
-                            <div className="relative group/input">
-                                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/50 to-purple-500/50 rounded-xl opacity-20 group-hover/input:opacity-40 transition-opacity blur" />
-                                <div className="relative flex items-center bg-black/60 border border-white/10 rounded-xl overflow-hidden">
-                                     <input 
-                                        readOnly 
-                                        value={stats?.referralCode ? `${window.location.origin}/register?ref=${stats.referralCode}` : '---'} 
-                                        className="flex-1 bg-transparent px-4 py-3.5 text-[10px] font-mono font-bold text-blue-400 outline-none truncate"
-                                    />
-                                    <button 
-                                        onClick={handleCopyReferral}
-                                        className="p-3.5 bg-white/5 hover:bg-white/10 text-white/30 hover:text-blue-400 transition-all border-l border-white/10"
-                                        title={isAr ? 'نسخ الرابط' : 'Copy link'}
-                                    >
-                                        <AnimatePresence mode="wait">
-                                            {copied ? (
-                                                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} key="check">
-                                                    <CheckCircle2 size={16} className="text-blue-400" />
-                                                </motion.div>
-                                            ) : (
-                                                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} key="copy">
-                                                    <Copy size={16} />
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <button 
-                                onClick={handleCopyReferral}
-                                className={`w-full py-3.5 rounded-xl transition-all shadow-xl font-black text-[10px] uppercase tracking-[2px] relative overflow-hidden group/btn flex items-center justify-center gap-2 ${copied ? 'bg-emerald-500 text-black shadow-emerald-500/20' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20 hover:-translate-y-0.5'}`}
-                            >
-                                {copied ? <CheckCircle2 size={16} /> : <Share2 size={16} className="group-hover/btn:rotate-12 transition-transform" />}
-                                {copied ? (isAr ? 'تم النسخ!' : 'LINK COPIED!') : (isAr ? 'دعوة صديق الآن' : 'INVITE PARTNER')}
-                            </button>
-                            
-                            <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5">
-                                <p className="text-[9px] text-white/40 leading-relaxed font-bold">
-                                    {isAr ? 'شارك رابطك الخاص واحصل على عمولة 2% من كل عملية ناجحة يقوم بها أصدقاؤك.' : 'SHARE YOUR LINK AND EARN 2% LIFETIME COMMISSION ON EVERY SUCCESSFUL TRANSACTION.'}
-                                </p>
-                            </div>
+                                        <div className="flex flex-col">
+                                            <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                                                {t.dashboard.profile.loyalty.referral.title}
+                                                <span className="w-1 h-4 bg-gold-500 rounded-full" />
+                                            </h3>
+                                            <div className="mt-2 flex items-center gap-3">
+                                                <div className="px-3 py-1 bg-gold-500/10 border border-gold-500/20 rounded-full">
+                                                    <span className="text-[10px] font-black text-gold-500 uppercase tracking-tighter">
+                                                        {t.dashboard.profile.loyalty.referral.totalLabel} {stats?.referralCount || 0}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-4 relative z-10">
+                                        <div className="relative group/input">
+                                            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/50 to-purple-500/50 rounded-xl opacity-20 group-hover/input:opacity-40 transition-opacity blur" />
+                                            <div className="relative flex items-center bg-black/60 border border-white/10 rounded-xl overflow-hidden">
+                                                 <input 
+                                                    readOnly 
+                                                    value={stats?.referralCode ? `${window.location.origin}/register?ref=${stats.referralCode}` : '---'} 
+                                                    className="flex-1 bg-transparent px-4 py-3.5 text-[10px] font-mono font-bold text-blue-400 outline-none truncate"
+                                                />
+                                                <button 
+                                                    onClick={handleCopyReferral}
+                                                    className="p-3.5 bg-white/5 hover:bg-white/10 text-white/30 hover:text-blue-400 transition-all border-l border-white/10"
+                                                    title={isAr ? 'نسخ الرابط' : 'Copy link'}
+                                                >
+                                                    <AnimatePresence mode="wait">
+                                                        {copied ? (
+                                                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} key="check">
+                                                                <CheckCircle2 size={16} className="text-blue-400" />
+                                                            </motion.div>
+                                                        ) : (
+                                                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} key="copy">
+                                                                <Copy size={16} />
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <button 
+                                            onClick={handleCopyReferral}
+                                            className={`w-full py-3.5 rounded-xl transition-all shadow-xl font-black text-[10px] uppercase tracking-[2px] relative overflow-hidden group/btn flex items-center justify-center gap-2 ${copied ? 'bg-emerald-500 text-black shadow-emerald-500/20' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20 hover:-translate-y-0.5'}`}
+                                        >
+                                            {copied ? <CheckCircle2 size={16} /> : <Share2 size={16} className="group-hover/btn:rotate-12 transition-transform" />}
+                                            {copied ? (isAr ? 'تم النسخ!' : 'LINK COPIED!') : (isAr ? 'دعوة صديق الآن' : 'INVITE PARTNER')}
+                                        </button>
+                                        
+                                        <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5">
+                                            <p className="text-[10px] text-white/50 leading-relaxed font-bold">
+                                                {(() => {
+                                                    const currentTier = stats?.loyaltyTier || 'BASIC';
+                                                    const rates: Record<string, string> = { 'BASIC': '2%', 'SILVER': '3%', 'GOLD': '4%', 'VIP': '5%', 'PARTNER': '6%' };
+                                                    const rate = rates[currentTier] || '2%';
+                                                    const note = t.dashboard.profile.loyalty.referral.commissionNote;
+                                                    return note.replace('{rate}', rate);
+                                                })()}
+                                            </p>
+                                        </div>
 
-                            {/* Enhanced Referral Workflow Steps - Redesigned for Symmetry */}
-                            <div className="relative pt-4 pb-2">
+                            {/* Enhanced Referral Workflow Steps - Redesigned with Connectors */}
+                            <div className="relative pt-6 pb-2">
+                                {/* Connector Line (Background) */}
+                                <div className="absolute top-[38px] left-[15%] right-[15%] h-[2px] bg-white/5 z-0 hidden sm:block overflow-hidden rounded-full">
+                                    <motion.div 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: stats?.referralCount ? (stats.referralCount > 5 ? '100%' : '50%') : '0%' }}
+                                        transition={{ duration: 1.5, delay: 0.5 }}
+                                        className="h-full bg-gradient-to-r from-blue-600 to-purple-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]" 
+                                    />
+                                </div>
+
                                 <div className="relative z-10 flex justify-between items-start">
                                     {[
                                         { icon: Share2, lab: isAr ? 'شارك الرابط' : 'Share Link', act: true },
-                                        { icon: UserPlus, lab: isAr ? 'انضمام صديق' : 'Friend Joined', act: stats?.referralCount && stats.referralCount > 0 },
-                                        { icon: Star, lab: isAr ? 'احصد مكافأتك' : 'Get Rewards', act: stats?.referralCount && stats.referralCount > 5 }
+                                        { icon: UserPlus, lab: isAr ? 'انضمام صديق' : 'Friend Joined', act: (stats?.referralCount || 0) > 0 },
+                                        { icon: Star, lab: isAr ? 'احصد مكافأتك' : 'Get Rewards', act: (stats?.referralCount || 0) > 5 }
                                     ].map((step, idx) => (
-                                        <div key={idx} className="flex flex-col items-center gap-3 w-1/3">
+                                        <div key={idx} className="flex flex-col items-center gap-3 w-1/3 relative">
                                             {/* Step Icon Container */}
-                                            <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 border-2 ${step.act ? 'bg-blue-600 border-blue-400 text-white shadow-[0_8px_20px_rgba(37,99,235,0.2)]' : 'bg-black/40 border-white/5 text-white/20'}`}>
-                                                <step.icon size={20} />
+                                            <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-700 border-2 ${step.act ? 'bg-blue-600 border-blue-400 text-white shadow-[0_8px_30px_rgba(37,99,235,0.4)] scale-110' : 'bg-[#151310] border-white/5 text-white/20'}`}>
+                                                <step.icon size={20} className={step.act ? 'animate-pulse' : ''} />
+                                                
+                                                {/* Active Checkmark */}
+                                                {step.act && (
+                                                    <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-[#1A1814]">
+                                                        <CheckCircle2 size={10} />
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Label */}
@@ -540,11 +826,14 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         <div className="space-y-6 relative z-10">
                             <div>
                                 <div className="flex justify-between items-end mb-2">
-                                    <p className="text-[9px] text-white/30 uppercase font-black tracking-widest">{isAr ? 'رصيد المحفظة الإجمالي' : 'Total Portfolio Value'}</p>
-                                    <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-black">+2.4%</span>
+                                    <p className="text-[9px] text-white/40 uppercase font-black tracking-widest">{isAr ? 'أرباح الولاء المكتسبة' : 'Total Loyalty Profits'}</p>
+                                    <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                                        <Star size={10} />
+                                        <span className="text-[10px] font-black">{stats?.loyaltyPoints || 0} pts</span>
+                                    </div>
                                 </div>
                                 <h2 className="text-2xl font-black text-white tracking-tighter">
-                                    {((Number(stats?.customerBalance || 0)) + (Number(stats?.totalSpent || 0))).toLocaleString()} 
+                                    {Number(stats?.customerBalance || 0).toLocaleString()} 
                                     <span className="text-xs text-gold-500/60 font-medium ml-2">AED</span>
                                 </h2>
                             </div>

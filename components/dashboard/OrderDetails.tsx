@@ -378,6 +378,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
             <OrderExpiredModal
                 isOpen={showExpiredModal}
                 orderId={order.id}
+                orderNumber={order.orderNumber}
+                partName={order.part}
                 onClose={handleCloseExpiredModal}
             />
 

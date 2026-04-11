@@ -29,6 +29,7 @@ interface LoyaltyState {
     totalSpent: number;
     referralCode: string;
     referralCount: number; // 2026 Field
+    customerBalance: number; // 2026 Profit Balance
     transactions: LoyaltyTransaction[];
     reviews: Review[];
     loading: boolean;
@@ -47,6 +48,7 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
     totalSpent: 0,
     referralCode: '',
     referralCount: 0,
+    customerBalance: 0,
     transactions: [],
     reviews: [],
     loading: false,
@@ -76,7 +78,8 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
                 tier: data.tier || state.tier,
                 totalSpent: data.totalSpent !== undefined ? data.totalSpent : state.totalSpent,
                 loyaltyPoints: data.loyaltyPoints !== undefined ? data.loyaltyPoints : state.loyaltyPoints,
-                points: data.loyaltyPoints !== undefined ? data.loyaltyPoints : state.points
+                points: data.loyaltyPoints !== undefined ? data.loyaltyPoints : state.points,
+                customerBalance: data.customerBalance !== undefined ? data.customerBalance : state.customerBalance
             }));
         });
 
@@ -115,6 +118,7 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
                 totalSpent: Number(data.totalSpent) || 0,
                 referralCode: data.referralCode || '',
                 referralCount: data.referralCount || 0,
+                customerBalance: data.customerBalance || 0,
                 reviews: data.submittedReviews || []
             });
 

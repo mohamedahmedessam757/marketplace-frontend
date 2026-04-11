@@ -10,16 +10,37 @@ export interface Transaction {
   amount: number;
   balanceAfter?: number;
   description?: string;
+  payment?: {
+    orderId?: string;
+    order?: {
+      id?: string;
+      orderNumber?: string;
+      status?: string;
+    };
+  };
 }
 
 interface MerchantWalletState {
-  balance: {
+  stats: {
     available: number;
     pending: number;
     frozen: number;
     totalSales: number;
+    netEarnings: number;
+    completedOrders: number;
+    loyaltyTier: string;
+    performanceScore: number;
+    rating: number;
+    storeName: string;
+    referralCode?: string;
+    referralCount: number;
+    loyaltyPoints: number;
+    pendingRewards: number;
+    monthlyRewards: number;
+    profitPercentage: number;
   };
   transactions: Transaction[];
+  notifications: any[];
   isLoading: boolean;
 
   // Actions
@@ -27,37 +48,42 @@ interface MerchantWalletState {
 }
 
 export const useMerchantWalletStore = create<MerchantWalletState>((set) => ({
-  balance: {
+  stats: {
     available: 0,
     pending: 0,
     frozen: 0,
-    totalSales: 0
+    totalSales: 0,
+    netEarnings: 0,
+    completedOrders: 0,
+    loyaltyTier: 'BRONZE',
+    performanceScore: 0,
+    rating: 0,
+    storeName: '',
+    referralCount: 0,
+    loyaltyPoints: 0,
+    pendingRewards: 0,
+    monthlyRewards: 0,
+    profitPercentage: 0
   },
   transactions: [],
+  notifications: [],
   isLoading: true,
 
   fetchWallet: async () => {
     set({ isLoading: true });
     try {
       const { client } = await import('../services/api/client');
-      const [walletRes, txRes] = await Promise.all([
-        client.get('/payments/merchant/wallet'),
-        client.get('/payments/merchant/transactions')
-      ]);
+      const response = await client.get('/payments/merchant/dashboard');
+      const { stats, transactions, notifications } = response.data;
 
-      const wallet = walletRes.data;
       set({
-        balance: {
-          available: Number(wallet.balance) || 0,
-          pending: Number(wallet.pendingBalance) || 0,
-          frozen: Number(wallet.frozenBalance) || 0,
-          totalSales: Number(wallet.lifetimeEarnings) || 0
-        },
-        transactions: txRes.data,
+        stats: stats,
+        transactions: transactions,
+        notifications: notifications || [],
         isLoading: false
       });
     } catch (error) {
-      console.error('Failed to fetch merchant wallet', error);
+      console.error('Failed to fetch merchant wallet dashboard', error);
       set({ isLoading: false });
     }
   }

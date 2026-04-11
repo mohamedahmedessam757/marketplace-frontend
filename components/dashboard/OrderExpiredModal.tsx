@@ -6,12 +6,16 @@ import { useLanguage } from '../../contexts/LanguageContext';
 interface OrderExpiredModalProps {
     isOpen: boolean;
     orderId: string;
+    orderNumber?: string;
+    partName?: string;
     onClose: (dontShowAgain: boolean) => void;
 }
 
 export const OrderExpiredModal: React.FC<OrderExpiredModalProps> = ({
     isOpen,
     orderId,
+    orderNumber,
+    partName,
     onClose,
 }) => {
     const { t, language } = useLanguage();
@@ -77,9 +81,12 @@ export const OrderExpiredModal: React.FC<OrderExpiredModalProps> = ({
 
                         {/* Subtitle Message */}
                         <motion.div variants={childVariants} className="text-center space-y-1">
-                            <p className="text-white/80 font-medium text-[13px] leading-relaxed max-w-[260px] mx-auto">
-                                {t.dashboard.orders?.expiredModal?.desc ||
-                                    'The time to receive offers (24 hours) for this order has elapsed. No suitable offers were found.'}
+                            <p className="text-white/80 font-medium text-[13px] leading-relaxed max-w-[280px] mx-auto whitespace-pre-line">
+                                {(t.dashboard.orders?.expiredModal?.desc || '')
+                                    .replace('#{orderNumber}', orderNumber || orderId)
+                                    .replace('({partName})', partName ? `(${partName})` : '')
+                                    .replace(' ( )', '') // Clean up if partName is empty
+                                }
                             </p>
                         </motion.div>
 

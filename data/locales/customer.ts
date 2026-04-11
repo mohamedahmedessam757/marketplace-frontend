@@ -199,7 +199,7 @@ export const customer = {
       searchPlaceholder: 'بحث...',
       expiredModal: {
         title: 'انتهت صلاحية الطلب',
-        desc: 'تم استنفاد وقت استلام العروض (24 ساعة) لهذا الطلب. لم يتم العثور على عروض مناسبة.',
+        desc: 'نعتذر منك لعدم توفر عروض حالياً على الطلب رقم (#{orderNumber}) لقطعة ({partName}). يمكنك إعادة إرسال الطلب خلال أيام العمل من الاثنين إلى الخميس.',
         dontShow: 'لا تظهر هذه الرسالة مرة أخرى',
         understood: 'موافق'
       }
@@ -352,7 +352,18 @@ export const customer = {
         terminateAll: 'تسجيل الخروج من جميع الأجهزة',
         secureNote: 'يتم تشفير جميع كلمات المرور وحماية حسابك عبر بروتوكولات أمان متقدمة.'
       },
-      wallet: { myCards: 'بطاقاتي', addNew: 'إضافة بطاقة', savedAddresses: 'العناوين المحفوظة' },
+      wallet: { 
+        myCards: 'بطاقاتي', 
+        addNew: 'إضافة بطاقة', 
+        savedAddresses: 'العناوين المحفوظة',
+        transactionTypes: {
+          ORDER_PROFIT: 'أرباح الطلبات ✨',
+          REFERRAL_PROFIT: 'أرباح الإحالات 🔗',
+          PAYMENT: 'عملية دفع 💳',
+          WITHDRAWAL: 'سحب رصيد 🏦',
+          REFUND: 'استرداد مبلغ 💸'
+        }
+      },
       settings: {
         lang: 'اللغة',
         notif: 'الإشعارات',
@@ -408,29 +419,42 @@ export const customer = {
         },
         benefits: {
             BASIC: [
-                'دعم فني قياسي',
-                'اكتساب نقاط على كل طلب'
+                'دعم فني قياسي 🛠️',
+                'اكتساب نقاط ولاء (1 نقطة لكل درهم عمولة)',
+                'ربح 2% كاش باك من عمولة المنصة 💸'
             ],
             SILVER: [
-                'أولوية في الدعم الفني',
-                'ربح 3% من عمولة المنصة',
+                'أولوية في الدعم الفني ✨',
+                'ربح 3% كاش باك من عمولة المنصة 💸',
                 'عروض حصرية دورية'
             ],
             GOLD: [
-                'أولوية مميزة في الدعم الفني',
-                'ربح 4% من عمولة المنصة',
+                'أولوية مميزة في الدعم الفني 🥇',
+                'ربح 4% كاش باك من عمولة المنصة 💸',
                 'عروض حصرية دورية'
             ],
             VIP: [
-                'دعم فني مخصص (VIP)',
-                'ربح 5% من عمولة المنصة',
-                'عروض حصرية دورية'
+                'وصول مبكر للميزات الجديدة 🚀',
+                'ربح 5% كاش باك من عمولة المنصة 💎',
+                'مدير حساب مخصص'
             ],
             PARTNER: [
-                'دعم فني خاص بالشركاء',
-                'ربح 6% من عمولة المنصة',
-                'عروض استثنائية'
+                'أولوية قصوى في جميع الخدمات ⚡',
+                'ربح 6% كاش باك من عمولة المنصة 👑',
+                'سقف أرباح شهري مفتوح'
             ]
+        },
+        progression: {
+            title: 'تطور مستوى العضوية المستحقة',
+            goal: 'الهدف',
+            remaining: 'المتبقي',
+            nextLvlPerks: 'مزايا المستوى القادم',
+            almostThere: 'لقد اقتربت جداً! أنفق {amount} درهم إضافية للترقية.'
+        },
+        referral: {
+          title: 'نظام الإحالات',
+          totalLabel: 'إجمالي إحالاتك:',
+          commissionNote: 'شارك رابطك الخاص واحصل على عمولة {rate} من كل عملية ناجحة يقوم بها أصدقاؤك.'
         }
       }
     },
@@ -904,7 +928,7 @@ export const customer = {
       searchPlaceholder: 'Search...',
       expiredModal: {
         title: 'Order Expired',
-        desc: 'The time to receive offers (24 hours) for this order has elapsed. No suitable offers were found.',
+        desc: 'We apologize for the unavailability of offers at the moment for order number (#{orderNumber}) for the part ({partName}). You can resubmit the request during business days from Monday to Thursday.',
         dontShow: 'Do not show this message again',
         understood: 'OK'
       }
@@ -1057,7 +1081,18 @@ export const customer = {
         terminateAll: 'Log out from all devices',
         secureNote: 'All passwords encrypted and account protected with advanced security protocols.'
       },
-      wallet: { myCards: 'My Cards', addNew: 'Add New Card', savedAddresses: 'Saved Addresses' },
+      wallet: { 
+        myCards: 'My Cards', 
+        addNew: 'Add New Card', 
+        savedAddresses: 'Saved Addresses',
+        transactionTypes: {
+          ORDER_PROFIT: 'Order Profits ✨',
+          REFERRAL_PROFIT: 'Referral Profits 🔗',
+          PAYMENT: 'Payment 💳',
+          WITHDRAWAL: 'Withdrawal 🏦',
+          REFUND: 'Refund 💸'
+        }
+      },
       settings: {
         lang: 'Language',
         notif: 'Notifications',
@@ -1113,29 +1148,39 @@ export const customer = {
         },
         benefits: {
             BASIC: [
-                'Standard Support',
-                'Earn points on every order'
+                'Standard Technical Support 🛠️',
+                'Earn Loyalty Points (1pt per AED Commission)',
+                '2% Cashback on Platform Commission 💸'
             ],
             SILVER: [
-                'Priority Support',
-                '3% share of platform commission',
-                'Periodic exclusive offers'
+                'Priority Support ✨',
+                '3% Cashback on Platform Commission 💸',
+                'Periodic Exclusive Offers'
             ],
             GOLD: [
-                'Premium Priority Support',
-                '4% share of platform commission',
-                'Periodic exclusive offers'
-            ],
-            VIP: [
-                'Dedicated VIP Support',
-                '5% share of platform commission',
-                'Periodic exclusive offers'
+                'Premium Priority Support 🥇',
+                '4% Cashback on Platform Commission 💸',
+                'Early Access to New Features 🚀',
+                '5% Cashback on Platform Commission 💎',
+                'Dedicated Account Manager'
             ],
             PARTNER: [
-                'Partner Dedicated Support',
-                '6% share of platform commission',
-                'Exceptional offers'
+                'Extreme Priority Support ⚡',
+                '6% Cashback on Platform Commission 👑',
+                'No Monthly Earnings Cap'
             ]
+        },
+        progression: {
+            title: 'Membership Loyalty Progression',
+            goal: 'Goal',
+            remaining: 'Remaining',
+            nextLvlPerks: 'Upcoming Level Perks',
+            almostThere: "You're almost there! Spend {amount} AED more to upgrade."
+        },
+        referral: {
+          title: 'Referral System',
+          totalLabel: 'Total Referrals:',
+          commissionNote: 'Share your personal link and earn {rate} commission from every successful order by your friends.'
         }
       }
     },

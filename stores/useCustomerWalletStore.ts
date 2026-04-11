@@ -2,17 +2,23 @@ import { create } from 'zustand';
 
 export interface WalletTransaction {
   id: string;
-  orderId: string;
-  totalAmount: number;
+  orderId?: string;
+  paymentId?: string;
+  amount: number;
+  transactionType?: string;
+  type?: 'CREDIT' | 'DEBIT';
   currency: string;
   status: string;
   createdAt: string;
-  order: any;
+  description?: string;
+  metadata?: any;
+  order?: any;
 }
 
 export interface WalletStats {
   totalSpent: number;
-  monthlySpent: number;
+  totalPurchases: number;
+  monthlyRewards: number;
   loyaltyPoints: number;
   loyaltyTier: string;
   referralCode: string;
@@ -22,7 +28,9 @@ export interface WalletStats {
   totalOrdersCount: number;
   acceptanceRate: number;
   refundedAmount: number;
-  pendingEarnings: number;
+  pendingRewards: number;
+  profitPercentage: number;
+  name?: string;
 }
 
 interface CustomerWalletState {
@@ -89,10 +97,18 @@ export const subscribeToWalletUpdates = () => {
             { event: 'INSERT', schema: 'public', table: 'payment_transactions', filter: `customer_id=eq.${userId}` },
             (payload) => {
                 const newTx = payload.new as any;
-                // Add instantly to UI
+                // Add instantly to UI (v2026 Mapping Hardening)
                 useCustomerWalletStore.getState().addTransactionLocally({
-                    ...newTx,
-                    order: newTx.order // Note: In reality might need a minimal order fetch or wait for background sync
+                    id: newTx.id,
+                    orderId: newTx.order_id,
+                    amount: Number(newTx.amount),
+                    transactionType: newTx.transaction_type,
+                    type: newTx.type,
+                    currency: newTx.currency,
+                    status: newTx.status,
+                    createdAt: newTx.created_at,
+                    order: newTx.order, // Usually null in raw CDC payload
+                    metadata: newTx.metadata
                 });
                 
                 // Trigger a silent background sync to ensure relations (like order details) are fully populated
@@ -111,11 +127,39 @@ export const subscribeToWalletUpdates = () => {
                 // Update stats instantly from DB payload
                 useCustomerWalletStore.getState().updateStatsLocally({
                     customerBalance: Number(payload.new.customer_balance),
-                    loyaltyPoints: payload.new.loyalty_points,
+                    loyaltyPoints: Number(payload.new.loyalty_points),
                     loyaltyTier: payload.new.loyalty_tier,
                     totalSpent: Number(payload.new.total_spent),
-                    referralCount: payload.new.referral_count
+                    referralCount: Number(payload.new.referral_count),
+                    referralCode: payload.new.referral_code
                 });
+            }
+        )
+        .subscribe();
+
+    // 3. Listen for Wallet Transactions (Rewards, Commissions, P2P)
+    const walletSub = supabase
+        .channel('public:wallet_transactions')
+        .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'wallet_transactions', filter: `user_id=eq.${userId}` },
+            (payload) => {
+                const newTx = payload.new as any;
+                // Add to list and trigger full sync to update all calculated stats (monthly rewards etc)
+                useCustomerWalletStore.getState().addTransactionLocally({
+                    id: newTx.id,
+                    amount: Number(newTx.amount),
+                    transactionType: newTx.transaction_type,
+                    type: newTx.type,
+                    currency: newTx.currency,
+                    status: newTx.status,
+                    createdAt: newTx.created_at,
+                    description: newTx.description,
+                    metadata: newTx.metadata
+                });
+                
+                // Silent sync to refresh monthly rewards and balance from the server ground truth
+                useCustomerWalletStore.getState().fetchWalletData(true);
             }
         )
         .subscribe();
@@ -124,6 +168,7 @@ export const subscribeToWalletUpdates = () => {
         unsubscribe: () => {
             txSub.unsubscribe();
             userSub.unsubscribe();
+            walletSub.unsubscribe();
         }
     };
 };
