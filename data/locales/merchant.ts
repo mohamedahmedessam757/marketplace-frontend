@@ -116,8 +116,8 @@ export const merchant = {
       weekly: 'أسبوعي'
     },
     alerts: {
-      licenseExpiring: 'تنبيه: رخصة البلدية تنتهي قريباً (أقل من 30 يوم).',
-      licenseExpired: 'عاجل: انتهت صلاحية رخصة البلدية. تم إيقاف استقبال الطلبات الجديدة.',
+      licenseExpiring: 'تنبيه: الرخصة التجارية تنتهي قريباً (أقل من 30 يوم).',
+      licenseExpired: 'عاجل: انتهت صلاحية الرخصة التجارية. تم إيقاف استقبال الطلبات الجديدة.',
       latePrep: 'تنبيه: يوجد طلبات متأخرة في التجهيز.',
       updateLicense: 'تحديث الرخصة',
       restricted: 'الحساب مقيد',
@@ -407,7 +407,7 @@ export const merchant = {
         logo: 'الشعار',
         categories: 'الفئات والتخصص',
         cr: 'السجل التجاري',
-        license: 'رخصة البلدية',
+        license: 'الرخصة التجارية',
         expiry: 'تاريخ الانتهاء'
       },
       actions: {
@@ -428,7 +428,7 @@ export const merchant = {
               company: 'الشركة',
               manager: 'المدير المسؤول',
               crNumber: 'رقم السجل التجاري',
-              license: 'الرخصة / انتهاء الصلاحية',
+              license: 'الرخصة التجارية / انتهاء الصلاحية',
               location: 'الإمارة / الدولة'
           },
           signature: {
@@ -495,7 +495,7 @@ export const merchant = {
       message: 'وصف المشكلة بالتفصيل',
       categories: {
         financial: 'مشكلة مالية (أرباح/محفظة)',
-        documents: 'تحديث مستندات (سجل/رخصة)',
+        documents: 'تحديث مستندات (سجل/رخصة تجارية)',
         orders: 'مشكلة في طلب (نزاع/شحن)',
         technical: 'مشكلة تقنية في المنصة',
         other: 'أخرى'
@@ -639,8 +639,8 @@ export const merchant = {
       weekly: 'Weekly'
     },
     alerts: {
-      licenseExpiring: 'Warning: Municipality license expires soon (< 30 days).',
-      licenseExpired: 'Urgent: Municipality license expired. New orders stopped.',
+      licenseExpiring: 'Warning: Commercial license expires soon (< 30 days).',
+      licenseExpired: 'Urgent: Commercial license expired. New orders stopped.',
       latePrep: 'Warning: Late orders in preparation.',
       updateLicense: 'Update License',
       restricted: 'Account Restricted',
@@ -841,7 +841,7 @@ export const merchant = {
               company: 'Company Name',
               manager: 'Authorized Manager',
               crNumber: 'CR Number',
-              license: 'License / Expiry Date',
+              license: 'Commercial License / Expiry Date',
               location: 'Emirate / Country'
           },
           signature: {
@@ -934,7 +934,7 @@ export const merchant = {
         logo: 'Logo',
         categories: 'Categories',
         cr: 'Commercial Register',
-        license: 'Municipality License',
+        license: 'Commercial License',
         expiry: 'Expiry Date'
       },
       actions: {

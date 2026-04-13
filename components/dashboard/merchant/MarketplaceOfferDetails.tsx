@@ -4,7 +4,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import {
-    ArrowLeft, ArrowRight, Clock, MapPin, Package, Settings, Monitor, ShieldCheck, FileText, CheckCircle2, ChevronDown, MessageCircle, AlertTriangle, Search, Car, Box, Calendar, Truck, User, DollarSign, Weight, Shield, Edit3, XCircle, Loader2
+    ArrowLeft, ArrowRight, Clock, MapPin, Package, Settings, Monitor, ShieldCheck, FileText, CheckCircle2, ChevronDown, MessageCircle, AlertTriangle, Search, Car, Box, Calendar, Truck, User, DollarSign, Weight, Shield, Edit3, XCircle, Loader2, ExternalLink
 } from 'lucide-react';
 import { CountdownTimer } from '../OrderDetails';
 import { SubmitOfferModal } from './SubmitOfferModal';
@@ -663,6 +663,17 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                             {shipment.carrier || (isAr ? 'تشليح السريعة' : 'Tashleh Express')}
                                         </p>
                                     </div>
+                                    {shipment.trackingLink && (
+                                        <a 
+                                            href={shipment.trackingLink} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 px-4 py-2 bg-gold-500/10 hover:bg-gold-500 text-gold-400 hover:text-black border border-gold-500/20 rounded-lg font-bold text-sm transition-all"
+                                        >
+                                            <ExternalLink size={16} />
+                                            {isAr ? 'تتبع' : 'Track'}
+                                        </a>
+                                    )}
                                 </div>
                                 <ShipmentTracker status={shipment.status} />
                             </div>

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { MerchantStatus } from './useVendorStore';
 import { supabase } from '../services/supabase';
+import { storesApi } from '../services/api/stores';
 
 // Dynamic API URL - uses environment variable in production
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -19,14 +20,24 @@ export interface AdminUser {
 export interface DashboardStats {
   totalSales: number;
   totalCommission: number;
+  salesTrendPercent?: number;
   totalOrders: number;
   activeCustomers: number;
   activeStores: number;
   openDisputes: number;
   salesTrend: { date: string; value: number }[];
-  topStores: { storeId: string; name: string; ordersCount: number; value: number }[];
+  topStores: { 
+    storeId: string; 
+    name: string; 
+    logo?: string;
+    rating: number;
+    revenue: number;
+    ordersCount: number; 
+    value?: number; 
+  }[];
   statusDistribution: { status: string; count: number }[];
-  alerts: { type: 'warning' | 'error'; code: string; count: number; priority: string }[];
+  alerts: { type: 'warning' | 'error' | 'critical'; code: string; count: number; priority: string }[];
+  recentOrders: any[];
 }
 
 export interface ShippingRule {
@@ -79,6 +90,46 @@ export interface Vendor {
   };
   owner?: { name: string; email: string };
   createdAt?: string;
+  loyaltyTier?: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  performanceScore?: number;
+  lifetimeEarnings?: number;
+  adminNotes?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  orders?: any[];
+  documents?: any[];
+  _count?: {
+    orders: number;
+    reviews: number;
+    offers: number;
+  };
+}
+export interface WithdrawalRequest {
+  id: string;
+  storeId?: string;
+  userId?: string;
+  role: 'VENDOR' | 'CUSTOMER';
+  amount: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+  payoutMethod: 'STRIPE' | 'BANK_TRANSFER';
+  adminNotes?: string;
+  createdAt: string;
+  store?: {
+    id: string;
+    name: string;
+    owner?: { name: string; email: string };
+  };
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export interface WithdrawalLimits {
+  min: number;
+  max: number;
 }
 
 export interface AdminState {
@@ -89,13 +140,18 @@ export interface AdminState {
   systemConfig: SystemConfig;
   dashboardStats: DashboardStats | null;
   isLoadingStats: boolean;
+  dashboardFilters: { startDate?: string; endDate?: string };
   stores: any[];
   currentStoreProfile: any | null;
   isLoadingStores: boolean;
+  pendingWithdrawals: WithdrawalRequest[];
+  withdrawalLimits: WithdrawalLimits;
+  isLoadingWithdrawals: boolean;
 
   loginAdmin: (email: string) => void;
   logoutAdmin: () => void;
-  fetchDashboardStats: () => Promise<void>;
+  setDashboardFilters: (filters: { startDate?: string; endDate?: string }) => void;
+  fetchDashboardStats: (filters?: { startDate?: string; endDate?: string }) => Promise<void>;
   setCommissionRate: (rate: number) => void;
   toggleSystemStatus: () => void;
   updateSystemConfig: (section: keyof SystemConfig, data: any) => void;
@@ -107,6 +163,12 @@ export interface AdminState {
   getVendorById: (id: string) => Vendor | undefined;
   updateVendorStatus: (id: string, status: MerchantStatus) => void;
   updateVendorDocStatus: (vendorId: string, docType: 'cr' | 'license', status: 'approved' | 'rejected') => void;
+  updateStoreNotes: (id: string, notes: string) => Promise<boolean>;
+  // Withdrawal Management
+  fetchWithdrawals: () => Promise<void>;
+  processWithdrawal: (id: string, action: 'approve' | 'reject', notes?: string) => Promise<{ success: boolean; message: string }>;
+  fetchWithdrawalLimits: () => Promise<void>;
+  updateWithdrawalLimits: (limits: WithdrawalLimits) => Promise<boolean>;
 
   // Contract Management
   fetchVendorContract: () => Promise<void>;
@@ -114,7 +176,7 @@ export interface AdminState {
 
   // Real-time
   subscription: any;
-  silentFetchDashboardStats: () => Promise<void>;
+  silentFetchDashboardStats: (filters?: { startDate?: string; endDate?: string }) => Promise<void>;
   subscribeToStats: () => void;
   unsubscribeFromStats: () => void;
 
@@ -125,6 +187,10 @@ export interface AdminState {
   storeProfileSubscription: any;
   subscribeToStoreProfile: (id: string) => void;
   unsubscribeFromStoreProfile: () => void;
+
+  withdrawalSubscription: any;
+  subscribeToWithdrawals: () => void;
+  unsubscribeFromWithdrawals: () => void;
 }
 
 const MOCK_VENDORS: Vendor[] = [
@@ -145,8 +211,15 @@ export const useAdminStore = create<AdminState>()(
       vendorsList: MOCK_VENDORS,
       dashboardStats: null,
       isLoadingStats: false,
+      dashboardFilters: {
+        startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0]
+      },
       stores: [],
       currentStoreProfile: null,
+      pendingWithdrawals: [],
+      withdrawalLimits: { min: 100, max: 10000 },
+      isLoadingWithdrawals: false,
       isLoadingStores: false,
 
       systemConfig: {
@@ -208,14 +281,18 @@ export const useAdminStore = create<AdminState>()(
 
       logoutAdmin: () => {
         sessionStorage.removeItem('admin');
-        set({ currentAdmin: null });
+        set({ currentAdmin: null, dashboardStats: null });
       },
 
-      silentFetchDashboardStats: async () => {
+      setDashboardFilters: (filters) => set({ dashboardFilters: filters }),
+
+      silentFetchDashboardStats: async (filters) => {
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
-            const res = await fetch(`${API_URL}/dashboard/stats`, {
+            const currentFilters = filters || get().dashboardFilters;
+            const queryParams = new URLSearchParams(currentFilters as any).toString();
+            const res = await fetch(`${API_URL}/dashboard/stats${queryParams ? `?${queryParams}` : ''}`, {
               headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
@@ -228,13 +305,18 @@ export const useAdminStore = create<AdminState>()(
         }
       },
 
-      fetchDashboardStats: async () => {
-        const { dashboardStats } = get();
+      fetchDashboardStats: async (filters) => {
+        const { dashboardStats, dashboardFilters } = get();
+        const activeFilters = filters || dashboardFilters;
+        
         if (!dashboardStats) set({ isLoadingStats: true });
+        if (filters) set({ dashboardFilters: filters });
+
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
-            const res = await fetch(`${API_URL}/dashboard/stats`, {
+            const queryParams = new URLSearchParams(activeFilters as any).toString();
+            const res = await fetch(`${API_URL}/dashboard/stats${queryParams ? `?${queryParams}` : ''}`, {
               headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
@@ -344,6 +426,21 @@ export const useAdminStore = create<AdminState>()(
 
       clearStoreProfile: () => set({ currentStoreProfile: null }),
 
+      updateStoreNotes: async (id, notes) => {
+        try {
+          await storesApi.updateNotes(id, notes);
+          // Optimistically update local state if matches current profile
+          const { currentStoreProfile } = get();
+          if (currentStoreProfile && currentStoreProfile.id === id) {
+            set({ currentStoreProfile: { ...currentStoreProfile, adminNotes: notes } });
+          }
+          return true;
+        } catch (error) {
+          console.error("Failed to update store notes", error);
+          return false;
+        }
+      },
+
       getVendorById: (id) => get().vendorsList.find(v => v.id === id),
 
       updateVendorStatus: (id, status) => set((state) => ({
@@ -413,6 +510,80 @@ export const useAdminStore = create<AdminState>()(
           return false;
         } catch (e) {
           console.error("Failed to save contract", e);
+          return false;
+        }
+      },
+
+      fetchWithdrawals: async () => {
+        set({ isLoadingWithdrawals: true });
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/payments/admin/withdrawals`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            set({ pendingWithdrawals: data });
+          }
+        } catch (error) {
+          console.error('Failed to fetch withdrawals:', error);
+        } finally {
+          set({ isLoadingWithdrawals: false });
+        }
+      },
+
+      processWithdrawal: async (id, action, notes) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/payments/admin/withdrawals/${id}/process`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify({ action: action.toUpperCase(), notes })
+          });
+          
+          const result = await res.json();
+          if (res.ok) {
+            get().fetchWithdrawals();
+            return { success: true, message: result.message };
+          }
+          return { success: false, message: result.message };
+        } catch (error) {
+          return { success: false, message: 'Processing failed' };
+        }
+      },
+
+      fetchWithdrawalLimits: async () => {
+        try {
+          const res = await fetch(`${API_URL}/payments/admin/withdrawal-settings`);
+          if (res.ok) {
+            const data = await res.json();
+            set({ withdrawalLimits: { min: data.min, max: data.max } });
+          }
+        } catch (error) {
+          console.error('Failed to fetch withdrawal limits:', error);
+        }
+      },
+
+      updateWithdrawalLimits: async (limits) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/payments/admin/withdrawal-settings`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify({ min: Number(limits.min), max: Number(limits.max) })
+          });
+          if (res.ok) {
+            set({ withdrawalLimits: limits });
+            return true;
+          }
+          return false;
+        } catch (error) {
           return false;
         }
       },
@@ -512,9 +683,25 @@ export const useAdminStore = create<AdminState>()(
           )
           .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'verification_documents', filter: `store_id=eq.${id}` },
+            { event: '*', schema: 'public', table: 'store_documents', filter: `store_id=eq.${id}` },
             () => {
               console.log(`🔔 Admin Store Documents Update Received for ${id}`);
+              silentFetchStoreProfile(id);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${id}` },
+            () => {
+              console.log(`🔔 Admin Store Orders Update Received for ${id}`);
+              silentFetchStoreProfile(id);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'reviews', filter: `store_id=eq.${id}` },
+            () => {
+              console.log(`🔔 Admin Store Reviews Update Received for ${id}`);
               silentFetchStoreProfile(id);
             }
           )
@@ -530,6 +717,34 @@ export const useAdminStore = create<AdminState>()(
           set({ storeProfileSubscription: null });
         }
         clearStoreProfile(); // Cleanup on unmount!
+      },
+
+      withdrawalSubscription: null,
+      subscribeToWithdrawals: () => {
+        const { withdrawalSubscription, fetchWithdrawals } = get();
+        if (withdrawalSubscription) return;
+
+        fetchWithdrawals();
+        const channel = supabase.channel('admin-withdrawals-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'WithdrawalRequest' },
+            () => {
+              console.log('🔔 Admin Withdrawal Update Received');
+              fetchWithdrawals();
+            }
+          )
+          .subscribe();
+
+        set({ withdrawalSubscription: channel });
+      },
+
+      unsubscribeFromWithdrawals: () => {
+        const { withdrawalSubscription } = get();
+        if (withdrawalSubscription) {
+          supabase.removeChannel(withdrawalSubscription);
+          set({ withdrawalSubscription: null });
+        }
       }
     }),
     {

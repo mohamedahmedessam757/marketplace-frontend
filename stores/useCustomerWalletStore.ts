@@ -31,20 +31,55 @@ export interface WalletStats {
   pendingRewards: number;
   profitPercentage: number;
   name?: string;
+  stripeOnboarded?: boolean;
+  stripeAccountId?: string;
+}
+
+export interface BankDetails {
+  bankName: string;
+  accountHolder: string;
+  iban: string;
+  swift: string;
+  verified: boolean;
+  stripeOnboarded: boolean;
+  stripeAccountId: string | null;
+}
+
+export interface WithdrawalRequest {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  payoutMethod: string;
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface CustomerWalletState {
   stats: WalletStats | null;
   transactions: WalletTransaction[];
+  withdrawalRequests: WithdrawalRequest[];
+  withdrawalLimits: { min: number; max: number };
+  bankDetails: BankDetails | null;
   isLoading: boolean;
   fetchWalletData: (silent?: boolean) => Promise<void>;
+  fetchWithdrawals: () => Promise<void>;
+  fetchBankDetails: () => Promise<void>;
+  saveBankDetails: (details: { bankName: string; accountHolder: string; iban: string; swift?: string }) => Promise<{ success: boolean; message: string }>;
+  requestWithdrawal: (amount: number, payoutMethod?: string) => Promise<{ success: boolean; message: string }>;
+  getStripeOnboardingUrl: () => Promise<string>;
   updateStatsLocally: (updates: Partial<WalletStats>) => void;
   addTransactionLocally: (tx: WalletTransaction) => void;
+  updateWithdrawalLocally: (request: WithdrawalRequest) => void;
 }
 
 export const useCustomerWalletStore = create<CustomerWalletState>((set, get) => ({
   stats: null,
   transactions: [],
+  withdrawalRequests: [],
+  withdrawalLimits: { min: 50, max: 10000 },
+  bankDetails: null,
   isLoading: true,
 
   fetchWalletData: async (silent = false) => {
@@ -65,6 +100,66 @@ export const useCustomerWalletStore = create<CustomerWalletState>((set, get) => 
     }
   },
 
+  fetchWithdrawals: async () => {
+    try {
+        const { client } = await import('../services/api/client');
+        const [reqRes, limitsRes] = await Promise.all([
+            client.get('/payments/withdrawals'), // Unified endpoint for all roles
+            client.get('/payments/admin/withdrawal-settings')
+        ]);
+        set({ 
+            withdrawalRequests: reqRes.data,
+            withdrawalLimits: limitsRes.data 
+        });
+    } catch (error) {
+        console.error('Failed to fetch withdrawal data', error);
+    }
+  },
+
+  fetchBankDetails: async () => {
+    try {
+        const { client } = await import('../services/api/client');
+        const response = await client.get('/payments/customer/bank-details');
+        set({ bankDetails: response.data });
+    } catch (error) {
+        console.error('Failed to fetch bank details', error);
+    }
+  },
+
+  saveBankDetails: async (details) => {
+    try {
+        const { client } = await import('../services/api/client');
+        const response = await client.post('/payments/customer/bank-details', details);
+        get().fetchBankDetails();
+        return { success: true, message: response.data.message || 'Bank details saved!' };
+    } catch (error: any) {
+        return { success: false, message: error.response?.data?.message || 'Failed to save bank details' };
+    }
+  },
+
+  requestWithdrawal: async (amount, payoutMethod = 'BANK_TRANSFER') => {
+    try {
+        const { client } = await import('../services/api/client');
+        await client.post('/payments/customer/withdraw', { amount, payoutMethod });
+        get().fetchWithdrawals();
+        get().fetchWalletData(true);
+        return { success: true, message: 'Request submitted successfully' };
+    } catch (error: any) {
+        return { success: false, message: error.response?.data?.message || 'Failed to submit request' };
+    }
+  },
+
+  getStripeOnboardingUrl: async () => {
+    try {
+        const { client } = await import('../services/api/client');
+        const response = await client.get('/payments/customer/stripe-onboarding');
+        return response.data;
+    } catch (error: any) {
+        console.error('Failed to get onboarding URL', error);
+        throw error;
+    }
+  },
+
   updateStatsLocally: (updates) => {
     const current = get().stats;
     if (current) {
@@ -77,6 +172,18 @@ export const useCustomerWalletStore = create<CustomerWalletState>((set, get) => 
     // Check for duplicates before adding
     if (!currentTx.some(existing => existing.id === tx.id)) {
       set({ transactions: [tx, ...currentTx] });
+    }
+  },
+
+  updateWithdrawalLocally: (request) => {
+    const current = get().withdrawalRequests;
+    const exists = current.findIndex(r => r.id === request.id);
+    if (exists !== -1) {
+        const updated = [...current];
+        updated[exists] = { ...updated[exists], ...request };
+        set({ withdrawalRequests: updated });
+    } else {
+        set({ withdrawalRequests: [request, ...current] });
     }
   }
 }));
@@ -164,11 +271,41 @@ export const subscribeToWalletUpdates = () => {
         )
         .subscribe();
 
+    // 4. Listen for Withdrawal Requests (Status changes)
+    const withdrawalSub = supabase
+        .channel('public:withdrawal_requests')
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `user_id=eq.${userId}` },
+            (payload) => {
+                const req = payload.new as any;
+                if (req) {
+                    useCustomerWalletStore.getState().updateWithdrawalLocally({
+                        id: req.id,
+                        amount: Number(req.amount),
+                        currency: req.currency,
+                        status: req.status,
+                        payoutMethod: req.payout_method,
+                        adminNotes: req.admin_notes,
+                        createdAt: req.created_at,
+                        updatedAt: req.updated_at
+                    });
+                    
+                    // If approved, refresh balance
+                    if (req.status === 'COMPLETED' || req.status === 'APPROVED') {
+                        useCustomerWalletStore.getState().fetchWalletData(true);
+                    }
+                }
+            }
+        )
+        .subscribe();
+
     return {
         unsubscribe: () => {
             txSub.unsubscribe();
             userSub.unsubscribe();
             walletSub.unsubscribe();
+            withdrawalSub.unsubscribe();
         }
     };
 };

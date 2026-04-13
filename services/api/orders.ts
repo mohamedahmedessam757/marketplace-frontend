@@ -1,16 +1,23 @@
 import { client } from './client';
 
 export const ordersApi = {
-    // Get all orders
-    getAll: async () => {
-        const response = await client.get('/orders');
+    // Get all orders with pagination and search
+    getAll: async (params: { page?: number; limit?: number; status?: string; search?: string } = {}) => {
+        const response = await client.get('/orders', { params });
         const data = response.data;
-        // For vendor responses, backend wraps orders with requestingStoreId
+        
+        // Handle result structure (items, total, hasMore from backend)
+        if (data && data.items) {
+            return data;
+        }
+
+        // For vendor responses or legacy arrays
         if (data?.requestingStoreId) {
             localStorage.setItem('merchant_store_id', data.requestingStoreId);
-            return data.orders;
+            return { items: data.orders, total: data.orders.length, hasMore: false };
         }
-        return data;
+        
+        return { items: data || [], total: (data || []).length, hasMore: false };
     },
 
     // Get single order

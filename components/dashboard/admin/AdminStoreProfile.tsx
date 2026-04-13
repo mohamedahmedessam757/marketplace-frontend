@@ -4,7 +4,11 @@ import { GlassCard } from '../../ui/GlassCard';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { ChevronLeft, ChevronRight, Store, CheckCircle2, XCircle, FileText, Activity, Star, Eye, X, ExternalLink } from 'lucide-react';
+import { 
+    ChevronLeft, ChevronRight, Store, CheckCircle2, XCircle, FileText, Activity, 
+    Star, Eye, X, ExternalLink, Mail, Phone, Calendar, Hash, MapPin, CreditCard, 
+    Wallet, Smartphone, Tablet, Monitor, Verified, Shield, Award, TrendingUp
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storesApi } from '../../../services/api/stores';
 // import { toast } from 'react-hot-toast'; // Removed to avoid dependency issue
@@ -13,31 +17,45 @@ import { DocumentReviewModal } from '../../modals/DocumentReviewModal'; // Impor
 interface AdminStoreProfileProps {
     vendorId: string;
     onBack: () => void;
+    onNavigate?: (path: string, id?: any) => void;
 }
 
-export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, onBack }) => {
+export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
     const { currentStoreProfile, subscribeToStoreProfile, unsubscribeFromStoreProfile, silentFetchStoreProfile, isLoadingStores } = useAdminStore();
 
     // Local state for modal
-    const [selectedDoc, setSelectedDoc] = useState<{ type: 'cr' | 'license', title: string, url: string } | null>(null);
+    const [selectedDoc, setSelectedDoc] = useState<{ type: string, title: string, url: string } | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+    const [isBanModalOpen, setIsBanModalOpen] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
-    const [activeTab, setActiveTab] = useState<'overview' | 'contract'>('overview');
+    const [adminNotes, setAdminNotes] = useState(currentStoreProfile?.adminNotes || '');
+    const [banType, setBanType] = useState<'BLOCKED' | 'SUSPENDED'>('SUSPENDED');
+    const [suspensionDays, setSuspensionDays] = useState(7);
+    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'reviews' | 'sessions' | 'contract'>('overview');
 
-    const handleStatusUpdate = async (newStatus: 'ACTIVE' | 'BLOCKED' | 'REJECTED', reason?: string) => {
+    const handleStatusUpdate = async (newStatus: 'ACTIVE' | 'BLOCKED' | 'REJECTED' | 'SUSPENDED', reason?: string, days?: number) => {
         if (!vendorId) return;
         setIsUpdating(true);
         try {
-            await storesApi.updateStatus(vendorId, newStatus, reason);
-            // toast.success(...) -> Replaced with alert for safety
+            let suspendedUntil: string | undefined = undefined;
+            if (newStatus === 'SUSPENDED' && days) {
+                const date = new Date();
+                date.setDate(date.getDate() + days);
+                suspendedUntil = date.toISOString();
+            }
+
+            await storesApi.updateStatus(vendorId, newStatus, reason, suspendedUntil);
+            
             const msg = newStatus === 'ACTIVE' ? 'Store Approved Successfully' : 
                         newStatus === 'REJECTED' ? 'Store Rejected Successfully' : 
+                        newStatus === 'SUSPENDED' ? `Store Suspended for ${days} days` :
                         'Store Blocked Successfully';
             window.alert(msg);
-            // Store updates automatically via realtime subscription
+            
             setIsRejectModalOpen(false);
+            setIsBanModalOpen(false);
             setRejectionReason('');
         } catch (error) {
             console.error(error);
@@ -47,6 +65,21 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         }
     };
 
+    const handleSaveNotes = async () => {
+        if (!vendorId) return;
+        setIsUpdating(true);
+        try {
+            await useAdminStore.getState().updateStoreNotes(vendorId, adminNotes);
+            window.alert(isAr ? 'تم حفظ الملاحظات بنجاح' : 'Notes saved successfully');
+        } catch (error) {
+            console.error(error);
+            window.alert('Failed to save notes');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const vendor = currentStoreProfile;
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronRight : ChevronLeft;
 
@@ -55,11 +88,18 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         return () => unsubscribeFromStoreProfile();
     }, [vendorId]);
 
-    if (isLoadingStores || !currentStoreProfile) {
-        return <div className="p-12 text-center text-white/50 animate-pulse">Loading Store Profile...</div>;
-    }
+    React.useEffect(() => {
+        if (vendor?.adminNotes) setAdminNotes(vendor.adminNotes);
+    }, [vendor?.adminNotes]);
 
-    const vendor = currentStoreProfile;
+    if (isLoadingStores || !vendor) {
+        return (
+            <div className="flex flex-col items-center justify-center p-20 space-y-4 text-white/20">
+                <Store size={64} className="animate-pulse" />
+                <p className="font-black uppercase tracking-wide text-xs animate-pulse">Loading Store Protocol...</p>
+            </div>
+        );
+    }
 
     const allDocTypes = ['CR', 'LICENSE', 'ID', 'IBAN', 'AUTH_LETTER'];
     const getDoc = (type: string) => vendor.documents?.find((d: any) => d.docType === type);
@@ -94,7 +134,6 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                         animate={{ opacity: 1, scale: 1 }}
                         className="bg-[#1A1814] border border-red-500/20 rounded-2xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden"
                     >
-                         {/* Background Glow */}
                          <div className="absolute -top-24 -left-24 w-48 h-48 bg-red-500/10 blur-[80px] rounded-full" />
                          
                          <div className="relative z-10 text-center">
@@ -103,7 +142,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                             </div>
 
                             <h3 className="text-xl font-bold text-white mb-2">
-                                {isAr ? 'سبب رفض المتجر' : 'Store Rejection Reason'}
+                                {t.admin.storeProfile.actions.reject}
                             </h3>
                             <p className="text-white/60 text-sm mb-6">
                                 {isAr ? 'يرجى كتابة سبب واضح للرفض ليتم إرساله للتاجر' : 'Please provide a clear reason to be sent to the merchant'}
@@ -121,7 +160,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                     onClick={() => setIsRejectModalOpen(false)}
                                     className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all"
                                 >
-                                    {isAr ? 'إلغاء' : 'Cancel'}
+                                    {t.admin.storeProfile.banModal.cancel}
                                 </button>
                                 <button
                                     onClick={() => handleStatusUpdate('REJECTED', rejectionReason)}
@@ -136,155 +175,933 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                 </div>
             )}
 
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <button onClick={onBack} className="p-2 bg-white/5 hover:bg-white/10 rounded-xl transition-colors text-white/50 hover:text-white">
-                    <ArrowIcon size={20} />
-                </button>
-                <div>
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                        {vendor.name || 'Store Name'}
-                        <span className={`text-[10px] px-2 py-0.5 rounded border uppercase ${docStatusColor(vendor.status === 'ACTIVE' ? 'approved' : 'pending')}`}>
-                            {vendor.status}
-                        </span>
-                    </h1>
-                    <div className="text-xs text-white/40">{vendor.owner?.name || 'Owner'} • {vendor.owner?.email || 'Email'}</div>
-                </div>
-            </div>
+            {/* Ban/Suspension Modal */}
+            {isBanModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-[#1A1814] border border-orange-500/20 rounded-2xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden"
+                    >
+                         <div className="absolute -top-24 -left-24 w-48 h-48 bg-orange-500/10 blur-[80px] rounded-full" />
+                         
+                         <div className="relative z-10">
+                            <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-3">
+                                <Activity size={24} className="text-orange-500" />
+                                {t.admin.storeProfile.banModal.title}
+                            </h3>
 
-            {/* Tabs */}
-            <div className="flex gap-6 border-b border-white/10 mb-6">
-                <button 
-                  onClick={() => setActiveTab('overview')}
-                  className={`text-sm font-bold pb-3 border-b-2 transition-all ${activeTab === 'overview' ? 'text-gold-500 border-gold-500' : 'text-white/50 border-transparent hover:text-white'}`}
-                >
-                  {isAr ? 'نظرة عامة' : 'Overview'}
-                </button>
-                <button 
-                  onClick={() => setActiveTab('contract')}
-                  className={`text-sm font-bold pb-3 border-b-2 transition-all ${activeTab === 'contract' ? 'text-gold-500 border-gold-500' : 'text-white/50 border-transparent hover:text-white'}`}
-                >
-                  {isAr ? 'بيانات العقد' : 'Contract Details'}
-                </button>
-            </div>
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => setBanType('SUSPENDED')}
+                                        className={`p-4 rounded-xl border transition-all text-center ${banType === 'SUSPENDED' ? 'bg-orange-500/20 border-orange-500 text-white' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}
+                                    >
+                                        <Activity className="mx-auto mb-2" />
+                                        <div className="text-xs font-bold uppercase tracking-wider">{isAr ? 'إيقاف مؤقت' : 'Temporary'}</div>
+                                    </button>
+                                    <button
+                                        onClick={() => setBanType('BLOCKED')}
+                                        className={`p-4 rounded-xl border transition-all text-center ${banType === 'BLOCKED' ? 'bg-red-500/20 border-red-500 text-white' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}
+                                    >
+                                        <XCircle className="mx-auto mb-2" />
+                                        <div className="text-xs font-bold uppercase tracking-wider">{isAr ? 'حظر دائم' : 'Permanent'}</div>
+                                    </button>
+                                </div>
 
-            {activeTab === 'overview' && (
-            <div className="grid lg:grid-cols-3 gap-6">
+                                {banType === 'SUSPENDED' && (
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-white/40 uppercase tracking-wide">{t.admin.storeProfile.banModal.duration}</label>
+                                        <select 
+                                            value={suspensionDays}
+                                            onChange={(e) => setSuspensionDays(Number(e.target.value))}
+                                            className="w-full bg-[#0F0E0C] border border-white/10 rounded-xl p-4 text-white focus:border-orange-500/50 outline-none"
+                                        >
+                                            <option value={3}>3 {isAr ? 'أيام' : 'Days'}</option>
+                                            <option value={7}>7 {isAr ? 'أيام' : 'Days'}</option>
+                                            <option value={15}>15 {isAr ? 'يوم' : 'Days'}</option>
+                                            <option value={30}>30 {isAr ? 'يوم' : 'Days'}</option>
+                                            <option value={90}>90 {isAr ? 'يوم' : 'Days'}</option>
+                                        </select>
+                                    </div>
+                                )}
 
-                {/* Col 1: KPIs & Actions */}
-                <div className="space-y-4">
-                    <GlassCard className="p-6 bg-[#151310] border-gold-500/10">
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-white/5 pb-2 flex items-center gap-2">
-                            <Activity size={16} className="text-gold-500" />
-                            {t.admin.storeProfile.kpi}
-                        </h3>
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <span className="text-white/60 text-sm">{t.dashboard.merchant.kpi.rating}</span>
-                                <div className="flex items-center gap-1 text-yellow-400 font-bold">
-                                    <Star size={14} fill="currentColor" /> 4.8
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-white/40 uppercase tracking-wide">{t.admin.storeProfile.banModal.reason}</label>
+                                    <textarea
+                                        value={rejectionReason}
+                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                        className="w-full h-24 bg-[#0F0E0C] border border-white/10 rounded-xl p-4 text-white text-sm focus:border-orange-500/50 outline-none resize-none"
+                                    />
+                                </div>
+
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        onClick={() => setIsBanModalOpen(false)}
+                                        className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all"
+                                    >
+                                        {t.admin.storeProfile.banModal.cancel}
+                                    </button>
+                                    <button
+                                        onClick={() => handleStatusUpdate(banType, rejectionReason, suspensionDays)}
+                                        disabled={!rejectionReason.trim() || isUpdating}
+                                        className={`flex-1 py-4 text-white font-black rounded-xl transition-all disabled:opacity-50 ${banType === 'SUSPENDED' ? 'bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20' : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20'}`}
+                                    >
+                                        {t.admin.storeProfile.banModal.confirm}
+                                    </button>
                                 </div>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-white/60 text-sm">Total Orders</span>
-                                <div className="text-white font-mono">{vendor._count?.orders || 0}</div>
+                         </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Premium Hero Section */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1A1814] to-[#0A0908] border border-white/5 shadow-2xl">
+                {/* Background Decorative Glows */}
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold-500/5 blur-[120px] rounded-full -mr-48 -mt-48" />
+                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/5 blur-[100px] rounded-full -ml-24 -mb-24" />
+
+                <div className="relative z-10 p-8">
+                    <div className="flex flex-col lg:flex-row gap-8 items-start justify-between">
+                        
+                        {/* Store Main Identity */}
+                        <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
+                            <button onClick={onBack} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-white/50 hover:text-white border border-white/5 order-first md:order-none mb-4 md:mb-0">
+                                <ArrowIcon size={24} />
+                            </button>
+
+                            <div className="relative group">
+                                <div className="absolute -inset-1 bg-gradient-to-tr from-gold-500/50 to-amber-500/50 rounded-full blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200" />
+                                <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-[#0F0E0D] border-2 border-gold-500/20 shadow-2xl flex items-center justify-center bg-cover bg-center" style={{ backgroundImage: vendor.logo ? `url(${vendor.logo})` : 'none' }}>
+                                    {!vendor.logo && <Store size={64} className="text-gold-500/20" />}
+                                </div>
+                                <div className={`absolute bottom-2 right-2 p-1.5 rounded-full border shadow-lg ${docStatusColor(vendor.status === 'ACTIVE' ? 'approved' : 'pending')}`}>
+                                    {vendor.status === 'ACTIVE' ? <CheckCircle2 size={24} fill="currentColor" className="text-[#0F0E0D]" /> : <Activity size={24} />}
+                                </div>
+                            </div>
+
+                            <div className="flex-1 space-y-4">
+                                <div className="space-y-1">
+                                    <h1 className="text-3xl md:text-4xl font-black text-white flex items-center justify-center md:justify-start gap-3 tracking-tight">
+                                        {vendor.name || 'Store Name'}
+                                        {vendor.status === 'ACTIVE' && <Verified size={24} className="text-blue-400" />}
+                                    </h1>
+                                    <p className="text-gold-500/60 font-mono text-sm uppercase tracking-wide flex items-center justify-center md:justify-start gap-2">
+                                        <Hash size={14} /> {vendor.storeCode || 'ST-0000'}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+                                    <div className="flex items-center justify-center md:justify-start gap-3 text-white/70 hover:text-white transition-colors">
+                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><Mail size={14} className="text-gold-500/70" /></div>
+                                        <span className="text-sm font-medium">{vendor.owner?.email || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-center md:justify-start gap-3 text-white/70 hover:text-white transition-colors">
+                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><Phone size={14} className="text-gold-500/70" /></div>
+                                        <span className="text-sm font-medium leading-none tabular-nums" dir="ltr">{vendor.owner?.phone || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-center md:justify-start gap-3 text-white/70 hover:text-white transition-colors sm:col-span-1">
+                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><Calendar size={14} className="text-gold-500/70" /></div>
+                                        <span className="text-sm font-medium">
+                                            {isAr ? 'انضم في' : 'Joined'}: {new Date(vendor.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                        </span>
+                                    </div>
+                                    {vendor.address && (
+                                        <div className="flex items-center justify-center md:justify-start gap-3 text-white/70 hover:text-white transition-colors sm:col-span-1 truncate max-w-xs">
+                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><MapPin size={14} className="text-gold-500/70" /></div>
+                                            <span className="text-sm font-medium truncate">{vendor.address}</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </GlassCard>
-
-                    <GlassCard className="p-6 bg-[#151310]">
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-white/5 pb-2">
-                            {t.admin.usersTable.actions}
-                        </h3>
-                        <div className="flex flex-col gap-3">
-                            {vendor.status !== 'ACTIVE' && (
-                                <button
-                                    onClick={() => handleStatusUpdate('ACTIVE')}
-                                    disabled={isUpdating}
-                                    className="flex items-center justify-center gap-2 py-3 bg-green-500/10 hover:bg-green-500 text-green-400 hover:text-white rounded-xl transition-all border border-green-500/20 disabled:opacity-50 font-bold"
-                                >
-                                    <CheckCircle2 size={18} />
-                                    {t.admin.storeProfile.actions.approve}
-                                </button>
-                            )}
-
-                            {vendor.status !== 'REJECTED' && (
-                                <button
-                                    onClick={() => setIsRejectModalOpen(true)}
-                                    disabled={isUpdating}
-                                    className="flex items-center justify-center gap-2 py-3 bg-orange-500/10 hover:bg-orange-500 text-orange-400 hover:text-white rounded-xl transition-all border border-orange-500/20 disabled:opacity-50 font-bold"
-                                >
-                                    <XCircle size={18} />
-                                    {isAr ? 'رفض المتجر' : 'Reject Store'}
-                                </button>
-                            )}
-
-                            <button
-                                onClick={() => handleStatusUpdate('BLOCKED')}
-                                disabled={isUpdating}
-                                className="flex items-center justify-center gap-2 py-3 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl transition-all border border-red-500/20 disabled:opacity-50 font-bold"
-                            >
-                                <XCircle size={18} />
-                                {t.admin.storeProfile.actions.ban}
-                            </button>
-                        </div>
-                    </GlassCard>
-                </div>
-
-                {/* Col 2 & 3: Documents Review */}
-                <div className="lg:col-span-2">
-                    <GlassCard className="p-6 bg-[#1A1814] h-full">
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6 border-b border-white/5 pb-2 flex items-center gap-2">
-                            <FileText size={16} className="text-gold-500" />
-                            {t.admin.storeProfile.docs}
-                        </h3>
-
-                        <div className="grid md:grid-cols-2 gap-4">
-                            {allDocTypes.map((type) => {
-                                const doc = getDoc(type);
-                                return (
-                                    <div
-                                        key={type}
-                                        className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-gold-500/20 transition-all cursor-pointer group"
-                                        onClick={() => doc?.fileUrl && setSelectedDoc({ type: type as any, title: type.replace('_', ' '), url: doc.fileUrl })}
+                        
+                        {/* Strategic Action Hub */}
+                        <div className="w-full lg:w-72 space-y-3">
+                            <div className="flex items-center justify-between px-2 mb-2">
+                                <span className="text-[10px] font-black text-white/30 uppercase tracking-wide">{isAr ? 'مركز التحكم' : 'Action Hub'}</span>
+                                <div className={`w-2 h-2 rounded-full ${vendor.status === 'ACTIVE' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500 animate-pulse'}`} />
+                            </div>
+                            
+                            <div className="grid grid-cols-1 gap-2">
+                                {vendor.status !== 'ACTIVE' && (
+                                    <button 
+                                        onClick={() => handleStatusUpdate('ACTIVE')}
+                                        disabled={isUpdating}
+                                        className="w-full py-3.5 bg-green-500 text-[#0F0E0D] font-black text-xs uppercase tracking-[0.1em] rounded-2xl hover:bg-green-400 hover:scale-[1.02] transition-all shadow-lg shadow-green-500/20 flex items-center justify-center gap-2 group"
                                     >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="p-2 rounded-lg bg-white/5 text-white/60 group-hover:text-gold-400 transition-colors">
-                                                <FileText size={20} />
-                                            </div>
-                                            <span className={`text-[10px] px-2 py-1 rounded border font-bold ${docStatusColor(doc ? doc.status : 'pending')}`}>
-                                                {(doc ? doc.status : 'MISSING').toUpperCase()}
-                                            </span>
+                                        <CheckCircle2 size={16} className="group-hover:rotate-12 transition-transform" />
+                                        {isAr ? 'تنشيط المتجر الآن' : 'Unleash Store (Approve)'}
+                                    </button>
+                                )}
+
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setIsRejectModalOpen(true)}
+                                        disabled={isUpdating || vendor.status === 'REJECTED'}
+                                        className="flex-1 py-3 bg-white/5 hover:bg-red-500/10 border border-white/5 hover:border-red-500/30 text-white/60 hover:text-red-500 font-bold text-[10px] uppercase tracking-wide rounded-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <XCircle size={14} />
+                                        {isAr ? 'رفض' : 'Reject'}
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsBanModalOpen(true)}
+                                        disabled={isUpdating || vendor.status === 'BLOCKED'}
+                                        className="flex-1 py-3 bg-white/5 hover:bg-orange-500/10 border border-white/5 hover:border-orange-500/30 text-white/60 hover:text-orange-500 font-bold text-[10px] uppercase tracking-wide rounded-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Activity size={14} />
+                                        {isAr ? 'تقييد' : 'Restrict'}
+                                    </button>
+                                </div>
+
+                                <button 
+                                    onClick={() => silentFetchStoreProfile(vendorId!)}
+                                    className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white/30 hover:text-white font-black text-[9px] uppercase tracking-[0.3em] rounded-xl transition-all flex items-center justify-center gap-2 border border-white/5"
+                                >
+                                    <Activity size={12} className={isUpdating ? 'animate-spin' : ''} />
+                                    {isAr ? 'تحديث البيانات' : 'Sync Intelligence'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Quick Metrics Bar */}
+                        <div className="w-full lg:w-auto grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-4">
+                            <GlassCard className="p-4 bg-white/5 border-white/5 hover:border-gold-500/30 transition-all">
+                                <div className="flex items-center gap-3 mb-1">
+                                    <div className="w-6 h-6 rounded bg-gold-500/10 flex items-center justify-center"><Wallet size={12} className="text-gold-500" /></div>
+                                    <span className="text-[10px] uppercase font-black text-white/40 tracking-wider font-sans">Available</span>
+                                </div>
+                                <div className="text-lg font-black text-white tabular-nums">
+                                    {Math.abs(Number(vendor.balance || 0)).toLocaleString()} <span className="text-[10px] text-white/40 ml-1">AED</span>
+                                </div>
+                            </GlassCard>
+
+                            <GlassCard className="p-4 bg-white/5 border-white/5 hover:border-green-500/30 transition-all">
+                                <div className="flex items-center gap-3 mb-1">
+                                    <div className="w-6 h-6 rounded bg-green-500/10 flex items-center justify-center"><CreditCard size={12} className="text-green-500" /></div>
+                                    <span className="text-[10px] uppercase font-black text-white/40 tracking-wider font-sans">Earnings</span>
+                                </div>
+                                <div className="text-lg font-black text-white tabular-nums">
+                                    {Math.abs(Number(vendor.lifetimeEarnings || 0)).toLocaleString()} <span className="text-[10px] text-white/40 ml-1">AED</span>
+                                </div>
+                            </GlassCard>
+
+                            <GlassCard className="p-4 bg-white/5 border-white/5 hover:border-blue-500/30 transition-all">
+                                <div className="flex items-center gap-3 mb-1">
+                                    <div className="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center"><Activity size={12} className="text-blue-500" /></div>
+                                    <span className="text-[10px] uppercase font-black text-white/40 tracking-wider font-sans">Orders</span>
+                                </div>
+                                <div className="text-xl font-black text-white tabular-nums uppercase">
+                                    {vendor._count?.orders || 0}
+                                </div>
+                            </GlassCard>
+
+                            <GlassCard className="p-4 bg-white/5 border-white/5 hover:border-yellow-500/30 transition-all">
+                                <div className="flex items-center gap-3 mb-1">
+                                    <div className="w-6 h-6 rounded bg-yellow-500/10 flex items-center justify-center"><Star size={12} className="text-yellow-500" /></div>
+                                    <span className="text-[10px] uppercase font-black text-white/40 tracking-wider font-sans">Rating</span>
+                                </div>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-xl font-black text-white tabular-nums">{Number(vendor.rating || 0).toFixed(1)}</span>
+                                    <div className="flex items-center">
+                                        {[1,2,3,4,5].map(s => (
+                                            <Star key={s} size={8} fill={s <= Math.round(Number(vendor.rating || 0)) ? "currentColor" : "none"} className={s <= Math.round(Number(vendor.rating || 0)) ? "text-yellow-500" : "text-white/20"} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </GlassCard>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            {/* Advanced Tabs Navigation */}
+            <div className="flex gap-2 p-1.5 bg-white/5 border border-white/10 rounded-2xl overflow-x-auto no-scrollbar scroll-smooth">
+                {[
+                    { id: 'overview', icon: Activity, label: t.admin.storeProfile.tabs.overview },
+                    { id: 'orders', icon: CreditCard, label: t.admin.storeProfile.tabs.orders },
+                    { id: 'disputes', icon: XCircle, label: t.admin.storeProfile.tabs.disputes },
+                    { id: 'reviews', icon: Star, label: t.admin.storeProfile.tabs.reviews },
+                    { id: 'sessions', icon: Smartphone, label: t.admin.storeProfile.tabs.sessions },
+                    { id: 'contract', icon: FileText, label: t.admin.storeProfile.tabs.contract },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`
+                            flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap
+                            ${activeTab === tab.id 
+                                ? 'bg-gold-500 text-[#0F0E0D] shadow-lg shadow-gold-500/20 active:scale-95' 
+                                : 'text-white/40 hover:text-white hover:bg-white/5'
+                            }
+                        `}
+                    >
+                        <tab.icon size={18} />
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+            
+            {activeTab === 'overview' && (
+                <div className="grid lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* Column 1: Merchant Identity & Context */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <GlassCard className="p-8 border-white/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-gold-500/10 transition-all duration-700" />
+                            
+                            <h3 className="text-xl font-black text-white uppercase tracking-wide mb-8 flex items-center gap-3">
+                                <Activity size={20} className="text-gold-500" />
+                                {isAr ? 'بيانات المتجر الأساسية' : 'Primary Store Identity'}
+                            </h3>
+
+                            <div className="grid md:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <div className="space-y-1.5">
+                                        <p className="text-[10px] font-black text-white/30 uppercase tracking-wide">{t.admin.storeProfile.details.owner}</p>
+                                        <p className="text-white font-bold text-lg">{vendor.owner?.name || '---'}</p>
+                                        <p className="text-white/40 text-xs italic">{vendor.owner?.email}</p>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <p className="text-[10px] font-black text-white/30 uppercase tracking-wide">{t.admin.storeProfile.details.joinDate}</p>
+                                        <p className="text-white font-bold">{new Date(vendor.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { dateStyle: 'long' })}</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div className="space-y-1.5">
+                                        <p className="text-[10px] font-black text-white/30 uppercase tracking-wide">{t.admin.storeProfile.details.address}</p>
+                                        <p className="text-white/80 leading-relaxed text-sm font-medium">
+                                            {vendor.address || (isAr ? 'لم يتم تحديد عنوان دقيق' : 'No specific address provided')}
+                                        </p>
+                                        {vendor.lat && vendor.lng && (
+                                            <a 
+                                                href={`https://www.google.com/maps?q=${vendor.lat},${vendor.lng}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 text-gold-500 hover:text-gold-400 text-[10px] font-black uppercase tracking-wide mt-2 transition-colors"
+                                            >
+                                                <MapPin size={12} />
+                                                {isAr ? 'عرض على الخريطة' : 'View on Live Map'}
+                                            </a>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="pt-4 border-t border-white/5">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <p className="text-[10px] font-black text-white/30 uppercase tracking-wide">{isAr ? 'حالة السيولة' : 'Liquidity Status'}</p>
+                                            <span className="text-[9px] text-green-500 font-bold uppercase italic">Verified</span>
                                         </div>
-                                        <h4 className="font-bold text-white text-sm capitalize">
-                                            {/* Attempt to use translation if available, else format type */}
-                                            {(t.auth.vendor.docs as any)[type.toLowerCase()] || type.replace('_', ' ')}
-                                        </h4>
-                                        <div className="flex justify-between items-end mt-2">
-                                            <div className="text-xs text-white/40">
-                                                {doc ? `Updated: ${new Date(doc.updatedAt).toLocaleDateString('en-GB')}` : 'No file'}
-                                                {doc?.expiresAt && (
-                                                    <span className="mx-2 text-gold-500/60 font-mono italic">
-                                                        • {language === 'ar' ? 'ينتهي' : 'Expiry'}: {new Date(doc.expiresAt).toLocaleDateString('en-GB')}
-                                                    </span>
-                                                )}
+                                        <div className="flex gap-4">
+                                            <div>
+                                                <p className="text-[10px] text-white/20 mb-1 italic">Balance</p>
+                                                <p className="text-white font-black">{Number(vendor.balance).toLocaleString()} <span className="text-[10px] opacity-30">AED</span></p>
                                             </div>
-                                            {doc ? (
-                                                <button className="text-xs flex items-center gap-1 text-gold-400 hover:underline">
-                                                    <Eye size={12} /> {language === 'ar' ? 'مراجعة' : 'Review'}
-                                                </button>
-                                            ) : (
-                                                <span className="text-xs text-red-400">{language === 'ar' ? 'لم يتم الرفع' : 'Not Uploaded'}</span>
-                                            )}
+                                            <div className="border-l border-white/5 pl-4">
+                                                <p className="text-[10px] text-white/20 mb-1 italic">Pending</p>
+                                                <p className="text-white/60 font-black">{Number(vendor.pendingBalance || 0).toLocaleString()} <span className="text-[10px] opacity-30">AED</span></p>
+                                            </div>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Loyalty & Reputation Module */}
+                            <div className="mt-8 pt-8 border-t border-white/5">
+                                <div className="grid md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-black text-white/30 uppercase tracking-wide">{isAr ? 'مستوى الولاء الحالي' : 'Current Loyalty Status'}</p>
+                                            <Award size={14} className="text-gold-500/50" />
+                                        </div>
+                                        <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all hover:scale-[1.02] ${
+                                            vendor.loyaltyTier === 'PLATINUM' ? 'bg-purple-500/5 border-purple-500/20' :
+                                            vendor.loyaltyTier === 'GOLD' ? 'bg-gold-500/5 border-gold-500/20' :
+                                            vendor.loyaltyTier === 'SILVER' ? 'bg-slate-400/5 border-slate-400/10' :
+                                            'bg-orange-500/5 border-orange-500/10'
+                                        }`}>
+                                            <div className={`p-3 rounded-xl ${
+                                                vendor.loyaltyTier === 'PLATINUM' ? 'bg-purple-500/20 text-purple-400' :
+                                                vendor.loyaltyTier === 'GOLD' ? 'bg-gold-500/20 text-gold-500' :
+                                                vendor.loyaltyTier === 'SILVER' ? 'bg-slate-400/20 text-slate-300' :
+                                                'bg-orange-500/20 text-orange-400'
+                                            }`}>
+                                                <Award size={24} />
+                                            </div>
+                                            <div>
+                                                <p className={`text-xs font-black uppercase tracking-wide mb-0.5 ${
+                                                    vendor.loyaltyTier === 'PLATINUM' ? 'text-purple-400' :
+                                                    vendor.loyaltyTier === 'GOLD' ? 'text-gold-500' :
+                                                    vendor.loyaltyTier === 'SILVER' ? 'text-slate-300' :
+                                                    'text-orange-400'
+                                                }`}>
+                                                    {vendor.loyaltyTier || 'BRONZE'}
+                                                </p>
+                                                <p className="text-[10px] text-white/30 italic">
+                                                    {isAr ? 'عضوية النشاط التجاري المعتمد' : 'Certified Business Membership'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-black text-white/30 uppercase tracking-wide">{isAr ? 'الأداء والنمو' : 'Performance & Growth'}</p>
+                                            <TrendingUp size={14} className="text-blue-500/50" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                                <p className="text-[10px] text-white/20 mb-1 italic">Score</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-white font-black text-lg">{Number(vendor.performanceScore || 0).toFixed(0)}%</p>
+                                                    <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="h-full bg-blue-500 transition-all duration-1000" 
+                                                            style={{ width: `${vendor.performanceScore || 0}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                                <p className="text-[10px] text-white/20 mb-1 italic">Lifetime</p>
+                                                <p className="text-white font-black text-lg truncate">
+                                                    {Number(vendor.lifetimeEarnings || 0).toLocaleString()} 
+                                                    <span className="text-[10px] opacity-30 ml-1">AED</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </GlassCard>
+
+                        {/* Workshop Identity: Car Makes & Models */}
+                        <GlassCard className="p-8 border-white/5 relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-blue-500/10 transition-all duration-700" />
+                            <div className="flex items-center justify-between mb-8 relative z-10">
+                                <h3 className="text-sm font-black text-white uppercase tracking-wide flex items-center gap-3">
+                                    <Hash size={18} className="text-blue-500" />
+                                    {isAr ? 'تخصص المتجر' : 'Store Specialization'}
+                                </h3>
+                            </div>
+                            
+                            <div className="space-y-8 relative z-10">
+                                <div>
+                                    <p className="text-[10px] font-black text-white/30 uppercase tracking-wide mb-4 flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-blue-500" />
+                                        {t.admin.storeProfile.details.makes}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {vendor.selectedMakes && vendor.selectedMakes.length > 0 ? (
+                                            vendor.selectedMakes.map((make: string) => (
+                                                <span key={make} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all cursor-default">
+                                                    {make}
+                                                </span>
+                                            ))
+                                        ) : (
+                                            <span className="text-white/20 text-xs italic">{isAr ? 'لم يتم تحديد ماركات' : 'No brands specified'}</span>
+                                        )}
+                                        {vendor.customMake && (
+                                            <span className="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs font-bold text-blue-400 italic">
+                                                + {vendor.customMake}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-gold-500" />
+                                        {t.admin.storeProfile.details.models}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {vendor.selectedModels && vendor.selectedModels.length > 0 ? (
+                                            vendor.selectedModels.map((model: string) => (
+                                                <span key={model} className="px-3 py-1.5 bg-gold-500/5 border border-gold-500/10 rounded-lg text-[11px] font-medium text-white/80">
+                                                    {model}
+                                                </span>
+                                            ))
+                                        ) : (
+                                            <span className="text-white/20 text-xs italic">{isAr ? 'لم يتم تحديد موديلات' : 'No models specified'}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </GlassCard>
+
+                        {/* Compliance & Verification Snapshot */}
+                        <div className="pt-2">
+                            <div className="flex items-center justify-between mb-4 px-2">
+                                <h3 className="text-[10px] font-black text-white/40 uppercase tracking-wide flex items-center gap-2">
+                                    <Shield size={14} className="text-green-500" />
+                                    {isAr ? 'التراخيص والمستندات' : 'Licenses & Documents'}
+                                </h3>
+                                <button 
+                                    onClick={() => setActiveTab('contract')}
+                                    className="text-[9px] font-bold text-gold-500/60 hover:text-gold-500 uppercase tracking-wide transition-colors"
+                                >
+                                    {isAr ? 'عرض العقود' : 'View Full Contracts'}
+                                </button>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                {vendor.documents?.map((doc: any) => {
+                                    const daysRemaining = doc.expiresAt ? Math.ceil((new Date(doc.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
+                                    const docTypeMap: Record<string, { ar: string, en: string }> = {
+                                        CR: { ar: 'السجل التجاري', en: 'Commercial Register' },
+                                        LICENSE: { ar: 'الرخصة التجارية', en: 'Trade License' },
+                                        ID: { ar: 'بطاقة الهوية', en: 'National ID' },
+                                        IBAN: { ar: 'الحساب البنكي', en: 'IBAN Certification' },
+                                        AUTH_LETTER: { ar: 'خطاب التفويض', en: 'Authorization Letter' }
+                                    };
+                                    const translatedTitle = isAr ? (docTypeMap[doc.docType]?.ar || doc.docType) : (docTypeMap[doc.docType]?.en || doc.docType);
+
+                                    return (
+                                        <button 
+                                            key={doc.id}
+                                            onClick={() => setSelectedDoc({
+                                                url: doc.fileUrl,
+                                                title: translatedTitle,
+                                                type: doc.docType,
+                                                status: doc.status
+                                            })}
+                                            className="group p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-gold-500/30 transition-all text-left relative overflow-hidden"
+                                        >
+                                            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-30 transition-opacity">
+                                                <FileText size={24} />
+                                            </div>
+                                            <div className="relative z-10 w-full">
+                                                <p className="text-[10px] font-black text-white/50 uppercase tracking-wide mb-1 truncate">{translatedTitle}</p>
+                                                
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                                            doc.status === 'approved' ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' :
+                                                            doc.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'
+                                                        }`} />
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wide ${
+                                                            doc.status === 'approved' ? 'text-green-500' :
+                                                            doc.status === 'rejected' ? 'text-red-500' : 'text-yellow-500'
+                                                        }`}>
+                                                            {isAr ? (doc.status === 'approved' ? 'مقبول' : doc.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة') : doc.status}
+                                                        </span>
+                                                    </div>
+
+                                                    {doc.status === 'approved' && daysRemaining !== null && (
+                                                        <div className={`mt-1 flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-black uppercase ${
+                                                            daysRemaining <= 7 ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
+                                                            daysRemaining <= 30 ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
+                                                            'bg-green-500/10 text-green-500 border border-green-500/20'
+                                                        }`}>
+                                                            <Calendar size={10} />
+                                                            {isAr 
+                                                                ? `${daysRemaining < 0 ? 'منتهي' : `${daysRemaining} يوم متبقي`}` 
+                                                                : `${daysRemaining < 0 ? 'Expired' : `${daysRemaining} Days Left`}`}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                                {(!vendor.documents || vendor.documents.length === 0) && (
+                                    <div className="col-span-full p-6 bg-white/5 border border-dashed border-white/10 rounded-2xl text-center">
+                                        <p className="text-white/20 text-xs italic font-medium">
+                                            {isAr ? 'لا توجد مستندات مرفوعة حالياً' : 'No compliance documents uploaded yet'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Column 2: Governance & Administrative Notes */}
+                    <div className="space-y-6">
+                        <GlassCard className="p-8 border-gold-500/10 bg-gradient-to-b from-white/5 to-transparent h-full flex flex-col">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                    <Activity size={16} className="text-gold-500" />
+                                    {isAr ? 'ملاحظات الإدارة' : 'Internal Governance'}
+                                </h3>
+                                {isUpdating && <div className="w-4 h-4 border-2 border-gold-500/30 border-t-gold-500 rounded-full animate-spin" />}
+                            </div>
+
+                            <div className="flex-1 flex flex-col space-y-4">
+                                <p className="text-[10px] text-white/30 leading-relaxed italic">
+                                    {isAr 
+                                        ? 'هذه الملاحظات سرية ولا تظهر للتاجر. استخدمها لتوثيق السلوك أو المشاكل التقنية.' 
+                                        : 'Internal notes are strictly confidential. Use them to track merchant behavior or technical alerts.'}
+                                </p>
+                                <textarea 
+                                    className="flex-1 w-full bg-black/40 border border-white/5 rounded-2xl p-5 text-sm text-white/90 focus:border-gold-500/50 outline-none transition-all resize-none font-medium leading-relaxed"
+                                    placeholder={isAr ? 'ابدأ الكتابة هنا...' : 'Commence internal logging...'}
+                                    value={adminNotes}
+                                    onChange={(e) => setAdminNotes(e.target.value)}
+                                />
+                                <button 
+                                    onClick={handleSaveNotes}
+                                    disabled={isUpdating || adminNotes === vendor.adminNotes}
+                                    className="w-full py-4 bg-gold-500 text-[#0F0E0D] font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-gold-400 disabled:opacity-30 disabled:grayscale transition-all shadow-xl shadow-gold-500/10"
+                                >
+                                    {isAr ? 'حفظ السجل الداخلي' : 'Commit to Governance'}
+                                </button>
+                            </div>
+                        </GlassCard>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'orders' && (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center mb-4 px-2">
+                        <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                            <CreditCard size={20} className="text-gold-500" />
+                            {t.admin.storeProfile.tabs.orders}
+                        </h3>
+                        <span className="text-xs bg-white/5 text-white/50 px-4 py-1.5 rounded-full border border-white/5 font-bold">
+                            {vendor.orders?.length || 0} {isAr ? 'طلب' : 'Total Orders'}
+                        </span>
+                    </div>
+                    {(!vendor.orders || vendor.orders.length === 0) ? (
+                        <GlassCard className="p-12 text-center text-white/30 italic">
+                            {t.admin.storeProfile.noData}
+                        </GlassCard>
+                    ) : (
+                        <div className="grid gap-4">
+                            {vendor.orders.map((order: any) => {
+                                // Find all offers made by this store for this order (handles multi-part orders)
+                                const myOffers = order.offers || []; 
+
+                                // Strict winner check: if ANY of the store's offers is marked accepted
+                                const hasWon = myOffers.some((o: any) => o.status === 'accepted') || (order.storeId === vendorId && myOffers.length === 0);
+
+                                // Real Financial Price Calculation based on actual successful payments across ALL offers for this order
+                                const paymentsTotal = myOffers.reduce((total: number, offer: any) => {
+                                    return total + (offer.payments?.reduce((sum: number, p: any) => sum + Number(p.totalAmount || 0), 0) || 0);
+                                }, 0);
+                                
+                                // Quote fallback: sum of all quotes (unit price + shipping) for all parts offered
+                                const quotesTotal = myOffers.reduce((sum: number, offer: any) => sum + Number(offer.unitPrice || 0) + Number(offer.shippingCost || 0), 0);
+
+                                // Store share is prioritized as the actual paid amount, fallback to offer quote, fallback to 0
+                                const storeShare = paymentsTotal > 0 ? paymentsTotal : quotesTotal;
+                                const totalQty = order.parts?.reduce((sum: number, p: any) => sum + (p.quantity || 1), 0) || 0;
+
+                                // Fallback Arabic translations for status
+                                const statusMapAr: Record<string, string> = {
+                                    'COMPLETED': 'مكتمل',
+                                    'DELIVERED': 'تم التوصيل',
+                                    'SHIPPED': 'تم الشحن',
+                                    'PREPARATION': 'قيد التجهيز',
+                                    'CANCELLED': 'ملغي',
+                                    'DISPUTED': 'متنازع عليه',
+                                    'VERIFICATION': 'قيد التحقق'
+                                };
+
+                                // Determine Status Visuals
+                                let statusLabel = isAr ? (statusMapAr[order.status] || order.status) : order.status;
+                                let statusStyle = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                                
+                                if (hasWon) {
+                                    if (order.status === 'COMPLETED') statusStyle = 'bg-green-500/10 text-green-400 border-green-500/20';
+                                    else if (order.status === 'SHIPPED') statusStyle = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+                                    else if (order.status === 'CANCELLED') statusStyle = 'bg-red-500/10 text-red-400 border-red-500/20';
+                                } else if (myOffers.every((o: any) => o.status === 'rejected') && myOffers.length > 0) {
+                                    statusLabel = isAr ? 'عرض مرفوض' : 'Offer Rejected';
+                                    statusStyle = 'bg-red-500/5 text-red-300 border-red-500/10 opacity-60';
+                                } else {
+                                    statusLabel = isAr ? 'قيد المراجعة' : 'Pending Selection';
+                                    statusStyle = 'bg-white/5 text-white/40 border-white/10';
+                                }
+
+                                return (
+                                    <GlassCard key={order.id} className={`p-5 flex flex-col md:flex-row justify-between items-center gap-6 border-white/5 hover:border-gold-500/20 transition-all group relative overflow-hidden ${!hasWon && 'opacity-80'}`}>
+                                        {/* Luxury Gradient Background for Winners */}
+                                        {hasWon && <div className="absolute inset-0 bg-gradient-to-r from-gold-500/5 to-transparent pointer-events-none" />}
+
+                                        <div className="flex items-center gap-5 w-full md:w-auto relative z-10">
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 border ${
+                                                hasWon ? 'bg-gold-500/10 text-gold-500 border-gold-500/20' : 'bg-white/5 text-white/20 border-white/5'
+                                            }`}>
+                                                <Hash size={24} />
+                                            </div>
+                                            <div>
+                                                <div className="text-white font-black text-sm uppercase tracking-wider mb-1 flex items-center gap-2">
+                                                    #{order.orderNumber || order.id.slice(0, 8)}
+                                                    {hasWon && <CheckCircle2 size={12} className="text-gold-500" />}
+                                                </div>
+                                                <div className="text-[10px] text-white/40 font-bold uppercase tracking-wide flex items-center gap-2">
+                                                    <Calendar size={12} className="opacity-50" />
+                                                    {new Date(order.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex-1 w-full md:w-auto px-6 md:border-l border-white/5 relative z-10">
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                                <div className="space-y-1">
+                                                    <div className="text-[9px] text-white/20 font-black uppercase tracking-widest italic">{isAr ? 'القيمة المعروضة' : 'Proposed Quote'}</div>
+                                                    <div className="flex items-center gap-2 text-white font-bold">
+                                                        <span className="text-sm bg-white/5 px-2 py-0.5 rounded-lg border border-white/10">{totalQty} {isAr ? 'قطع' : 'Items'}</span>
+                                                        <span className="text-gold-400 font-mono text-lg">{storeShare.toLocaleString()} <span className="text-[10px] opacity-50">AED</span></span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="flex items-center gap-4">
+                                                    <div className="text-right hidden sm:block">
+                                                        <div className="text-[9px] text-white/20 font-black uppercase tracking-widest mb-1">{isAr ? 'الحالة الحالية' : 'Current Status'}</div>
+                                                        <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide border transition-all ${statusStyle}`}>
+                                                            {statusLabel}
+                                                        </span>
+                                                    </div>
+
+                                                    <button 
+                                                        onClick={() => onNavigate?.('admin-order-details', order.id)}
+                                                        className="p-3 bg-white/5 hover:bg-gold-500 hover:text-black text-white/30 rounded-2xl transition-all border border-white/5 group/btn shadow-xl"
+                                                        title={isAr ? 'فتح الطلب' : 'Open Order'}
+                                                    >
+                                                        <ExternalLink size={20} className="group-hover/btn:scale-110 transition-transform" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </GlassCard>
                                 );
                             })}
                         </div>
-                    </GlassCard>
+                    )}
                 </div>
+            )}
 
-            </div>
+            {activeTab === 'disputes' && (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center mb-4 px-2">
+                        <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                            <XCircle size={20} className="text-red-500" />
+                            {t.admin.storeProfile.tabs.disputes}
+                        </h3>
+                    </div>
+                    {(!vendor.orders?.some((o:any) => o.disputes?.length > 0 || o.returns?.length > 0)) ? (
+                        <GlassCard className="p-12 text-center text-white/30 italic">
+                            {t.admin.storeProfile.noData}
+                        </GlassCard>
+                    ) : (
+                        <div className="grid gap-4">
+                            {vendor.orders?.filter((o:any) => o.disputes?.length > 0 || o.returns?.length > 0).map((order: any) => {
+                                // Calculate Held Amount based on actual payments mapped earlier
+                                const myOffers = order.offers || [];
+                                const paymentsTotal = myOffers.reduce((total: number, offer: any) => {
+                                    return total + (offer.payments?.reduce((sum: number, p: any) => sum + Number(p.totalAmount || 0), 0) || 0);
+                                }, 0);
+                                const quotesTotal = myOffers.reduce((sum: number, offer: any) => sum + Number(offer.unitPrice || 0) + Number(offer.shippingCost || 0), 0);
+                                const heldAmount = paymentsTotal > 0 ? paymentsTotal : quotesTotal;
+
+                                return (
+                                    <GlassCard key={order.id} className="p-6 bg-gradient-to-r from-red-500/10 to-transparent border-red-500/20 group relative overflow-hidden">
+                                        <div className="absolute inset-0 bg-red-500/5 animate-pulse pointer-events-none opacity-20" />
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-black bg-red-500 text-white px-3 py-1 rounded-lg uppercase tracking-widest shadow-lg shadow-red-500/20 italic">
+                                                        {order.disputes?.length > 0 ? (isAr ? 'نزاع نشط' : 'DISPUTE') : (isAr ? 'طلب إرجاع' : 'RETURN')}
+                                                    </span>
+                                                    <span className="text-white font-black tracking-widest">#{order.orderNumber || order.id.slice(0,8)}</span>
+                                                </div>
+                                                <div className="text-[10px] text-white/40 font-bold uppercase tracking-wide flex items-center gap-2">
+                                                    <Calendar size={12} className="opacity-50" />
+                                                    {isAr ? 'آخر تحديث:' : 'Updated:'} {new Date(order.updatedAt || order.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB')}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-8">
+                                                <div className="text-right">
+                                                    <div className="text-[9px] text-red-400 font-black uppercase tracking-[0.2em] mb-1 italic opacity-70">
+                                                        {isAr ? 'المبلغ المجمد' : 'HELD FUNDS'}
+                                                    </div>
+                                                    <div className="text-xl font-black text-white tabular-nums">
+                                                        {heldAmount.toLocaleString()} <span className="text-[10px] text-white/40 ml-1">AED</span>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => onNavigate?.('admin-resolution-center', order.id)}
+                                                    className="bg-white/5 hover:bg-red-500 hover:text-white text-white/70 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] border border-white/5 hover:border-red-500 transition-all shadow-xl active:scale-95"
+                                                >
+                                                    {isAr ? 'مراجعة النزاع' : 'Resolve Case'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </GlassCard>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'reviews' && (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center mb-4 px-2">
+                        <h3 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                            <Star size={20} className="text-yellow-500" />
+                            {t.admin.storeProfile.tabs.reviews}
+                        </h3>
+                    </div>
+                    {(!vendor.reviews || vendor.reviews.length === 0) ? (
+                        <GlassCard className="p-12 text-center text-white/30 italic">
+                            {t.admin.storeProfile.noData}
+                        </GlassCard>
+                    ) : (
+                        <div className="grid gap-4">
+                            {vendor.reviews.map((review: any) => (
+                                <GlassCard key={review.id} className="p-6 bg-[#0F0E0D] border-white/5 group">
+                                    <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                                        <div className="flex gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white/20 shrink-0 border border-white/5">
+                                                {review.customer?.avatar ? (
+                                                    <img src={review.customer.avatar} className="w-full h-full object-cover rounded-2xl" alt={review.customer.name} />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-gold-500/5 text-gold-500 font-black text-lg">
+                                                        {(review.customer?.name || 'A')[0].toUpperCase()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <div className="text-white font-black text-sm mb-1">{review.customer?.name || (isAr ? 'عميل مجهول' : 'Anonymous')}</div>
+                                                <div className="flex items-center gap-0.5 text-yellow-500">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <Star key={i} size={12} fill={i < review.rating ? "currentColor" : "none"} className={i < review.rating ? "text-yellow-500" : "text-white/10"} />
+                                                    ))}
+                                                    <span className="text-[10px] text-white/30 ml-2 font-mono italic">
+                                                        {new Date(review.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB')}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {review.rating >= 4 && (
+                                            <span className="text-[9px] bg-green-500/10 text-green-400 border border-green-500/20 px-3 py-1 rounded-full font-black tracking-widest uppercase">
+                                                {isAr ? 'تحليل: إيجابي جداً' : 'SENTIMENT: STRONGLY POSITIVE'}
+                                            </span>
+                                        )}
+                                        {review.rating <= 2 && (
+                                            <span className="text-[9px] bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1 rounded-full font-black tracking-widest uppercase">
+                                                {isAr ? 'تحليل: سلبي' : 'SENTIMENT: NEGATIVE'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="mt-4 text-white/70 text-sm leading-relaxed italic border-l-2 border-gold-500/10 pl-4 ml-2">
+                                        "{review.comment}"
+                                    </p>
+                                </GlassCard>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'sessions' && (
+                <div className="grid lg:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest px-2 mb-4 flex items-center gap-2">
+                            <Smartphone size={18} className="text-blue-500" />
+                            {isAr ? 'الجلسات النشطة' : 'Active Sessions'}
+                        </h3>
+                        {vendor.owner?.sessions?.length > 0 ? (
+                            vendor.owner.sessions.map((session: any) => {
+                                // Determine Icon & Label based on device/OS
+                                const isMobile = session.os?.toLowerCase().includes('android') || session.os?.toLowerCase().includes('ios');
+                                const isTablet = session.os?.toLowerCase().includes('ipad') || session.device?.toLowerCase().includes('tablet');
+                                const DeviceIcon = isMobile ? Smartphone : isTablet ? Tablet : Monitor;
+
+                                return (
+                                    <GlassCard key={session.id} className="p-5 border-white/5 hover:border-gold-500/20 transition-all group relative overflow-hidden flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-5">
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 border ${
+                                                'bg-white/5 text-white/30 border-white/10 group-hover:bg-gold-500/10 group-hover:text-gold-500 group-hover:border-gold-500/20'
+                                            }`}>
+                                                <DeviceIcon size={24} />
+                                            </div>
+                                            
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-white font-black text-sm tracking-wide">
+                                                        {session.device || (isAr ? 'جهاز مجهول' : 'Unknown Device')}
+                                                    </span>
+                                                    <span className="text-[9px] bg-white/5 text-white/40 px-2 py-0.5 rounded border border-white/5 font-mono">
+                                                        {session.os || 'N/A'}
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/30">
+                                                        <Activity size={12} className="text-gold-500/50" />
+                                                        <span className="text-white/60">{session.ip || '0.0.0.0'}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/30">
+                                                        <MapPin size={12} className="text-blue-500/50" />
+                                                        <span className="text-white/60">{session.location || (isAr ? 'موقع غير معروف' : 'Unknown Location')}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-right shrink-0">
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className="text-[9px] text-green-500 font-black uppercase tracking-[0.2em] animate-pulse">
+                                                    {isAr ? 'نشط الآن' : 'LIVE'}
+                                                </span>
+                                                <span className="text-[10px] text-white/20 font-bold tabular-nums">
+                                                    {isAr ? 'آخر نشاط:' : 'Last:'} {new Date(session.lastActive || session.updatedAt).toLocaleTimeString(isAr ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </GlassCard>
+                                );
+                            })
+                        ) : (
+                            <GlassCard className="p-12 text-center text-white/20 text-xs italic border-dashed border-white/10 flex flex-col items-center gap-4">
+                                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center opacity-20">
+                                    <Smartphone size={32} />
+                                </div>
+                                {isAr ? 'لا توجد جلسات نشطة حالياً لهذا المستخدم' : 'This commander has no active field transmissions.'}
+                            </GlassCard>
+                        )}
+                    </div>
+
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest px-2 mb-4 flex items-center gap-2">
+                            <Activity size={18} className="text-red-500" />
+                            {isAr ? 'سجل الأمان' : 'Security Logs'}
+                        </h3>
+                        <GlassCard className="p-0 overflow-hidden border-white/5">
+                            <table className={`w-full ${isAr ? 'text-right' : 'text-left'} text-white/70`}>
+                                <thead className="bg-white/5 text-[10px] font-black uppercase tracking-widest">
+                                    <tr>
+                                        <th className="px-5 py-4">{isAr ? 'الحدث' : 'Event'}</th>
+                                        <th className="px-5 py-4">{isAr ? 'تاريخ العملية' : 'Time'}</th>
+                                        <th className="px-5 py-4">{isAr ? 'العنوان الرقمي' : 'IP / Identifier'}</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {vendor.owner?.securityLogs?.slice(0, 10).map((log: any) => (
+                                        <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
+                                            <td className="px-5 py-4 text-xs font-bold text-white capitalize">
+                                                {log.action?.replace(/_/g, ' ') || (isAr ? 'عملية نظام' : 'System Action')}
+                                            </td>
+                                            <td className="px-5 py-4 text-[10px] text-white/40 font-mono tracking-tighter">
+                                                {new Date(log.createdAt).toLocaleString(isAr ? 'ar-EG' : 'en-GB')}
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <span className={`text-[9px] font-black px-2 py-1 rounded-lg border ${log.ipAddress ? 'text-blue-400 border-blue-400/20 bg-blue-400/5' : 'text-white/40 border-white/10'}`}>
+                                                    {log.ipAddress || 'INTERNAL'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </GlassCard>
+                    </div>
+                </div>
             )}
 
             {activeTab === 'contract' && (
@@ -426,6 +1243,24 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                             </div>
 
                             <div className="p-6 border-t border-white/10 bg-[#1A1814] flex justify-end gap-3 rounded-b-2xl">
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => handleDocAction('rejected')}
+                                        disabled={isUpdating}
+                                        className="px-6 py-2.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold rounded-xl transition-all border border-red-500/20 disabled:opacity-50"
+                                    >
+                                        <X size={18} className="inline mr-2" />
+                                        {isAr ? 'رفض المستند' : 'Reject'}
+                                    </button>
+                                    <button
+                                        onClick={() => handleDocAction('approved')}
+                                        disabled={isUpdating}
+                                        className="px-6 py-2.5 bg-green-500 text-white hover:bg-green-600 font-bold rounded-xl transition-all shadow-lg shadow-green-500/20 disabled:opacity-50"
+                                    >
+                                        <CheckCircle2 size={18} className="inline mr-2" />
+                                        {isAr ? 'اعتماد المستند' : 'Approve'}
+                                    </button>
+                                </div>
                                 <a
                                     href={selectedDoc.url}
                                     target="_blank"

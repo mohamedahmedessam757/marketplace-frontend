@@ -19,6 +19,7 @@ const shipmentStatuses = [
     'IN_TRANSIT_TO_DESTINATION',
     'ARRIVED_AT_LOCAL_FACILITY',
     'CUSTOMS_CLEARANCE',
+    'CUSTOMS_DELAY',
     'AT_LOCAL_WAREHOUSE',
     'OUT_FOR_DELIVERY',
     'DELIVERY_ATTEMPTED',
@@ -40,6 +41,7 @@ const statusTranslations: Record<string, { ar: string, en: string }> = {
     'IN_TRANSIT_TO_DESTINATION': { ar: '6️⃣ قيد الشحن الدولي', en: '6️⃣ International Transit' },
     'ARRIVED_AT_LOCAL_FACILITY': { ar: '7️⃣ في منطقة العبور (Transit)', en: '7️⃣ In Transit Zone' },
     'CUSTOMS_CLEARANCE':         { ar: '8️⃣ وصل إلى دولة العميل / الجمارك', en: '8️⃣ Arrived / Customs' },
+    'CUSTOMS_DELAY':             { ar: '⚠️ نعتذر، الشحنة لدى الجمارك', en: '⚠️ Delayed at Customs' },
     'AT_LOCAL_WAREHOUSE':        { ar: '9️⃣ وصل لمستودع مدينتك', en: '9️⃣ At Local Warehouse' },
     'OUT_FOR_DELIVERY':          { ar: '🔟 خرج للتوصيل', en: '🔟 Out for Delivery' },
     'DELIVERY_ATTEMPTED':        { ar: '📍 محاولة توصيل', en: '📍 Delivery Attempt' },
@@ -65,6 +67,7 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
     const [formTrackingNumber, setFormTrackingNumber] = useState('');
     const [formStatus, setFormStatus] = useState('');
     const [formNotes, setFormNotes] = useState('');
+    const [formTrackingLink, setFormTrackingLink] = useState('');
     const [formCustomsDelayNote, setFormCustomsDelayNote] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [logs, setLogs] = useState<ShipmentStatusLog[]>([]);
@@ -113,6 +116,7 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
         setFormCarrierType(s.carrierType);
         setFormCarrierName(s.carrierName || '');
         setFormTrackingNumber(s.trackingNumber || '');
+        setFormTrackingLink(s.trackingLink || '');
         setFormStatus(s.status);
         setFormCustomsDelayNote(s.customsDelayNote || '');
         setFormNotes('');
@@ -134,7 +138,8 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                 notes: formNotes,
                 customsDelayNote: formCustomsDelayNote,
                 carrierName: formCarrierName,
-                trackingNumber: formTrackingNumber
+                trackingNumber: formTrackingNumber,
+                trackingLink: formTrackingLink
             });
             alert(isAr ? 'تم حفظ التعديلات وتحديث حالة الطلب وإشعار العميل.' : 'Changes saved, order status updated and customer notified.');
             
@@ -219,7 +224,7 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                     <div className="lg:col-span-2 space-y-6">
                         <GlassCard className="p-6 bg-[#1A1814]">
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Settings2 size={18} className="text-blue-400"/> {isAr ? 'تحديث الحالة والخدمات' : 'Update Status & Services'}</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-xs text-white/40 font-bold uppercase mb-2 tracking-widest">{isAr ? 'الحالة المستهدفة' : 'Target Status'}</label>
@@ -252,7 +257,22 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                                                 type="text" 
                                                 value={formTrackingNumber}
                                                 onChange={e => setFormTrackingNumber(e.target.value)}
-                                                className="w-full bg-[#151310] border border-white/10 rounded-xl pl-11 pr-4 py-4 text-white font-mono focus:border-purple-500 outline-none"
+                                                placeholder="569619619"
+                                                className="w-full bg-[#151310] border border-white/10 rounded-xl pl-11 pr-4 py-4 text-white font-mono focus:border-purple-500 outline-none transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs text-white/40 font-bold uppercase mb-2 tracking-widest">{isAr ? 'رابط التتبع (اختياري)' : 'Tracking Link (Optional)'}</label>
+                                        <div className="relative">
+                                            <ExternalLink size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" />
+                                            <input 
+                                                type="text" 
+                                                value={formTrackingLink}
+                                                onChange={e => setFormTrackingLink(e.target.value)}
+                                                placeholder="https://tracker.com/..."
+                                                className="w-full bg-[#151310] border border-white/10 rounded-xl pl-11 pr-4 py-4 text-white font-mono text-xs focus:border-purple-500 outline-none transition-all"
                                             />
                                         </div>
                                     </div>

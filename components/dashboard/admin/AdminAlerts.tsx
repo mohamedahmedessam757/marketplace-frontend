@@ -7,8 +7,13 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 
 export const AdminAlerts: React.FC = () => {
     const { t, language } = useLanguage();
-    const { dashboardStats } = useAdminStore(); // Use global dash stats
-    // We can keep specific stores if we need clickable actions later, but for the list, use backend stats.
+    const { dashboardStats } = useAdminStore();
+    const isAr = language === 'ar';
+
+    // Navigation helper
+    const navigate = (path: string, id?: any) => {
+        window.dispatchEvent(new CustomEvent('admin-nav', { detail: { path, id } }));
+    };
 
     const alerts = useMemo(() => {
         if (!dashboardStats?.alerts) return [];
@@ -17,30 +22,30 @@ export const AdminAlerts: React.FC = () => {
             let title = '';
             let msg = '';
 
-            // Map Codes to Translations
+            // Map Codes to Translations & Custom Messages
             switch (a.code) {
                 case 'LATE_RESPONSE':
                     title = t.admin.alerts.types.no_response;
-                    msg = `${a.count} orders waiting > 24h`;
+                    msg = isAr ? `يوجد ${a.count} طلبات تنتظر العروض لأكثر من 24 ساعة` : `${a.count} orders waiting > 24h`;
                     break;
                 case 'LATE_PREP':
                     title = t.admin.alerts.types.late_prep;
-                    msg = `${a.count} orders delayed > 48h`;
+                    msg = isAr ? `يوجد ${a.count} طلبات تأخر تجهيزها لأكثر من 48 ساعة` : `${a.count} orders delayed > 48h`;
                     break;
                 case 'LICENSE_EXPIRING':
                     title = t.admin.alerts.types.license_expiry;
-                    msg = `${a.count} Stores Expiring Soon`;
+                    msg = isAr ? `${a.count} متاجر تنتهي رخصها قريباً` : `${a.count} Stores Expiring Soon`;
                     break;
                 case 'LICENSE_EXPIRED':
                     title = t.admin.alerts.types.license_expired;
-                    msg = `${a.count} Stores Expired`;
+                    msg = isAr ? `${a.count} متاجر انتهت رخصها وتحتاج متابعة` : `${a.count} Stores Expired`;
                     break;
                 case 'DISPUTES_OPEN':
                     title = t.admin.alerts.types.dispute;
-                    msg = `${a.count} Active Cases`;
+                    msg = isAr ? `يوجد ${a.count} حالات نزاع نشطة تتطلب حكماً إدارياً` : `${a.count} Active Cases requiring verdict`;
                     break;
                 default:
-                    title = 'System Alert';
+                    title = isAr ? 'تنبيه نظام' : 'System Alert';
                     msg = `Code: ${a.code}`;
             }
 
@@ -51,8 +56,29 @@ export const AdminAlerts: React.FC = () => {
                 msg,
                 priority: a.priority
             };
-        }).sort((a, b) => (a.priority === 'critical' ? -1 : 1)); // Sort critical first
-    }, [dashboardStats, t]);
+        }).sort((a, b) => {
+            const priorityMap: any = { critical: 0, high: 1, medium: 2, low: 3 };
+            return (priorityMap[a.priority] || 99) - (priorityMap[b.priority] || 99);
+        });
+    }, [dashboardStats, t, isAr]);
+
+    const handleAlertClick = (code: string) => {
+        switch (code) {
+            case 'DISPUTES_OPEN':
+                navigate('resolution');
+                break;
+            case 'LICENSE_EXPIRED':
+            case 'LICENSE_EXPIRING':
+                navigate('users'); // Store management
+                break;
+            case 'LATE_RESPONSE':
+            case 'LATE_PREP':
+                navigate('orders-control');
+                break;
+            default:
+                break;
+        }
+    };
 
     return (
         <GlassCard className="h-full bg-[#1A1814]/80 flex flex-col p-6">
@@ -65,7 +91,9 @@ export const AdminAlerts: React.FC = () => {
                     </div>
                     {t.admin.alerts.title}
                 </h3>
-                <span className="text-xs text-white/40 font-mono bg-white/5 px-2 py-1 rounded">{alerts.length} Active</span>
+                <span className="text-xs text-white/40 font-mono bg-white/5 px-2 py-1 rounded">
+                    {alerts.length} {isAr ? 'عنصر نشط' : 'Active'}
+                </span>
             </div>
 
             <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
@@ -80,6 +108,7 @@ export const AdminAlerts: React.FC = () => {
                     alerts.map((alert, idx) => (
                         <div
                             key={alert.id + idx}
+                            onClick={() => handleAlertClick(alert.id)}
                             className={`
                             relative p-4 rounded-xl border flex items-center gap-4 transition-all hover:translate-x-1 cursor-pointer group
                             ${alert.type === 'error'
@@ -102,9 +131,9 @@ export const AdminAlerts: React.FC = () => {
                             </div>
 
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button className="p-2 hover:bg-white/10 rounded-full text-white">
-                                    <ChevronRight size={16} />
-                                </button>
+                                <div className="p-2 bg-white/10 rounded-full text-white">
+                                    <ChevronRight size={16} className={isAr ? 'rotate-180' : ''} />
+                                </div>
                             </div>
                         </div>
                     ))

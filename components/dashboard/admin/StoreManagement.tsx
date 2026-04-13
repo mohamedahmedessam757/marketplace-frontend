@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useAdminStore, Vendor } from '../../../stores/useAdminStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { ShieldAlert, Store, Search, Filter, Eye } from 'lucide-react';
+import { ShieldAlert, Store, Search, Filter, Eye, User, Mail, Calendar, ChevronRight, Hash } from 'lucide-react';
 
 interface StoreManagementProps {
     onNavigate?: (path: string, id: any) => void;
@@ -43,112 +43,153 @@ export const StoreManagement: React.FC<StoreManagementProps> = ({ onNavigate }) 
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h1 className="text-2xl font-bold text-white">{t.admin.users}</h1>
-                <div className="flex gap-2">
-                    <div className="relative">
-                        <Search size={16} className="absolute top-1/2 -translate-y-1/2 left-3 text-white/30" />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            {/* --- Premium Header Section --- */}
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+                <div className="flex items-center gap-4 group">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gold-500/20 to-transparent border border-gold-500/20 flex items-center justify-center text-gold-500 shadow-2xl shadow-gold-500/10 group-hover:scale-110 transition-transform duration-500">
+                        <Store size={28} />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-black text-white tracking-tight uppercase italic">
+                            {isAr ? 'إدارة المتاجر' : 'Store Management'}
+                        </h1>
+                        <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest mt-1">
+                            {isAr ? 'التحكم المركزي في منظومة التجار' : 'Centralized Vendor Governance Hub'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* --- Search & Filters Hub --- */}
+                <GlassCard className="p-2 border-white/5 flex flex-wrap md:flex-nowrap items-center gap-2 bg-white/[0.02]">
+                    <div className="relative group">
+                        <Search size={16} className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'right-3' : 'left-3'} text-white/20 group-focus-within:text-gold-500 transition-colors`} />
                         <input
                             type="text"
-                            placeholder={t.common.search}
-                            className="bg-[#151310] border border-white/10 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:border-gold-500 outline-none w-48 transition-all focus:w-64"
+                            placeholder={isAr ? 'ابحث عن متجر، مالك، أو رقم تعريفي...' : 'Search store, owner, or ID...'}
+                            className={`bg-white/5 border border-white/5 rounded-xl ${isAr ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-2.5 text-xs text-white focus:border-gold-500/50 outline-none w-64 md:w-80 transition-all placeholder:text-white/20 font-medium`}
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
                     </div>
-                    <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${filter === 'all' ? 'bg-gold-500 text-white' : 'bg-white/10 text-white/50'}`}>{isAr ? 'الكل' : 'All'}</button>
-                    <button onClick={() => setFilter('pending')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${filter === 'pending' ? 'bg-gold-500 text-white' : 'bg-white/10 text-white/50'}`}>{isAr ? 'قيد الانتظار' : 'Pending'}</button>
-                </div>
+                    <div className="h-6 w-[1px] bg-white/10 mx-2 hidden md:block" />
+                    <div className="flex gap-1 p-1 bg-black/20 rounded-xl border border-white/5">
+                        <button 
+                            onClick={() => setFilter('all')} 
+                            className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all duration-300 ${filter === 'all' ? 'bg-gold-500 text-white shadow-lg shadow-gold-500/20' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                        >
+                            {isAr ? 'الكل' : 'All'}
+                        </button>
+                        <button 
+                            onClick={() => setFilter('pending')} 
+                            className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all duration-300 ${filter === 'pending' ? 'bg-gold-500 text-white shadow-lg shadow-gold-500/20' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                        >
+                            {isAr ? 'قيد الانتظار' : 'Pending'}
+                        </button>
+                    </div>
+                </GlassCard>
             </div>
 
-            <GlassCard className="p-0 overflow-hidden bg-[#151310] min-h-[400px]">
+            <div className="grid gap-4">
                 {isLoadingStores ? (
-                    <table className="w-full text-start">
-                        <thead className="bg-white/5 text-xs text-white/40 uppercase">
-                            <tr>
-                                <th className="p-4 text-start font-medium">{t.admin.usersTable.name}</th>
-                                <th className="p-4 text-start font-medium">{t.admin.usersTable.owner}</th>
-                                <th className="p-4 text-start font-medium">{t.admin.usersTable.joined}</th>
-                                <th className="p-4 text-start font-medium">{t.admin.usersTable.status}</th>
-                                <th className="p-4 text-start font-medium">{t.admin.usersTable.actions}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {[...Array(5)].map((_, i) => (
-                                <tr key={i} className="animate-pulse">
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-white/5"></div>
-                                            <div className="w-24 h-5 bg-white/10 rounded-lg"></div>
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="space-y-2">
-                                            <div className="w-24 h-4 bg-white/10 rounded-lg"></div>
-                                            <div className="w-32 h-3 bg-white/5 rounded-lg"></div>
-                                        </div>
-                                    </td>
-                                    <td className="p-4"><div className="w-20 h-4 bg-white/10 rounded-lg"></div></td>
-                                    <td className="p-4"><div className="w-24 h-6 bg-white/10 rounded-full"></div></td>
-                                    <td className="p-4"><div className="w-8 h-8 bg-white/10 rounded-lg"></div></td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                ) : (
-                    <table className="w-full text-start">
-                        <thead className="bg-white/5 text-xs text-white/40 uppercase">
-                            <tr>
-                                <th className="p-4 text-start font-medium">{t.admin.usersTable.name}</th>
-                                <th className="p-4 text-start font-medium">{t.admin.usersTable.owner}</th>
-                                <th className="p-4 text-start font-medium w-[15%]">{t.admin.usersTable.joined}</th>
-                                <th className="p-4 text-start font-medium w-[15%]">{t.admin.usersTable.status}</th>
-                                <th className="p-4 text-start font-medium w-[10%]">{t.admin.usersTable.actions}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {filteredStores.map(store => (
-                                <tr key={store.id} className="hover:bg-white/5 transition-colors group">
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-white/30 group-hover:text-gold-400 transition-colors">
-                                                <Store size={20} />
+                    [...Array(6)].map((_, i) => (
+                        <GlassCard key={i} className="p-6 border-white/5 animate-pulse">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-white/5" />
+                                    <div className="space-y-2">
+                                        <div className="w-32 h-4 bg-white/10 rounded" />
+                                        <div className="w-48 h-3 bg-white/5 rounded" />
+                                    </div>
+                                </div>
+                                <div className="w-24 h-8 bg-white/10 rounded-xl" />
+                            </div>
+                        </GlassCard>
+                    ))
+                ) : filteredStores.length > 0 ? (
+                    filteredStores.map(store => (
+                        <GlassCard key={store.id} className="p-6 border-white/5 hover:border-gold-500/20 transition-all group overflow-hidden relative">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 blur-[80px] -z-10 group-hover:bg-gold-500/10 transition-colors" />
+                            
+                            <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1.2fr_0.8fr] items-center gap-8 relative z-10">
+                                {/* --- Section 1: Store Bio --- */}
+                                <div className="flex items-center gap-5 min-w-0">
+                                    <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-white/30 group-hover:text-gold-500 group-hover:bg-gold-500/5 transition-all duration-500 shadow-inner shrink-0 overflow-hidden">
+                                        {store.logo ? (
+                                            <img src={store.logo} alt={store.name} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" />
+                                        ) : (
+                                            <Store size={28} />
+                                        )}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h2 className="text-lg font-black text-white group-hover:text-gold-500 transition-colors tracking-tight truncate">
+                                                {store.name}
+                                            </h2>
+                                            <div className="flex items-center gap-1 px-2 py-0.5 bg-white/5 rounded text-[8px] font-mono text-white/30 border border-white/5 shrink-0">
+                                                <Hash size={8} />
+                                                {store.id.slice(0, 8).toUpperCase()}
                                             </div>
-                                            <div className="font-bold text-white group-hover:text-gold-400 transition-colors">{store.name}</div>
                                         </div>
-                                    </td>
-                                    <td className="p-4 text-sm text-white/70">
-                                        <div className="font-semibold text-white">{store.owner?.name || 'Unknown'}</div>
-                                        <div className="text-[10px] text-white/30">{store.owner?.email}</div>
-                                    </td>
-                                    <td className="p-4 text-sm text-white/50 font-mono">
-                                        {new Date(store.createdAt).toLocaleDateString()}
-                                    </td>
-                                    <td className="p-4">
+                                        <div className="flex items-center gap-3 text-[10px] font-bold text-white/40 italic">
+                                            <div className="flex items-center gap-1">
+                                                <Calendar size={12} className="opacity-50" />
+                                                {new Date(store.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* --- Section 2: Owner Info --- */}
+                                <div className={`flex items-center gap-4 px-6 lg:border-x border-white/5 ${isAr ? 'lg:text-right' : 'lg:text-left'}`}>
+                                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/20 shrink-0">
+                                        <User size={18} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-[9px] text-white/20 font-black uppercase tracking-widest mb-1 italic">
+                                            {isAr ? 'المالك المعتمد' : 'Authorized Owner'}
+                                        </div>
+                                        <div className="flex flex-col gap-0.5">
+                                            <div className="text-xs font-black text-white/80 truncate">
+                                                {store.owner?.name || 'Unknown'}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/30 truncate">
+                                                <Mail size={10} className="text-blue-500/50 shrink-0" />
+                                                {store.owner?.email}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* --- Section 3: Status & Action --- */}
+                                <div className="flex items-center gap-6 justify-between lg:justify-self-end">
+                                    <div className="text-start lg:text-right">
+                                        <div className="text-[9px] text-white/20 font-black uppercase tracking-widest mb-2 italic">
+                                            {isAr ? 'حالة المنصة' : 'Platform Status'}
+                                        </div>
                                         {getStatusBadge(store.status)}
-                                    </td>
-                                    <td className="p-4 text-start">
-                                        <button
-                                            onClick={() => onNavigate && onNavigate('store-profile', store.id)}
-                                            className="p-2 bg-white/5 hover:bg-gold-500 hover:text-white text-gold-400 rounded-lg transition-colors border border-white/10"
-                                            title={t.common.details}
-                                        >
-                                            <Eye size={16} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                    </div>
+                                    <button
+                                        onClick={() => onNavigate && onNavigate('store-profile', store.id)}
+                                        className="w-12 h-12 bg-white/5 hover:bg-gold-500 text-gold-500 hover:text-white rounded-2xl flex items-center justify-center transition-all duration-300 border border-white/10 group-active:scale-90 shadow-xl shrink-0"
+                                    >
+                                        <Eye size={20} />
+                                    </button>
+                                </div>
+                            </div>
+                        </GlassCard>
+                    ))
+                ) : (
+                    <GlassCard className="p-20 text-center flex flex-col items-center justify-center opacity-50 border-dashed border-white/10">
+                        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
+                            <Store size={40} className="text-white/20" />
+                        </div>
+                        <p className="text-white/50 font-black uppercase tracking-widest text-xs italic">
+                            {isAr ? 'لا توجد متاجر تطابق بحثك حالياً' : 'No commercial entities matched your criteria'}
+                        </p>
+                    </GlassCard>
                 )}
-                {!isLoadingStores && filteredStores.length === 0 && (
-                    <div className="p-12 text-center flex flex-col items-center justify-center opacity-50">
-                        <Store size={48} className="text-white/20 mb-4" />
-                        <p className="text-white/50">{isAr ? 'لا توجد متاجر تطابق بحثك' : 'No stores found matching your criteria'}</p>
-                    </div>
-                )}
-            </GlassCard>
+            </div>
         </div>
     );
 };

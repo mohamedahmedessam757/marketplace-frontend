@@ -10,14 +10,26 @@ export interface Transaction {
   amount: number;
   balanceAfter?: number;
   description?: string;
+  status?: string;
   payment?: {
     orderId?: string;
+    status?: string;
     order?: {
       id?: string;
       orderNumber?: string;
       status?: string;
     };
   };
+}
+
+interface BankDetails {
+  bankName: string;
+  accountHolder: string;
+  iban: string;
+  swift: string;
+  verified: boolean;
+  stripeOnboarded: boolean;
+  stripeAccountId: string | null;
 }
 
 interface MerchantWalletState {
@@ -38,13 +50,27 @@ interface MerchantWalletState {
     pendingRewards: number;
     monthlyRewards: number;
     profitPercentage: number;
+    earnedReferralProfits: number;
+    storeId?: string;
+    tierBenefits: { ar: string; en: string }[];
+    nextTierBenefits: { ar: string; en: string }[];
+    stripeOnboarded: boolean;
+    stripeAccountId?: string;
   };
+  withdrawalRequests: any[];
+  withdrawalLimits: { min: number; max: number };
+  bankDetails: BankDetails | null;
   transactions: Transaction[];
   notifications: any[];
   isLoading: boolean;
 
   // Actions
-  fetchWallet: () => Promise<void>;
+  fetchWallet: (filters?: { startDate?: string; endDate?: string }) => Promise<void>;
+  fetchWithdrawalData: () => Promise<void>;
+  fetchBankDetails: () => Promise<void>;
+  saveBankDetails: (details: { bankName: string; accountHolder: string; iban: string; swift?: string }) => Promise<{ success: boolean; message: string }>;
+  requestWithdrawal: (amount: number, payoutMethod?: string) => Promise<{ success: boolean; message: string }>;
+  getStripeOnboardingUrl: () => Promise<string>;
 }
 
 export const useMerchantWalletStore = create<MerchantWalletState>((set) => ({
@@ -63,17 +89,32 @@ export const useMerchantWalletStore = create<MerchantWalletState>((set) => ({
     loyaltyPoints: 0,
     pendingRewards: 0,
     monthlyRewards: 0,
-    profitPercentage: 0
+    profitPercentage: 0,
+    earnedReferralProfits: 0,
+    storeId: '',
+    tierBenefits: [],
+    nextTierBenefits: [],
+    stripeOnboarded: false,
+    stripeAccountId: ''
   },
+  withdrawalRequests: [],
+  withdrawalLimits: { min: 50, max: 10000 },
+  bankDetails: null,
   transactions: [],
   notifications: [],
   isLoading: true,
 
-  fetchWallet: async () => {
+  fetchWallet: async (filters) => {
     set({ isLoading: true });
     try {
       const { client } = await import('../services/api/client');
-      const response = await client.get('/payments/merchant/dashboard');
+      let url = '/payments/merchant/dashboard';
+      const params = new URLSearchParams();
+      if (filters?.startDate) params.append('startDate', filters.startDate);
+      if (filters?.endDate) params.append('endDate', filters.endDate);
+      if (params.toString()) url += `?${params.toString()}`;
+
+      const response = await client.get(url);
       const { stats, transactions, notifications } = response.data;
 
       set({
@@ -86,13 +127,75 @@ export const useMerchantWalletStore = create<MerchantWalletState>((set) => ({
       console.error('Failed to fetch merchant wallet dashboard', error);
       set({ isLoading: false });
     }
+  },
+
+  fetchWithdrawalData: async () => {
+    try {
+        const { client } = await import('../services/api/client');
+        const [reqRes, limitsRes] = await Promise.all([
+            client.get('/payments/withdrawals'),
+            client.get('/payments/admin/withdrawal-settings')
+        ]);
+        set({ 
+            withdrawalRequests: reqRes.data,
+            withdrawalLimits: limitsRes.data 
+        });
+    } catch (error) {
+        console.error('Failed to fetch withdrawal data', error);
+    }
+  },
+
+  fetchBankDetails: async () => {
+    try {
+        const { client } = await import('../services/api/client');
+        const response = await client.get('/payments/merchant/bank-details');
+        set({ bankDetails: response.data });
+    } catch (error) {
+        console.error('Failed to fetch bank details', error);
+    }
+  },
+
+  saveBankDetails: async (details) => {
+    try {
+        const { client } = await import('../services/api/client');
+        const response = await client.post('/payments/merchant/bank-details', details);
+        // Refresh bank details after save
+        useMerchantWalletStore.getState().fetchBankDetails();
+        return { success: true, message: response.data.message || 'Bank details saved!' };
+    } catch (error: any) {
+        return { success: false, message: error.response?.data?.message || 'Failed to save bank details' };
+    }
+  },
+
+  requestWithdrawal: async (amount, payoutMethod = 'BANK_TRANSFER') => {
+    try {
+        const { client } = await import('../services/api/client');
+        await client.post('/payments/merchant/withdraw', { amount, payoutMethod });
+        useMerchantWalletStore.getState().fetchWithdrawalData();
+        useMerchantWalletStore.getState().fetchWallet();
+        return { success: true, message: 'Request submitted successfully' };
+    } catch (error: any) {
+        return { success: false, message: error.response?.data?.message || 'Failed to submit request' };
+    }
+  },
+
+  getStripeOnboardingUrl: async () => {
+    try {
+        const { client } = await import('../services/api/client');
+        const response = await client.get('/payments/merchant/stripe-onboarding');
+        return response.data;
+    } catch (error: any) {
+        console.error('Failed to get onboarding URL', error);
+        throw error;
+    }
   }
 }));
+
 
 // Real-time subscription outside the store so we can call it where needed
 let channel: ReturnType<typeof supabase.channel> | null = null;
 
-export const subscribeToMerchantWalletUpdates = (userId: string) => {
+export const subscribeToMerchantWalletUpdates = (userId: string, storeId?: string) => {
     if (channel) {
         supabase.removeChannel(channel);
     }
@@ -102,7 +205,7 @@ export const subscribeToMerchantWalletUpdates = (userId: string) => {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'wallet_transactions', filter: `user_id=eq.${userId}` },
             payload => {
-                console.log('Real-time merchant wallet update:', payload);
+                console.log('Real-time wallet transaction update:', payload);
                 useMerchantWalletStore.getState().fetchWallet();
             }
         )
@@ -113,8 +216,29 @@ export const subscribeToMerchantWalletUpdates = (userId: string) => {
                 console.log('Real-time store balance update:', payload);
                 useMerchantWalletStore.getState().fetchWallet();
             }
+        );
+
+    if (storeId) {
+        channel.on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
+            payload => {
+                console.log('Real-time order update for merchant:', payload);
+                useMerchantWalletStore.getState().fetchWallet();
+            }
         )
-        .subscribe();
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `store_id=eq.${storeId}` },
+            payload => {
+                console.log('Real-time withdrawal update:', payload);
+                useMerchantWalletStore.getState().fetchWithdrawalData();
+                useMerchantWalletStore.getState().fetchWallet();
+            }
+        );
+    }
+
+    channel.subscribe();
 
     return () => {
         if (channel) {

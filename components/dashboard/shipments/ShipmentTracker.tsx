@@ -14,6 +14,7 @@ export const shipmentStatuses = [
     'IN_TRANSIT_TO_DESTINATION',
     'ARRIVED_AT_LOCAL_FACILITY',
     'CUSTOMS_CLEARANCE',
+    'CUSTOMS_DELAY',
     'AT_LOCAL_WAREHOUSE',
     'OUT_FOR_DELIVERY',
     'DELIVERY_ATTEMPTED',
@@ -39,6 +40,7 @@ export const statusTranslations: Record<string, { ar: string, en: string }> = {
     'IN_TRANSIT_TO_DESTINATION': { ar: '6️⃣ في الطريق', en: '6️⃣ In Transit' },
     'ARRIVED_AT_LOCAL_FACILITY': { ar: '7️⃣ في المرفق المحلي', en: '7️⃣ Local Facility' },
     'CUSTOMS_CLEARANCE':         { ar: '8️⃣ التخليص الجمركي', en: '8️⃣ Customs' },
+    'CUSTOMS_DELAY':             { ar: '⚠️ تأخير جمركي', en: '⚠️ Customs Delay' },
     'AT_LOCAL_WAREHOUSE':        { ar: '9️⃣ في المستودع المحلي', en: '9️⃣ Local Warehouse' },
     'OUT_FOR_DELIVERY':          { ar: '🔟 جاري التوصيل', en: '🔟 Out for Delivery' },
     'DELIVERY_ATTEMPTED':        { ar: '📍 محاولة توصيل', en: '📍 Delivery Attempt' },
@@ -60,7 +62,7 @@ export const ShipmentTracker: React.FC<ShipmentTrackerProps> = ({ status, varian
     const getStatusIndex = (st: string) => allShipmentStatuses.indexOf(st);
     const currentIndex = getStatusIndex(status);
 
-    const isCustomsDelay = status === 'CUSTOMS_CLEARANCE';
+    const isCustomsDelay = status === 'CUSTOMS_CLEARANCE' || status === 'CUSTOMS_DELAY';
 
     const dotActiveClass = variant === 'admin'
         ? 'bg-purple-500/20 border-purple-400 text-purple-400'

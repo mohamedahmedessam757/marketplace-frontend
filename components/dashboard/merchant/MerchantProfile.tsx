@@ -429,71 +429,7 @@ export const MerchantProfile: React.FC = () => {
                                     </div>
                                 </GlassCard>
 
-                                {/* STRIPE ONBOARDING CARD */}
-                                <GlassCard className="p-8 relative z-[2]">
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <CreditCard size={24} className="text-blue-500" />
-                                        <h3 className="text-lg font-bold text-white">
-                                            {language === 'ar' ? 'البوابة المالية (Stripe)' : 'Financial Gateway (Stripe)'}
-                                        </h3>
-                                    </div>
-                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                                        {profile.stripeOnboarded ? (
-                                            <div className="space-y-4">
-                                                <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl flex items-center gap-3">
-                                                    <CheckCircle2 className="text-green-400" size={24} />
-                                                    <div>
-                                                        <h4 className="text-white font-bold">{language === 'ar' ? 'حساب مالي نشط' : 'Active Financial Account'}</h4>
-                                                        <p className="text-sm text-green-400/80">
-                                                            {language === 'ar' ? 'تم اكتمال الربط بنجاح عبر Stripe.' : 'Successfully connected via Stripe.'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <button 
-                                                    onClick={openStripeDashboard}
-                                                    className="flex items-center justify-center gap-2 w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white font-bold transition-all"
-                                                >
-                                                    <ExternalLink size={18} />
-                                                    {language === 'ar' ? 'عرض لوحة تحكم Stripe' : 'View Stripe Dashboard'}
-                                                </button>
-                                            </div>
-                                        ) : profile.stripeAccountId ? (
-                                            <div className="space-y-4">
-                                                <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl flex items-center gap-3">
-                                                    <AlertTriangle className="text-orange-400" size={24} />
-                                                    <div>
-                                                        <h4 className="text-orange-400 font-bold">{language === 'ar' ? 'الربط غير مكتمل' : 'Setup Incomplete'}</h4>
-                                                        <p className="text-sm text-white/50">
-                                                            {language === 'ar' ? 'يرجى استكمال البيانات وإثبات الهوية في Stripe لتفعيل السحب.' : 'Please complete KYC on Stripe to enable payouts.'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <button 
-                                                    onClick={connectStripe}
-                                                    className="flex items-center justify-center gap-2 w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-xl text-white font-bold transition-all"
-                                                >
-                                                    <CreditCard size={18} />
-                                                    {language === 'ar' ? 'متابعة إعداد Stripe' : 'Resume Stripe Setup'}
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                <p className="text-sm text-white/60 leading-relaxed">
-                                                    {language === 'ar' 
-                                                        ? 'لاستقبال الأرباح وإدارة أموالك بشفافية وأمان، يجب عليك ربط متجرك بالبوابة المالية العالمية Stripe.' 
-                                                        : 'To receive payouts and manage funds securely, you must connect your store to Stripe.'}
-                                                </p>
-                                                <button 
-                                                    onClick={connectStripe}
-                                                    className="flex items-center justify-center gap-2 w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-xl text-white font-bold transition-all"
-                                                >
-                                                    <CreditCard size={18} />
-                                                    {language === 'ar' ? 'ربط حساب الدفع' : 'Connect Payment Account'}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </GlassCard>
+
 
                                 <GlassCard className="p-8 relative z-[2]">
                                     <div className="flex items-center gap-3 mb-6">
@@ -568,8 +504,8 @@ export const MerchantProfile: React.FC = () => {
                                     <div className="grid gap-4">
                                         {[
                                             { key: 'cr', label: language === 'ar' ? 'السجل التجاري' : 'Commercial Record' },
-                                            { key: 'license', label: language === 'ar' ? 'رخصة البلدية' : 'Municipal License' },
-                                            { key: 'id', label: language === 'ar' ? 'الهوية الوطنية' : 'National ID' },
+                                            { key: 'license', label: language === 'ar' ? 'الرخصة التجارية' : 'Commercial License' },
+                                            { key: 'id', label: language === 'ar' ? 'بطاقة الهوية' : 'ID Card' },
                                             { key: 'iban', label: language === 'ar' ? 'شهادة الآيبان' : 'IBAN Certificate' },
                                             { key: 'authLetter', label: language === 'ar' ? 'خطاب التفويض' : 'Authorization Letter' },
                                         ].map((docItem) => {

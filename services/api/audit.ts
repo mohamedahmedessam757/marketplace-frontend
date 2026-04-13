@@ -2,8 +2,12 @@ import { client } from './client';
 import { AuditLog } from '../../stores/useAuditStore';
 
 export const auditApi = {
-    getAll: async () => {
-        const response = await client.get<AuditLog[]>('/audit-logs');
+    getAll: async (cursor?: string, limit: number = 25) => {
+        const params = new URLSearchParams();
+        if (cursor) params.append('cursor', cursor);
+        params.append('limit', limit.toString());
+        
+        const response = await client.get<any>(`/audit-logs?${params.toString()}`);
         return response.data;
     },
 

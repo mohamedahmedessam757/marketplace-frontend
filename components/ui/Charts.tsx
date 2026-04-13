@@ -185,12 +185,13 @@ interface BarChartProps {
 }
 
 export const BarChart: React.FC<BarChartProps> = ({ data, height = 180, color = '#A88B3E' }) => {
-  const max = Math.max(...data.map(d => d.value)) || 1;
-  const isDense = data.length > 10; // Check for dense data (e.g. 30 days)
+  const values = data.map(d => d.value);
+  const max = Math.max(...values) || 1;
+  const isDense = data.length > 15; // Adjusted threshold
 
   return (
     <div className="w-full" style={{ height }}>
-      <div className={`flex items-end justify-between ${isDense ? 'gap-[2px]' : 'gap-3'} h-full w-full`}>
+      <div className={`flex items-end justify-between ${isDense ? 'gap-[1px]' : 'gap-3'} h-full w-full`}>
         {data.map((item, idx) => {
           const hPercent = (item.value / max) * 100;
           return (
@@ -198,30 +199,33 @@ export const BarChart: React.FC<BarChartProps> = ({ data, height = 180, color = 
               {/* Bar Container */}
               <div className="relative w-full h-full flex items-end justify-center">
                 {/* Background Track */}
-                <div className={`absolute inset-0 bg-white/5 rounded-t-sm w-full ${isDense ? 'max-w-full' : 'max-w-[24px]'} mx-auto`} />
+                <div className={`absolute inset-0 bg-white/5 rounded-t-[2px] w-full ${isDense ? 'max-w-full' : 'max-w-[32px]'} mx-auto`} />
 
                 {/* Active Bar */}
                 <motion.div
                   initial={{ height: 0 }}
-                  animate={{ height: `${hPercent}%` }}
-                  transition={{ duration: 0.8, delay: idx * 0.05, type: "spring" }} // Faster stagger for dense
-                  className={`w-full ${isDense ? 'max-w-full' : 'max-w-[24px]'} rounded-t-sm relative group-hover:brightness-125 transition-all`}
+                  animate={{ height: `${Math.max(hPercent, item.value > 0 ? 2 : 0)}%` }} // Ensure at least 2% height if value > 0
+                  transition={{ duration: 0.8, delay: isDense ? idx * 0.02 : idx * 0.05, type: "spring", stiffness: 100 }}
+                  className={`w-full ${isDense ? 'max-w-full' : 'max-w-[32px]'} rounded-t-[2px] relative group-hover:brightness-125 transition-all`}
                   style={{
-                    background: `linear-gradient(to top, ${color}20, ${color})`,
-                    boxShadow: `0 0 10px ${color}40`
+                    background: `linear-gradient(to top, ${color}30, ${color})`,
+                    boxShadow: item.value > 0 ? `0 0 15px ${color}30` : 'none',
+                    minHeight: item.value > 0 ? '2px' : '0px'
                   }}
                 >
                   {/* Tooltip */}
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#1A1814] border border-white/10 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 whitespace-nowrap z-30 shadow-xl pointer-events-none">
-                    <span className="block text-[9px] text-white/50 mb-0.5">{item.label}</span>
-                    {item.value.toLocaleString()} SAR
+                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#1A1814] border border-white/10 text-white text-[10px] font-bold px-2 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 whitespace-nowrap z-50 shadow-2xl pointer-events-none">
+                    <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-[9px] text-white/50">{item.label}</span>
+                        <span className="text-gold-400">{item.value.toLocaleString()} AED</span>
+                    </div>
                   </div>
                 </motion.div>
               </div>
 
-              {/* Label - Hide intermediate labels if dense */}
-              <span className={`text-[9px] text-white/40 font-mono uppercase tracking-wider truncate w-full text-center group-hover:text-white transition-colors ${isDense && (idx % 5 !== 0) ? 'hidden md:block opacity-0 group-hover:opacity-100' : ''}`}>
-                {isDense && idx % 5 !== 0 ? '' : item.label}
+              {/* Label - Show every 5th label for 30-day views */}
+              <span className={`text-[8px] md:text-[9px] text-white/40 font-mono uppercase tracking-wider truncate w-full text-center group-hover:text-white transition-colors ${isDense && (idx % 7 !== 0) ? 'hidden' : ''}`}>
+                {item.label}
               </span>
             </div>
           );

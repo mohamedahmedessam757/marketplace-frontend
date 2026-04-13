@@ -13,6 +13,7 @@ export interface Shipment {
     orderId: string;
     orderNumber: string; // Added
     trackingNumber: string;
+    trackingLink?: string;
     carrier: string;
     status: string; 
     estimatedDelivery: string;
@@ -88,6 +89,7 @@ export const useShipmentsStore = create<ShipmentsState>((set, get) => ({
                 orderId: item.orderId,
                 orderNumber: item.orderNumber,
                 trackingNumber: item.trackingNumber || item.orderNumber || item.orderId.substring(0, 8),
+                trackingLink: item.trackingLink,
                 carrier: item.carrier || 'Tashleh Carrier',
                 status: item.status || 'RECEIVED_AT_HUB',
                 estimatedDelivery: item.estimatedDelivery 

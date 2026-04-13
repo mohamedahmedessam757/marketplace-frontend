@@ -185,16 +185,23 @@ export interface Order {
 interface OrderState {
     orders: Order[];
     isLoading: boolean;
+    isFetchingMore: boolean;
     error: string | null;
     subscription: any;
-    lastFetchRole: string | null; // Track which role fetched the current data
+    lastFetchRole: string | null;
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
 
-    fetchOrders: () => Promise<void>;
+    fetchOrders: (params?: { search?: string; status?: string; page?: number; retry?: number }) => Promise<void>;
+    fetchMoreOrders: (params?: { search?: string; status?: string }) => Promise<void>;
     silentFetch: () => Promise<void>;
+    mapBackendOrders: (items: any[]) => Order[];
     startRealtime: (userId?: string, role?: string) => void;
     stopRealtime: () => void;
-    clearOrders: () => void; // Clear orders when switching roles
-    resetForRole: (role: string) => void; // Reset store if role changed
+    clearOrders: () => void;
+    resetForRole: (role: string) => void;
     addOrder: (order: Omit<Order, 'id' | 'date' | 'status' | 'offersCount' | 'createdAt' | 'updatedAt' | 'offers'>) => Promise<void>;
     addOfferToOrder: (orderId: number, offer: Omit<OrderOffer, 'id'>) => void;
     acceptOffer: (orderId: string | number, partId: string | number, offerId: string | number) => Promise<void>;
@@ -216,12 +223,25 @@ interface OrderState {
 export const useOrderStore = create<OrderState>((set, get) => ({
     orders: [],
     isLoading: false,
+    isFetchingMore: false,
     error: null,
     subscription: null,
     lastFetchRole: null,
+    page: 1,
+    limit: 20,
+    total: 0,
+    hasMore: false,
 
     clearOrders: () => {
-        set({ orders: [], error: null, lastFetchRole: null });
+        set({ 
+            orders: [], 
+            error: null, 
+            lastFetchRole: null, 
+            page: 1, 
+            total: 0, 
+            hasMore: false,
+            isFetchingMore: false 
+        });
     },
 
     resetForRole: (role: string) => {
@@ -285,20 +305,90 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         set({ subscription: null });
     },
 
-    silentFetch: async () => {
-        const { isLoading } = get();
-        if (isLoading) return; // Prevent concurrent fetches
+    fetchOrders: async (params = {}) => {
+        const { search, status, page = 1 } = params;
+        set({ isLoading: true, error: null });
 
         try {
-            const data = await ordersApi.getAll();
-            const mappedOrders: Order[] = data.map((o: any) => ({
+            const result = await ordersApi.getAll({ 
+                page, 
+                limit: get().limit, 
+                search, 
+                status 
+            });
+
+            const mappedOrders = get().mapBackendOrders(result.items);
+
+            set({
+                orders: mappedOrders,
+                total: result.total,
+                page: result.page || page,
+                hasMore: result.hasMore,
+                isLoading: false
+            });
+        } catch (err: any) {
+            set({ 
+                error: err.response?.data?.message || 'Failed to fetch orders', 
+                isLoading: false 
+            });
+        }
+    },
+
+    fetchMoreOrders: async (params = {}) => {
+        const { isLoading, isFetchingMore, hasMore, page, limit, orders } = get();
+        if (isLoading || isFetchingMore || !hasMore) return;
+
+        set({ isFetchingMore: true });
+
+        try {
+            const nextPage = page + 1;
+            const result = await ordersApi.getAll({ 
+                page: nextPage, 
+                limit, 
+                ...params 
+            });
+
+            const newMappedOrders = get().mapBackendOrders(result.items);
+
+            set({
+                orders: [...orders, ...newMappedOrders],
+                total: result.total,
+                page: nextPage,
+                hasMore: result.hasMore,
+                isFetchingMore: false
+            });
+        } catch (err) {
+            console.error('Fetch more failed', err);
+            set({ isFetchingMore: false });
+        }
+    },
+
+    silentFetch: async () => {
+        const { isLoading, isFetchingMore, page, limit } = get();
+        if (isLoading || isFetchingMore) return;
+
+        try {
+            // Re-fetch everything up to current page to ensure consistency?
+            // For now, just refresh the current visible set (page 1 to current)
+            // But usually, silentFetch only refreshes page 1 if it's a "New Items" check.
+            // Strategic choice: Refresh only page 1 for now to identify if list changed.
+            const result = await ordersApi.getAll({ page: 1, limit: page * limit });
+            const mappedOrders = get().mapBackendOrders(result.items);
+            set({ orders: mappedOrders, total: result.total, hasMore: result.hasMore });
+        } catch (err) {
+            console.error('Silent fetch failed', err);
+        }
+    },
+
+    // Extracted mapping logic for reuse
+    mapBackendOrders: (items: any[]): Order[] => {
+        return items.map((o: any) => ({
                 id: o.id,
                 orderNumber: o.orderNumber,
                 car: `${o.vehicleMake} ${o.vehicleModel} ${o.vehicleYear}`,
                 part: o.partName,
                 partDescription: o.partDescription,
                 partImages: o.partImages || [],
-                // Ensure we map parts correctly if they exist in response
                 parts: o.parts ? o.parts.map((p: any) => ({
                     id: p.id,
                     name: p.name,
@@ -336,8 +426,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     storeReviewCount: offer.store?._count?.reviews || 0,
                     storeLogo: offer.store?.logo || null,
                     storeCity: offer.store?.city || 'Saudi Arabia',
-
-                    // Price Logic: unitPrice + shippingCost + max(25%, 100 AED) marketplace commission
                     price: (() => {
                         const base = Number(offer.unitPrice || 0);
                         const shipping = Number(offer.shippingCost || 0);
@@ -348,7 +436,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     unitPrice: Number(offer.unitPrice || 0),
                     shippingCost: Number(offer.shippingCost || 0),
                     isShippingIncluded: Number(offer.shippingCost || 0) === 0,
-
                     condition: offer.condition || 'used',
                     warranty: offer.hasWarranty ? (offer.warrantyDuration || 'yes') : 'no',
                     deliveryTime: offer.deliveryDays || 'N/A',
@@ -389,123 +476,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 shippingWaybills: o.shippingWaybills || [],
                 invoices: o.invoices || [],
             }));
-
-            // Only update if difference? safely just set for now since React handles diffing.
-            set({ orders: mappedOrders, error: null });
-        } catch (err) {
-            // Silently fail on poll error (don't break UI)
-            console.error('Polling failed', err);
-        }
-    },
-
-    fetchOrders: async () => {
-        set({ isLoading: true, error: null });
-        try {
-            const data = await ordersApi.getAll();
-            // Transform Backend Data to Frontend Interface
-            const mappedOrders: Order[] = data.map((o: any) => ({
-                id: o.id,
-                orderNumber: o.orderNumber,
-                car: `${o.vehicleMake} ${o.vehicleModel} ${o.vehicleYear}`,
-                part: o.partName,
-                partDescription: o.partDescription,
-                partImages: o.partImages || [],
-                // Ensure we map parts correctly if they exist in response
-                parts: o.parts ? o.parts.map((p: any) => ({
-                    id: p.id,
-                    name: p.name,
-                    description: p.description,
-                    images: p.images || [],
-                    video: p.video || null,
-                    notes: p.notes
-                })) : [],
-                vin: o.vin,
-                requestType: o.requestType,
-                shippingType: o.shippingType,
-                conditionPref: typeof o.conditionPref === 'string' ? o.conditionPref.trim() : o.conditionPref,
-                warrantyPreferred: o.warrantyPreferred,
-                preferences: {
-                    condition: o.conditionPref === 'new' ? 'new' : 'used',
-                    warranty: !!o.warrantyPreferred
-                },
-                vehicle: {
-                    make: o.vehicleMake,
-                    model: o.vehicleModel,
-                    year: o.vehicleYear,
-                    vin: o.vin,
-                    vinImage: o.vinImage
-                },
-                status: o.status,
-                date: new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-                offersCount: o.offers ? o.offers.filter((of: any) => of.status !== 'rejected').length : 0,
-                offers: o.offers ? o.offers.map((offer: any) => ({
-                    id: offer.id,
-                    offerNumber: offer.offerNumber || 'N/A',
-                    storeId: offer.store?.id || offer.storeId,
-                    storeCode: offer.store?.storeCode || offer.storeCode || 'N/A',
-                    merchantName: offer.store?.name || 'Unknown Store',
-                    storeRating: offer.store?.rating || 0,
-                    storeReviewCount: offer.store?._count?.reviews || 0,
-                    storeLogo: offer.store?.logo || null,
-                    storeCity: offer.store?.city || 'Saudi Arabia',
-
-                    // Price Logic: unitPrice + shippingCost + max(25%, 100 AED) marketplace commission
-                    price: (() => {
-                        const base = Number(offer.unitPrice || 0);
-                        const shipping = Number(offer.shippingCost || 0);
-                        const percentCommission = Math.round(base * 0.25);
-                        const commission = base > 0 ? Math.max(percentCommission, 100) : 0;
-                        return base + shipping + commission;
-                    })(),
-                    unitPrice: Number(offer.unitPrice || 0),
-                    shippingCost: Number(offer.shippingCost || 0),
-                    isShippingIncluded: Number(offer.shippingCost || 0) === 0,
-
-                    condition: offer.condition || 'used',
-                    warranty: offer.hasWarranty ? (offer.warrantyDuration || 'yes') : 'no',
-                    deliveryTime: offer.deliveryDays || 'N/A',
-                    notes: offer.notes,
-                    submittedAt: offer.createdAt,
-                    status: offer.status || 'pending',
-                    offerImage: offer.offerImage,
-                    weight: Number(offer.weightKg || offer.weight || 0),
-                    partType: offer.partType || 'original',
-                    orderPartId: offer.orderPartId || offer.order_part_id || null
-                })) : [],
-                createdAt: o.createdAt,
-                updatedAt: o.updatedAt,
-                customer: o.customer ? {
-                    ...o.customer,
-                    customerCode: o.customer.id ? `CUS-${o.customer.id.substring(0, 6).toUpperCase()}` : undefined
-                } : undefined,
-                adminNotes: o.adminNotes,
-                price: (() => {
-                    const allAccepted = o.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())) || [];
-                    if (allAccepted.length > 0) {
-                        return allAccepted.reduce((total: number, of: any) => {
-                            const base = Number(of.unitPrice || 0);
-                            const shipping = Number(of.shippingCost || 0);
-                            const percentCommission = Math.round(base * 0.25);
-                            const commission = base > 0 ? Math.max(percentCommission, 100) : 0;
-                            return total + base + shipping + commission;
-                        }, 0);
-                    }
-                    return null;
-                })(),
-                merchantName: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase()))?.store?.name || null,
-                acceptedOffer: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),
-                acceptedOffers: o.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),
-                verificationDocuments: o.verificationDocuments || [],
-                verificationSubmittedAt: o.verificationSubmittedAt,
-                correctionDeadlineAt: o.correctionDeadlineAt,
-                shipments: o.shipments || [],
-                shippingWaybills: o.shippingWaybills || [],
-                invoices: o.invoices || [],
-            }));
-            set({ orders: mappedOrders, isLoading: false });
-        } catch (err) {
-            set({ error: 'Failed to fetch orders', isLoading: false });
-        }
     },
 
     addOrder: async (newOrderData) => {

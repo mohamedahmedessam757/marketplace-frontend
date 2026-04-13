@@ -76,14 +76,15 @@ export const admin = {
     },
     kpi: {
       totalSales: 'إجمالي المبيعات',
-      commission: 'صافي العمولة',
+      commission: 'صافي الأرباح',
+      profitSub: 'أرباح المنصة',
       customers: 'العملاء المسجلين',
       stores: 'المتاجر الشريكة',
       orders: 'إجمالي الطلبات',
       disputes: 'قضايا مفتوحة'
     },
     charts: {
-      salesTrend: 'اتجاه المبيعات (30 يوم)',
+      salesTrend: 'اتجاه المبيعات',
       orderStatus: 'توزيع حالات الطلبات',
       topStores: 'المتاجر الأكثر مبيعاً'
     },
@@ -187,7 +188,13 @@ export const admin = {
       status: 'الحالة',
       force: 'تغيير الحالة',
       amount: 'المبلغ',
-      date: 'التاريخ'
+      date: 'التاريخ',
+      parts: 'القطع (Parts)',
+      financialDetails: 'التفاصيل المالية',
+      exportCSV: 'تصدير CSV',
+      otherParts: 'قطع أخرى',
+      noMatches: 'لم يتم العثور على طلبات مطابقة',
+      filterAll: 'تصفية: الكل'
     },
     orderDetails: {
       title: 'تفاصيل الطلب',
@@ -247,16 +254,60 @@ export const admin = {
       title: 'ملف المتجر',
       kpi: 'مؤشرات الأداء',
       docs: 'المستندات والتراخيص',
+      tabs: {
+        overview: 'نظرة عامة',
+        orders: 'الطلبات',
+        disputes: 'النزاعات والشكاوى',
+        reviews: 'التقييمات',
+        sessions: 'الجلسات والأمان',
+        contract: 'بيانات العقد'
+      },
+      details: {
+        category: 'التصنيف',
+        address: 'العنوان',
+        makes: 'تخصص الماركات',
+        models: 'تخصص الموديلات',
+        joinDate: 'تاريخ الانضمام',
+        owner: 'المالك',
+        storeCode: 'رمز المتجر',
+        status: 'الحالة',
+        balance: 'الرصيد المتاح',
+        pendingBalance: 'الرصيد المعلق',
+        frozenBalance: 'الرصيد المجمد',
+        lifetimeEarnings: 'إجمالي الأرباح',
+        performance: 'مؤشر الأداء'
+      },
       actions: {
         approve: 'اعتماد المتجر',
         ban: 'حظر المتجر',
-        suspend: 'إيقاف مؤقت'
+        suspend: 'إيقاف مؤقت',
+        reject: 'رفض التسجيل',
+        unblock: 'إلغاء الحظر',
+        saveNotes: 'حفظ الملاحظات الإدارية'
+      },
+      banModal: {
+        title: 'إجراء إداري على الحساب',
+        permanent: 'حظر دائم (Blocked)',
+        temporary: 'إيقاف مؤقت (Suspended)',
+        duration: 'مدة الإيقاف (بالأيام)',
+        reason: 'سبب الإجراء (سيظهر للتاجر)',
+        confirm: 'تأكيد الإجراء',
+        cancel: 'إلغاء'
       },
       docStatus: {
         valid: 'سارية',
         expired: 'منتهية',
         pending: 'قيد المراجعة'
-      }
+      },
+      docTypes: {
+        cr: 'السجل التجاري',
+        license: 'الرخصة / الهوية',
+        id: 'الهوية الوطنية',
+        iban: 'شهادة الآيبان',
+        auth_letter: 'خطاب التفويض'
+      },
+      adminNotes: 'ملاحظات إدارية داخلية (لا يراها التاجر)',
+      noData: 'لا توجد بيانات متاحة حالياً'
     },
     disputeManager: {
       title: 'مركز فض النزاعات',
@@ -362,7 +413,39 @@ export const admin = {
       timestamp: 'الوقت',
       changes: 'التغييرات (JSON)',
       actor: 'المستخدم',
-      details: 'تفاصيل السجل'
+      details: 'تفاصيل السجل',
+      liveMonitoring: 'مراقب السجل اللحظي',
+      realtimeMode: 'وضع البث المباشر (2026)',
+      activityLog: 'نشاطات النظام',
+      reason: 'السبب (Reason)',
+      actorId: 'معرف المنفذ',
+      defaultReason: 'إجراء روتيني مؤتمت بالكامل',
+      systemActor: 'نظام الجدولة الذكي',
+      searchPlaceholder: 'ابحث في السجلات، المعرفات، أو المنفذين...',
+      noLogs: 'لم يتم العثور على أي نشاط في النطاق المحدد.',
+      previousState: 'الحالة السابقة',
+      newState: 'الحالة الجديدة',
+      metadata: 'بيانات وصفية إضافية',
+      actions: {
+        CREATE: 'إنشاء جديد',
+        UPDATE: 'تحديث بيانات',
+        DELETE: 'حذف نهائي',
+        STATUS_CHANGE: 'تغيير حالة',
+        FINANCIAL: 'عملية مالية'
+      },
+      reasons: {
+        AUDIT_REASON_SYSTEM_AUTOMATED: 'إجراء آلي من النظام (تلقائي)',
+        AUDIT_REASON_NO_REASON_PROVIDED: 'لم يتم ذكر سبب من قبل المنفذ'
+      },
+      loadingMore: 'جارٍ جلب السجلات القديمة...',
+      endOfLogs: 'وصلت إلى نهاية السجل الاستراتيجي',
+      entities: {
+        ALL: 'كل الكيانات',
+        STORE: 'المتاجر والبروفايلات',
+        ORDER: 'الطلبات والعمليات',
+        USER: 'المستخدمين والأمان',
+        SYSTEM: 'برمجيات النظام'
+      }
     },
     billing: {
       title: 'الفواتير والمالية',
@@ -484,14 +567,15 @@ export const admin = {
     },
     kpi: {
       totalSales: 'Total Sales',
-      commission: 'Net Commission',
+      commission: 'Net Profit',
+      profitSub: 'Platform Profits',
       customers: 'Registered Customers',
       stores: 'Partner Stores',
       orders: 'Total Orders',
       disputes: 'Open Cases'
     },
     charts: {
-      salesTrend: 'Sales Trend (30 Days)',
+      salesTrend: 'Sales Trend',
       orderStatus: 'Order Status Distribution',
       topStores: 'Top Selling Stores'
     },
@@ -595,7 +679,13 @@ export const admin = {
       status: 'Status',
       force: 'Change Status',
       amount: 'Amount',
-      date: 'Date'
+      date: 'Date',
+      parts: 'Parts Details',
+      financialDetails: 'Financial Details',
+      exportCSV: 'Export CSV',
+      otherParts: 'other parts',
+      noMatches: 'No matching orders found',
+      filterAll: 'Filter: All'
     },
     orderDetails: {
       title: 'Order Details',
@@ -655,16 +745,60 @@ export const admin = {
       title: 'Store Profile',
       kpi: 'Performance Indicators',
       docs: 'Docs & Licenses',
+      tabs: {
+        overview: 'Overview',
+        orders: 'Orders',
+        disputes: 'Disputes & Claims',
+        reviews: 'Reviews',
+        sessions: 'Sessions & Security',
+        contract: 'Contract Details'
+      },
+      details: {
+        category: 'Category',
+        address: 'Address',
+        makes: 'Makes Specialization',
+        models: 'Models Specialization',
+        joinDate: 'Join Date',
+        owner: 'Owner',
+        storeCode: 'Store Code',
+        status: 'Status',
+        balance: 'Available Balance',
+        pendingBalance: 'Pending Balance',
+        frozenBalance: 'Frozen Balance',
+        lifetimeEarnings: 'Lifetime Earnings',
+        performance: 'Performance Score'
+      },
       actions: {
         approve: 'Approve Store',
         ban: 'Ban Store',
-        suspend: 'Suspend'
+        suspend: 'Suspend',
+        reject: 'Reject Registration',
+        unblock: 'Unblock Store',
+        saveNotes: 'Save Admin Notes'
+      },
+      banModal: {
+        title: 'Account Administrative Action',
+        permanent: 'Permanent Ban (Blocked)',
+        temporary: 'Temporary Suspension (Suspended)',
+        duration: 'Duration (Days)',
+        reason: 'Reason (Visible to Merchant)',
+        confirm: 'Confirm Action',
+        cancel: 'Cancel'
       },
       docStatus: {
         valid: 'Valid',
         expired: 'Expired',
         pending: 'Pending Review'
-      }
+      },
+      docTypes: {
+        cr: 'Commercial Register',
+        license: 'License / ID',
+        id: 'National ID',
+        iban: 'IBAN Certificate',
+        auth_letter: 'Authorization Letter'
+      },
+      adminNotes: 'Internal Admin Notes (Private)',
+      noData: 'No data available at the moment'
     },
     disputeManager: {
       title: 'Dispute Resolution Center',
@@ -770,7 +904,39 @@ export const admin = {
       timestamp: 'Timestamp',
       changes: 'Changes (JSON)',
       actor: 'User',
-      details: 'Log Details'
+      details: 'Log Details',
+      liveMonitoring: 'Live Audit Monitor',
+      realtimeMode: 'Real-time Streaming Mode',
+      activityLog: 'System Activities',
+      reason: 'Reason',
+      actorId: 'Actor ID',
+      defaultReason: 'Automated Routine Procedure',
+      systemActor: 'System Scheduler',
+      searchPlaceholder: 'Search logic, IDs, or actors...',
+      noLogs: 'No activities found in the selected range.',
+      previousState: 'Previous State',
+      newState: 'New State',
+      metadata: 'Additional Metadata',
+      actions: {
+        CREATE: 'Create New',
+        UPDATE: 'Update Data',
+        DELETE: 'Permanent Delete',
+        STATUS_CHANGE: 'Status Change',
+        FINANCIAL: 'Financial Action'
+      },
+      reasons: {
+        AUDIT_REASON_SYSTEM_AUTOMATED: 'Automated System Action',
+        AUDIT_REASON_NO_REASON_PROVIDED: 'No reason provided by actor'
+      },
+      loadingMore: 'Fetching legacy logs...',
+      endOfLogs: 'End of strategic audit stream',
+      entities: {
+        ALL: 'All Entities',
+        STORE: 'Stores & Profiles',
+        ORDER: 'Orders & Ops',
+        USER: 'Users & Security',
+        SYSTEM: 'System Internals'
+      }
     },
     billing: {
       title: 'Billing & Finance',

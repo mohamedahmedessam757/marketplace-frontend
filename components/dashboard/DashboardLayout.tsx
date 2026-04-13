@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Package, PlusCircle, MessageSquare, User, Bell, LogOut, Menu, Scale, Info, ChevronDown, Search, Wallet, Grid, Users, ShieldAlert, BarChart3, Settings, ShoppingBag, ListChecks, Truck, FileText, BadgeDollarSign, Store, Star, Award, Database, Headset, ShieldCheck, Lock, CreditCard, RotateCcw, ArrowRight, ArrowLeft, Receipt } from 'lucide-react';
+import { Home, Package, PlusCircle, MessageSquare, User, Bell, LogOut, Menu, Scale, Info, ChevronDown, Search, Wallet, Grid, Users, ShieldAlert, BarChart3, Settings, ShoppingBag, ListChecks, Truck, FileText, BadgeDollarSign, Store, Star, Award, Database, Headset, ShieldCheck, Lock, CreditCard, RotateCcw, ArrowRight, ArrowLeft, Receipt, PackageSearch } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { useProfileStore } from '../../stores/useProfileStore';
@@ -153,7 +153,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   // Updated Merchant Items
   const merchantNavItems = [
     { id: 'home', icon: Grid, label: t.dashboard.merchant.menu.home },
-    { id: 'loyalty', icon: Award, label: language === 'ar' ? 'مركز الولاء والسمعة' : 'Loyalty & Reputation Center' },
+
     { id: 'marketplace', icon: ShoppingBag, label: t.dashboard.merchant.menu.marketplace, isAction: true },
     { id: 'shipments', icon: Truck, label: t.dashboard.merchant.menu.shipments },
     { id: 'active-orders', icon: Package, label: t.dashboard.merchant.menu.activeOrders },
@@ -181,7 +181,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'customers', icon: Users, label: t.admin.customers, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
 
     // Logistics & Operations
-    { id: 'orders-control', icon: ShieldAlert, label: t.admin.orders, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
+    { id: 'orders-control', icon: PackageSearch, label: t.admin.orders, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
     { id: 'shipping', icon: Truck, label: t.admin.shipping, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
     { id: 'reviews', icon: Star, label: t.admin.reviews, allowed: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'resolution', icon: Scale, label: t.admin.disputes, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] }, // Support View Only

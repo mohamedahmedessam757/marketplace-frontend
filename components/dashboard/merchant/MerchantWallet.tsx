@@ -27,38 +27,234 @@ import {
     LayoutGrid,
     CreditCard,
     UserPlus,
-    Bell
+    Bell,
+    Settings,
+    ShoppingBag,
+    Link as LinkIcon,
+    ArrowRightLeft,
+    ClipboardCheck
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useMerchantWalletStore, subscribeToMerchantWalletUpdates } from '../../../stores/useMerchantWalletStore';
 import { getCurrentUser } from '../../../utils/auth';
+import { useNotificationStore } from '../../../stores/useNotificationStore';
 
 interface MerchantWalletProps {
     onNavigate?: (page: string, id?: string) => void;
 }
 
+// ═══════════════════════════════════════════════════════
+// NEW: Bank Details Modal (Center Overlay 2026 Style)
+// ═══════════════════════════════════════════════════════
+const BankDetailsModal = ({ 
+    isOpen, 
+    onClose, 
+    form, 
+    onChange, 
+    onSave, 
+    isLoading,
+    isAr 
+}: { 
+    isOpen: boolean, 
+    onClose: () => void, 
+    form: any, 
+    onChange: (data: any) => void, 
+    onSave: () => void,
+    isLoading: boolean,
+    isAr: boolean
+}) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4 overflow-y-auto">
+            <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="bg-[#1A1814] border border-gold-500/20 rounded-[2.5rem] w-full max-w-lg shadow-[0_0_50px_rgba(212,175,55,0.1)] overflow-hidden relative"
+            >
+                {/* Header */}
+                <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-gold-500/5 to-transparent">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gold-500 rounded-2xl flex items-center justify-center shadow-lg shadow-gold-500/20">
+                            <Settings className="text-black" size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-white uppercase tracking-tight">
+                                {isAr ? 'بيانات الحساب البنكي للتجار' : 'Merchant Bank Details'}
+                            </h3>
+                            <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                                {isAr ? 'بيانات تحويل أرباح المتجر' : 'Store profit transfer information'}
+                            </p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={onClose}
+                        className="p-3 bg-white/5 hover:bg-red-500/20 text-white/30 hover:text-red-500 rounded-2xl transition-all"
+                    >
+                        <RotateCcw size={20} />
+                    </button>
+                </div>
+
+                {/* Form Fields */}
+                <div className="p-8 space-y-6">
+                    <div className="grid grid-cols-1 gap-6">
+                        {/* Bank Name */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">
+                                {isAr ? 'اسم البنك' : 'Bank Name'}
+                            </label>
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                    <ShoppingBag size={18} className="text-gold-500/30 group-focus-within:text-gold-500 transition-colors" />
+                                </div>
+                                <input 
+                                    type="text"
+                                    value={form.bankName}
+                                    onChange={(e) => onChange({ ...form, bankName: e.target.value })}
+                                    placeholder={isAr ? 'مثال: مصرف الراجحي' : 'e.g. Al Rajhi Bank'}
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-bold outline-none focus:border-gold-500/50 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Account Holder */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">
+                                {isAr ? 'اسم صاحب الحساب' : 'Account Holder Name'}
+                            </label>
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                    <CreditCard size={18} className="text-gold-500/30 group-focus-within:text-gold-500 transition-colors" />
+                                </div>
+                                <input 
+                                    type="text"
+                                    value={form.accountHolder}
+                                    onChange={(e) => onChange({ ...form, accountHolder: e.target.value })}
+                                    placeholder={isAr ? 'الاسم كما هو في البنك' : 'Full Name as per Bank'}
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-bold outline-none focus:border-gold-500/50 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        {/* IBAN */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">
+                                IBAN
+                            </label>
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gold-500/30 font-black text-[10px] group-focus-within:text-gold-500 transition-colors">
+                                    AE/SA
+                                </div>
+                                <input 
+                                    type="text"
+                                    value={form.iban}
+                                    onChange={(e) => onChange({ ...form, iban: e.target.value })}
+                                    placeholder="00 0000 0000 0000 0000 0000"
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-mono font-bold outline-none focus:border-gold-500/50 transition-all uppercase"
+                                />
+                            </div>
+                        </div>
+
+                        {/* SWIFT (Optional) */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">
+                                SWIFT / BIC ({isAr ? 'اختياري' : 'Optional'})
+                            </label>
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                    <ShieldCheck size={18} className="text-gold-500/30 group-focus-within:text-gold-500 transition-colors" />
+                                </div>
+                                <input 
+                                    type="text"
+                                    value={form.swift}
+                                    onChange={(e) => onChange({ ...form, swift: e.target.value })}
+                                    placeholder="BANKAE22XXX"
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-mono font-bold outline-none focus:border-gold-500/50 transition-all uppercase"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-8 border-t border-white/5 bg-black/20 flex gap-4">
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 py-4 px-6 rounded-2xl border border-white/10 text-white/60 font-black uppercase tracking-widest hover:bg-white/5 transition-all text-xs"
+                    >
+                        {isAr ? 'إلغاء' : 'Cancel'}
+                    </button>
+                    <button 
+                        onClick={onSave}
+                        disabled={isLoading || !form.bankName || !form.iban}
+                        className="flex-1 py-4 px-6 rounded-2xl bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-black font-black uppercase tracking-[2px] transition-all shadow-xl shadow-gold-500/10 flex items-center justify-center gap-2 text-xs"
+                    >
+                        {isLoading ? <RotateCcw size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                        {isAr ? 'حفظ البيانات' : 'Save Details'}
+                    </button>
+                </div>
+            </motion.div>
+        </div>
+    );
+};
+
 export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
-    const { stats, transactions, notifications, fetchWallet, isLoading } = useMerchantWalletStore();
+    const { 
+        stats, 
+        transactions, 
+        notifications, 
+        withdrawalRequests,
+        withdrawalLimits,
+        bankDetails,
+        fetchWallet, 
+        fetchWithdrawalData,
+        fetchBankDetails,
+        saveBankDetails,
+        requestWithdrawal,
+        getStripeOnboardingUrl,
+        isLoading 
+    } = useMerchantWalletStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [filter, setFilter] = useState<'ALL' | 'DONE' | 'PENDING'>('ALL');
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     const [copied, setCopied] = useState(false);
     
+    // Withdrawal Form State
+    const [withdrawAmount, setWithdrawAmount] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [withdrawError, setWithdrawError] = useState('');
+    const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+    const [isOnboarding, setIsOnboarding] = useState(false);
+    const [payoutMethod, setPayoutMethod] = useState<'BANK_TRANSFER' | 'STRIPE'>('BANK_TRANSFER');
+    
+    // Bank Details Form State
+    const [bankForm, setBankForm] = useState({ bankName: '', accountHolder: '', iban: '', swift: '' });
+    const [isSavingBank, setIsSavingBank] = useState(false);
+    const [showBankForm, setShowBankForm] = useState(false);
+    
     const isAr = language === 'ar';
     const currentUser = getCurrentUser();
 
     useEffect(() => {
-        fetchWallet();
+        // Trigger fetch with filters for real-time reactive stats
+        fetchWallet({ 
+            startDate: dateRange.start || undefined, 
+            endDate: dateRange.end || undefined 
+        });
+        fetchWithdrawalData();
+        fetchBankDetails();
+
         if (currentUser?.id) {
-            const unsubscribe = subscribeToMerchantWalletUpdates(currentUser.id);
+            const unsubscribe = subscribeToMerchantWalletUpdates(currentUser.id, stats.storeId);
             return () => {
                 unsubscribe();
             };
         }
-    }, [fetchWallet, currentUser?.id]);
+    }, [fetchWallet, fetchWithdrawalData, currentUser?.id, dateRange.start, dateRange.end, stats.storeId]);
 
     const handleCopyReferral = () => {
         if (!stats?.referralCode) {
@@ -99,18 +295,95 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
             });
     };
 
-    const handleWithdrawalRequest = () => {
-        if (onNavigate) {
-            alert(isAr 
-                ? 'سيتم توجيهك لربط حساب Stripe. بعد الإتمام، سيرسل النظام تفاصيل حسابك للإدارة ليتم التحويل يدوياً.' 
-                : 'You will be redirected to link your Stripe account. Once linked, the admin will receive your account details for manual payout.');
-            onNavigate('settings'); 
-        } else {
-            alert(isAr 
-                ? 'يرجى ربط حساب Stripe من الإعدادات لإتمام عملية السحب.' 
-                : 'Please link your Stripe account from settings to proceed with the withdrawal.');
+    const handleStripeConnect = async () => {
+        setIsOnboarding(true);
+        try {
+            const url = await getStripeOnboardingUrl();
+            window.open(url, '_blank', 'noopener,noreferrer');
+        } catch (error: any) {
+            const msg = error.response?.data?.message || error.message || '';
+            if (msg.includes('Stripe Connect is not enabled') || msg.includes('signed up for Connect')) {
+                alert(isAr 
+                    ? 'خدمة Stripe Connect غير مفعلة حالياً. يرجى استخدام التحويل البنكي لسحب الأرباح.'
+                    : 'Stripe Connect is not enabled on this platform. Please use Bank Transfer for withdrawals.');
+                setPayoutMethod('BANK_TRANSFER');
+            } else {
+                alert(isAr ? 'فشل بدء عملية الربط، يرجى المحاولة لاحقاً.' : 'Failed to start onboarding, please try again.');
+            }
+        } finally {
+            setIsOnboarding(false);
         }
     };
+
+    const handleSaveBankDetails = async () => {
+        setIsSavingBank(true);
+        const result = await saveBankDetails(bankForm);
+        setIsSavingBank(false);
+
+        if (result.success) {
+            setShowBankForm(false);
+            useNotificationStore.getState().addNotification({
+                type: 'PAYMENT',
+                titleAr: 'تم حفظ البيانات البنكية بنجاح',
+                titleEn: 'Bank Details Saved Successfully',
+                messageAr: 'تم تحديث بيانات تحويل أرباح المتجر بنجاح.',
+                messageEn: 'Store profit transfer details have been updated successfully.',
+                recipientRole: 'MERCHANT'
+            });
+        } else {
+            alert(result.message);
+        }
+    };
+
+    const handleSubmitWithdrawal = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setWithdrawError('');
+        setWithdrawSuccess(false);
+
+        const amountNum = parseFloat(withdrawAmount);
+        if (isNaN(amountNum) || amountNum <= 0) {
+            setWithdrawError(isAr ? 'يرجى إدخال مبلغ صحيح' : 'Please enter a valid amount');
+            return;
+        }
+
+        if (amountNum < withdrawalLimits.min) {
+            setWithdrawError(`${isAr ? 'الحد الأدنى للسحب هو' : 'Minimum withdrawal is'} ${withdrawalLimits.min} AED`);
+            return;
+        }
+
+        if (amountNum > withdrawalLimits.max) {
+            setWithdrawError(`${isAr ? 'الحد الأقصى للسحب هو' : 'Maximum withdrawal is'} ${withdrawalLimits.max} AED`);
+            return;
+        }
+
+        if (amountNum > stats.available) {
+            setWithdrawError(isAr ? 'رصيد غير كافٍ' : 'Insufficient balance');
+            return;
+        }
+
+        // Validate prerequisites for chosen method
+        if (payoutMethod === 'STRIPE' && !stats.stripeOnboarded) {
+            setWithdrawError(isAr ? 'يجب ربط حسابك عبر Stripe أولاً' : 'Please complete Stripe onboarding first');
+            return;
+        }
+        if (payoutMethod === 'BANK_TRANSFER' && !bankDetails?.iban) {
+            setWithdrawError(isAr ? 'يجب إضافة بيانات الحساب البنكي أولاً' : 'Please add your bank details first');
+            return;
+        }
+
+        setIsSubmitting(true);
+        const result = await requestWithdrawal(amountNum, payoutMethod);
+        setIsSubmitting(false);
+
+        if (result.success) {
+            setWithdrawSuccess(true);
+            setWithdrawAmount('');
+            setTimeout(() => setWithdrawSuccess(false), 5000);
+        } else {
+            setWithdrawError(result.message);
+        }
+    };
+
 
     // Filtering Logic
     const filteredTransactions = useMemo(() => {
@@ -149,59 +422,122 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
         setIsGeneratingReport(true);
         try {
             const date = new Date().toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+            const startStr = dateRange.start || '---';
+            const endStr = dateRange.end || '---';
             
             const html = `
-                <div style="padding: 40px; font-family: 'Inter', 'Segoe UI', sans-serif; color: #1a1a1a; background: white; min-height: 100vh; line-height: 1.5; position: relative;" dir="${isAr ? 'rtl' : 'ltr'}">
-                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 150px; color: rgba(168, 139, 62, 0.03); font-weight: 900; white-space: nowrap; pointer-events: none; z-index: 0; user-select: none;">
-                        E-TASHLEH MERCHANT
+                <div style="padding: 50px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1a1a1a; background: white; min-height: 100vh; line-height: 1.6; position: relative;" dir="${isAr ? 'rtl' : 'ltr'}">
+                    
+                    <!-- Watermark -->
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 120px; color: rgba(168, 139, 62, 0.03); font-weight: 900; pointer-events: none; z-index: 0; white-space: nowrap;">
+                        E-TASHLEH OFFICIAL
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #E5E7EB; padding-bottom: 30px; margin-bottom: 40px; position: relative; z-index: 1;">
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <img src="/logo.png" style="width: 50px; height: 50px; object-fit: contain;" />
+
+                    <!-- Premium Header -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #E5E7EB; padding-bottom: 30px; margin-bottom: 35px; position: relative; z-index: 1;">
+                        <div style="display: flex; gap: 20px; align-items: center;">
+                            <img src="/logo.png" style="width: 60px; height: 60px; object-fit: contain;" alt="Logo" onerror="this.style.display='none'" />
                             <div>
-                                <h1 style="color: #A88B3E; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: 1px;">E-TASHLEH</h1>
-                                <p style="margin: 5px 0 0; font-size: 14px; color: #666; font-weight: 800; text-transform: uppercase;">${isAr ? 'كشف المبيعات والتحصيل المالي' : 'Merchant Earnings Statement'}</p>
+                                <h1 style="margin: 0; color: #A88B3E; font-size: 32px; font-weight: 900; letter-spacing: -1px;">E-TASHLEH</h1>
+                                <p style="margin: 0; color: #666; font-weight: 700; text-transform: uppercase; font-size: 13px;">${isAr ? 'بيان المبيعات والتحصيل المالي - القطاع التجاري' : 'Financial Revenue & Sales Statement - Merchant'}</p>
                             </div>
                         </div>
                         <div style="text-align: right;">
-                            <h2 style="margin: 0; font-size: 14px; font-weight: 800; color: #999; text-transform: uppercase; letter-spacing: 1px;">${isAr ? 'رقم التقرير' : 'Report No.'}</h2>
-                            <p style="margin: 2px 0 0; font-size: 16px; font-weight: 700; color: #1a1a1a; font-family: monospace;">#MR-${new Date().getTime().toString().slice(-8)}</p>
+                            <p style="margin: 0; font-weight: 800; color: #A88B3E; font-size: 14px;">#MR-${new Date().getTime().toString().slice(-8)}</p>
+                            <p style="margin: 5px 0 0; color: #999; font-size: 11px; font-weight: 600;">${isAr ? 'تاريخ الإصدار' : 'Issue Date'}: ${date}</p>
+                            <p style="margin: 5px 0 0; color: #999; font-size: 11px; font-weight: 600;">${isAr ? 'الفترة' : 'Period'}: ${startStr} ${isAr ? 'إلى' : 'to'} ${endStr}</p>
                         </div>
                     </div>
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px; position: relative; z-index: 1;">
+
+                    <!-- Merchant Info & Account Summary Grid -->
+                    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 30px; margin-bottom: 40px; position: relative; z-index: 1;">
+                        <div style="background: #F9FAFB; padding: 25px; border-radius: 12px; border: 1px solid #F3F4F6;">
+                            <h4 style="margin: 0 0 15px; font-size: 11px; color: #9CA3AF; text-transform: uppercase; font-weight: 800; letter-spacing: 1px;">${isAr ? 'بيانات التاجر' : 'Merchant Information'}</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <p style="margin: 0; font-size: 14px; font-weight: 800; color: #111827;">${stats.storeName || '---'}</p>
+                                    <p style="margin: 4px 0 0; font-size: 11px; color: #6B7280;"><strong>ID:</strong> ${currentUser?.id || '---'}</p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 11px; color: #6B7280;"><strong>STORE ID:</strong> ${stats.storeId || '---'}</p>
+                                    <p style="margin: 4px 0 0; font-size: 11px; color: #6B7280;"><strong>${isAr ? 'المستوى' : 'Tier'}:</strong> ${stats.loyaltyTier || 'BRONZE'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div style="border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                                <span style="font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800;">${isAr ? 'الرصيد المستحق' : 'Available'}</span>
+                                <div style="font-size: 18px; font-weight: 800; color: #10B981;">${Number(stats.available).toLocaleString()} <small style="font-size: 10px;">AED</small></div>
+                            </div>
+                            <div style="border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                                <span style="font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800;">${isAr ? 'الرصيد المعلق' : 'Pending'}</span>
+                                <div style="font-size: 18px; font-weight: 800; color: #F59E0B;">${Number(stats.pending).toLocaleString()} <small style="font-size: 10px;">AED</small></div>
+                            </div>
+                            <div style="border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                                <span style="font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800;">${isAr ? 'إجمالي المبيعات' : 'Total Revenue'}</span>
+                                <div style="font-size: 18px; font-weight: 800; color: #111827;">${Number(stats.totalSales).toLocaleString()} <small style="font-size: 10px;">AED</small></div>
+                            </div>
+                            <div style="border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                                <span style="font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 800;">${isAr ? 'إجمالي التحصيل' : 'Net Collected'}</span>
+                                <div style="font-size: 18px; font-weight: 800; color: #A88B3E;">${Number(stats.netEarnings).toLocaleString()} <small style="font-size: 10px;">AED</small></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Details Table -->
+                    <h3 style="margin-bottom: 20px; font-size: 16px; font-weight: 900; border-bottom: 2px solid #EEE; padding-bottom: 10px; position: relative; z-index: 1;">${isAr ? 'سجل العمليات التفصيلي' : 'Detailed Transaction & Order Log'}</h3>
+                    <table style="width: 100%; border-collapse: collapse; position: relative; z-index: 1;">
                         <thead>
-                            <tr style="background: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
-                                <th style="padding: 15px 12px; text-align: ${isAr ? 'right' : 'left'}; font-size: 11px; font-weight: 800; color: #4B5563; text-transform: uppercase;">${isAr ? 'رقم الطلب' : 'ORDER #'}</th>
-                                <th style="padding: 15px 12px; text-align: center; font-size: 11px; font-weight: 800; color: #4B5563; text-transform: uppercase;">${isAr ? 'الحالة' : 'STATUS'}</th>
-                                <th style="padding: 15px 12px; text-align: right; font-size: 11px; font-weight: 800; color: #4B5563; text-transform: uppercase;">${isAr ? 'المبلغ' : 'AMOUNT'}</th>
+                            <tr style="background: #1a1a1a; color: white;">
+                                <th style="padding: 12px; text-align: ${isAr ? 'right' : 'left'}; font-size: 10px; border-radius: ${isAr ? '0 8px 0 0' : '8px 0 0 0'}; text-transform: uppercase;">${isAr ? 'رقم المرجع' : 'REF / ORDER #'}</th>
+                                <th style="padding: 12px; text-align: center; font-size: 10px; text-transform: uppercase;">${isAr ? 'التاريخ' : 'DATE'}</th>
+                                <th style="padding: 12px; text-align: center; font-size: 10px; text-transform: uppercase;">${isAr ? 'النوع' : 'TYPE'}</th>
+                                <th style="padding: 12px; text-align: center; font-size: 10px; text-transform: uppercase;">${isAr ? 'حالة الدفع' : 'PAYMENT'}</th>
+                                <th style="padding: 12px; text-align: center; font-size: 10px; text-transform: uppercase;">${isAr ? 'حالة الطلب' : 'ORDER'}</th>
+                                <th style="padding: 12px; text-align: right; font-size: 10px; border-radius: ${isAr ? '8px 0 0 0' : '0 8px 0 0'}; text-transform: uppercase;">${isAr ? 'المبلغ' : 'AMOUNT'}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${filteredTransactions.map(tx => {
-                                const isPositive = tx.type === 'CREDIT';
-                                return `
-                                    <tr style="border-bottom: 1px solid #F3F4F6;">
-                                        <td style="padding: 15px 12px; font-size: 12px; font-family: monospace; font-weight: 700; color: #111827;">#${tx.payment?.order?.orderNumber || tx.id.slice(0, 8).toUpperCase()}</td>
-                                        <td style="padding: 15px 12px; text-align: center; font-size: 11px; font-weight: 600; color: #4B5563;">COMPLETED</td>
-                                        <td style="padding: 15px 12px; text-align: right; font-size: 13px; font-weight: 800; color: ${isPositive ? '#10B981' : '#EF4444'};">
-                                            ${isPositive ? '+' : '-'}${Math.abs(Number(tx.amount)).toLocaleString()} AED
-                                        </td>
-                                    </tr>
-                                `;
-                            }).join('')}
+                            ${filteredTransactions.map(tx => `
+                                <tr style="border-bottom: 1px solid #F3F4F6;">
+                                    <td style="padding: 12px; font-weight: 700; font-family: monospace; font-size: 11px;">#${tx.payment?.order?.orderNumber || tx.id.slice(0, 8).toUpperCase()}</td>
+                                    <td style="padding: 12px; text-align: center; color: #666; font-size: 11px;">${new Date(tx.createdAt).toLocaleDateString()}</td>
+                                    <td style="padding: 12px; text-align: center; font-size: 10px; font-weight: 800; color: #4B5563;">${tx.transactionType === 'REFERRAL_PROFIT' ? (isAr ? 'عمولة إحالة' : 'REFERRAL') : tx.transactionType === 'WITHDRAWAL' ? (isAr ? 'سحب' : 'WITHDRAW') : (isAr ? 'بيع' : 'SALE')}</td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <span style="font-size: 9px; font-weight: 900; padding: 3px 8px; border-radius: 4px; background: ${(tx.payment?.status || 'SUCCESS') === 'SUCCESS' || (tx.payment?.status || 'SUCCESS') === 'COMPLETED' ? '#ECFDF5' : '#FEF3C7'}; color: ${(tx.payment?.status || 'SUCCESS') === 'SUCCESS' || (tx.payment?.status || 'SUCCESS') === 'COMPLETED' ? '#10B981' : '#D97706'};">
+                                            ${tx.payment?.status || 'SUCCESS'}
+                                        </span>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <span style="font-size: 9px; font-weight: 800; color: #6B7280; text-transform: uppercase;">
+                                            ${tx.payment?.order?.status || '---'}
+                                        </span>
+                                    </td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 900; color: ${tx.type === 'CREDIT' ? '#10B981' : '#EF4444'}; font-size: 13px;">
+                                        ${tx.type === 'CREDIT' ? '+' : '-'}${Number(tx.amount).toLocaleString()}
+                                    </td>
+                                </tr>
+                            `).join('')}
                         </tbody>
                     </table>
+
+                    <!-- Footer -->
+                    <div style="margin-top: 50px; text-align: center; border-top: 1px solid #E5E7EB; padding-top: 30px; position: relative; z-index: 1;">
+                        <p style="margin: 0; font-size: 12px; color: #4B5563; font-weight: 700;">${isAr ? 'شكراً لتعاملكم مع إي تشليح - شريكك الموثوق في قطاع الغيار' : 'Thank you for partnering with E-TASHLEH - Your trusted parts network'}</p>
+                        <p style="margin: 6px 0 0; font-size: 10px; color: #9CA3AF; letter-spacing: 1px;">OFFICIAL MERCHANT STATEMENT • © 2026 ELLIPP FZ LLC • GENERATED ON ${new Date().toLocaleString()}</p>
+                    </div>
                 </div>
             `;
 
             const printWindow = window.open('', '_blank');
             if (printWindow) {
-                printWindow.document.write(`<html><head><title>Merchant Statement</title></head><body>${html}</body></html>`);
+                printWindow.document.write(`<html><head><title>Merchant Statement</title></head><body style="margin:0;">${html}</body></html>`);
                 printWindow.document.close();
                 setTimeout(() => {
                     printWindow.print();
                     setIsGeneratingReport(false);
-                }, 500);
+                }, 800);
             }
         } catch (error) {
             console.error('Report generation failed', error);
@@ -446,7 +782,9 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                                 </span>
                                             </td>
                                             <td className="px-4 py-4">
-                                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${getStatusStyle('SUCCESS')}`}>SUCCESS</span>
+                                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${getStatusStyle(tx.payment?.status || 'SUCCESS')}`}>
+                                                    {tx.payment?.status || 'SUCCESS'}
+                                                </span>
                                             </td>
                                             <td className="px-4 py-4">
                                                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${getStatusStyle(tx.payment?.order?.status || 'PREPARATION')}`}>
@@ -455,12 +793,12 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                             </td>
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center justify-center gap-2 text-[9px] font-black text-white/40">
-                                                    {tx.transactionType === 'REFERRAL_PROFIT' ? <Star size={10} className="text-gold-500" /> : <CreditCard size={10} />}
-                                                    <span>{tx.transactionType === 'REFERRAL_PROFIT' ? (isAr ? 'ربح إحالة' : 'REF PROFIT') : (isAr ? 'مبيعات' : 'SALES')}</span>
+                                                    {tx.transactionType === 'REFERRAL_PROFIT' ? <Star size={10} className="text-gold-500" /> : tx.transactionType === 'WITHDRAWAL' ? <ArrowDownLeft size={10} className="text-rose-400" /> : <CreditCard size={10} />}
+                                                    <span>{tx.transactionType === 'REFERRAL_PROFIT' ? (isAr ? 'ربح إحالة' : 'REF PROFIT') : tx.transactionType === 'WITHDRAWAL' ? (isAr ? 'سحب' : 'WITHDRAW') : (isAr ? 'مبيعات' : 'SALES')}</span>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-4">
-                                                <button onClick={() => tx.payment?.order?.id && onNavigate?.('order-details', tx.payment.order.id)} className="p-2 rounded bg-white/5 hover:bg-gold-500 hover:text-black transition-all border border-white/10"><FileText size={12} /></button>
+                                                <button onClick={() => tx.payment?.order?.id && onNavigate?.('explore-offer', tx.payment.order.id)} className="p-2 rounded bg-white/5 hover:bg-gold-500 hover:text-black transition-all border border-white/10"><FileText size={12} /></button>
                                             </td>
                                         </tr>
                                     ))}
@@ -500,12 +838,240 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                                 <span>{stats.totalSales.toLocaleString()} / {nextLimit.toLocaleString()} AED</span>
                                                 <span className="text-gold-500/70">{Math.round(progress)}% {isAr ? 'مكتمل' : 'COMPLETE'}</span>
                                             </div>
+
+                                            {/* Tier Benefits List [NEW 2026] */}
+                                            <div className="pt-4 grid grid-cols-2 gap-2">
+                                                {stats.tierBenefits?.map((benefit, i) => (
+                                                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 shadow-sm shadow-emerald-500/5 transition-all hover:bg-emerald-500/10">
+                                                        <ShieldCheck size={12} className="text-emerald-400" />
+                                                        <span className="text-[10px] font-bold text-white/80">{isAr ? benefit.ar : benefit.en}</span>
+                                                    </div>
+                                                ))}
+                                                {stats.nextTierBenefits?.filter(nb => !stats.tierBenefits.some(cb => cb.en === nb.en)).map((benefit, i) => (
+                                                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/5 opacity-40">
+                                                        <Zap size={12} className="text-white/20" />
+                                                        <span className="text-[10px] font-bold text-white/30 truncate">{isAr ? benefit.ar : benefit.en}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     );
                                 })()}
                             </div>
                         </div>
                     </GlassCard>
+
+                    {/* Payout Section (Withdrawal & Profits) */}
+                    <GlassCard className="p-6 sm:p-8 border-gold-500/10 bg-gradient-to-br from-gold-500/[0.03] to-transparent">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                            <div>
+                                <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                                    <ArrowRightLeft className="text-gold-500" size={20} />
+                                    {isAr ? 'سحب المبالغ والأرباح' : 'Withdrawal & Profits Payout'}
+                                </h3>
+                                <p className="text-white/40 text-xs mt-1">
+                                    {isAr ? 'قم بسحب أرباح متجرك إلى حسابك البنكي أو عبر Stripe بشكل آمن' : 'Withdraw your store profits to your bank account or via Stripe securely.'}
+                                </p>
+                            </div>
+                            <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 shrink-0">
+                                <button 
+                                    onClick={() => setPayoutMethod('BANK_TRANSFER')}
+                                    className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${payoutMethod === 'BANK_TRANSFER' ? 'bg-gold-500 text-black' : 'text-white/40'}`}
+                                >
+                                    {isAr ? 'تحويل بنكي' : 'Bank Transfer'}
+                                </button>
+                                <button 
+                                    onClick={() => setPayoutMethod('STRIPE')}
+                                    className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${payoutMethod === 'STRIPE' ? 'bg-[#635BFF] text-white' : 'text-white/40'}`}
+                                >
+                                    Stripe
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Left: Amount */}
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black text-white/30 uppercase tracking-[2px] block">{isAr ? 'مبلغ السحب (AED)' : 'Withdrawal Amount (AED)'}</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                        <Wallet size={18} className="text-gold-500/50 group-focus-within:text-gold-500 transition-colors" />
+                                    </div>
+                                    <input 
+                                        type="number"
+                                        value={withdrawAmount}
+                                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                                        placeholder="0.00"
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-xl font-bold text-white outline-none focus:border-gold-500/50 transition-all font-mono"
+                                    />
+                                </div>
+                                <div className="flex justify-between text-[10px] font-bold">
+                                    <span className="text-white/30">{isAr ? 'الرصيد المتاح:' : 'Available:'} <span className="text-gold-500 font-black">{(stats.earnedReferralProfits || 0).toLocaleString()} AED</span></span>
+                                    <span className="text-white/30">{isAr ? 'حد أدنى:' : 'Min:'} <span className="text-white/80">{withdrawalLimits.min} AED</span></span>
+                                </div>
+                                {withdrawError && (
+                                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-400 text-[10px] font-bold">
+                                        <AlertCircle size={14} /> {withdrawError}
+                                    </div>
+                                )}
+                                {withdrawSuccess && (
+                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-400 text-[10px] font-bold">
+                                        <CheckCircle2 size={14} /> {isAr ? 'تم تقديم طلب السحب!' : 'Withdrawal request submitted!'}
+                                    </div>
+                                )}
+                                <button 
+                                    onClick={(e) => { e.preventDefault(); handleSubmitWithdrawal(e as any); }}
+                                    disabled={isSubmitting || !withdrawAmount || Number(withdrawAmount) <= 0}
+                                    className="w-full py-4 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-black font-black uppercase tracking-[3px] text-xs rounded-2xl transition-all shadow-xl shadow-gold-500/10 flex items-center justify-center gap-2"
+                                >
+                                    {isSubmitting ? <RotateCcw size={18} className="animate-spin" /> : <ArrowUpRight size={18} />}
+                                    {isAr ? 'تأكيد طلب السحب' : 'Confirm Withdrawal'}
+                                </button>
+                            </div>
+
+                            {/* Right: Method Config */}
+                            <div>
+                                {payoutMethod === 'STRIPE' ? (
+                                    <GlassCard className="p-6 border-[#635BFF]/20 bg-[#635BFF]/5 h-full flex flex-col justify-center items-center text-center">
+                                        <div className="w-14 h-14 bg-[#635BFF] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#635BFF]/20">
+                                            <CreditCard className="text-white" size={28} />
+                                        </div>
+                                        <h4 className="text-white font-bold mb-2 text-sm">{isAr ? 'دفعات Stripe الآلية' : 'Stripe Automated Payouts'}</h4>
+                                        <p className="text-white/50 text-[10px] mb-6 px-2 leading-relaxed">
+                                            {isAr ? 'اربط متجرك بـ Stripe Connect لاستلام الأرباح فورياً.' : 'Connect your store to Stripe for instant automated payouts.'}
+                                        </p>
+                                        {stats.stripeOnboarded ? (
+                                            <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-full border border-emerald-500/20 text-[10px] font-black uppercase">
+                                                <ShieldCheck size={14} /> {isAr ? 'الحساب مرتبط ونشط' : 'Account Connected & Active'}
+                                            </div>
+                                        ) : (
+                                            <button onClick={handleStripeConnect} disabled={isOnboarding}
+                                                className="px-6 py-3 bg-[#635BFF] hover:bg-[#7a73ff] text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all"
+                                            >
+                                                {isOnboarding ? <RotateCcw size={14} className="animate-spin" /> : <ExternalLink size={14} />}
+                                                {isAr ? 'بدء عملية الربط' : 'Start Onboarding'}
+                                            </button>
+                                        )}
+                                    </GlassCard>
+                                ) : (
+                                    <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 h-full flex flex-col">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h4 className="text-white font-bold text-sm">{isAr ? 'الحساب البنكي المعتمد' : 'Authorized Bank Account'}</h4>
+                                                {bankDetails?.iban ? (
+                                                    <div className="font-mono text-emerald-400 text-xs tracking-[3px] mt-1">
+                                                        **** {bankDetails.iban.slice(-4)}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-white/30 text-[10px] uppercase font-black mt-1">{isAr ? 'لا يوجد حساب' : 'No Account'}</p>
+                                                )}
+                                            </div>
+                                            <button onClick={() => setShowBankForm(true)}
+                                                className="p-2.5 bg-gold-500/10 hover:bg-gold-500 text-gold-500 hover:text-black rounded-2xl border border-gold-500/20 transition-all"
+                                            >
+                                                <Settings size={15} />
+                                            </button>
+                                        </div>
+                                        {bankDetails?.iban ? (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div><p className="text-white/20 text-[8px] uppercase font-black">{isAr ? 'المصرف' : 'Bank'}</p><p className="text-white/80 font-bold text-[11px] truncate mt-0.5">{bankDetails.bankName}</p></div>
+                                                <div><p className="text-white/20 text-[8px] uppercase font-black">{isAr ? 'المستفيد' : 'Holder'}</p><p className="text-white/80 font-bold text-[11px] truncate mt-0.5">{bankDetails.accountHolder}</p></div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex flex-col items-center justify-center text-center py-4">
+                                                <AlertCircle size={22} className="text-amber-500/30 mb-2" />
+                                                <p className="text-[10px] text-white/30 font-bold leading-relaxed">
+                                                    {isAr ? 'يجب إضافة حساب بنكي أولاً.' : 'Add a bank account to enable withdrawals.'}
+                                                </p>
+                                            </div>
+                                        )}
+                                        <button onClick={() => setShowBankForm(true)}
+                                            className="w-full mt-auto pt-3 py-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-gold-500 text-[10px] font-black uppercase tracking-widest rounded-2xl border border-white/5 hover:border-gold-500/20 transition-all"
+                                        >
+                                            {bankDetails?.iban ? (isAr ? 'تحديث البيانات' : 'Update Details') : (isAr ? 'إضافة بيانات البنك' : 'Add Bank Info')}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </GlassCard>
+
+                    {/* Withdrawal History Table */}
+                    <GlassCard className="p-0 overflow-hidden border-white/5 bg-black/20">
+                        <div className="p-5 border-b border-white/5 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <Clock className="text-gold-500/50" size={16} />
+                                <h3 className="text-base font-bold text-white">{isAr ? 'سجل عمليات السحب' : 'Withdrawal History'}</h3>
+                            </div>
+                            <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] font-black text-white/40 flex items-center gap-2">
+                                <div className="w-1 h-1 rounded-full bg-gold-500 animate-pulse" />
+                                {withdrawalRequests.length} {isAr ? 'عمليات' : 'Records'}
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-center border-collapse">
+                                <thead>
+                                    <tr className="border-b border-white/5 bg-white/[0.01] text-[9px] text-white/30 uppercase tracking-[2px] font-black">
+                                        <th className="px-4 py-3">{isAr ? 'المبلغ' : 'Amount'}</th>
+                                        <th className="px-4 py-3">{isAr ? 'الحالة' : 'Status'}</th>
+                                        <th className="px-4 py-3">{isAr ? 'الطريقة' : 'Method'}</th>
+                                        <th className="px-4 py-3">{isAr ? 'تاريخ المراجعة' : 'Review Date'}</th>
+                                        <th className="px-4 py-3">{isAr ? 'التاريخ' : 'Date'}</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {withdrawalRequests.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="py-16 text-center">
+                                                <div className="flex flex-col items-center gap-3 opacity-20">
+                                                    <ClipboardCheck size={28} />
+                                                    <p className="text-[10px] font-black uppercase tracking-[3px]">{isAr ? 'لا يوجد سجل سحب' : 'No withdrawal records found'}</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        withdrawalRequests.map((req, idx) => (
+                                            <tr key={req.id || idx} className="group hover:bg-white/[0.02] transition-colors">
+                                                <td className="px-4 py-4">
+                                                    <span className="text-sm font-black text-white">{Number(req.amount).toLocaleString()}</span>
+                                                    <span className="text-[9px] text-gold-500/50 ml-1">AED</span>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <div className={`inline-flex items-center px-3 py-1 rounded-full border text-[9px] font-black uppercase ${
+                                                        req.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                        req.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                                        'bg-red-500/10 text-red-400 border-red-500/20'
+                                                    }`}>
+                                                        <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${req.status === 'COMPLETED' ? 'bg-emerald-400' : req.status === 'PENDING' ? 'bg-amber-400 animate-pulse' : 'bg-red-400'}`} />
+                                                        {isAr ? (req.status === 'COMPLETED' ? 'تم التحويل' : req.status === 'PENDING' ? 'قيد المراجعة' : 'مرفوض') : req.status}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    {req.payoutMethod === 'STRIPE' ? (
+                                                        <div className="inline-flex items-center gap-1.5 bg-[#635BFF]/10 text-[#635BFF] px-3 py-1 rounded-lg border border-[#635BFF]/20 text-[9px] font-black">
+                                                            <Zap size={10} /> Stripe
+                                                        </div>
+                                                    ) : (
+                                                        <div className="inline-flex items-center gap-1.5 bg-gold-500/10 text-gold-500 px-3 py-1 rounded-lg border border-gold-500/20 text-[9px] font-black">
+                                                            <CreditCard size={10} /> Bank
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-4 text-[10px] text-white/30 font-bold">
+                                                    {req.reviewedAt ? new Date(req.reviewedAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US') : '---'}
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <p className="text-[11px] font-bold text-white/80">{new Date(req.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US')}</p>
+                                                    <p className="text-[8px] text-white/20 font-black uppercase">{new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </GlassCard>
+
                 </div>
 
                 {/* 4b. Sidebar Widgets (The Transformation) */}
@@ -565,6 +1131,21 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                     {copied ? (isAr ? 'تم نسخ الرابط!' : 'LINK COPIED!') : (isAr ? 'دعوة صديق الآن' : 'INVITE PARTNER')}
                                 </button>
                                 
+                                {/* Encouraging dynamic CTA [NEW 2026] */}
+                                <div className="mt-4 p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 text-center relative overflow-hidden group/cta">
+                                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/30" />
+                                    <p className="text-[10px] text-blue-400 font-black mb-1.5 leading-snug tracking-tight">
+                                        {isAr 
+                                            ? `اربح عوائد نقدية بنسبة ${stats.profitPercentage}% على كل طلب إحالة ناجح!` 
+                                            : `Earn ${stats.profitPercentage}% cashback on every successful referral order!`}
+                                    </p>
+                                    <p className="text-[9px] text-white/30 font-medium leading-relaxed px-2">
+                                        {isAr 
+                                            ? 'رؤيتك وشركاؤك هم قيمة متجرك الحقيقية. ابدأ في بناء شبكتك العالمية اليوم.' 
+                                            : 'Your vision and partners are your store\'s true value. Start building your global network today.'}
+                                    </p>
+                                </div>
+                                
                                 <div className="relative pt-6 pb-2">
                                     <div className="absolute top-[38px] left-[15%] right-[15%] h-[2px] bg-white/5 z-0">
                                         <motion.div initial={{ width: 0 }} animate={{ width: stats.referralCount > 0 ? (stats.referralCount > 5 ? '100%' : '50%') : '0%' }} transition={{ duration: 1.5, delay: 0.5 }} className="h-full bg-gradient-to-r from-blue-600 to-purple-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]" />
@@ -582,45 +1163,61 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                         </div>
                     </GlassCard>
 
-                    {/* PREMIUM Instant Actions Panel */}
+                    {/* RESTORED: Referral Profits Overview (Info Only) */}
                     <GlassCard className="p-6 border-gold-500/20 bg-gradient-to-br from-gold-500/[0.04] via-transparent to-transparent group">
-                        <div className="flex justify-between items-center mb-8 relative z-10">
+                        <div className="flex justify-between items-center mb-6 relative z-10">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-gold-500/10 rounded-lg border border-gold-400/20 text-gold-500 group-hover:scale-110 transition-transform"><Wallet size={16} /></div>
-                                <h3 className="text-[10px] font-black text-white uppercase tracking-widest">{isAr ? 'العمليات السريعة' : 'Instant Actions'}</h3>
+                                <h3 className="text-[10px] font-black text-white uppercase tracking-widest">{isAr ? 'أرباح الإحالات المكتسبة' : 'Referral Earnings'}</h3>
                             </div>
-                            <ArrowUpRight size={14} className="text-white/20" />
+                            <Star size={14} className="text-gold-500/50" />
                         </div>
-                        <div className="space-y-6 relative z-10">
-                            <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <p className="text-[9px] text-white/40 uppercase font-black tracking-widest">{isAr ? 'أرباح العمولات المكتسبة' : 'Total Commission Profits'}</p>
-                                    <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
-                                        <Star size={10} />
-                                        <span className="text-[10px] font-black">{stats.loyaltyPoints} pts</span>
-                                    </div>
-                                </div>
-                                <h2 className="text-2xl font-black text-white tracking-tighter">{Number(stats.available).toLocaleString()} <span className="text-xs text-gold-500/60 font-medium ml-2">AED</span></h2>
-                            </div>
-                            <div className="space-y-2.5">
-                                <button onClick={handleWithdrawalRequest} className="w-full py-4 bg-white/5 hover:bg-gold-500 hover:text-black text-white/70 hover:font-black text-[10px] font-bold rounded-xl border border-white/10 hover:border-gold-500 transition-all flex items-center justify-center gap-3 uppercase tracking-[2px] shadow-xl group/btn outline-none">
-                                    <Download size={14} className="text-gold-500 group-hover/btn:text-black" />
-                                    {isAr ? 'سحب الارباح' : 'Withdraw Profits'}
-                                </button>
-                                <div className="text-center">
-                                    <p className="text-[8px] font-black uppercase text-white/20 tracking-widest leading-relaxed">
-                                        {isAr ? 'سيتم التحقق من ربط حساب Stripe قبل التحويل يدوياً' : 'Stripe account link will be verified before manual payout'}
-                                    </p>
+                        <div className="space-y-4 relative z-10">
+                            <div className="flex justify-between items-end border-b border-white/5 pb-2">
+                                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">{isAr ? 'الرصيد المتاح للسحب' : 'WITHDRAWABLE BALANCE'}</p>
+                                <div className="flex items-center gap-1.5 bg-gold-500/10 text-gold-500 px-2 py-0.5 rounded-full border border-gold-500/20">
+                                    <Star size={10} />
+                                    <span className="text-[10px] font-black">{stats.loyaltyPoints} pts</span>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-center gap-2 mt-2 opacity-30 group-hover:opacity-60 transition-opacity">
-                                <ShieldCheck size={10} className="text-emerald-500" />
-                                <span className="text-[8px] font-black uppercase tracking-widest text-white">{isAr ? 'نظام تشفير فائق السرعة' : 'AES-256 SECURE CONNECTION'}</span>
+                            <div className="flex items-baseline gap-2">
+                                <h2 className="text-3xl font-black text-white">
+                                    {Number((stats as any).earnedReferralProfits || 0).toLocaleString()}
+                                </h2>
+                                <span className="text-xs text-white/30 font-black uppercase tracking-tighter">AED</span>
+                            </div>
+                            <p className="text-[9px] text-white/20 italic font-medium leading-tight">
+                                {isAr ? 'هذا المبلغ يمثل أرباحك الصافية من نظام الإحالات الاجتماعي فقط.' : 'This amount represents your net earnings from the social referral hub only.'}
+                            </p>
+                            
+                            <div className="pt-2">
+                                <div className="px-3 py-2 bg-white/5 rounded-xl border border-white/5 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">
+                                        {isAr ? 'دفعات فورية مفعلة' : 'Instant Payouts Enabled'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </GlassCard>
+
                 </div>
             </div>
+
+            {/* Bank Details Modal Integration */}
+            <AnimatePresence>
+                {showBankForm && (
+                    <BankDetailsModal 
+                        isOpen={showBankForm}
+                        onClose={() => setShowBankForm(false)}
+                        isAr={isAr}
+                        form={bankForm}
+                        onChange={setBankForm}
+                        onSave={handleSaveBankDetails}
+                        isLoading={isSavingBank}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };

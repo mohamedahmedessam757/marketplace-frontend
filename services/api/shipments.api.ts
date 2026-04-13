@@ -9,6 +9,7 @@ export interface Shipment {
     carrierType: CarrierType;
     carrierName?: string;
     trackingNumber?: string;
+    trackingLink?: string;
     carrierApiUrl?: string;
     status: string; // ShipmentStatus
     statusNotes?: string;
@@ -66,7 +67,8 @@ export const shipmentsApi = {
             notes?: string; 
             customsDelayNote?: string; 
             carrierName?: string; 
-            trackingNumber?: string 
+            trackingNumber?: string;
+            trackingLink?: string;
         }
     ): Promise<Shipment> => {
         const response = await api.patch(`/shipments/${id}/status`, data);

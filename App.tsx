@@ -38,7 +38,7 @@ import { MerchantShippingCartPage } from './components/dashboard/merchant/Mercha
 import { MerchantSupportPage } from './components/dashboard/merchant/support/MerchantSupportPage';
 import { MerchantResolutionPage } from './components/dashboard/merchant/MerchantResolutionPage';
 import { MerchantReviews } from './components/dashboard/merchant/MerchantReviews';
-import { MerchantLoyalty } from './components/dashboard/merchant/MerchantLoyalty';
+
 
 // Admin Imports
 import { AdminHome } from './components/dashboard/admin/AdminHome';
@@ -436,7 +436,7 @@ function AppContent() {
                         onBack={handleDashboardBack}
                       >
                         {dashboardPath === 'home' && <MerchantHome onNavigate={handleDashboardNavigate} />}
-                        {dashboardPath === 'loyalty' && <MerchantLoyalty />}
+
                         {dashboardPath === 'marketplace' && <MerchantMarketplace onNavigate={handleDashboardNavigate} />}
                         {(dashboardPath === 'explore-offer' || (dashboardPath === 'orders' && viewId)) && <MarketplaceOfferDetails orderId={viewId} onBack={handleDashboardBack} />}
                         {(dashboardPath === 'active-orders' || (dashboardPath === 'orders' && !viewId)) && <MerchantOrders onNavigate={handleDashboardNavigate} />}

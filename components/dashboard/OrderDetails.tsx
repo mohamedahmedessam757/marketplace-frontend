@@ -6,7 +6,7 @@ import { Badge, StatusType } from '../ui/Badge';
 import { StatusTimeline } from '../ui/StatusTimeline';
 import { OfferCard } from './OfferCard';
 import { PartOffersDrawer } from './PartOffersDrawer';
-import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2, Eye, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCheckoutStore } from '../../stores/useCheckoutStore';
 import { useChatStore } from '../../stores/useChatStore';
@@ -616,6 +616,17 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                                             {shipment.carrier || (language === 'ar' ? 'تشليح السريعة' : 'Tashleh Express')}
                                                         </p>
                                                     </div>
+                                                    {shipment.trackingLink && (
+                                                        <a 
+                                                            href={shipment.trackingLink} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-2 px-4 py-2 bg-gold-500 text-black rounded-lg font-bold text-sm hover:bg-gold-400 transition-all shadow-[0_0_10px_rgba(212,175,55,0.3)] animate-in zoom-in duration-300"
+                                                        >
+                                                            <ExternalLink size={16} />
+                                                            {language === 'ar' ? 'تتبع الشحنة مباشرة' : 'Track Directly'}
+                                                        </a>
+                                                    )}
                                                 </div>
 
                                                 {/* 14-Step Tracker */}

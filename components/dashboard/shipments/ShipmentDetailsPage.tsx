@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Truck, ArrowLeft, ArrowRight, Box, Package, MapPin, Calendar, FileText, Receipt, ShieldCheck, UserCheck, Store, Building2, ClipboardList, Info, Clock } from 'lucide-react';
+import { Truck, ArrowLeft, ArrowRight, Box, Package, MapPin, Calendar, FileText, Receipt, ShieldCheck, UserCheck, Store, Building2, ClipboardList, Info, Clock, ExternalLink } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useShipmentsStore, Shipment } from '../../../stores/useShipmentsStore';
 import { GlassCard } from '../../ui/GlassCard';
@@ -83,7 +83,18 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
+                            {shipment.trackingLink && (
+                                <a
+                                    href={shipment.trackingLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-6 py-3 bg-gold-500 text-black rounded-2xl font-bold transition-all hover:bg-gold-400 shadow-[0_0_20px_rgba(212,175,55,0.3)] animate-in zoom-in duration-300"
+                                >
+                                    <ExternalLink size={18} />
+                                    {isAr ? 'تتبع الشحنة مباشرة' : 'Track Directly'}
+                                </a>
+                            )}
                             <button
                                 className="flex items-center gap-2 px-6 py-3 bg-gold-500/10 hover:bg-gold-500 text-gold-500 hover:text-black border border-gold-500/20 rounded-2xl font-bold transition-all group"
                                 onClick={() => {/* Support logic */}}
