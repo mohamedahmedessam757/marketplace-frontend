@@ -109,5 +109,10 @@ export const ordersApi = {
     submitCorrectionVerification: async (id: string, payload: any) => {
         const response = await client.post(`/orders/${id}/verification/correction`, payload);
         return response.data;
+    },
+
+    confirmDelivery: async (id: string, customerNote?: string) => {
+        const response = await client.post(`/orders/${id}/deliver`, { customerNote });
+        return response.data;
     }
 };

@@ -248,6 +248,21 @@ export const admin = {
           commercial: 'تجاري نخب أول',
           rebuilt: 'مجدد (Rebuilt)'
         }
+      },
+      verificationReview: {
+        modalTitle: 'اعتماد توثيق المستندات',
+        employeeName: 'اسم الموظف المسؤول',
+        signatureTitle: 'توقيع الموظف',
+        acknowledgment: 'أقر أنا الموظف المذكور أعلاه بصحة مطابقة القطعة للمستندات المرفقة وعلى مسؤوليتي الشخصية.',
+        submitReview: 'اعتماد وإرسال',
+        cancel: 'إلغاء',
+        signingDate: 'تاريخ التوثيق',
+        details: 'تفاصيل المراجعة الإدارية',
+        detailsPlaceholder: 'اكتب ملاحظات تفصيلية حول مراجعة القطعة ومطابقتها للمستندات...',
+        detailsRequired: 'تفاصيل المراجعة مطلوبة للمتابعة في حالة الرفض',
+        nameRequired: 'يرجى كتابة اسمك الثلاثي',
+        signatureRequired: 'يرجى التوقيع للمتابعة',
+        ackRequired: 'يجب الموافقة على الإقرار للمتابعة'
       }
     },
     storeProfile: {
@@ -739,6 +754,21 @@ export const admin = {
           commercial: 'First Class Commercial',
           rebuilt: 'Rebuilt'
         }
+      },
+      verificationReview: {
+        modalTitle: 'Approve Document Verification',
+        employeeName: 'Responsible Employee Name',
+        signatureTitle: 'Employee Signature',
+        acknowledgment: 'I, the aforementioned employee, hereby confirm the accuracy of the part\'s matching to the attached documents under my personal responsibility.',
+        submitReview: 'Approve & Submit',
+        cancel: 'Cancel',
+        signingDate: 'Verification Date',
+        details: 'Administrative Review Details',
+        detailsPlaceholder: 'Write detailed notes about the part verification and document matching...',
+        detailsRequired: 'Review details are required to proceed with rejection',
+        nameRequired: 'Please type your full name',
+        signatureRequired: 'Please sign to continue',
+        ackRequired: 'Acknowledgment is required to proceed'
       }
     },
     storeProfile: {

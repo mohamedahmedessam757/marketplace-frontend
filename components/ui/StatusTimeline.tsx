@@ -38,13 +38,13 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus })
       case 'VERIFICATION_SUCCESS': 
       case 'NON_MATCHING': 
       case 'CORRECTION_PERIOD': 
-      case 'CORRECTION_SUBMITTED': 
+      case 'CORRECTION_SUBMITTED': return 4;
+      
+      // Shipping phase
       case 'RECEIVED_AT_HUB':
       case 'QUALITY_CHECK_PASSED':
       case 'PACKAGED_FOR_SHIPPING':
-      case 'AWAITING_CARRIER_PICKUP': return 4;
-      
-      // Shipping phase
+      case 'AWAITING_CARRIER_PICKUP':
       case 'READY_FOR_SHIPPING':
       case 'SHIPPED': 
       case 'PICKED_UP_BY_CARRIER':

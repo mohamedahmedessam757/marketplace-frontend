@@ -61,7 +61,7 @@ export const SLA_LIMITS: Partial<Record<StatusType, number>> = {
 };
 
 export interface OrderOffer {
-    id: number;
+    id: string;
     offerNumber?: string;
     storeId?: string; // Store ID for vendor identification
     storeCode?: string; // Store unit code D-XXXX
@@ -88,7 +88,7 @@ export interface OrderOffer {
 }
 
 export interface Order {
-    id: number;
+    id: string;
     orderNumber?: string;
     // Customer Info
     customer: {
@@ -180,6 +180,9 @@ export interface Order {
     // Returns
     returnWaybillNumber?: string;
     returnShippedAt?: string;
+
+    // Review
+    review?: any;
 }
 
 interface OrderState {
@@ -203,21 +206,21 @@ interface OrderState {
     clearOrders: () => void;
     resetForRole: (role: string) => void;
     addOrder: (order: Omit<Order, 'id' | 'date' | 'status' | 'offersCount' | 'createdAt' | 'updatedAt' | 'offers'>) => Promise<void>;
-    addOfferToOrder: (orderId: number, offer: Omit<OrderOffer, 'id'>) => void;
-    acceptOffer: (orderId: string | number, partId: string | number, offerId: string | number) => Promise<void>;
-    rejectOffer: (orderId: number, offerId: number, reason: string, customReason?: string) => Promise<void>;
-    transitionOrder: (id: number, targetStatus: StatusType, actor?: string, metadata?: any) => Promise<{ success: boolean; message?: string }>;
-    forceStatus: (id: number, status: StatusType, adminNote: string) => void;
-    processPaymentWebhook: (event: 'succeeded' | 'failed' | 'refunded', orderId: number) => void;
+    addOfferToOrder: (orderId: string, offer: Omit<OrderOffer, 'id'>) => void;
+    acceptOffer: (orderId: string, partId: string, offerId: string) => Promise<void>;
+    rejectOffer: (orderId: string, offerId: string, reason: string, customReason?: string) => Promise<void>;
+    transitionOrder: (id: string, targetStatus: StatusType, actor?: string, metadata?: any) => Promise<{ success: boolean; message?: string }>;
+    forceStatus: (id: string, status: StatusType, adminNote: string) => void;
+    processPaymentWebhook: (event: 'succeeded' | 'failed' | 'refunded', orderId: string) => void;
 
     checkSLA: () => void;
-    getOrder: (id: string | number) => Order | undefined;
+    getOrder: (id: string) => Order | undefined;
     getValidTransitions: (currentStatus: StatusType) => StatusType[];
-    updateOrderStatus: (id: number, status: StatusType) => void;
-
-    adminUpdateOffer: (offerId: string | number, updateDto: any) => Promise<void>;
-    adminDeleteOffer: (offerId: string | number) => Promise<void>;
-    updateAdminNotes: (orderId: string | number, notes: string) => Promise<void>;
+    updateOrderStatus: (id: string, status: StatusType) => void;
+    adminUpdateOffer: (offerId: string, updateDto: any) => Promise<void>;
+    adminDeleteOffer: (offerId: string) => Promise<void>;
+    updateAdminNotes: (orderId: string, notes: string) => Promise<void>;
+    confirmOrderReceived: (id: string, note?: string) => Promise<boolean>;
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
@@ -506,13 +509,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         }
     },
 
-    addOfferToOrder: (orderId, offerData) => {
+    addOfferToOrder: (orderId: string, offerData) => {
         // Add offer to order — does NOT change status. Only customer accepting changes status.
         set((state) => ({
             orders: state.orders.map(o => {
-                // Compare as string/number safely
-                // @ts-ignore
-                if (o.id != orderId) return o;
+                if (o.id !== orderId) return o;
                 return {
                     ...o,
                     // Increment the count properties so the UI registers the new total immediately
@@ -521,51 +522,44 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                         ...o._count,
                         offers: (o._count?.offers || o.offersCount || 0) + 1
                     },
-                    offers: [...(o.offers || []), { id: Date.now(), submittedAt: new Date().toISOString(), ...offerData }]
+                    offers: [...(o.offers || []), { id: `TMP-${Date.now()}`, submittedAt: new Date().toISOString(), ...offerData }]
                 };
             })
         }));
     },
 
-    rejectOffer: async (orderId: string | number, offerId: string | number, reason: string, customReason?: string) => {
+    rejectOffer: async (orderId: string, offerId: string, reason: string, customReason?: string) => {
         // Optimistic UI Update first
         set((state) => ({
             orders: state.orders.map(o => {
-                // @ts-ignore — loose equality handles string/number UUID mismatch
-                if (o.id != orderId) return o;
+                if (o.id !== orderId) return o;
                 return {
                     ...o,
                     offers: o.offers?.map(offer =>
-                        // @ts-ignore
-                        offer.id == offerId ? { ...offer, status: 'rejected' } : offer
+                        offer.id === offerId ? { ...offer, status: 'rejected' } : offer
                     )
                 };
             })
         }));
 
         try {
-            await ordersApi.rejectOffer(String(orderId), String(offerId), { reason, customReason });
-            // Let realtime sockets handle the final confirmation, or we can just leave the optimistic ui.
+            await ordersApi.rejectOffer(orderId, offerId, { reason, customReason });
         } catch (error) {
             console.error("Failed to reject offer", error);
-            // Revert on failure
             await get().silentFetch();
         }
     },
 
-    acceptOffer: async (orderId: string | number, partId: string | number, offerId: string | number) => {
+    acceptOffer: async (orderId: string, partId: string, offerId: string) => {
         // Optimistic update
         set((state) => ({
             orders: state.orders.map(o => {
-                // @ts-ignore
-                if (o.id != orderId) return o;
+                if (o.id !== orderId) return o;
                 return {
                     ...o,
                     offers: o.offers?.map(offer => {
-                        // @ts-ignore
-                        if (offer.id == offerId) return { ...offer, status: 'accepted' };
-                        // @ts-ignore
-                        if (offer.orderPartId == partId && offer.id != offerId && offer.status !== 'rejected') return { ...offer, status: 'rejected' };
+                        if (offer.id === offerId) return { ...offer, status: 'accepted' };
+                        if (offer.orderPartId === partId && offer.id !== offerId && offer.status !== 'rejected') return { ...offer, status: 'rejected' };
                         return offer;
                     })
                 };
@@ -573,13 +567,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         }));
 
         try {
-            await ordersApi.acceptOfferForPart(String(orderId), String(partId), String(offerId));
-            // DO NOT silentFetch immediately — it overwrites the optimistic update with stale data
-            // (the DB transaction may not have propagated yet). Instead, defer the sync.
+            await ordersApi.acceptOfferForPart(orderId, partId, offerId);
             setTimeout(() => { get().silentFetch(); }, 2000);
         } catch (error) {
             console.error("Failed to accept offer", error);
-            // On failure, revert optimistic update by fetching fresh data immediately
             await get().silentFetch();
             throw error;
         }
@@ -588,12 +579,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     transitionOrder: async (id, targetStatus, actor = 'SYSTEM', metadata = {}) => {
         // Optimistic Update or Wait? Let's wait for API
         try {
-            await ordersApi.transition(String(id), targetStatus, JSON.stringify(metadata));
+            await ordersApi.transition(id, targetStatus, JSON.stringify(metadata));
 
             set((state) => ({
                 orders: state.orders.map(o => {
-                    // @ts-ignore
-                    if (o.id != id) return o;
+                    if (o.id !== id) return o;
                     const now = new Date().toISOString();
                     return { ...o, status: targetStatus, updatedAt: now };
                 })
@@ -612,7 +602,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         get().transitionOrder(id, status, 'ADMIN_FORCE', { note: adminNote });
     },
 
-    processPaymentWebhook: (event, orderId) => {
+    processPaymentWebhook: (event, orderId: string) => {
         // Implementation pending Stripe Backend
     },
 
@@ -620,9 +610,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         // ... keep existing logic
     },
 
-    getOrder: (id) => get().orders.find(o => o.id.toString() === id.toString()),
+    getOrder: (id: string) => get().orders.find(o => String(o.id) === String(id)),
     getValidTransitions: (status) => TRANSITION_RULES[status] || [],
-    updateOrderStatus: (id, status) => get().transitionOrder(id, status, 'LEGACY_CALL'),
+    updateOrderStatus: (id: string, status: StatusType) => get().transitionOrder(id, status, 'LEGACY_CALL'),
 
     adminUpdateOffer: async (offerId, updateDto) => {
         const token = localStorage.getItem('access_token');
@@ -679,5 +669,26 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             throw new Error(err.message || 'Failed to update admin notes');
         }
         await get().silentFetch(); // Refresh orders
+    },
+
+    confirmOrderReceived: async (id: string, note?: string) => {
+        // 1. Optimistic UI Update
+        const previousOrders = get().orders;
+        set((state) => ({
+            orders: state.orders.map(o => String(o.id) === String(id) ? { ...o, status: 'DELIVERED', updatedAt: new Date().toISOString() } : o)
+        }));
+
+        try {
+            await ordersApi.confirmDelivery(id, note);
+            
+            // 2. Trigger a sync fetch after small delay to let DB propagate
+            setTimeout(() => { get().silentFetch(); }, 2000);
+            return true;
+        } catch (error) {
+            console.error('Failed to confirm delivery', error);
+            // 3. Revert on failure
+            set({ orders: previousOrders });
+            return false;
+        }
     }
 }));

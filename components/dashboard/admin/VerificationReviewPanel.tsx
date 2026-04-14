@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { GlassCard } from '../../ui/GlassCard';
-import { supabase } from '../../../services/supabase';
+import { AdminSignatureModal } from './AdminSignatureModal';
 
 interface VerificationReviewPanelProps {
     orderId: string;
@@ -16,6 +16,10 @@ interface VerificationReviewPanelProps {
         reason?: string;
         rejectionImages?: string[];
         rejectionVideo?: string;
+        adminSignatureName?: string;
+        adminSignatureImage?: string;
+        adminSignatureType?: string;
+        adminSignatureText?: string;
     }) => Promise<void>;
 }
 
@@ -26,6 +30,9 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
     const isAr = language === 'ar';
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [actionType, setActionType] = useState<'APPROVE' | 'REJECT' | null>(null);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [pendingAction, setPendingAction] = useState<'APPROVE' | 'REJECT' | null>(null);
+    
     const [rejectionReason, setRejectionReason] = useState('');
     const [rejectionImages, setRejectionImages] = useState<File[]>([]);
     const [rejectionImageUrls, setRejectionImageUrls] = useState<string[]>([]);
@@ -41,11 +48,11 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
 
     if (!documents || documents.length === 0) return null;
 
-    const uploadFile = async (file: File, folder: string): Promise<string> => {
+    const uploadFile = async (file: File | Blob, folder: string): Promise<string> => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('orderId', orderId);
-        formData.append('folder', `admin-rejection/${folder}`);
+        formData.append('folder', `admin-review/${folder}`);
 
         const token = localStorage.getItem('access_token');
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -85,47 +92,72 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
         setRejectionVideoUrl(URL.createObjectURL(file));
     };
 
-    const handleSubmit = async (action: 'APPROVE' | 'REJECT') => {
+    const handleActionClick = (action: 'APPROVE' | 'REJECT') => {
         if (action === 'REJECT' && !rejectionReason.trim()) {
             setError(isAr ? 'سبب الرفض مطلوب' : 'Rejection reason is required');
             return;
         }
+        setPendingAction(action);
+        setShowSignatureModal(true);
+    };
+
+    const handleSignatureConfirm = async (sigData: {
+        adminSignatureName: string;
+        adminSignatureType: 'DRAWN' | 'TYPED';
+        adminSignatureText?: string;
+        adminSignatureImage?: string;
+        adminReviewDetails?: string;
+    }) => {
+        if (!pendingAction) return;
 
         setIsSubmitting(true);
         setError('');
-        setUploadProgress(10);
+        setShowSignatureModal(false);
+        setUploadProgress(5);
 
         try {
             let uploadedImages: string[] = [];
             let uploadedVideoUrl: string | undefined;
+            let finalSignatureUrl = sigData.adminSignatureImage;
 
-            if (action === 'REJECT') {
-                // Upload rejection images
+            // 1. Upload rejection media if any
+            if (pendingAction === 'REJECT') {
                 for (let i = 0; i < rejectionImages.length; i++) {
-                    const url = await uploadFile(rejectionImages[i], 'images');
+                    const url = await uploadFile(rejectionImages[i], 'rejection-images');
                     uploadedImages.push(url);
-                    setUploadProgress(10 + Math.floor((60 / Math.max(rejectionImages.length, 1)) * (i + 1)));
+                    setUploadProgress(5 + Math.floor((40 / Math.max(rejectionImages.length, 1)) * (i + 1)));
                 }
-                // Upload rejection video
                 if (rejectionVideo) {
-                    uploadedVideoUrl = await uploadFile(rejectionVideo, 'video');
-                    setUploadProgress(80);
+                    uploadedVideoUrl = await uploadFile(rejectionVideo, 'rejection-video');
+                    setUploadProgress(60);
                 }
             }
 
+            // 2. Upload signature if it's a drawing (data URL)
+            if (sigData.adminSignatureType === 'DRAWN' && sigData.adminSignatureImage?.startsWith('data:image')) {
+                const res = await fetch(sigData.adminSignatureImage);
+                const blob = await res.blob();
+                finalSignatureUrl = await uploadFile(blob, 'signatures');
+                setUploadProgress(80);
+            }
+
             setUploadProgress(90);
-            await onReviewSubmit(action, {
-                reason: rejectionReason || undefined,
+            await onReviewSubmit(pendingAction, {
+                reason: sigData.adminReviewDetails || rejectionReason || undefined,
                 rejectionImages: uploadedImages.length > 0 ? uploadedImages : undefined,
-                rejectionVideo: uploadedVideoUrl
+                rejectionVideo: uploadedVideoUrl,
+                adminSignatureName: sigData.adminSignatureName,
+                adminSignatureType: sigData.adminSignatureType,
+                adminSignatureText: sigData.adminSignatureText,
+                adminSignatureImage: finalSignatureUrl
             });
             
             setUploadProgress(100);
-            // Artificial delay for UX polish so it doesn't snap away instantly
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            setPendingAction(null);
+            setActionType(null);
         } catch (err: any) {
             setError(err.message || (isAr ? 'حدث خطأ غير متوقع' : 'An unexpected error occurred'));
-            setActionType(null);
+            setShowSignatureModal(true); // Allow retry
         } finally {
             setIsSubmitting(false);
             setUploadProgress(0);
@@ -264,12 +296,42 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
             </div>
 
             {/* Admin Rejection Evidence (if already rejected and docs exist) */}
-            {(status === 'NON_MATCHING' || status === 'CORRECTION_PERIOD') && activeDoc.adminRejectionReason && (
-                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-3">
-                    <h4 className="text-sm font-bold text-red-400 flex items-center gap-2">
-                        <XCircle size={16} /> {isAr ? 'سبب الرفض المسجّل من الإدارة' : 'Admin Rejection Reason on Record'}
-                    </h4>
-                    <p className="text-white/80 text-sm">{activeDoc.adminRejectionReason}</p>
+            {activeDoc.adminStatus === 'REJECTED' && activeDoc.adminRejectionReason && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-4">
+                    <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-red-400 flex items-center gap-2">
+                                <XCircle size={16} /> {isAr ? 'سبب الرفض المسجّل من الإدارة' : 'Admin Rejection Reason on Record'}
+                            </h4>
+                            <p className="text-white/80 text-sm">{activeDoc.adminRejectionReason}</p>
+                        </div>
+                        {activeDoc.adminReviewedAt && (
+                            <div className="text-[10px] text-white/30 font-mono">
+                                {new Date(activeDoc.adminReviewedAt).toLocaleString(isAr ? 'ar-EG' : 'en-GB')}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Admin Signature Display */}
+                    {activeDoc.adminSignatureName && (
+                        <div className="pt-3 border-t border-red-500/10 flex flex-wrap gap-4 items-end">
+                            <div className="space-y-1">
+                                <span className="text-[10px] text-white/40 block">{isAr ? 'الموظف المراجع' : 'Reviewing Officer'}</span>
+                                <span className="text-xs font-bold text-white">{activeDoc.adminSignatureName}</span>
+                            </div>
+                            <div className="space-y-1">
+                                <span className="text-[10px] text-white/40 block">{isAr ? 'التوقيع الإداري' : 'Admin Signature'}</span>
+                                {activeDoc.adminSignatureType === 'TYPED' ? (
+                                    <span className="text-xl text-red-400 font-bold" style={{ fontFamily: '"Brush Script MT", cursive, sans-serif' }}>
+                                        {activeDoc.adminSignatureText}
+                                    </span>
+                                ) : activeDoc.adminSignatureImage ? (
+                                    <img src={activeDoc.adminSignatureImage} alt="Admin Sig" className="h-8 object-contain brightness-125" />
+                                ) : null}
+                            </div>
+                        </div>
+                    )}
+
                     {activeDoc.adminRejectionImages?.length > 0 && (
                         <div className="grid grid-cols-3 gap-2 mt-2">
                             {activeDoc.adminRejectionImages.map((img: string, i: number) => (
@@ -280,6 +342,42 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
                             ))}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Approval Info & Signature if Approved */}
+            {activeDoc.adminStatus === 'APPROVED' && activeDoc.adminSignatureName && (
+                <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-xl space-y-4">
+                    <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-green-400 flex items-center gap-2">
+                                <CheckCircle2 size={16} /> {isAr ? 'تم اعتماد مطابقة القطعة' : 'Part Compliance Approved'}
+                            </h4>
+                            <p className="text-white/80 text-sm">{isAr ? 'تمت مراجعة القطعة وتوثيق مطابقتها للمستندات والطلب.' : 'The part has been reviewed and verified against documents and order.'}</p>
+                        </div>
+                        {activeDoc.adminReviewedAt && (
+                            <div className="text-[10px] text-white/30 font-mono">
+                                {new Date(activeDoc.adminReviewedAt).toLocaleString(isAr ? 'ar-EG' : 'en-GB')}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="pt-3 border-t border-green-500/10 flex flex-wrap gap-6 items-end">
+                        <div className="space-y-1">
+                            <span className="text-[10px] text-white/40 block">{isAr ? 'الموظف المراجع' : 'Reviewing Officer'}</span>
+                            <span className="text-xs font-bold text-white">{activeDoc.adminSignatureName}</span>
+                        </div>
+                        <div className="space-y-1">
+                            <span className="text-[10px] text-white/40 block">{isAr ? 'التوقيع الإداري' : 'Admin Signature'}</span>
+                            {activeDoc.adminSignatureType === 'TYPED' ? (
+                                <span className="text-xl text-green-400 font-bold" style={{ fontFamily: '"Brush Script MT", cursive, sans-serif' }}>
+                                    {activeDoc.adminSignatureText}
+                                </span>
+                            ) : activeDoc.adminSignatureImage ? (
+                                <img src={activeDoc.adminSignatureImage} alt="Admin Sig" className="h-8 object-contain brightness-125 saturate-150" />
+                            ) : null}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -400,7 +498,7 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
                                         {isAr ? 'تراجع' : 'Cancel'}
                                     </button>
                                     <button
-                                        onClick={() => handleSubmit('REJECT')}
+                                        onClick={() => handleActionClick('REJECT')}
                                         disabled={isSubmitting || !rejectionReason.trim()}
                                         className="px-6 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold disabled:opacity-50 flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20"
                                     >
@@ -421,7 +519,7 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
                                     {isAr ? 'رفض لعدم المطابقة' : 'Reject - Non Matching'}
                                 </button>
                                 <button
-                                    onClick={() => handleSubmit('APPROVE')}
+                                    onClick={() => handleActionClick('APPROVE')}
                                     disabled={isSubmitting}
                                     className="w-full py-4 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold transition-colors shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
@@ -435,6 +533,15 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
                     </AnimatePresence>
                 </div>
             )}
+
+            {/* Signature Modal */}
+            <AdminSignatureModal
+                isOpen={showSignatureModal}
+                onClose={() => setShowSignatureModal(false)}
+                onConfirm={handleSignatureConfirm}
+                actionType={pendingAction || 'APPROVE'}
+                initialDetails={rejectionReason}
+            />
         </GlassCard>
     );
 };

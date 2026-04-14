@@ -12,7 +12,7 @@ export interface Address {
 }
 
 export interface OfferDetails {
-  id: number;
+  id: string;
   merchantName: string;
   price: number;
   partName: string;
@@ -37,7 +37,7 @@ interface PaymentResult {
 }
 
 interface CheckoutState {
-  orderId: string | number | null;
+  orderId: string | null;
   step: number;
   address: Address;
   selectedOffer: OfferDetails | null;
@@ -54,8 +54,9 @@ interface CheckoutState {
   paidOfferIds: string[];
   paymentError: string | null;
   lastPaymentResult: PaymentResult | null;
+  clientSecret: string | null;
 
-  setOrderId: (id: string | number | null) => void;
+  setOrderId: (id: string | null) => void;
   setStep: (step: number) => void;
   setOpenDrawerForPartId: (id: string | null) => void;
   updateAddress: (field: keyof Address, value: string) => void;
@@ -69,6 +70,7 @@ interface CheckoutState {
 
   saveOrderData: () => Promise<boolean>;
   processPayment: (orderId: string, offerId: string, card: CardDetails) => Promise<PaymentResult>;
+  createPaymentIntent: (orderId: string, offerId: string) => Promise<string | null>;
   clearPaymentError: () => void;
   submitPayment: () => Promise<void>;
   reset: () => void;
@@ -97,6 +99,7 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
   paidOfferIds: [],
   paymentError: null,
   lastPaymentResult: null,
+  clientSecret: null,
 
   setOrderId: (id) => set({ orderId: id }),
   setStep: (step) => set({ step }),
@@ -139,7 +142,7 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
   },
 
   processPayment: async (orderId: string, offerId: string, card: CardDetails): Promise<PaymentResult> => {
-    // orderId is now passed explicitly — NOT read from store (prevents stale ID bugs)
+    // legacy support or manual override
     if (!orderId) return { success: false, error: 'No order ID' };
 
     set({ isProcessing: true, paymentError: null });
@@ -160,6 +163,22 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
       const errorMessage = e.response?.data?.message || e.message || 'Payment failed';
       set({ paymentError: errorMessage });
       return { success: false, error: errorMessage };
+    } finally {
+      set({ isProcessing: false });
+    }
+  },
+
+  createPaymentIntent: async (orderId: string, offerId: string) => {
+    if (!orderId || !offerId) return null;
+    
+    set({ isProcessing: true, paymentError: null });
+    try {
+      const result = await paymentsApi.createIntent({ orderId, offerId });
+      return result.clientSecret;
+    } catch (e: any) {
+      const errorMessage = e.response?.data?.message || e.message || 'Failed to initialize payment';
+      set({ paymentError: errorMessage });
+      return null;
     } finally {
       set({ isProcessing: false });
     }
@@ -191,5 +210,6 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
     paidOfferIds: [],
     paymentError: null,
     lastPaymentResult: null,
+    clientSecret: null,
   })
 }));

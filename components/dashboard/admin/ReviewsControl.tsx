@@ -8,11 +8,24 @@ import { Star, CheckCircle2, XCircle, Search, Loader2, MessageSquare, User, Stor
 
 export const ReviewsControl: React.FC = () => {
     const { t, language } = useLanguage();
-    const { reviews, fetchAdminReviews, updateReviewStatus, isLoading, error } = useReviewStore();
+    const { 
+        reviews, 
+        fetchAdminReviews, 
+        updateReviewStatus, 
+        subscribeToAdminReviews,
+        unsubscribeFromAdminReviews,
+        isLoading, 
+        error 
+    } = useReviewStore();
     const [tab, setTab] = useState<'PENDING' | 'PUBLISHED' | 'REJECTED'>('PENDING');
 
     useEffect(() => {
         fetchAdminReviews();
+        subscribeToAdminReviews();
+
+        return () => {
+            unsubscribeFromAdminReviews();
+        };
     }, []);
 
     const filteredReviews = reviews.filter(r => r.adminStatus === tab);
@@ -79,20 +92,28 @@ export const ReviewsControl: React.FC = () => {
                                      <div className="flex flex-col lg:flex-row gap-8">
                                          {/* Left Column: Review Info */}
                                          <div className="flex-1 space-y-4">
-                                             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] font-black uppercase tracking-widest text-white/30">
-                                                 <div className="flex items-center gap-2 text-white/60">
-                                                     <User size={14} className="text-gold-500" />
-                                                     {review.customer?.name || 'Customer'}
+                                             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-[10px] font-black uppercase tracking-widest text-white/30">
+                                                 <div className="flex items-center gap-3 text-white/80 bg-white/5 pr-4 pl-1 py-1 rounded-full border border-white/5 group-hover:border-gold-500/30 transition-all">
+                                                     <div className="w-6 h-6 rounded-full bg-gold-500/10 border border-gold-500/20 overflow-hidden flex items-center justify-center shrink-0">
+                                                         {review.customer?.avatar ? (
+                                                             <img src={review.customer.avatar} alt="" className="w-full h-full object-cover" />
+                                                         ) : (
+                                                             <User size={12} className="text-gold-500" />
+                                                         )}
+                                                     </div>
+                                                     <span className="font-mono tracking-normal text-white">{review.customerCode}</span>
                                                  </div>
                                                  <div className="flex items-center gap-2">
-                                                     <Store size={14} />
-                                                     {review.store?.name || 'Store'}
+                                                     <Store size={14} className="text-white/20" />
+                                                     <span className="text-white/60">{review.store?.name || 'Store'}</span>
                                                  </div>
                                                  <div className="flex items-center gap-2">
-                                                     <Calendar size={14} />
-                                                     {new Date(review.createdAt).toLocaleDateString()}
+                                                     <Calendar size={14} className="text-white/20" />
+                                                     <span className="text-white/60">
+                                                        {new Date(review.createdAt).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                     </span>
                                                  </div>
-                                                 <span>#ID: {review.id.slice(0,8)}</span>
+                                                 <span className="px-2 py-0.5 bg-black/40 rounded border border-white/5 opacity-50">REF: {review.order?.orderNumber || review.id.slice(0,8)}</span>
                                              </div>
 
                                              <div className="flex gap-1.5 py-1">

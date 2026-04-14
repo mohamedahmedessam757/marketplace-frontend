@@ -446,9 +446,11 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                     {(() => {
                         const derivedShipmentStatus = (order.shipments && order.shipments.length > 0)
                             ? order.shipments[0].status
-                            : (order.status === 'READY_FOR_SHIPPING' || order.status === 'VERIFICATION_SUCCESS')
-                                ? 'RECEIVED_AT_HUB'
-                                : order.status === 'SHIPPED'
+                            : order.status === 'READY_FOR_SHIPPING'
+                                ? 'PREPARED'
+                                : order.status === 'VERIFICATION_SUCCESS'
+                                    ? 'PREPARATION'
+                                    : order.status === 'SHIPPED'
                                     ? 'PICKED_UP_BY_CARRIER'
                                     : order.status === 'DELIVERED'
                                         ? 'DELIVERED_TO_CUSTOMER'
@@ -542,6 +544,10 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                     rejectionReason: payload?.reason,
                                     rejectionImages: payload?.rejectionImages || [],
                                     rejectionVideo: payload?.rejectionVideo,
+                                    adminSignatureName: payload?.adminSignatureName,
+                                    adminSignatureImage: payload?.adminSignatureImage,
+                                    adminSignatureType: payload?.adminSignatureType,
+                                    adminSignatureText: payload?.adminSignatureText,
                                 });
                                 // Real-time Supabase subscription auto-updates order status in UI
                             }}

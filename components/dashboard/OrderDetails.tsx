@@ -78,8 +78,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const { addNotification } = useNotificationStore();
     const { shipments, fetchShipments } = useShipmentsStore();
     // UI State
-    const [selectedOffer, setSelectedOffer] = useState<number | null>(null);
-    const [acceptLoadingOfferId, setAcceptLoadingOfferId] = useState<number | null>(null);
+    const [selectedOffer, setSelectedOffer] = useState<string | null>(null);
+    const [acceptLoadingOfferId, setAcceptLoadingOfferId] = useState<string | null>(null);
     const [chatLoading, setChatLoading] = useState(false);
     const [showTracking, setShowTracking] = useState(false);
     const [isLoadingSupport, setIsLoadingSupport] = useState(false);
@@ -104,6 +104,9 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
         image?: string;
         index: number;
     } | null>(null);
+    const [isConfirmingDelivery, setIsConfirmingDelivery] = useState(false);
+    const [deliveryNote, setDeliveryNote] = useState('');
+    const [showConfirmDeliveryModal, setShowConfirmDeliveryModal] = useState(false);
 
     // Fetch Order
     const order = getOrder(orderId || '');
@@ -216,17 +219,32 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const handleChat = async (offer: any) => {
         setChatLoading(true);
         try {
+            // Resolve the vendor/store ID from multiple potential fields
+            const vendorId = offer.storeId || offer.vendorId || offer.store_id || offer.merchantId;
+            
+            if (!vendorId) {
+                console.error('Chat Initiation Failed: Missing vendor ID', offer);
+                throw new Error(language === 'ar' ? 'معرف التاجر مفقود' : 'Merchant ID is missing');
+            }
+
             // Use the REAL backend API — creates/gets chat in order_chats table
-            const newChat = await fetchChat(String(order.id), offer.storeId || offer.vendorId || offer.store_id || '');
-            onNavigate('chats', newChat.id); // Explicitly pass the chat ID
+            const newChat = await fetchChat(String(order.id), String(vendorId));
+            
+            if (newChat && newChat.id) {
+                onNavigate('chats', newChat.id); // Explicitly pass the chat ID
+            } else {
+                throw new Error('Chat was initialized but no ID was returned.');
+            }
         } catch (e: any) {
+            const apiMessage = e?.response?.data?.message;
             console.error('Failed to init chat:', e);
+            
             useNotificationStore.getState().addNotification({
                 type: 'SYSTEM',
                 titleAr: 'فشل فتح المحادثة',
                 titleEn: 'Failed to Open Chat',
-                messageAr: e?.response?.data?.message || 'حدث خطأ أثناء محاولة بدء المحادثة.',
-                messageEn: e?.response?.data?.message || 'An error occurred while trying to initialize the chat.',
+                messageAr: apiMessage || (language === 'ar' ? 'حدث خطأ أثناء محاولة بدء المحادثة.' : 'An error occurred while trying to initialize the chat.'),
+                messageEn: apiMessage || 'An error occurred while trying to initialize the chat.',
                 recipientRole: 'CUSTOMER'
             });
         } finally {
@@ -303,7 +321,9 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const isOrderExpired = () => {
         if (order.status === 'CANCELLED') return true;
         if (order.status !== 'AWAITING_OFFERS') return false;
-        const deadline = new Date(getOfferDeadline()).getTime();
+        const d = new Date(order.createdAt || order.date);
+        d.setHours(d.getHours() + 24);
+        const deadline = d.getTime();
         return new Date().getTime() > deadline;
     };
 
@@ -329,11 +349,34 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     };
 
     const getReturnDeadline = () => {
-        if (!order.deliveredAt) return '';
-        const d = new Date(order.deliveredAt);
-        d.setHours(d.getHours() + 48);
+        const baseDate = order.deliveredAt || order.updatedAt;
+        if (!baseDate || order.status !== 'DELIVERED') return '';
+        const d = new Date(baseDate);
+        d.setHours(d.getHours() + 72); // 3 Days SLA
         return d.toISOString();
     }
+
+    const handleConfirmDelivery = async () => {
+        setIsConfirmingDelivery(true);
+        try {
+            const success = await useOrderStore.getState().confirmOrderReceived(order.id, deliveryNote);
+            if (success) {
+                setShowConfirmDeliveryModal(false);
+                setDeliveryNote('');
+                addNotification({
+                    type: 'success',
+                    titleAr: 'تم استلام الطلب',
+                    titleEn: 'Order Received',
+                    messageAr: 'شكراً لك! تم تحديث حالة الطلب إلى "تم التوصيل". يمكنك الآن تقييم التاجر.',
+                    messageEn: 'Thank you! Order status updated to "Delivered". You can now review the merchant.'
+                });
+            }
+        } catch (error) {
+            console.error('Delivery confirmation error:', error);
+        } finally {
+            setIsConfirmingDelivery(false);
+        }
+    };
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
@@ -542,20 +585,37 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
+                            {/* Confirm Receipt Button (SHIPPED) */}
+                            {order.status === 'SHIPPED' && (
+                                <button
+                                    onClick={() => setShowConfirmDeliveryModal(true)}
+                                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-black rounded-lg transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] font-black text-sm"
+                                >
+                                    <Truck size={16} />
+                                    {language === 'ar' ? 'تأكيد الاستلام' : 'Confirm Receipt'}
+                                </button>
+                            )}
 
                             {/* Review Button */}
                             {(order.status === 'COMPLETED' || order.status === 'DELIVERED') && (
                                 <button
-                                    onClick={() => setShowReviewModal(true)}
-                                    className="hidden md:flex items-center gap-2 px-4 py-2 bg-gold-500/10 hover:bg-gold-500 text-gold-400 hover:text-white border border-gold-500/30 rounded-lg transition-all font-bold text-sm"
+                                    onClick={() => !order.review && setShowReviewModal(true)}
+                                    disabled={!!order.review}
+                                    className={`hidden md:flex items-center gap-2 px-4 py-2 border rounded-lg transition-all font-bold text-sm ${
+                                        order.review 
+                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                                        : 'bg-gold-500/10 hover:bg-gold-500 text-gold-400 hover:text-white border-gold-500/30'
+                                    }`}
                                 >
-                                    <Star size={16} />
-                                    {t.dashboard.reviews.writeTitle}
+                                    {order.review ? <CheckCircle2 size={16} /> : <Star size={16} />}
+                                    {order.review 
+                                        ? (language === 'ar' ? 'تم التقييم' : 'Reviewed') 
+                                        : t.dashboard.reviews.writeTitle}
                                 </button>
                             )}
 
-                            {/* Return Button (SHIPPED or DELIVERED) */}
-                            {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+                            {/* Return Button (DELIVERED Only) */}
+                            {order.status === 'DELIVERED' && (
                                 <button
                                     onClick={() => setShowReturnModal(true)}
                                     className="flex items-center gap-2 px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-white border border-cyan-500/30 rounded-lg transition-all font-bold text-sm"
@@ -565,8 +625,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
-                            {/* Dispute Button (For SHIPPED or DELIVERED) */}
-                            {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+                            {/* Dispute Button (For DELIVERED Only) */}
+                            {order.status === 'DELIVERED' && (
                                 <button
                                     onClick={() => setShowDisputeModal(true)}
                                     className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 rounded-lg transition-all font-bold text-sm"
@@ -1165,6 +1225,84 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                     {isRejecting && <Loader2 className="w-4 h-4 animate-spin" />}
                                     {language === 'ar' ? 'رفض العرض' : 'Reject Offer'}
                                 </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Confirm Delivery Modal */}
+            <AnimatePresence>
+                {showConfirmDeliveryModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="bg-[#1A1814] border border-white/10 rounded-3xl w-full max-w-md p-8 relative overflow-hidden shadow-2xl"
+                        >
+                            <div className="absolute top-0 right-0 p-32 bg-gold-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
+                            
+                            <div className="flex justify-between items-center mb-6 relative z-10">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                                        <Truck size={24} className="text-gold-500" />
+                                        {language === 'ar' ? 'تأكيد استلام الطلب' : 'Confirm Receipt'}
+                                    </h3>
+                                    <p className="text-white/40 text-xs mt-1">
+                                        {language === 'ar' ? 'هل استلمت جميع القطع وبحالة سليمة؟' : 'Have you received all items in good condition?'}
+                                    </p>
+                                </div>
+                                <button onClick={() => setShowConfirmDeliveryModal(false)} className="p-2 hover:bg-white/5 rounded-full text-white/40 hover:text-white transition-colors">
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-6 relative z-10">
+                                <div className="bg-white/5 border border-white/5 p-4 rounded-2xl">
+                                     <p className="text-white/40 text-[10px] uppercase font-bold tracking-widest mb-1">{language === 'ar' ? 'الطلب رقم' : 'ORDER NO'}</p>
+                                     <h4 className="text-white font-mono font-bold">#{order.orderNumber}</h4>
+                                </div>
+
+                                <div className="group">
+                                    <label className="block text-[10px] font-black text-white/30 uppercase tracking-widest mb-2 group-focus-within:text-gold-500 transition-colors">
+                                        {language === 'ar' ? 'ملاحظات إضافية (اختياري)' : 'Additional Notes (Optional)'}
+                                    </label>
+                                    <textarea 
+                                        value={deliveryNote}
+                                        onChange={(e) => setDeliveryNote(e.target.value)}
+                                        className="w-full bg-[#24221F] border border-white/5 rounded-2xl p-4 text-white focus:border-gold-500/50 focus:bg-black/40 outline-none resize-none h-24 placeholder-white/10 text-sm transition-all"
+                                        placeholder={language === 'ar' ? 'اكتب أي ملاحظات عن الاستلام...' : 'Any notes about the delivery...'}
+                                    />
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowConfirmDeliveryModal(false)}
+                                        className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-bold text-sm transition-all"
+                                    >
+                                        {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                                    </button>
+                                    <button 
+                                        onClick={handleConfirmDelivery}
+                                        disabled={isConfirmingDelivery}
+                                        className="flex-[2] py-4 bg-gradient-to-r from-gold-600 to-gold-400 text-white rounded-2xl font-black uppercase tracking-tighter text-sm flex items-center justify-center gap-2 shadow-xl shadow-gold-500/10 disabled:opacity-50"
+                                    >
+                                        {isConfirmingDelivery ? <Loader2 className="animate-spin" size={18} /> : null}
+                                        {language === 'ar' ? 'تأكيد الاستلام' : 'Confirm Delivery'}
+                                    </button>
+                                </div>
+
+                                <p className="text-[10px] text-white/20 text-center px-4">
+                                    {language === 'ar' 
+                                        ? 'بتأكيد الاستلام، فإنك تقر بأن الطلب قد وصلك تماماً وتبدأ فترة الـ 3 أيام للضمان والتقييم.'
+                                        : 'By confirming, you acknowledge receipt of the items. Your 3-day return and review window starts now.'}
+                                </p>
                             </div>
                         </motion.div>
                     </motion.div>
