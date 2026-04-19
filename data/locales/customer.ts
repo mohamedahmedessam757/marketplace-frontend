@@ -18,6 +18,7 @@ export const customer = {
       loyalty: 'التقييم والولاء',
       support: 'الدعم الفني',
       returns: 'المرتجعات',
+      violations: 'المخالفات والعقوبات',
       merchant: 'تاجر',
       customer: 'عميل'
     },
@@ -726,7 +727,58 @@ export const customer = {
         unpaid: 'لا توجد فواتير غير مدفوعة',
         history: 'سجل المدفوعات فارغ'
       }
-    }
+    },
+    violationsPage: {
+        title: 'سجل الالتزام والمخالفات',
+        subtitle: 'تتبع نقاط التزامك، وتعرف على المخالفات المسجلة والطعون.',
+        scoreCard: {
+            title: 'مؤشر الالتزام',
+            perfect: 'أداء مثالي',
+            warning: 'تنبيه: التزام متوسط',
+            danger: 'خطر: معرض للعقوبات',
+            points: 'نقطة مخالفة',
+            history: 'سجل النقاط'
+        },
+        table: {
+            type: 'نوع المخالفة',
+            date: 'التاريخ',
+            points: 'النقاط',
+            fine: 'الغرامة',
+            status: 'الحالة',
+            actions: 'الإجراءات'
+        },
+        appeal: {
+            title: 'تقديم طعن',
+            reason: 'سبب الطعن',
+            reasonPlaceholder: 'اشرح بالتفصيل لماذا تعقد أن هذه المخالفة غير صحيحة...',
+            evidence: 'أدلة الطعن (صور/فيديو)',
+            submit: 'إرسال الطعن',
+            success: 'تم إرسال الطعن بنجاح، جاري المراجعة.',
+            uploading: 'جاري الرفع...',
+            uploadSuccess: 'تم رفع الأدلة بنجاح',
+            uploadPlaceholder: 'اضغط لرفع فيديو أو صور أو مستندات',
+            declarationTitle: 'إقرار بصحة البيانات',
+            declarationText: 'أقر بأن جميع المعلومات والوثائق المقدمة حقيقية، وأدرك أن تقديم طعون كيدية قد يؤدي لمضاعفة العقوبات.',
+            submitting: 'جاري الإرسال...'
+        },
+        guidelines: {
+            title: 'تعليمات النظام وحدود العقوبات',
+            subtitle: 'دليل شفاف لأنواع المخالفات والنقاط وحدود الإجراءات الإدارية.',
+            typeTable: {
+                title: 'أنواع المخالفات ومدة زوال النقاط',
+                name: 'نوع المخالفة',
+                points: 'النقاط',
+                fine: 'الغرامة القياسية',
+                decay: 'مدة الزوال'
+            },
+            thresholdTable: {
+                title: 'حدود العقوبات والإجراءات',
+                points: 'نقاط الحد',
+                action: 'الإجراء الإداري',
+                duration: 'مدة الإيقاف'
+            }
+        }
+      }
   },
   en: {
     menu: {
@@ -747,6 +799,7 @@ export const customer = {
       loyalty: 'Loyalty & Rewards',
       support: 'Support Center',
       returns: 'Returns',
+      violations: 'Violations & Penalties',
       merchant: 'Merchant',
       customer: 'Customer'
     },
@@ -1371,6 +1424,57 @@ export const customer = {
         history: 'No payment history found'
       }
     },
+    violationsPage: {
+        title: 'Compliance & Violations',
+        subtitle: 'Track your compliance score, view violations, and submit appeals.',
+        scoreCard: {
+            title: 'Compliance Score',
+            perfect: 'Perfect Performance',
+            warning: 'Warning: Moderate Compliance',
+            danger: 'Danger: At Risk of Penalty',
+            points: 'Violation Points',
+            history: 'Score History'
+        },
+        table: {
+            type: 'Violation Type',
+            date: 'Date',
+            points: 'Points',
+            fine: 'Fine',
+            status: 'Status',
+            actions: 'Actions'
+        },
+        appeal: {
+            title: 'Submit Appeal',
+            reason: 'Appeal Reason',
+            reasonPlaceholder: 'Explain in detail why you believe this violation is incorrect...',
+            evidence: 'Appeal Evidence (Images/Video)',
+            submit: 'Submit Appeal',
+            success: 'Appeal submitted successfully, under review.',
+            uploading: 'Uploading...',
+            uploadSuccess: 'Evidence Uploaded',
+            uploadPlaceholder: 'Tap to upload media or docs',
+            declarationTitle: 'Truthfulness Declaration',
+            declarationText: 'I certify that all information and docs provided are true. I understand that fraudulent appeals may result in doubled penalties.',
+            submitting: 'Submitting...'
+        },
+        guidelines: {
+            title: 'System Instructions & Penalty Limits',
+            subtitle: 'A transparent guide to violations, points, and penalty thresholds.',
+            typeTable: {
+                title: 'Violation Types & Point Decay',
+                name: 'Violation Type',
+                points: 'Points',
+                fine: 'Standard Fine',
+                decay: 'Decay Period'
+            },
+            thresholdTable: {
+                title: 'Penalty Thresholds & Actions',
+                points: 'Threshold Points',
+                action: 'Administrative Action',
+                duration: 'Suspension Duration'
+            }
+        }
+    },
     support: {
       title: 'Live Support & Help Center',
       subtitle: 'We are here to ensure you have the best shopping experience and resolve any challenges.',
@@ -1450,7 +1554,10 @@ export const customer = {
       shipped: 'Shipped',
       delivered: 'Delivered',
       rateRequest: 'Rate Request',
-      disputeUpdate: 'Dispute Update'
+      disputeUpdate: 'Dispute Update',
+      adminAlert: 'Admin Alert',
+      violationIssued: 'New Violation Recorded',
+      appealReviewed: 'Appeal Decision'
     }
   }
 };

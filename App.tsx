@@ -58,6 +58,7 @@ import { WalletView } from './components/dashboard/wallet/WalletView';
 
 // New Customer Dashboard Pages
 import { ShipmentsPage } from './components/dashboard/shipments/ShipmentsPage';
+import { ViolationsPage } from './components/dashboard/ViolationsPage';
 import { ShippingCartPage } from './components/dashboard/shipping-cart/ShippingCartPage';
 import { BillingPage } from './components/dashboard/wallet/BillingPage';
 import { ReturnsExchangePage } from './components/dashboard/resolution/ReturnsExchangePage';
@@ -421,6 +422,7 @@ function AppContent() {
                       {dashboardPath === 'support' && <SupportPage onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'preferences' && <PreferencesPage />}
                       {dashboardPath === 'loyalty' && <LoyaltyPage />}
+                      {dashboardPath === 'violations' && <ViolationsPage role="customer" />}
                       {dashboardPath === 'info-center' && <InfoCenter />}
                     </DashboardLayout>
                   )}
@@ -454,6 +456,7 @@ function AppContent() {
                         {dashboardPath === 'billing' && <BillingPage />}
                         {dashboardPath === 'resolution' && <MerchantResolutionPage onNavigate={handleDashboardNavigate} />}
                         {dashboardPath === 'dispute-details' && <MerchantDisputeDetails caseId={viewId} onBack={() => handleDashboardNavigate('resolution')} />}
+                        {dashboardPath === 'violations' && <ViolationsPage role="merchant" />}
                         {dashboardPath === 'info-center' && <InfoCenter />}
                       </DashboardLayout>
                     </MerchantStatusGuard>
@@ -486,6 +489,7 @@ function AppContent() {
                       {dashboardPath === 'resolution' && <AdminHome subPath="resolution" />}
                       {dashboardPath === 'admin-dispute-details' && <AdminHome subPath="admin-dispute-details" viewId={viewId} />}
                       {dashboardPath === 'security-audit' && <AdminHome subPath="security-audit" />}
+                      {dashboardPath === 'violations' && <AdminHome subPath="violations" />}
                       {dashboardPath === 'chats' && <AdminChatOversight />}
                       {dashboardPath === 'chat-monitoring' && <AdminChatMonitoring />}
                       {dashboardPath === 'profile' && <ProfileView />}

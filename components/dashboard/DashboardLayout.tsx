@@ -140,6 +140,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'create-order', icon: PlusCircle, label: t.dashboard.menu.create, isAction: true },
     { id: 'resolution', icon: RotateCcw, label: t.dashboard.menu.resolution },
     { id: 'profile', icon: User, label: t.dashboard.menu.profile },
+    { id: 'violations', icon: ShieldAlert, label: t.dashboard.menu.violations },
     { id: 'billing', icon: CreditCard, label: t.dashboard.menu.billing },
     { id: 'wallet', icon: Wallet, label: language === 'ar' ? 'المحفظة' : 'Wallet' },
     { id: 'chats', icon: MessageSquare, label: t.dashboard.menu.chats },
@@ -162,7 +163,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'shipping-cart', icon: ShoppingBag, label: t.dashboard.menu.shippingCart },
     { id: 'billing', icon: Receipt, label: t.dashboard.menu.billing },
     { id: 'wallet', icon: Wallet, label: t.dashboard.merchant.menu.wallet },
-    { id: 'resolution', icon: Scale, label: t.dashboard.merchant.resolution.title },
+    { id: 'violations', icon: ShieldAlert, label: t.dashboard.merchant.menu.violations },
     { id: 'chats', icon: MessageSquare, label: t.dashboard.merchant.menu.chats },
     { id: 'support', icon: Headset, label: t.dashboard.merchant.support.title },
     { id: 'notifications', icon: Bell, label: t.dashboard.merchant.menu.prefsAndNotifications },
@@ -179,6 +180,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     // Management
     { id: 'users', icon: Store, label: t.admin.users, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] }, // Stores
     { id: 'customers', icon: Users, label: t.admin.customers, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
+    { id: 'violations', icon: ShieldAlert, label: t.admin.violations, allowed: ['SUPER_ADMIN', 'ADMIN'] },
 
     // Logistics & Operations
     { id: 'orders-control', icon: PackageSearch, label: t.admin.orders, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },

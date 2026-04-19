@@ -340,6 +340,7 @@ export const merchant = {
       settings: 'الإعدادات',
       wallet: 'المحفظة',
       shipments: 'الشحنات',
+      violations: 'المخالفات والعقوبات',
       notifications: 'الإشعارات',
       prefsAndNotifications: 'التفضيلات والإشعارات'
     },
@@ -520,6 +521,57 @@ export const merchant = {
         high: 'عاجل جداً',
         upload: 'ارفق صور أو مستندات توضيحية',
         submitting: 'جاري الإرسال...'
+      }
+    },
+    violationsPage: {
+      title: 'سجل الالتزام والمخالفات للصانع',
+      subtitle: 'تتبع نقاط التزام متجرك، وتعرف على المخالفات المسجلة والطعون.',
+      scoreCard: {
+          title: 'مؤشر التزام المتجر',
+          perfect: 'أداء متميز',
+          warning: 'تنبيه: التزام متوسط',
+          danger: 'خطر: الحساب معرض للإغلاق',
+          points: 'نقطة مخالفة',
+          history: 'سجل النقاط'
+      },
+      table: {
+          type: 'نوع المخالفة',
+          date: 'التاريخ',
+          points: 'النقاط',
+          fine: 'الغرامة',
+          status: 'الحالة',
+          actions: 'الإجراءات'
+      },
+      appeal: {
+          title: 'تقديم طعن',
+          reason: 'سبب الطعن',
+          reasonPlaceholder: 'اشرح بالتفصيل لماذا تعقد أن هذه المخالفة غير صحيحة...',
+          evidence: 'أدلة الطعن (صور/فيديو)',
+          submit: 'إرسال الطعن',
+          success: 'تم إرسال الطعن بنجاح، جاري المراجعة.',
+          uploading: 'جاري الرفع...',
+          uploadSuccess: 'تم رفع الأدلة بنجاح',
+          uploadPlaceholder: 'اضغط لرفع فيديو أو صور أو مستندات',
+          declarationTitle: 'إقرار بصحة البيانات',
+          declarationText: 'أقر بأن جميع المعلومات والوثائق المقدمة حقيقية، وأدرك أن تقديم طعون كيدية قد يؤدي لمضاعفة العقوبات.',
+          submitting: 'جاري الإرسال...'
+      },
+      guidelines: {
+          title: 'تعليمات النظام وحدود العقوبات',
+          subtitle: 'دليل شفاف لأنواع المخالفات والنقاط وحدود الإجراءات الإدارية.',
+          typeTable: {
+              title: 'أنواع المخالفات ومدة زوال النقاط',
+              name: 'نوع المخالفة',
+              points: 'النقاط',
+              fine: 'الغرامة القياسية',
+              decay: 'مدة الزوال'
+          },
+          thresholdTable: {
+              title: 'حدود العقوبات والإجراءات',
+              points: 'نقاط الحد',
+              action: 'الإجراء الإداري',
+              duration: 'مدة الإيقاف'
+          }
       }
     }
   },
@@ -866,6 +918,7 @@ export const merchant = {
       settings: 'Settings',
       wallet: 'Earnings',
       shipments: 'Shipments',
+      violations: 'Violations & Penalties',
       notifications: 'Notifications',
       prefsAndNotifications: 'Preferences & Notifications'
     },
@@ -1024,6 +1077,57 @@ export const merchant = {
         high: 'Urgent',
         upload: 'Attach screenshots or documents',
         submitting: 'Submitting...'
+      }
+    },
+    violationsPage: {
+      title: 'Store Compliance & Violations',
+      subtitle: 'Track your store compliance score, view violations, and submit appeals.',
+      scoreCard: {
+          title: 'Store Compliance Score',
+          perfect: 'Excellent Performance',
+          warning: 'Warning: Moderate Compliance',
+          danger: 'Danger: Account at Risk',
+          points: 'Violation Points',
+          history: 'Score History'
+      },
+      table: {
+          type: 'Violation Type',
+          date: 'Date',
+          points: 'Points',
+          fine: 'Fine',
+          status: 'Status',
+          actions: 'Actions'
+      },
+      appeal: {
+          title: 'Submit Appeal',
+          reason: 'Appeal Reason',
+          reasonPlaceholder: 'Explain why this violation should be reconsidered...',
+          evidence: 'Appeal Evidence (Images/Video)',
+          submit: 'Submit Appeal',
+          success: 'Appeal submitted successfully, under review.',
+          uploading: 'Uploading...',
+          uploadSuccess: 'Evidence Uploaded',
+          uploadPlaceholder: 'Tap to upload media or docs',
+          declarationTitle: 'Truthfulness Declaration',
+          declarationText: 'I certify that all information and docs provided are true. I understand that fraudulent appeals may result in doubled penalties.',
+          submitting: 'Submitting...'
+      },
+      guidelines: {
+          title: 'System Instructions & Penalty Limits',
+          subtitle: 'A transparent guide to violations, points, and penalty thresholds.',
+          typeTable: {
+              title: 'Violation Types & Point Decay',
+              name: 'Violation Type',
+              points: 'Points',
+              fine: 'Standard Fine',
+              decay: 'Decay Period'
+          },
+          thresholdTable: {
+              title: 'Penalty Thresholds & Actions',
+              points: 'Threshold Points',
+              action: 'Administrative Action',
+              duration: 'Suspension Duration'
+          }
       }
     }
   }

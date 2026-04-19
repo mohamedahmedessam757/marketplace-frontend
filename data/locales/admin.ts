@@ -10,6 +10,7 @@ export const admin = {
     disputes: 'فض النزاعات',
     shipping: 'إدارة الشحن',
     auditLogs: 'سجل العمليات',
+    violations: 'المخالفات والعقوبات',
     automations: {
       active: 'الأتمتة نشطة',
       stopped: 'الأتمتة متوقفة'
@@ -503,6 +504,77 @@ export const admin = {
         shipping: 'الشحن والتوصيل',
         notes: 'ملاحظات',
         generatedBy: 'تم إصدار الفاتورة إلكترونياً بواسطة نظام إي تشليح'
+      },
+    },
+    violationsPage: {
+      title: 'نظام المخالفات والعقوبات',
+      subtitle: 'إدارة مخالفات المتاجر والعملاء، ومراجعة الطعون والعقوبات الآلية.',
+      tabs: {
+        active: 'المخالفات النشطة',
+        appeals: 'طلبات الطعن',
+        penalties: 'العقوبات المعلقة',
+        types: 'أنواع المخالفات',
+        thresholds: 'حدود العقوبات'
+      },
+      stats: {
+        total: 'إجمالي المخالفات',
+        pendingAppeals: 'طعون معلقة',
+        pendingPenalties: 'عقوبات بانتظار المراجعة',
+        pointsDecayed: 'نقاط تم استعادتها'
+      },
+      table: {
+        id: 'المعرف',
+        target: 'الهدف',
+        type: 'النوع',
+        points: 'النقاط',
+        fine: 'الغرامة',
+        status: 'الحالة',
+        date: 'التاريخ',
+        actions: 'الإجراءات',
+        decayDays: 'أيام التحلل',
+        threshold: 'حد النقاط',
+        action: 'العقوبة المقترحة',
+        duration: 'المدة (أيام)'
+      },
+      actions: {
+        issue: 'إصدار مخالفة',
+        reviewAppeal: 'مراجعة الطعن',
+        reviewPenalty: 'مراجعة العقوبة',
+        editType: 'تعديل النوع',
+        addType: 'إضافة نوع جديد',
+        addThreshold: 'إضافة حد عقوبة',
+        viewEvidence: 'عرض الدليل',
+        approve: 'قبول',
+        reject: 'رفض'
+      },
+      targets: {
+        MERCHANT: 'تاجر',
+        CUSTOMER: 'عميل',
+        SCOPE: 'نطاق'
+      },
+      penaltyActions: {
+        WARNING: 'تنبيه رسمي',
+        TEMPORARY_SUSPENSION: 'إيقاف مؤقت للحساب',
+        PERMANENT_BAN: 'حظر نهائي وشامل',
+        FEE_INCREASE: 'زيادة رسوم العمولة'
+      },
+      forms: {
+        targetUser: 'المستهدف',
+        targetType: 'نوع الفئة',
+        violationType: 'نوع المخالفة',
+        typeNameAr: 'اسم المخالفة (بالعربية)',
+        typeNameEn: 'اسم المخالفة (بالإنجليزية)',
+        reason: 'تفاصيل السبب',
+        evidence: 'رابط الدليل (اختياري)',
+        points: 'النقاط',
+        fineAmount: 'قيمة الغرامة',
+        decayDays: 'أيام التحلل (Decay Days)',
+        scoreThreshold: 'حد النقاط التراكمي',
+        penaltyAction: 'الإجراء التلقائي',
+        durationDays: 'المدة (بالأيام - اختيارى)',
+        submit: 'حفظ البيانات',
+        cancel: 'إلغاء',
+        permanent: 'دائم'
       }
     }
   },
@@ -516,6 +588,7 @@ export const admin = {
     disputes: 'Dispute Resolution',
     shipping: 'Shipping Management',
     auditLogs: 'Audit Logs',
+    violations: 'Violations & Penalties',
     automations: {
       active: 'Automations Active',
       stopped: 'Automations Stopped'
@@ -1008,7 +1081,78 @@ export const admin = {
         totalDue: 'Total Due',
         shipping: 'Shipping & Delivery',
         notes: 'Notes',
-        generatedBy: 'Generated electronically by E-Tashleh System'
+        generatedBy: 'Invoice generated electronically by E-Tashleh System'
+      },
+    },
+    violationsPage: {
+      title: 'Violations & Penalty System',
+      subtitle: 'Manage store and customer violations, review appeals and automated penalties.',
+      tabs: {
+        active: 'Active Violations',
+        appeals: 'Appeals',
+        penalties: 'Pending Penalties',
+        types: 'Violation Types',
+        thresholds: 'Penalty Thresholds'
+      },
+      stats: {
+        total: 'Total Violations',
+        pendingAppeals: 'Pending Appeals',
+        pendingPenalties: 'Pending Penalties',
+        pointsDecayed: 'Points Decayed'
+      },
+      table: {
+        id: 'ID',
+        target: 'Target',
+        type: 'Type',
+        points: 'Points',
+        fine: 'Fine',
+        status: 'Status',
+        date: 'Date',
+        actions: 'Actions',
+        decayDays: 'Decay Days',
+        threshold: 'Score Threshold',
+        action: 'Triggered Action',
+        duration: 'Duration (Days)'
+      },
+      actions: {
+        issue: 'Issue Violation',
+        reviewAppeal: 'Review Appeal',
+        reviewPenalty: 'Review Penalty',
+        editType: 'Edit Type',
+        addType: 'Add New Type',
+        addThreshold: 'Add Threshold',
+        viewEvidence: 'View Evidence',
+        approve: 'Approve',
+        reject: 'Reject'
+      },
+      targets: {
+        MERCHANT: 'Merchant',
+        CUSTOMER: 'Customer',
+        SCOPE: 'Scope'
+      },
+      penaltyActions: {
+        WARNING: 'Official Warning',
+        TEMPORARY_SUSPENSION: 'Temporary Suspension',
+        PERMANENT_BAN: 'Permanent Ban',
+        FEE_INCREASE: 'Fee Increase'
+      },
+      forms: {
+        targetUser: 'Target User',
+        targetType: 'Target Type',
+        violationType: 'Violation Type',
+        typeNameAr: 'Name (Arabic)',
+        typeNameEn: 'Name (English)',
+        reason: 'Reason Details',
+        evidence: 'Evidence URL (optional)',
+        points: 'Points',
+        fineAmount: 'Fine Amount',
+        decayDays: 'Points Decay (Days)',
+        scoreThreshold: 'Cumulative Score Threshold',
+        penaltyAction: 'Automated Penalty Action',
+        durationDays: 'Duration (Days - optional)',
+        submit: 'Save Changes',
+        cancel: 'Cancel',
+        permanent: 'Permanent'
       }
     }
   }

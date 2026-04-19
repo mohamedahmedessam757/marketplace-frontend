@@ -28,6 +28,7 @@ import { AdminShipping } from './AdminShipping';
 import { AdminSettings } from './AdminSettings';
 import { AdminSupport } from './AdminSupport';
 import { SecurityAudit } from './SecurityAudit'; // NEW
+import { AdminViolations } from './AdminViolations';
 
 interface AdminHomeProps {
     subPath?: string;
@@ -215,6 +216,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     if (subPath === 'settings') return <AdminSettings />;
     if (subPath === 'support') return <AdminSupport />;
     if (subPath === 'security-audit') return <SecurityAudit />;
+    if (subPath === 'violations') return <AdminViolations />;
 
     if (!dashboardStats || isLoadingStats) {
         return <AdminHomeSkeleton />;
