@@ -76,6 +76,11 @@ export interface ResolutionCase {
         evidence: string[];
         submittedAt: string;
     };
+
+    // Tracking
+    orderNumber: string;
+    storeCode?: string;
+    chatId?: string;
 }
 
 interface ResolutionState {
@@ -89,7 +94,7 @@ interface ResolutionState {
     fetchAdminCases: () => Promise<void>;
     fetchUserRequests: () => Promise<void>;
     
-    respondToCase: (caseId: string, type: 'return' | 'dispute', response: { text: string, acceptedReturn: boolean, evidence: File[] }) => Promise<void>;
+    respondToCase: (caseId: string, type: 'return' | 'dispute', response: { text: string, acceptedReturn: boolean, evidence: string[] | File[] }) => Promise<void>;
     adminVerdict: (caseId: string, type: 'return' | 'dispute', verdict: 'REFUND' | 'RELEASE_FUNDS' | 'DENY', notes: string, extra?: any) => Promise<void>;
     updateAdminVerdict: (caseId: string, type: 'return' | 'dispute', verdict: 'REFUND' | 'RELEASE_FUNDS' | 'DENY', notes: string, extra?: any) => Promise<void>;
     
@@ -106,6 +111,7 @@ interface ResolutionState {
     unsubscribeFromCases: () => void;
 
     getCaseById: (id: string) => ResolutionCase | undefined;
+    escalateCase: (id: string) => Promise<void>;
 }
 
 export const useResolutionStore = create<ResolutionState>((set, get) => ({
@@ -136,7 +142,9 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 merchantName: 'Your Store',
                 partName: r.order?.parts?.[0]?.name || 'Parts',
                 updatedAt: r.updatedAt,
-                handoverDeadline: r.handoverDeadline
+                handoverDeadline: r.handoverDeadline,
+                orderNumber: r.order?.orderNumber || String(r.orderId),
+                storeCode: r.order?.acceptedOffer?.store?.storeCode
             }));
 
             const mappedDisputes: ResolutionCase[] = disputes.map(d => ({
@@ -154,7 +162,9 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 merchantName: 'Your Store',
                 partName: d.order?.parts?.[0]?.name || 'Parts',
                 updatedAt: d.updatedAt,
-                handoverDeadline: d.handoverDeadline
+                handoverDeadline: d.handoverDeadline,
+                orderNumber: d.order?.orderNumber || String(d.orderId),
+                storeCode: d.order?.acceptedOffer?.store?.storeCode
             }));
 
             set({ cases: [...mappedReturns, ...mappedDisputes], isLoading: false });
@@ -188,7 +198,9 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 usageCondition: r.usageCondition,
                 handoverDeadline: r.handoverDeadline,
                 invoiceId: r.invoiceId,
-                shipmentId: r.shipmentId
+                shipmentId: r.shipmentId,
+                orderNumber: r.order?.orderNumber || String(r.orderId),
+                storeCode: r.order?.acceptedOffer?.store?.storeCode
             }));
 
             const mappedDisputes: ResolutionCase[] = disputes.map(d => ({
@@ -217,7 +229,9 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 verdictLocked: d.verdictLocked,
                 invoiceId: d.invoiceId,
                 shipmentId: d.shipmentId,
-                stripeFee: d.stripeFee ? Number(d.stripeFee) : undefined
+                stripeFee: d.stripeFee ? Number(d.stripeFee) : undefined,
+                orderNumber: d.order?.orderNumber || String(d.orderId),
+                storeCode: d.order?.acceptedOffer?.store?.storeCode
             }));
 
             set({ cases: [...mappedReturns, ...mappedDisputes], isLoading: false });
@@ -244,10 +258,14 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 customerEvidence: Array.isArray(r.evidenceFiles) ? r.evidenceFiles : [],
                 createdAt: r.createdAt,
                 deadline: new Date(new Date(r.createdAt).getTime() + (48 * 60 * 60 * 1000)).toISOString(),
-                merchantName: r.order?.acceptedOffer?.store?.name || 'Store',
+                merchantName: r.order?.acceptedOffer?.store?.name || r.fallbackStore?.name || 'Store',
+                merchantStoreId: r.order?.acceptedOffer?.storeId || r.fallbackStore?.id,
                 partName: r.order?.parts?.[0]?.name || 'Parts',
                 updatedAt: r.updatedAt,
-                handoverDeadline: r.handoverDeadline
+                handoverDeadline: r.handoverDeadline,
+                orderNumber: r.order?.orderNumber || String(r.orderId),
+                storeCode: r.order?.acceptedOffer?.store?.storeCode || r.fallbackStore?.storeCode,
+                chatId: (r as any).chatId
             }));
 
             const mappedDisputes: ResolutionCase[] = disputes.map(d => ({
@@ -262,10 +280,14 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 customerEvidence: Array.isArray(d.evidenceFiles) ? d.evidenceFiles : [],
                 createdAt: d.createdAt,
                 deadline: new Date(new Date(d.createdAt).getTime() + (48 * 60 * 60 * 1000)).toISOString(),
-                merchantName: d.order?.acceptedOffer?.store?.name || 'Store',
+                merchantName: d.order?.acceptedOffer?.store?.name || d.fallbackStore?.name || 'Store',
+                merchantStoreId: d.order?.acceptedOffer?.storeId || d.fallbackStore?.id,
                 partName: d.order?.parts?.[0]?.name || 'Parts',
                 updatedAt: d.updatedAt,
-                handoverDeadline: d.handoverDeadline
+                handoverDeadline: d.handoverDeadline,
+                orderNumber: d.order?.orderNumber || String(d.orderId),
+                storeCode: d.order?.acceptedOffer?.store?.storeCode || d.fallbackStore?.storeCode,
+                chatId: (d as any).chatId
             }));
 
             set({ cases: [...mappedReturns, ...mappedDisputes], isLoading: false });
@@ -296,6 +318,7 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
 
         } catch (error: any) {
             set({ error: error.message, isLoading: false });
+            throw error;
         }
     },
 
@@ -390,6 +413,20 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 return c;
             })
         }));
+    },
+
+    escalateCase: async (id) => {
+        set({ isLoading: true });
+        try {
+            await returnsApi.escalateCase(id);
+            // Refresh cases based on current view
+            const role = (window as any).currentViewRole || 'merchant';
+            if (role === 'admin') await get().fetchAdminCases();
+            else if (role === 'customer') await get().fetchUserRequests();
+            else await get().fetchMerchantCases();
+        } catch (error: any) {
+            set({ error: error.message, isLoading: false });
+        }
     },
 
     subscribeToCases: (role: 'merchant' | 'admin' | 'customer') => {

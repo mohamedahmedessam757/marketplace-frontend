@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Truck, Search, MapPin, Package, ExternalLink, AlertTriangle, CheckCircle2, Factory, ShieldCheck, Box, RefreshCcw, XCircle, FileText, ChevronRight, Save, Settings2, History } from 'lucide-react';
-import { Badge } from '../../ui/Badge';
+import { Badge, StatusType } from '../../ui/Badge';
 import { shipmentsApi, Shipment, ShipmentStatusLog } from '../../../services/api/shipments.api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StatusTimeline } from '../../ui/StatusTimeline';
 import { ShipmentTracker } from '../shipments/ShipmentTracker';
 import { useShipmentStore } from '../../../stores/useShipmentStore';
+import { useAdminStore } from '../../../stores/useAdminStore';
+import { OrderCountdown } from '../../ui/OrderCountdown';
 
 // These MUST match the Prisma ShipmentStatus enum exactly
 const shipmentStatuses = [
@@ -57,9 +59,11 @@ interface AdminShippingProps {
 export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
-    const { shipments, isLoading: storeLoading, silentFetchShipments } = useShipmentStore();
+    const { shipments, isLoading: storeLoading, silentFetchShipments, updateShipmentInList } = useShipmentStore();
+    const { currentAdmin } = useAdminStore();
     const [search, setSearch] = useState(initialSearch || '');
     const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
     // Form inputs
     const [formCarrierType, setFormCarrierType] = useState('EXTERNAL');
@@ -131,6 +135,43 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
 
     const handleSaveChanges = async () => {
         if (!selectedShipment) return;
+        
+        const previousShipment = { ...selectedShipment };
+        const previousLogs = [...logs];
+        
+        // 1. Prepare Optimistic Data
+        const optimisticUpdate: Partial<Shipment> = {
+            status: formStatus,
+            carrierName: formCarrierName,
+            trackingNumber: formTrackingNumber,
+            trackingLink: formTrackingLink,
+            customsDelayNote: formCustomsDelayNote,
+            updatedAt: new Date().toISOString()
+        };
+
+        const optimisticLog: ShipmentStatusLog = {
+            id: 'temp-' + Date.now(),
+            shipmentId: selectedShipment.id,
+            fromStatus: selectedShipment.status,
+            toStatus: formStatus,
+            notes: formNotes || (isAr ? 'تحديث يدوي من الإدارة' : 'Manual update by admin'),
+            source: currentAdmin?.name || 'Admin',
+            createdAt: new Date().toISOString()
+        };
+
+        // 2. Apply Optimistically (Zero Latency)
+        const updatedLocal = { ...selectedShipment, ...optimisticUpdate };
+        setSelectedShipment(updatedLocal);
+        updateShipmentInList(updatedLocal);
+        setLogs([optimisticLog, ...logs]);
+        setFormNotes('');
+        
+        setToast({
+            message: isAr ? 'تم تحديث حالة الشحنة فورياً وإشعار العميل.' : 'Shipment updated immediately and customer notified.',
+            type: 'success'
+        });
+        setTimeout(() => setToast(null), 4000);
+
         setIsSaving(true);
         try {
             const updated = await shipmentsApi.updateStatus(selectedShipment.id, {
@@ -141,17 +182,23 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                 trackingNumber: formTrackingNumber,
                 trackingLink: formTrackingLink
             });
-            alert(isAr ? 'تم حفظ التعديلات وتحديث حالة الطلب وإشعار العميل.' : 'Changes saved, order status updated and customer notified.');
             
-            // The store's silent fetch will trigger the sync useEffect above
-            await silentFetchShipments();
+            // Sync with server result (actual timestamps, IDs)
             setSelectedShipment(updated);
-            setFormNotes('');
+            updateShipmentInList(updated);
             const history = await shipmentsApi.getLogs(updated.id);
             setLogs(history || []);
         } catch (error: any) {
             console.error('Save error', error);
-            alert(isAr ? 'خطأ في الحفظ.' : 'Save failed.');
+            // Rollback on failure
+            setSelectedShipment(previousShipment);
+            updateShipmentInList(previousShipment);
+            setLogs(previousLogs);
+            
+            setToast({
+                message: isAr ? 'فشل الاتصال، يرجى المحاولة لاحقاً.' : 'Connection failed, please try again later.',
+                type: 'error'
+            });
         } finally {
             setIsSaving(false);
         }
@@ -170,7 +217,39 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
 
     if (view === 'detail' && selectedShipment) {
         return (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 relative">
+                {/* Toast Notification System */}
+                <AnimatePresence>
+                    {toast && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -50, scale: 0.9 }}
+                            animate={{ opacity: 1, x: 0, scale: 1 }}
+                            exit={{ opacity: 0, x: -20, scale: 0.9 }}
+                            className="fixed bottom-6 left-6 z-[100] min-w-[320px]"
+                        >
+                            <GlassCard className={`p-4 border shadow-2xl flex items-center gap-4 ${
+                                toast.type === 'success' 
+                                    ? 'border-green-500/30 bg-green-500/10' 
+                                    : 'border-red-500/30 bg-red-500/10'
+                            }`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                                    toast.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                                }`}>
+                                    {toast.type === 'success' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="text-white font-bold text-sm tracking-tight">
+                                        {toast.type === 'success' ? (isAr ? 'تم بنجاح' : 'Success') : (isAr ? 'خطأ' : 'Error')}
+                                    </h4>
+                                    <p className="text-white/60 text-xs mt-0.5">{toast.message}</p>
+                                </div>
+                                <button onClick={() => setToast(null)} className="text-white/20 hover:text-white transition-colors">
+                                    <XCircle size={16} />
+                                </button>
+                            </GlassCard>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
                 <div className="flex items-center justify-between bg-[#1A1814] p-6 rounded-2xl border border-white/5 sticky top-0 z-30 shadow-xl">
                     <div className="flex items-center gap-4">
                         <button 
@@ -186,6 +265,7 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                             </h2>
                             <p className="text-white/50 text-sm flex items-center gap-2">
                                 <Badge status={selectedShipment.status} />
+                                <OrderCountdown updatedAt={selectedShipment.updatedAt} status={selectedShipment.status} />
                                 <span>{isAr ? `طلب #${selectedShipment.orderId}` : `Order #${selectedShipment.orderId}`}</span>
                             </p>
                         </div>
@@ -359,6 +439,38 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 relative">
+             {/* Toast Notification System */}
+             <AnimatePresence>
+                {toast && (
+                    <motion.div
+                        initial={{ opacity: 0, x: -50, scale: 0.9 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: -20, scale: 0.9 }}
+                        className="fixed bottom-6 left-6 z-[100] min-w-[320px]"
+                    >
+                        <GlassCard className={`p-4 border shadow-2xl flex items-center gap-4 ${
+                            toast.type === 'success' 
+                                ? 'border-green-500/30 bg-green-500/10' 
+                                : 'border-red-500/30 bg-red-500/10'
+                        }`}>
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                                toast.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                            }`}>
+                                {toast.type === 'success' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-white font-bold text-sm tracking-tight">
+                                    {toast.type === 'success' ? (isAr ? 'تم بنجاح' : 'Success') : (isAr ? 'خطأ' : 'Error')}
+                                </h4>
+                                <p className="text-white/60 text-xs mt-0.5">{toast.message}</p>
+                            </div>
+                            <button onClick={() => setToast(null)} className="text-white/20 hover:text-white transition-colors">
+                                <XCircle size={16} />
+                            </button>
+                        </GlassCard>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             
 
 
@@ -416,10 +528,10 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                                     <div className="text-xs text-white/30 font-mono mt-0.5">{shipment.trackingNumber || '-'}</div>
                                 </td>
                                 <td className="p-4">
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-[11px] font-bold leading-none">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"/>
-                                        {statusTranslations[shipment.status]?.[isAr ? 'ar' : 'en'] || shipment.status}
-                                    </span>
+                                    <div className="flex flex-col gap-2 items-start shrink-0">
+                                        <Badge status={shipment.status as StatusType} />
+                                        <OrderCountdown updatedAt={shipment.updatedAt} status={shipment.status} />
+                                    </div>
                                 </td>
                                 <td className="p-4 text-white/50 text-xs font-mono">
                                     {new Date(shipment.updatedAt).toLocaleString(isAr ? 'ar-EG' : 'en-US')}

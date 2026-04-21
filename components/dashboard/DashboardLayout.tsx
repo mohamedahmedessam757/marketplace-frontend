@@ -160,6 +160,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'active-orders', icon: Package, label: t.dashboard.merchant.menu.activeOrders },
     { id: 'my-offers', icon: ListChecks, label: t.dashboard.merchant.menu.myOffers },
     { id: 'reviews', icon: Star, label: language === 'ar' ? 'التقييمات' : 'Reviews' },
+    { id: 'resolution', icon: RotateCcw, label: t.dashboard.menu.resolution },
     { id: 'shipping-cart', icon: ShoppingBag, label: t.dashboard.menu.shippingCart },
     { id: 'billing', icon: Receipt, label: t.dashboard.menu.billing },
     { id: 'wallet', icon: Wallet, label: t.dashboard.merchant.menu.wallet },

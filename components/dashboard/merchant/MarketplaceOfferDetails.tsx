@@ -9,6 +9,7 @@ import {
 import { CountdownTimer } from '../OrderDetails';
 import { SubmitOfferModal } from './SubmitOfferModal';
 import { GlassCard } from '../../ui/GlassCard';
+import { Badge, StatusType } from '../../ui/Badge';
 import { offersApi } from '../../../services/api/offers';
 import { ordersApi } from '../../../services/api/orders';
 import { shipmentsApi } from '../../../services/api/shipments.api';
@@ -443,10 +444,14 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                         <ArrowIcon size={20} />
                     </button>
                     <div>
-                        <div className="flex items-center gap-3 mb-1">
+                        <div className="flex flex-wrap items-center gap-3 mb-1">
                             <h1 className="text-2xl md:text-3xl font-bold text-white">
                                 {isAr ? 'تفاصيل طلب العميل' : 'Customer Request Details'}
                             </h1>
+                            <Badge status={order.status} />
+                            {shipment && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
+                                <Badge status={shipment.status as StatusType} className="animate-in fade-in zoom-in duration-500" />
+                            )}
                             <span className="px-3 py-1 bg-gold-500/10 text-gold-400 border border-gold-500/20 rounded-full text-xs font-mono">
                                 #{order.id}
                             </span>

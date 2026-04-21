@@ -20,10 +20,13 @@ import {
   Plus,
   ShieldAlert,
   Wallet,
-  Zap
+  Zap,
+  Activity,
+  ArrowRight,
+  ChevronDown
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
-import { useResolutionStore } from '../../../stores/useResolutionStore';
+import { useResolutionStore, ResolutionCase } from '../../../stores/useResolutionStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
@@ -39,24 +42,32 @@ interface CustomerResolutionCenterProps {
 export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> = ({ onNavigate }) => {
   const { 
     cases, 
-    isLoading, 
+    isLoading: isResLoading, 
     fetchUserRequests, 
     subscribeToCases, 
-    unsubscribeFromCases 
+    unsubscribeFromCases,
+    escalateCase 
   } = useResolutionStore();
-  
+
+  const { orders, isLoading: isOrdersLoading } = useOrderStore();
+  const isLoading = isResLoading || isOrdersLoading;
+
   const { t, language } = useLanguage();
   const isAr = language === 'ar';
   const ArrowIcon = isAr ? ChevronLeft : ChevronRight;
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'active' | 'resolved'>('all');
+  const [activeTab, setActiveTab] = useState<'returns' | 'disputes'>('returns');
 
   // Modal States
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
+  const [isEscalateConfirmOpen, setIsEscalateConfirmOpen] = useState(false);
+  const [caseToEscalate, setCaseToEscalate] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedPartId, setSelectedPartId] = useState<string | undefined>(undefined);
+  const [selectionMode, setSelectionMode] = useState<'return' | 'dispute'>('return');
 
   useEffect(() => {
     (window as any).currentViewRole = 'customer';
@@ -73,10 +84,8 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
                          String(c.orderId).toLowerCase().includes(searchQuery.toLowerCase()) ||
                          c.partName.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesTab = 
-      activeTab === 'all' ? true :
-      activeTab === 'active' ? (c.status !== 'RESOLVED' && c.status !== 'REFUNDED') :
-      activeTab === 'resolved' ? (c.status === 'RESOLVED' || c.status === 'REFUNDED') : true;
+    // Tab logic: filter by case type
+    const matchesTab = activeTab === 'returns' ? c.type === 'return' : c.type === 'dispute';
 
     return matchesSearch && matchesTab;
   });
@@ -87,8 +96,9 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
     }
   };
 
-  const handleSelectOrder = (order: Order, type: 'return' | 'dispute') => {
+  const handleSelectOrder = (order: Order, type: 'return' | 'dispute', partId?: string) => {
     setSelectedOrder(order);
+    setSelectedPartId(partId);
     setIsOrderModalOpen(false);
     if (type === 'return') {
       setIsReturnModalOpen(true);
@@ -97,240 +107,392 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
     }
   };
 
+  const eligibleOrders = orders.filter(order => {
+    if (order.status !== 'DELIVERED') return false;
+    const deliveredDate = order.deliveredAt ? new Date(order.deliveredAt) : new Date(order.updatedAt);
+    const diffHours = (new Date().getTime() - deliveredDate.getTime()) / (1000 * 60 * 60);
+    return diffHours <= 72;
+  });
+
   const stats = [
     {
-      title: isAr ? 'نزاعات نشطة' : 'Active Disputes',
-      value: cases.filter(c => c.status !== 'RESOLVED' && c.status !== 'REFUNDED').length,
+      title: (t as any).dashboard.resolution.stats.activeDisputes,
+      value: cases.filter(c => c.type === 'dispute' && c.status !== 'RESOLVED' && c.status !== 'REFUNDED').length,
       icon: ShieldAlert,
-      color: 'gold',
-      trend: isAr ? 'محمي بـ Escrow' : 'Escrow Protected'
+      color: 'red',
+      trend: (t as any).dashboard.resolution.stats.verifiedEscrow
     },
     {
-      title: isAr ? 'إجمالي المسترد' : 'Total Recovered',
-      value: cases.filter(c => c.status === 'REFUNDED').length,
+      title: (t as any).dashboard.resolution.stats.protectedFunds,
+      value: `$${(cases.filter(c => c.status !== 'RESOLVED' && c.status !== 'REFUNDED')
+        .reduce((acc, curr) => {
+          const order = orders.find(o => String(o.id) === String(curr.orderId));
+          const amount = (order as any)?.totalAmount || (order as any)?.price || 0;
+          return acc + amount;
+        }, 0)).toLocaleString()}`,
       icon: Wallet,
-      color: 'green',
-      trend: isAr ? 'إلى محفظتك' : 'To your wallet'
+      color: 'gold',
+      trend: (t as any).dashboard.resolution.stats.safeVault
     },
     {
-      title: isAr ? 'حالات مغلقة' : 'Cases Resolved',
-      value: cases.filter(c => c.status === 'RESOLVED').length,
-      icon: CheckCircle2,
+      title: (t as any).dashboard.resolution.stats.eligibleOrders,
+      value: eligibleOrders.length,
+      icon: Zap,
       color: 'cyan',
-      trend: isAr ? 'نجاح التسوية' : 'Settlement success'
+      trend: (t as any).dashboard.resolution.stats.readyAction
     }
   ];
 
+  const getStatusColor = (status: string) => {
+    const s = status.toLowerCase();
+    if (s.includes('refund') || s.includes('resolve') || s.includes('complete')) return 'text-green-400 bg-green-500/10 border-green-500/20';
+    if (s.includes('reject') || s.includes('cancel')) return 'text-red-400 bg-red-500/10 border-red-500/20';
+    if (s.includes('waiting') || s.includes('pending')) return 'text-gold-400 bg-gold-500/10 border-gold-500/20';
+    return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+  };
+
+  const getProgressWidth = (status: string) => {
+    const s = status.toLowerCase();
+    if (s.includes('refund') || s.includes('resolve')) return '100%';
+    if (s.includes('ship') || s.includes('handover')) return '75%';
+    if (s.includes('approve')) return '50%';
+    return '25%';
+  };
+
   return (
-    <div className="space-y-10 pb-20 overflow-x-hidden">
-      {/* 2026 Cinematic Header */}
-      <div className="relative">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex-1"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <Badge variant="gold" className="px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] bg-gold-500/10 text-gold-400 border-gold-500/20">
-                {isAr ? 'بروتوكول حماية المشتري' : 'Buyer Protection Protocol'}
-              </Badge>
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-full border border-white/5">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[8px] font-black uppercase tracking-widest text-white/40">Realtime Active</span>
+    <div className="space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      
+      {/* 2026 Luxury Hero Section */}
+      <div className="relative overflow-hidden rounded-[40px] bg-gradient-to-br from-[#141210] to-[#0A0908] border border-white/5 shadow-2xl p-8 md:p-12">
+        {/* Cinematic Orbs - Precision Placed */}
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gold-500/10 blur-[150px] rounded-full -mr-64 -mt-64 pointer-events-none opacity-60" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-amber-600/5 blur-[120px] rounded-full -ml-32 -mb-32 pointer-events-none opacity-40" />
+        
+        <div className="relative z-10">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-12">
+            
+            <div className="space-y-8 flex-1">
+              <div className="flex items-center gap-4">
+                {/* Protocol badges removed as per user request */}
               </div>
+
+              <div className="space-y-4">
+                <h1 className="text-4xl md:text-6xl font-black text-white uppercase leading-tight mb-2">
+                  {t.dashboard.resolution.subtitle}
+                </h1>
+                <div className="h-1 w-16 bg-gradient-to-r from-gold-500 to-transparent rounded-full" />
+              </div>
+              
+              <p className="text-white/50 text-xs md:text-sm max-w-xl font-bold uppercase leading-relaxed">
+                {isAr 
+                  ? 'منصة حماية المستهلك المتقدمة. إدارة طلبات الإرجاع وفض النزاعات بشفافية مطلقة وأمان عالي تحت نظام تشاليح الإمارات.'
+                  : 'Advanced consumer protection platform. Manage returns and disputes with transparency and high security under UAE Auto Parts.'}
+              </p>
             </div>
-            <h1 className="text-4xl md:text-6xl font-black text-white mb-4 tracking-tighter uppercase leading-[0.9]">
-              {t.dashboard.resolution.subtitle}
-            </h1>
-            <p className="text-white/40 text-sm md:text-lg max-w-2xl font-medium leading-relaxed">
-              {t.dashboard.support.subtitle}
-            </p>
-          </motion.div>
 
+            {/* Quick Stats Grid - Redesigned as Compact Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-4 w-full lg:w-80">
+              {stats.map((stat, i) => (
+                <GlassCard key={i} className="p-5 bg-white/[0.03] border-white/5 hover:border-gold-500/30 transition-all duration-500 group relative overflow-hidden">
+                  <div className={`absolute -right-6 -top-6 w-24 h-24 bg-${stat.color === 'red' ? 'red' : stat.color === 'cyan' ? 'blue' : 'gold'}-500/10 blur-2xl rounded-full group-hover:opacity-100 opacity-0 transition-all duration-700`} />
+                  
+                  <div className="flex items-center gap-5 relative z-10">
+                    <div className={`w-12 h-12 rounded-[20px] flex items-center justify-center border transition-transform duration-500 group-hover:scale-110 ${
+                      stat.color === 'red' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
+                      stat.color === 'cyan' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
+                      'bg-gold-500/10 text-gold-500 border-gold-500/20'
+                    }`}>
+                      <stat.icon size={22} strokeWidth={2.5} />
+                    </div>
+                    <div>
+                      <div className="text-[8px] font-black text-white/30 uppercase mb-1">{stat.title}</div>
+                      <div className="text-xl font-black text-white tabular-nums tracking-tight flex items-baseline gap-1">
+                        {stat.value}
+                        {stat.color === 'gold' && <span className="text-[9px] text-white/20 font-mono">AED</span>}
+                      </div>
+                    </div>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* 2026 Strategic Control Hub (Tabs) */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-6 px-1">
+        <div className="flex items-center gap-4 p-2 bg-white/[0.03] border border-white/5 rounded-[24px] w-full md:w-auto backdrop-blur-xl">
+          <button
+            onClick={() => setActiveTab('returns')}
+            className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-12 py-5 rounded-[20px] text-[12px] font-black uppercase transition-all duration-500
+              ${activeTab === 'returns' ? 'bg-gold-500 text-[#0F0E0D] shadow-lg shadow-gold-500/20' : 'text-white/30 hover:text-white hover:bg-white/5'}`}
+          >
+            <RotateCcw size={18} strokeWidth={2.5} />
+            {isAr ? 'المرتجعات' : 'Returns'}
+          </button>
+          <button
+            onClick={() => setActiveTab('disputes')}
+            className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-12 py-5 rounded-[20px] text-[12px] font-black uppercase transition-all duration-500
+              ${activeTab === 'disputes' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-white/30 hover:text-white hover:bg-white/5'}`}
+          >
+            <Scale size={18} strokeWidth={2.5} />
+            {isAr ? 'النزاعات الرسمية' : 'Official Disputes'}
+          </button>
+        </div>
+
+        <div className="hidden md:flex items-center gap-3 px-5 py-2.5">
+           {/* Protocol removed as per user request */}
+        </div>
+      </div>
+
+      {/* 2026 Quick Action Zone (Functional/Incentive) */}
+      <AnimatePresence>
+        {eligibleOrders.length > 0 && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-4"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
           >
-            <Button 
-              onClick={() => setIsOrderModalOpen(true)}
-              className="px-8 py-4 bg-gold-500 text-black font-black uppercase tracking-widest text-xs rounded-2xl flex items-center gap-3 hover:scale-105 transition-all shadow-[0_0_30px_rgba(212,175,55,0.2)] active:scale-95 group"
-            >
-              <Plus size={20} className="group-hover:rotate-90 transition-transform duration-500" />
-              {t.dashboard.resolution.initiate.title}
-            </Button>
+            <div className="flex flex-col gap-8 mb-12 p-8 bg-gradient-to-r from-gold-500/10 via-transparent to-transparent rounded-[32px] border border-gold-500/10 relative overflow-hidden">
+               {/* Decorative Background Pulsing Glow */}
+               <div className="absolute left-0 top-0 w-1/3 h-full bg-gold-500/5 blur-[80px] rounded-full animate-pulse" />
+               
+               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
+                 <div>
+                    <h2 className="text-xl md:text-2xl font-black text-white uppercase leading-none mb-1">
+                       {t.dashboard.resolution.quickActions.title}
+                    </h2>
+                    <p className="text-[9px] font-black text-gold-500/40 uppercase">
+                       {t.dashboard.resolution.quickActions.subtitle}
+                    </p>
+                 </div>
+                 <div className="h-0.5 flex-1 bg-white/5 mx-8 mb-4 hidden lg:block" />
+                 <div className="px-4 py-2">
+                   {/* Auto-refresh indicator removed */}
+                 </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {eligibleOrders.slice(0, 3).map((order) => (
+                    <GlassCard key={order.id} className="p-7 bg-[#0C0B0A] border-white/5 hover:border-gold-500/30 transition-all duration-700 group relative overflow-hidden shadow-2xl">
+                      <div className="absolute -right-10 -top-10 w-32 h-32 bg-gold-500/5 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center text-white/20 group-hover:text-gold-500 group-hover:bg-gold-500/10 transition-all duration-500">
+                            <Package size={28} strokeWidth={1.5} />
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-black text-gold-500/80 uppercase tracking-[0.2em] mb-1.5 flex items-center gap-1.5">
+                              <div className="w-1 h-1 rounded-full bg-gold-500" />
+                              #{order.orderNumber}
+                            </span>
+                            <div className="px-2.5 py-1 bg-green-500/10 text-green-400 text-[8px] font-black rounded-lg border border-green-500/20 uppercase tracking-widest shadow-lg shadow-green-500/5">
+                              {isAr ? 'مؤهل' : 'Eligible'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <h4 className="text-xl font-black text-white mb-4 uppercase truncate tracking-tight group-hover:text-gold-400 transition-colors">
+                          {order.part}
+                        </h4>
+
+                        <div className="flex items-center gap-2.5 mb-8">
+                           <Clock size={12} className="text-gold-500/50" />
+                           <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">
+                             {isAr ? 'حماية 72 ساعة نشطة' : '72h Protection Active'}
+                           </span>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setSelectionMode('return');
+                              setIsReturnModalOpen(true);
+                             }}
+                            className="flex-1 py-3.5 bg-white/[0.05] hover:bg-gold-500 hover:text-[#0F0E0D] text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-xl transition-all duration-500 shadow-xl"
+                          >
+                            {isAr ? 'إرجاع' : 'Return'}
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setSelectionMode('dispute');
+                              setIsDisputeModalOpen(true);
+                             }}
+                            className="flex-1 py-3.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 text-[9px] font-black uppercase tracking-[0.2em] rounded-xl transition-all duration-500 shadow-xl"
+                          >
+                            {isAr ? 'نزاع' : 'Dispute'}
+                          </button>
+                        </div>
+                      </div>
+                    </GlassCard>
+                  ))}
+               </div>
+            </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Case List Environment */}
+      <div className="space-y-6 min-h-[400px]">
+        {/* Internal List Filter/Search bar */}
+        <div className="flex items-center justify-between gap-6 px-4">
+          <div className="relative flex-1 max-w-md group">
+            <Search size={18} className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'right-5' : 'left-5'} text-white/20 group-focus-within:text-gold-500 transition-colors pointer-events-none`} />
+            <input 
+              type="text" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={isAr ? 'بحث في الحالات...' : 'Search in cases...'}
+              className={`w-full bg-white/[0.02] border border-white/5 rounded-2xl ${isAr ? 'pr-14 pl-6' : 'pl-14 pr-6'} py-4 text-xs text-white outline-none focus:border-white/10 focus:bg-white/[0.05] transition-all`}
+            />
+          </div>
+          <div className="hidden md:flex items-center gap-2">
+            {/* Showing status removed */}
+          </div>
         </div>
 
-        {/* Decorative background pulse */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-gold-500/5 blur-[120px] rounded-full pointer-events-none" />
-      </div>
-
-      {/* Grid Stats - Luxury Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {stats.map((stat, idx) => (
-          <motion.div
-            key={idx}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-          >
-            <GlassCard className="p-8 relative group overflow-hidden border-white/5 hover:border-white/10 transition-all duration-500">
-              <div className={`absolute -right-4 -top-4 w-32 h-32 bg-${stat.color}-500/5 blur-[40px] rounded-full group-hover:bg-opacity-10 transition-all`} />
-              <div className="flex items-start justify-between mb-8 relative z-10">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all duration-500 group-hover:scale-110
-                  ${stat.color === 'gold' ? 'bg-gold-500/10 text-gold-400 border-gold-500/20 shadow-lg shadow-gold-500/5' : 
-                    stat.color === 'green' ? 'bg-green-500/10 text-green-400 border-green-500/20 shadow-lg shadow-green-500/5' : 
-                    'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-lg shadow-cyan-500/5'}`}>
-                  <stat.icon size={28} />
-                </div>
-                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{stat.trend}</div>
-              </div>
-              <div className="relative z-10">
-                <div className="text-4xl font-black text-white mb-1 tracking-tight">{stat.value}</div>
-                <div className="text-white/40 text-[10px] font-black uppercase tracking-widest">{stat.title}</div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Main List Interface */}
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 px-4">
-          <div className="flex items-center gap-1 p-1 bg-white/5 rounded-2xl border border-white/5">
-            {(['all', 'active', 'resolved'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-8 py-3 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all duration-500
-                  ${activeTab === tab 
-                    ? 'bg-white text-black shadow-2xl' 
-                    : 'text-white/30 hover:text-white hover:bg-white/5'}`}
-              >
-                {tab === 'all' ? (isAr ? 'عرض الحالات' : 'Holistic Audit') : 
-                 tab === 'active' ? (isAr ? 'حالات نشطة' : 'Active Stream') : 
-                 (isAr ? 'الأرشيف' : 'Case Archive')}
-              </button>
-            ))}
-          </div>
-          
-          <div className="relative w-full md:w-80 group">
-              <Search size={18} className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'right-4' : 'left-4'} text-white/20 group-focus-within:text-gold-500 transition-colors`} />
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t.dashboard.orders.searchPlaceholder}
-                className={`bg-white/5 border border-white/5 rounded-2xl ${isAr ? 'pr-12 pl-4' : 'pl-12 pr-4'} py-4 text-xs text-white outline-none w-full focus:border-gold-500/30 focus:bg-white/10 transition-all shadow-inner`}
-              />
-          </div>
-        </div>
-
-        <div className="space-y-4">
+        {/* The Card Grid */}
+        <div className="grid grid-cols-1 gap-4">
           <AnimatePresence mode="popLayout">
             {isLoading ? (
               <div className="py-40 flex flex-col items-center justify-center space-y-6">
-                <Loader2 className="animate-spin text-gold-500" size={50} />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Syncing Cases...</span>
+                <div className="w-16 h-16 border-2 border-white/5 border-t-gold-500 rounded-full animate-spin shadow-[0_0_30px_rgba(212,175,55,0.1)]" />
+                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Accessing Vault...</span>
               </div>
             ) : filteredCases.length === 0 ? (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="py-40 flex flex-col items-center justify-center text-center px-4 space-y-6 bg-white/[0.02] border border-dashed border-white/5 rounded-[40px]"
-              >
-                <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center">
-                  <History size={40} className="text-white/10" strokeWidth={1} />
+              <div className="flex flex-col items-center justify-center py-32 space-y-8 bg-white/[0.01] border border-white/5 rounded-[40px] relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gold-500/[0.01] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+                <div className="w-32 h-32 rounded-[40px] bg-white/[0.03] border border-white/5 flex items-center justify-center text-white/10 group-hover:text-gold-500/20 group-hover:scale-110 transition-all duration-700">
+                  <History size={64} strokeWidth={1} />
                 </div>
-                <div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-widest mb-2">{isAr ? 'لا توجد سجلات' : 'No Records Found'}</h3>
-                  <p className="text-white/30 text-xs font-bold uppercase tracking-widest">{isAr ? 'سجلك نظيف تماماً' : 'Your resolution history is clear'}</p>
+                <div className="text-center space-y-2 relative z-10">
+                  <h3 className="text-2xl font-black text-white uppercase leading-none">
+                    {activeTab === 'returns' ? (t.dashboard as any).returns.noReturns : (t.dashboard as any).returns.noDisputes}
+                  </h3>
+                  <p className="text-[9px] font-black text-white/20 uppercase">
+                    {activeTab === 'returns' ? (t.dashboard as any).returns.noReturnsDesc : (t.dashboard as any).returns.noDisputesDesc}
+                  </p>
                 </div>
-              </motion.div>
+                <button 
+                  onClick={() => setIsOrderModalOpen(true)}
+                  className="px-10 py-4 bg-gold-500 text-[#0F0E0D] rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-gold-500/20 hover:scale-105 active:scale-95 transition-all relative z-10"
+                >
+                  {isAr ? 'بدء طلب جديد' : 'INITIATE NEW REQUEST'}
+                </button>
+              </div>
             ) : (
               filteredCases.map((item, idx) => (
                 <motion.div
                   key={item.id}
-                  initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => handleCaseClick(item.id)}
                   className="group relative"
                 >
-                  <GlassCard className="p-8 hover:bg-white/[0.03] active:bg-white/[0.05] transition-all cursor-pointer border-white/5 group-hover:border-gold-500/20 group-hover:translate-x-1.5 duration-500">
-                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
-                      {/* Left: Case ID & Title */}
-                      <div className="flex items-center gap-8">
-                         <div className={`w-20 h-20 rounded-3xl flex items-center justify-center border-2 transition-all duration-700
-                            ${item.type === 'dispute' ? 'bg-red-500/10 border-red-500/20 text-red-500 shadow-[0_0_30px_rgba(239,68,68,0.1)]' : 'bg-cyan-500/10 border-cyan-500/20 text-cyan-500 shadow-[0_0_30px_rgba(6,182,212,0.1)]'}
-                            group-hover:rotate-6 group-hover:scale-110 shadow-xl`}>
-                           {item.type === 'dispute' ? <Scale size={32} /> : <RotateCcw size={32} />}
-                         </div>
-                         <div className="space-y-2">
-                            <div className="flex items-center gap-3">
-                               <span className="text-[10px] font-black text-gold-500/80 tracking-widest uppercase">#{item.id}</span>
-                               <span className="text-[10px] font-black text-white/20 tracking-[0.2em] uppercase">
-                                 {new Date(item.createdAt).toLocaleDateString()}
-                               </span>
+                  {/* Premium Hover Halo */}
+                  <div className="absolute -inset-1 bg-gradient-to-r from-gold-500/20 to-transparent rounded-[36px] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 -z-10" />
+
+                  <div className="bg-[#0F0E0C] border border-white/5 rounded-[24px] p-4 hover:border-gold-500/30 hover:translate-x-1.5 transition-all duration-700 cursor-pointer shadow-xl relative overflow-hidden">
+                    {/* Background Texture/Shimmer */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/[0.02] blur-[100px] rounded-full pointer-events-none" />
+
+                    <div className="flex flex-col lg:flex-row items-center gap-6 relative z-10">
+                      
+                      {/* Leading info */}
+                      <div className="flex items-center gap-4 flex-1 w-full lg:w-auto">
+                        <div className={`w-14 h-14 rounded-[18px] flex items-center justify-center border transition-all duration-1000
+                          ${item.type === 'dispute' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-gold-500/10 border-gold-500/20 text-gold-500'}
+                          group-hover:rotate-3 group-hover:scale-110 shrink-0`}>
+                          {item.type === 'dispute' ? <Scale size={24} strokeWidth={1.5} /> : <RotateCcw size={24} strokeWidth={1.5} />}
+                        </div>
+
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                             <div className="px-1.5 py-0.5 bg-gold-500/10 border border-gold-500/20 rounded text-[9px] font-black text-gold-500 uppercase">
+                               #{item.orderNumber}
+                             </div>
+                             <div className="px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-[10px] font-black text-blue-400 uppercase tracking-tight">
+                               {item.storeCode || 'D-' + item.id.substring(0,4).toUpperCase()}
+                             </div>
+                            <span className="text-[7px] font-black text-white/15 uppercase font-mono px-1">
+                              {new Date(item.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB')}
+                            </span>
+                          </div>
+                          
+                          <h3 className="text-base md:text-lg font-black text-white group-hover:text-gold-500 transition-colors uppercase truncate leading-tight">
+                            {item.partName}
+                          </h3>
+
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5 truncate text-[8px] font-black text-white/30 uppercase border-r border-white/5 pr-3">
+                              <span className="truncate">{item.merchantName}</span>
                             </div>
-                            <h3 className="text-2xl font-black text-white group-hover:text-gold-400 transition-colors uppercase tracking-tight leading-none">
-                              {item.partName}
-                            </h3>
-                            <div className="flex items-center gap-6 text-[10px] font-black text-white/30 uppercase tracking-widest">
-                               <span className="flex items-center gap-2 pr-4 border-r border-white/5"><Package size={14} className="text-gold-500" /> {item.merchantName}</span>
-                               <span className="flex items-center gap-2"><Zap size={14} className="text-cyan-500" /> Order #{item.orderId}</span>
+                            <div className="text-[8px] font-black text-white/10 uppercase font-mono">
+                              CASE: {item.id.substring(0, 8)}
                             </div>
-                         </div>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Right: Visual Status Stream */}
-                      <div className="flex items-center gap-12 w-full lg:w-auto justify-between lg:justify-end">
-                         <div className="flex flex-col items-end gap-3 flex-1 lg:flex-none">
-                            <div className="flex items-center gap-2">
-                               <div className="w-2 h-2 rounded-full bg-gold-500 shadow-[0_0_10px_rgba(212,175,55,0.8)]" />
-                               <span className="text-[10px] font-black uppercase text-white/60 tracking-[0.2em]">
-                                  {t.dashboard.resolution.statusTimeline?.[item.status.toLowerCase()] || item.status}
-                               </span>
-                            </div>
-                            <div className="w-full lg:w-48 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5 p-[1px]">
-                               <motion.div 
-                                 initial={{ width: 0 }}
-                                 animate={{ width: item.status === 'RESOLVED' || item.status === 'REFUNDED' ? '100%' : '55%' }}
-                                 className={`h-full rounded-full ${item.status === 'RESOLVED' || item.status === 'REFUNDED' ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.5)]'}`}
-                               />
-                            </div>
-                            
-                            {/* GAP 2: Handover Countdown Display */}
-                            {item.status === 'APPROVED' && item.type === 'return' && item.handoverDeadline && (
-                               <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full animate-pulse">
-                                  <Clock size={12} className="text-red-400" />
-                                  <span className="text-[9px] font-black uppercase text-red-400 tracking-widest">
-                                    {(() => {
-                                      const deadline = new Date(item.handoverDeadline);
-                                      const now = new Date();
-                                      const diff = deadline.getTime() - now.getTime();
-                                      if (diff <= 0) return isAr ? 'انتهت المهلة' : 'Deadline Expired';
-                                      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                                      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                                      return isAr 
-                                        ? `متبقي ${days} يوم و ${hours} ساعة للتسليم` 
-                                        : `${days}d ${hours}h left to handover`;
-                                    })()}
-                                  </span>
-                               </div>
-                            )}
+                      {/* Progress & Visual Status */}
+                      <div className="w-full lg:w-64 space-y-3 bg-white/[0.01] p-4 rounded-[16px] border border-white/5 group-hover:border-white/10 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shadow-[0_0_8px_rgba(212,175,55,0.6)] animate-pulse" />
+                            <span className="text-[8px] font-black uppercase text-white/70 tracking-tighter">
+                              {t.dashboard.resolution.statusTimeline?.[item.status.toLowerCase()] || item.status}
+                            </span>
+                          </div>
+                        </div>
 
-                            <div className="hidden lg:block text-[8px] font-black text-white/20 tracking-wider uppercase">Latency: Realtime Active</div>
-                         </div>
-                         
-                         <div className="p-4 bg-white/5 rounded-2xl text-white/20 group-hover:text-gold-500 group-hover:bg-gold-500/10 transition-all border border-transparent group-hover:border-gold-500/20">
-                            <ArrowIcon size={24} className="group-hover:translate-x-1 transition-all" />
-                         </div>
+                        <div className="h-2 bg-black/50 rounded-full overflow-hidden border border-white/5 p-[1px]">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: getProgressWidth(item.status) }}
+                            transition={{ duration: 1.5, ease: "easeOut" }}
+                            className={`h-full rounded-full relative ${item.status.includes('REFUND') || item.status.includes('RESOLVE') ? 'bg-green-500' : 'bg-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.3)]'}`}
+                          >
+                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shine_2s_infinite]" />
+                          </motion.div>
+                        </div>
+
+                        {/* Escalation Trigger */}
+                        {item.status !== 'RESOLVED' && item.status !== 'REFUNDED' && item.status !== 'ESCALATED' && (
+                          <button 
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setCaseToEscalate(item.id);
+                              setIsEscalateConfirmOpen(true);
+                            }}
+                            className="w-full py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-black text-red-500 uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95"
+                          >
+                            {(t as any).dashboard.resolution.actions.escalate}
+                          </button>
+                        )}
+
+                        {item.status === 'ESCALATED' && (
+                          <div className="w-full py-2.5 bg-gold-500/5 border border-gold-500/20 rounded-xl flex items-center justify-center gap-2">
+                            <ShieldAlert size={12} className="text-gold-500" />
+                            <span className="text-[9px] font-black text-gold-500 uppercase tracking-[0.2em]">
+                              {(t as any).dashboard.resolution.actions.underAdminReview}
+                            </span>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Right Pointer */}
+                      <div className="hidden lg:flex items-center justify-center p-6 bg-white/[0.03] border border-white/5 rounded-[28px] text-white/5 group-hover:text-gold-500 group-hover:bg-gold-500/10 transition-all duration-500 group-hover:border-gold-500/20">
+                        <ArrowIcon size={28} className="group-hover:translate-x-2 transition-transform duration-500" />
+                      </div>
+
                     </div>
-                  </GlassCard>
+                  </div>
                 </motion.div>
               ))
             )}
@@ -338,74 +500,155 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
         </div>
       </div>
 
-      {/* Global Escrow Protection Badge - Cinematic */}
-      <GlassCard className="p-10 bg-cyan-500/[0.03] border-cyan-500/20 relative overflow-hidden group">
-         <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-         <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
-            <div className="flex items-center gap-8">
-               <div className="w-20 h-20 bg-cyan-500/10 rounded-[30px] flex items-center justify-center text-cyan-400 border-2 border-cyan-500/20 shadow-2xl group-hover:rotate-[360deg] transition-transform duration-1000">
-                  <ShieldCheck size={40} />
-               </div>
-               <div>
-                  <h4 className="text-2xl font-black text-white tracking-tight leading-none mb-2">{t.dashboard.support.title}</h4>
-                  <p className="text-white/40 text-sm max-w-md font-bold uppercase tracking-wider">{t.dashboard.support.liveChatDesc}</p>
-               </div>
-            </div>
-            <div className="flex gap-4">
-               <button 
-                onClick={() => onNavigate?.('support')}
-                className="bg-white/5 border border-white/10 text-white hover:bg-white hover:text-black transition-all px-10 py-4 rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-xl active:scale-95 duration-300">
-                {isAr ? 'بدء محادثة خبير' : 'Initiate Expert Chat'}
-              </button>
-            </div>
-         </div>
-         
-         {/* Grid decorative overlay */}
-         <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] mix-blend-overlay" />
-      </GlassCard>
+      {/* Security Vault Banner - Removed as per user request */}
 
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        @keyframes shine {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+
+        .premium-text-glow {
+          text-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.3); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.5); }
+
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.1); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.3); }
+
+        /* Typography & Layout 2026 Standards */
+        .luxury-heading {
+          font-family: 'Outfit', sans-serif;
+          letter-spacing: -0.05em;
+          line-height: 0.8;
+        }
       `}</style>
 
-      {/* Modals */}
+      {/* Modals Shared Interface */}
       <OrderSelectionModal 
          isOpen={isOrderModalOpen}
          onClose={() => setIsOrderModalOpen(false)}
          onSelect={handleSelectOrder}
+         mode={selectionMode}
       />
 
       {selectedOrder && (
-        <>
-          <ReturnRequestModal 
-            isOpen={isReturnModalOpen}
-            onClose={() => setIsReturnModalOpen(false)}
-            orderId={selectedOrder.id}
-            merchantName={selectedOrder.merchantName || 'Store'}
-            partName={selectedOrder.part}
-            onSuccess={() => {
-               setIsReturnModalOpen(false);
-               fetchUserRequests();
-            }}
-          />
-          <DisputeModal 
-            isOpen={isDisputeModalOpen}
-            onClose={() => setIsDisputeModalOpen(false)}
-            orderId={selectedOrder.id}
-            merchantName={selectedOrder.merchantName || 'Store'}
-            partName={selectedOrder.part}
-            onSuccess={() => {
-               setIsDisputeModalOpen(false);
-               fetchUserRequests();
-            }}
-          />
-        </>
+        <AnimatePresence>
+          {isReturnModalOpen && (
+            <ReturnRequestModal 
+              isOpen={isReturnModalOpen}
+              onClose={() => setIsReturnModalOpen(false)}
+              orderId={selectedOrder.id}
+              orderPartId={selectedPartId}
+              merchantName={selectedOrder.merchantName || 'Store'}
+              partName={selectedOrder.part}
+              onSuccess={() => {
+                 setIsReturnModalOpen(false);
+                 fetchUserRequests();
+              }}
+            />
+          )}
+          {isDisputeModalOpen && (
+            <DisputeModal 
+              isOpen={isDisputeModalOpen}
+              onClose={() => setIsDisputeModalOpen(false)}
+              orderId={selectedOrder.id}
+              orderPartId={selectedPartId}
+              merchantName={selectedOrder.merchantName || 'Store'}
+              partName={selectedOrder.part}
+              onSuccess={() => {
+                 setIsDisputeModalOpen(false);
+                 fetchUserRequests();
+              }}
+            />
+          )}
+        </AnimatePresence>
       )}
+
+      {/* Luxury Escalation Confirmation Modal */}
+      <EscalationConfirmModal 
+        isOpen={isEscalateConfirmOpen}
+        onClose={() => setIsEscalateConfirmOpen(false)}
+        onConfirm={async () => {
+          if (caseToEscalate) {
+            await escalateCase(caseToEscalate);
+            setIsEscalateConfirmOpen(false);
+            setCaseToEscalate(null);
+          }
+        }}
+      />
+    </div>
+  );
+};
+
+// Internal Sub-Component for Luxury Confirmation
+const EscalationConfirmModal: React.FC<{ isOpen: boolean, onClose: () => void, onConfirm: () => Promise<void> }> = ({ isOpen, onClose, onConfirm }) => {
+  const { t, language } = useLanguage();
+  const isAr = language === 'ar';
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/90 backdrop-blur-md"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative w-full max-w-md bg-[#0C0B0A] border border-white/5 rounded-[32px] p-8 overflow-hidden shadow-2xl"
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 blur-3xl rounded-full -mr-16 -mt-16" />
+        
+        <div className="relative z-10 space-y-6 text-center">
+          <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center text-red-500 mx-auto">
+            <ShieldAlert size={32} />
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="text-xl font-black text-white uppercase tracking-tight">
+              {isAr ? 'تصعيد الحالة للإدارة' : 'Escalate to Management'}
+            </h3>
+            <p className="text-[10px] font-black text-white/30 uppercase leading-relaxed px-4">
+              {t.dashboard.resolution.actions.confirmEscalation}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-4">
+            <button 
+              onClick={onClose}
+              className="py-4 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
+            >
+              {isAr ? 'إلغاء' : 'Cancel'}
+            </button>
+            <button 
+              disabled={isSubmitting}
+              onClick={async () => {
+                setIsSubmitting(true);
+                await onConfirm();
+                setIsSubmitting(false);
+              }}
+              className="py-4 bg-red-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-red-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {isSubmitting ? (isAr ? 'جاري التصعيد...' : 'Escalating...') : (isAr ? 'تأكيد التصعيد' : 'Confirm Escalation')}
+            </button>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

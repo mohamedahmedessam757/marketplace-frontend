@@ -16,6 +16,8 @@ export const returnsApi = {
     }),
 
     getUserReturns: () => client.get('/returns/my-requests'),
+    
+    escalateCase: (id: string) => client.patch(`/returns/${id}/escalate`),
 
     // Case Messaging (Phase 4)
     getCaseMessages: (id: string) => client.get(`/returns/${id}/messages`),
@@ -27,23 +29,34 @@ export const returnsApi = {
     // Merchant
     getMerchantCases: () => client.get<MerchantResolutionResponse>('/returns/merchant/cases'),
 
-    respondToReturn: (id: string, action: 'APPROVE' | 'REJECT', responseText: string, files?: File[]) => {
+    respondToReturn: (id: string, action: 'APPROVE' | 'REJECT', responseText: string, evidence?: string[] | File[]) => {
+        if (evidence && evidence.length > 0 && typeof evidence[0] === 'string') {
+            // JSON approach (Supplied URLs)
+            return client.post(`/returns/${id}/respond-return`, { action, responseText, evidenceUrls: evidence });
+        }
+        
+        // Legacy FormData approach
         const formData = new FormData();
         formData.append('action', action);
         formData.append('responseText', responseText);
-        if (files) {
-            files.forEach(file => formData.append('files', file));
+        if (evidence) {
+            (evidence as File[]).forEach(file => formData.append('files', file));
         }
         return client.post(`/returns/${id}/respond-return`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
     },
 
-    respondToDispute: (id: string, responseText: string, files?: File[]) => {
+    respondToDispute: (id: string, responseText: string, evidence?: string[] | File[]) => {
+        if (evidence && evidence.length > 0 && typeof evidence[0] === 'string') {
+            // JSON approach (Supplied URLs)
+            return client.post(`/returns/${id}/respond-dispute`, { responseText, evidenceUrls: evidence });
+        }
+
         const formData = new FormData();
         formData.append('responseText', responseText);
-        if (files) {
-            files.forEach(file => formData.append('files', file));
+        if (evidence) {
+            (evidence as File[]).forEach(file => formData.append('files', file));
         }
         return client.post(`/returns/${id}/respond-dispute`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }

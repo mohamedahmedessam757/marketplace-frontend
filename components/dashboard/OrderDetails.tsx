@@ -22,6 +22,7 @@ import { OrderInvoicesPanel } from './shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from './shared/OrderWaybillsPanel';
 import { useShipmentsStore } from '../../stores/useShipmentsStore';
 import { ShipmentTracker } from './shipments/ShipmentTracker';
+import { OrderCountdown } from '../ui/OrderCountdown';
 
 interface OrderDetailsProps {
     orderId: string | null;
@@ -535,10 +536,16 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             </div>
                         </div>
                     )}
-                    {order.status === 'DELIVERED' && order.deliveredAt && (
-                        <CountdownTimer targetDate={getReturnDeadline()} label={t.dashboard.timers.return_window} />
+                    {(order.status === 'DELIVERED' || order.status === 'DELIVERED_TO_CUSTOMER') && (
+                        <div className="w-full md:w-auto">
+                            <OrderCountdown updatedAt={order.updatedAt} status={order.status} variant="badge" />
+                        </div>
                     )}
                 </div>
+
+                {(order.status === 'DELIVERED' || order.status === 'DELIVERED_TO_CUSTOMER') && (
+                    <OrderCountdown updatedAt={order.updatedAt} status={order.status} variant="full" />
+                )}
 
                 <GlassCard className="p-0 overflow-hidden bg-[#1A1814] border-white/5">
                     <div className="p-6 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -550,6 +557,9 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                         : order.part}
                                 </h1>
                                 <Badge status={order.status} />
+                                {shipment && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
+                                    <Badge status={shipment.status as StatusType} className="animate-in fade-in zoom-in duration-500" />
+                                )}
                             </div>
                             <div className="text-white/60 text-sm flex items-center gap-2">
                                 <span>{(t.dashboard.orders as any).orderId} {order.id}</span>

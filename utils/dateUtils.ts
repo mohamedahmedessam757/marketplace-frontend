@@ -89,12 +89,12 @@ export const getDynamicOrderDeadline = (order: any): string | null => {
         }
 
         case 'DELIVERED': {
-            // 48h return window
+            // 72h return window (3 Days Protection)
             const baseDate =
                 order.deliveredAt || order.delivered_at || order.updatedAt || order.updated_at;
             if (!baseDate) return null;
             const d = new Date(baseDate);
-            d.setHours(d.getHours() + 48);
+            d.setHours(d.getHours() + 72);
             return d.toISOString();
         }
 

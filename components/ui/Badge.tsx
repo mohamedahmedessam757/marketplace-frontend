@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { Truck } from 'lucide-react';
 
 export type StatusType =
   | 'AWAITING_OFFERS'
@@ -47,7 +48,15 @@ interface BadgeProps {
 }
 
 export const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+
+  const isShipmentStatus = [
+    'RECEIVED_AT_HUB', 'QUALITY_CHECK_PASSED', 'PACKAGED_FOR_SHIPPING',
+    'AWAITING_CARRIER_PICKUP', 'PICKED_UP_BY_CARRIER', 'IN_TRANSIT_TO_DESTINATION',
+    'ARRIVED_AT_LOCAL_FACILITY', 'CUSTOMS_CLEARANCE', 'AT_LOCAL_WAREHOUSE',
+    'OUT_FOR_DELIVERY', 'DELIVERY_ATTEMPTED', 'DELIVERED_TO_CUSTOMER',
+    'RETURN_TO_SENDER_INITIATED', 'RETURNED_TO_SENDER'
+  ].includes(status);
 
   const styles: Record<string, string> = {
     AWAITING_OFFERS: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
@@ -94,7 +103,8 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
   const statusLabel = (t.common as any).status?.[status] || status;
 
   return (
-    <span className={`inline-flex items-center justify-center px-3 py-1 rounded-lg text-xs font-bold border backdrop-blur-sm whitespace-nowrap ${styles[status] || styles.CANCELLED} ${className}`}>
+    <span className={`inline-flex items-center justify-center px-3 py-1 rounded-lg text-xs font-bold border backdrop-blur-sm whitespace-nowrap ${isShipmentStatus ? 'border-dashed' : ''} ${styles[status] || styles.CANCELLED} ${className}`}>
+      {isShipmentStatus && <Truck size={12} className={language === 'ar' ? 'ml-1.5' : 'mr-1.5'} />}
       {statusLabel}
     </span>
   );

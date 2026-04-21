@@ -84,6 +84,27 @@ export const merchant = {
         returns: 'طلبات إرجاع',
         disputes: 'نزاعات / شكاوى',
         resolved: 'المحلولة'
+      },
+      reasons: {
+        not_matching: 'القطعة غير مطابقة للوصف',
+        defective: 'القطعة معطوبة أو تالفة',
+        not_working: 'القطعة لا تعمل / عطل مصنعي',
+        delayed: 'تأخر الشحن',
+        wrong_item: 'استلام قطعة خاطئة',
+        wrong_size: 'خطأ في المقاس أو الموديل',
+        shipping_error: 'خطأ من شركة الشحن',
+        warranty_claim: 'مطالبة بموجب الضمان'
+      },
+      statusTimeline: {
+        requested: 'تم تقديم الطلب',
+        awaiting_merchant: 'بانتظار ردك',
+        awaiting_admin: 'بانتظار مراجعة الإدارة',
+        under_review: 'يقوم المسؤول بمراجعة الأدلة الآن',
+        merchant_accepted: 'لقد وافقت على الإرجاع',
+        merchant_rejected: 'لقد رفضت الطلب - جاري التصعيد للإدارة',
+        admin_review: 'يقوم المسؤول بمراجعة الأدلة الآن',
+        resolved: 'تم إصدار القرار النهائي',
+        final_verdict: 'تم إصدار القرار النهائي'
       }
     },
     kpi: {
@@ -675,6 +696,27 @@ export const merchant = {
         returns: 'Returns',
         disputes: 'Disputes',
         resolved: 'Resolved'
+      },
+      reasons: {
+        not_matching: 'Item not matching description',
+        defective: 'Item is defective or damaged',
+        not_working: 'Item not working / Manufacturer defect',
+        delayed: 'Delayed shipping',
+        wrong_item: 'Received wrong item',
+        wrong_size: 'Wrong size or model',
+        shipping_error: 'Shipping company error',
+        warranty_claim: 'Warranty claim'
+      },
+      statusTimeline: {
+        requested: 'Request submitted',
+        awaiting_merchant: 'Awaiting your response',
+        awaiting_admin: 'Awaiting admin review',
+        under_review: 'Admin is reviewing evidence',
+        merchant_accepted: 'You accepted the return',
+        merchant_rejected: 'You rejected - Escalated to admin',
+        admin_review: 'Admin is reviewing evidence',
+        resolved: 'Final verdict issued',
+        final_verdict: 'Final verdict issued'
       }
     },
     kpi: {

@@ -24,6 +24,34 @@ interface MerchantResolutionPageProps {
   onNavigate?: (path: string, id?: any) => void;
 }
 
+const CaseCountdown = ({ deadline }: { deadline: string }) => {
+  const [timeLeft, setTimeLeft] = useState<{h: number, m: number} | null>(null);
+
+  useEffect(() => {
+    const calc = () => {
+      const diff = new Date(deadline).getTime() - new Date().getTime();
+      if (diff <= 0) return { h: 0, m: 0 };
+      return {
+        h: Math.floor(diff / (1000 * 60 * 60)),
+        m: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      };
+    };
+    setTimeLeft(calc());
+    const interval = setInterval(() => setTimeLeft(calc()), 60000);
+    return () => clearInterval(interval);
+  }, [deadline]);
+
+  if (!timeLeft) return null;
+
+  return (
+    <div className="flex items-center gap-1 font-mono">
+      <span className="bg-red-500/10 px-1 rounded">{timeLeft.h}h</span>
+      <span>:</span>
+      <span className="bg-red-500/10 px-1 rounded">{timeLeft.m}m</span>
+    </div>
+  );
+};
+
 export const MerchantResolutionPage: React.FC<MerchantResolutionPageProps> = ({ onNavigate }) => {
   const { 
     cases, 
@@ -258,30 +286,36 @@ export const MerchantResolutionPage: React.FC<MerchantResolutionPageProps> = ({ 
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
                         <span className="font-mono text-[10px] font-black tracking-widest text-gold-500/60 uppercase">
-                          {item.type === 'dispute' ? 'DISPUTE' : 'RETURN'} #{item.id}
+                          {item.type === 'dispute' ? (isAr ? 'نزاع' : 'DISPUTE') : (isAr ? 'مرتجع' : 'RETURN')} #{item.id.split('-')[0]}
                         </span>
                         <div className="w-1 h-1 rounded-full bg-white/20" />
                         <span className="text-[10px] font-bold text-white/40">
-                          {new Date(item.createdAt).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US', {
+                          {new Intl.DateTimeFormat(isAr ? 'ar-EG' : 'en-US', {
                             day: 'numeric',
                             month: 'short',
-                            year: 'numeric'
-                          })}
+                            year: 'numeric',
+                            calendar: 'gregory'
+                          }).format(new Date(item.createdAt))}
                         </span>
                       </div>
                       
-                      <h4 className="text-lg md:text-xl font-bold text-white group-hover:text-gold-400 transition-colors">
-                        {item.partName}
-                      </h4>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-lg md:text-xl font-bold text-white group-hover:text-gold-400 transition-colors">
+                          {item.partName}
+                        </h4>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-red-500/10 text-red-400 border border-red-500/10 font-bold uppercase">
+                          {isAr ? (t.dashboard.merchant.resolution.reasons[item.reason.toLowerCase()] || item.reason) : item.reason}
+                        </span>
+                      </div>
 
                       <div className="flex items-center gap-4 text-xs font-medium">
                         <div className="flex items-center gap-1.5 text-white/40">
                           <AlertCircle size={14} />
-                          <span>Order #{item.orderId}</span>
+                          <span>{isAr ? 'طلب رقم' : 'Order #'} {item.orderNumber}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-white/40">
                           <MessageSquare size={14} />
-                          <span>{t.dashboard.merchant.resolution.customer}: {item.customerId.split('-')[0]}...</span>
+                          <span>{isAr ? 'كود العميل' : 'Customer Code'}: {item.customerId.split('-')[0]}</span>
                         </div>
                       </div>
                     </div>
@@ -291,33 +325,29 @@ export const MerchantResolutionPage: React.FC<MerchantResolutionPageProps> = ({ 
                   <div className="flex flex-col md:items-end gap-3 w-full md:w-auto">
                     <div className="flex items-center gap-3">
                        {/* Status Badge */}
-                       <div className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase border 
-                        ${item.status === 'RESOLVED' 
+                        <div className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase border 
+                        ${item.status === 'RESOLVED' || item.status === 'CLOSED'
                           ? 'bg-green-500 text-white border-green-500/20' 
                           : item.status === 'AWAITING_MERCHANT' || item.status === 'OPEN'
                             ? 'bg-red-500 text-white border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
                             : 'bg-white/10 text-white border-white/10'}`}>
-                        {item.status}
+                        {isAr ? (t.dashboard.merchant.resolution.statusTimeline[item.status.toLowerCase()] || item.status) : item.status}
                       </div>
 
                       {/* Action Required Label */}
                       {(item.status === 'AWAITING_MERCHANT' || item.status === 'OPEN') && (
                         <div className="flex items-center gap-2 text-[10px] font-black uppercase text-white bg-gold-500/90 px-3 py-1.5 rounded-full shadow-lg shadow-gold-500/20">
                           <Clock size={12} className="animate-spin-slow" />
-                          <span>Action Required</span>
+                          <span>{t.dashboard.merchant.resolution.actionRequired || (isAr ? 'مطلوب إجراء' : 'Action Required')}</span>
                         </div>
                       )}
                     </div>
 
-                    {/* Deadline Countdown (Simulated for Now) */}
+                    {/* Deadline Countdown */}
                     {(item.status === 'AWAITING_MERCHANT' || item.status === 'OPEN') && (
                       <div className="text-[10px] font-bold text-red-400/80 flex items-center gap-2">
                         <span>{t.dashboard.merchant.resolution.deadlineLeft}: </span>
-                        <div className="flex items-center gap-1 font-mono">
-                          <span className="bg-red-500/10 px-1 rounded">22h</span>
-                          <span>:</span>
-                          <span className="bg-red-500/10 px-1 rounded">14m</span>
-                        </div>
+                        <CaseCountdown deadline={item.deadline} />
                       </div>
                     )}
 

@@ -60,7 +60,22 @@ export const common = {
       REFUNDED: 'تم الاسترداد',
       RETURN_REQUESTED: 'طلب إرجاع',
       RETURN_APPROVED: 'موافقة على الإرجاع',
-      RESOLVED: 'تم الحل'
+      RESOLVED: 'تم الحل',
+      // Shipment Detailed Statuses
+      RECEIVED_AT_HUB: 'تم الاستلام في المركز',
+      QUALITY_CHECK_PASSED: 'اجتاز فحص الجودة',
+      PACKAGED_FOR_SHIPPING: 'تم التغليف للشحن',
+      AWAITING_CARRIER_PICKUP: 'بانتظار استلام شركة الشحن',
+      PICKED_UP_BY_CARRIER: 'تم الاستلام من المندوب',
+      IN_TRANSIT_TO_DESTINATION: 'في الطريق إلى الوجهة',
+      ARRIVED_AT_LOCAL_FACILITY: 'وصلت للمركز المحلي',
+      CUSTOMS_CLEARANCE: 'قيد التخليص الجمركي',
+      AT_LOCAL_WAREHOUSE: 'في المستودع المحلي',
+      OUT_FOR_DELIVERY: 'خارج للتوصيل مع المندوب',
+      DELIVERY_ATTEMPTED: 'محاولة توصيل',
+      DELIVERED_TO_CUSTOMER: 'تم التوصيل للعميل',
+      RETURN_TO_SENDER_INITIATED: 'بدء الإرجاع للمرسل',
+      RETURNED_TO_SENDER: 'تم الإرجاع للمرسل'
     },
     daysShort: ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'],
     location: 'الرياض، السعودية',
@@ -174,7 +189,22 @@ export const common = {
       REFUNDED: 'Refunded',
       RETURN_REQUESTED: 'Return Requested',
       RETURN_APPROVED: 'Return Approved',
-      RESOLVED: 'Resolved'
+      RESOLVED: 'Resolved',
+      // Shipment Detailed Statuses
+      RECEIVED_AT_HUB: 'Received at Hub',
+      QUALITY_CHECK_PASSED: 'Quality Check Passed',
+      PACKAGED_FOR_SHIPPING: 'Packaged for Shipping',
+      Awaiting_Carrier_Pickup: 'Awaiting Carrier Pickup',
+      PICKED_UP_BY_CARRIER: 'Picked up by Carrier',
+      IN_TRANSIT_TO_DESTINATION: 'In Transit to Destination',
+      ARRIVED_AT_LOCAL_FACILITY: 'Arrived at Local Facility',
+      CUSTOMS_CLEARANCE: 'Customs Clearance',
+      AT_LOCAL_WAREHOUSE: 'At Local Warehouse',
+      OUT_FOR_DELIVERY: 'Out for Delivery',
+      DELIVERY_ATTEMPTED: 'Delivery Attempted',
+      DELIVERED_TO_CUSTOMER: 'Delivered to Customer',
+      RETURN_TO_SENDER_INITIATED: 'Return to Sender Initiated',
+      RETURNED_TO_SENDER: 'Returned to Sender'
     },
     roleSelection: {
       customerOrders: 'Customer Parts Orders',

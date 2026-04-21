@@ -229,7 +229,12 @@ export const OrderControl: React.FC<{ onNavigate?: (path: string, id: any) => vo
                                             <div className="px-3 py-1 bg-white/5 border border-white/5 rounded-lg">
                                                 <span className="text-[10px] font-mono font-black text-gold-500 tracking-tighter">#{String(order.id).slice(0, 8).toUpperCase()}</span>
                                             </div>
-                                            <Badge status={order.status} className="scale-90 origin-left" />
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <Badge status={order.status} className="scale-90 origin-left" />
+                                                {order.shipments?.[0] && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
+                                                    <Badge status={order.shipments[0].status as StatusType} className="scale-75 origin-left animate-in fade-in zoom-in duration-500" />
+                                                )}
+                                            </div>
                                         </div>
                                         
                                         <div className="flex items-center gap-3">

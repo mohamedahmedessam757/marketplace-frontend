@@ -573,6 +573,11 @@ export const customer = {
       newReturn: 'طلب إرجاع جديد',
       newDispute: 'فتح نزاع جديد',
       subtitle: 'إدارة المرتجعات والنزاعات',
+      heroDesc: 'منصة حماية المستهلك المتقدمة. إدارة طلبات الإرجاع وفض النزاعات بشفافية مطلقة وأمان عالي تحت نظام Escrow.',
+      tabs: {
+        returns: 'بروتوكول المرتجعات',
+        disputes: 'النزاعات الرسمية'
+      },
       returnPolicy: 'يمكنك طلب الإرجاع خلال 48 ساعة من الاستلام في حال وجود عيوب أو عدم تطابق.',
       disputePolicy: 'يتم تجميد الأموال فور فتح النزاع. يرجى التواصل مع التاجر أولاً.',
       reasons: {
@@ -582,7 +587,25 @@ export const customer = {
         delayed: 'تأخر الشحن',
         wrong_item: 'استلام قطعة خاطئة',
         wrong_size: 'خطأ في المقاس أو الموديل',
-        shipping_error: 'خطأ من شركة الشحن'
+        shipping_error: 'خطأ من شركة الشحن',
+        warranty_claim: 'مطالبة بموجب الضمان'
+      },
+      stats: {
+        protectedFunds: 'سيولة محمية',
+        eligibleOrders: 'طلبات مؤهلة',
+        activeDisputes: 'نزاعات نشطة',
+        safeVault: 'في الخزانة الآمنة',
+        readyAction: 'جاهزة للإجراء',
+        verifiedEscrow: 'حماية Escrow'
+      },
+      quickActions: {
+        title: 'إجراءات عاجلة متاحة',
+        subtitle: 'طلبات مؤهلة للحماية أو الإرجاع الآن'
+      },
+      actions: {
+        escalate: 'تصعيد للإدارة',
+        underAdminReview: 'قيد مراجعة الإدارة',
+        confirmEscalation: 'هل أنت متأكد من تصعيد هذه الحالة للإدارة؟'
       },
       guidelines: {
         title: 'تعليمات التغليف',
@@ -1269,6 +1292,11 @@ export const customer = {
       newReturn: 'New Return',
       newDispute: 'New Dispute',
       subtitle: 'Manage disputes and returns',
+      heroDesc: 'Advanced consumer protection hub. Manage returns and resolve disputes with absolute transparency and high security under Escrow protocol.',
+      tabs: {
+        returns: 'Return Protocol',
+        disputes: 'Formal Disputes'
+      },
       returnPolicy: 'You can request a return within 48 hours of delivery for defects or mismatch.',
       disputePolicy: 'Funds are frozen immediately upon opening a dispute. Please contact merchant first.',
       reasons: {
@@ -1279,6 +1307,23 @@ export const customer = {
         wrong_item: 'Wrong item received',
         wrong_size: 'Wrong size or model',
         shipping_error: 'Shipping logistics error'
+      },
+      stats: {
+        protectedFunds: 'Protected Funds',
+        eligibleOrders: 'Eligible Orders',
+        activeDisputes: 'Active Disputes',
+        safeVault: 'Safe in Vault',
+        readyAction: 'Ready for Action',
+        verifiedEscrow: 'Verified Escrow'
+      },
+      quickActions: {
+        title: 'Quick Actions Available',
+        subtitle: 'Orders eligible for protection or return now'
+      },
+      actions: {
+        escalate: 'Escalate to Admin',
+        underAdminReview: 'Under Admin Review',
+        confirmEscalation: 'Are you sure you want to escalate this case to admin?'
       },
       guidelines: {
         title: 'Packaging Guidelines',

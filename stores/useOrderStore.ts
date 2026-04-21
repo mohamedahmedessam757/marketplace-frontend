@@ -56,7 +56,7 @@ export const SLA_LIMITS: Partial<Record<StatusType, number>> = {
     PREPARATION: 48,      // 48 hours to prepare
     DELAYED_PREPARATION: 24, // 24 extra hours to prepare (Penalty period)
     SHIPPED: 72,          // 3 days to deliver
-    DELIVERED: 168,
+    DELIVERED: 72,
     DISPUTED: 72
 };
 

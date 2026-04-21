@@ -1,171 +1,236 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, Clock, ShieldAlert, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { X, Package, Clock, ShieldAlert, ChevronDown, CheckCircle2, AlertTriangle, Zap } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { Button } from '../../ui/Button';
 import { useOrderStore, Order } from '../../../stores/useOrderStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { OrderCountdown } from '../../ui/OrderCountdown';
 
 interface OrderSelectionModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSelect: (order: Order, type: 'return' | 'dispute') => void;
+    onSelect: (order: Order, type: 'return' | 'dispute', partId?: string) => void;
+    mode: 'return' | 'dispute';
 }
 
-export const OrderSelectionModal: React.FC<OrderSelectionModalProps> = ({ isOpen, onClose, onSelect }) => {
+export const OrderSelectionModal: React.FC<OrderSelectionModalProps> = ({ isOpen, onClose, onSelect, mode }) => {
     const { orders, isLoading } = useOrderStore();
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
-    const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
+    const [selectedParts, setSelectedParts] = useState<Record<string, string>>({});
 
-    // Filter eligible orders: DELIVERED and within 48h
+    // 2026 Standard: 72h (3 Days) unified window
+    const ELIGIBILITY_WINDOW_HOURS = 72;
+
     const eligibleOrders = orders.filter(order => {
+        // Requirement: ONLY DELIVERED
         if (order.status !== 'DELIVERED') return false;
         
         const deliveredDate = order.deliveredAt ? new Date(order.deliveredAt) : new Date(order.updatedAt);
         const now = new Date();
         const diffHours = (now.getTime() - deliveredDate.getTime()) / (1000 * 60 * 60);
         
-        return diffHours <= 48;
+        return diffHours <= ELIGIBILITY_WINDOW_HOURS;
     });
+
+    const handlePartSelect = (orderId: string, partId: string) => {
+        setSelectedParts(prev => ({ ...prev, [orderId]: partId }));
+    };
+
+    const isActionDisabled = (order: Order) => {
+        // If order has multiple parts, a selection is MANDATORY
+        if (order.parts && order.parts.length > 1) {
+            return !selectedParts[order.id];
+        }
+        return false;
+    };
 
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 overflow-hidden">
                     <motion.div 
                         initial={{ opacity: 0 }} 
                         animate={{ opacity: 1 }} 
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+                        className="absolute inset-0 bg-[#050505]/95 backdrop-blur-sm"
                     />
 
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         className="w-full max-w-2xl relative z-10"
                     >
-                        <GlassCard className="p-0 border-white/10 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                        <div className="bg-[#0A0A0A] border border-white/10 rounded-[40px] overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.9)]">
                             {/* Header */}
-                            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
                                 <div>
-                                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-                                        {t.dashboard.resolution.initiate.title}
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border
+                                            ${mode === 'return' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                            <ShieldAlert size={12} className="inline mr-2" />
+                                            {mode === 'return' ? (isAr ? 'بروتوكول الإرجاع' : 'Return Protocol') : (isAr ? 'بروتوكول النزاع' : 'Dispute Protocol')}
+                                        </div>
+                                    </div>
+                                    <h2 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-none">
+                                        {isAr ? 'اختيار الطلب المعني' : 'Select Target Order'}
                                     </h2>
-                                    <p className="text-white/40 text-xs font-bold uppercase tracking-widest mt-1">
-                                        {t.dashboard.resolution.initiate.selectOrder}
-                                    </p>
                                 </div>
                                 <button 
                                     onClick={onClose}
-                                    className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+                                    className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 hover:rotate-90 transition-all duration-500 border border-white/5"
                                 >
-                                    <X size={20} className="text-white/40" />
+                                    <X size={24} className="text-white/40" />
                                 </button>
                             </div>
 
                             {/* List Content */}
-                            <div className="max-h-[60vh] overflow-y-auto p-6 space-y-4 no-scrollbar">
+                            <div className="max-h-[60vh] overflow-y-auto p-8 space-y-6 no-scrollbar">
                                 {isLoading ? (
-                                    <div className="py-20 flex flex-col items-center justify-center space-y-4 text-white/20">
-                                        <div className="w-12 h-12 border-2 border-white/10 border-t-gold-500 rounded-full animate-spin" />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.3em]">Accessing History...</span>
+                                    <div className="py-20 flex flex-col items-center justify-center space-y-4">
+                                        <div className="w-16 h-16 border-2 border-white/5 border-t-gold-500 rounded-full animate-spin shadow-[0_0_20px_rgba(212,175,55,0.2)]" />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Syncing Node...</span>
                                     </div>
                                 ) : eligibleOrders.length === 0 ? (
-                                    <div className="py-20 text-center space-y-6">
-                                        <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
-                                            <ShieldAlert size={32} className="text-white/20" />
+                                    <div className="py-20 text-center space-y-10">
+                                        <div className="w-24 h-24 bg-white/5 rounded-[35px] flex items-center justify-center mx-auto border border-white/10 relative group">
+                                            <ShieldAlert size={48} className="text-white/10 group-hover:text-gold-500 transition-colors duration-700" />
+                                            <div className="absolute inset-0 bg-gold-500/5 blur-3xl opacity-50" />
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-black text-white uppercase">{t.dashboard.resolution.initiate.noEligible}</h3>
-                                            <p className="text-white/30 text-sm max-w-xs mx-auto mt-2 leading-relaxed font-medium">
-                                                {t.dashboard.resolution.initiate.noEligibleDesc}
+                                            <h3 className="text-2xl font-black text-white uppercase tracking-widest">{isAr ? 'لا توجد طلبات مؤهلة' : 'No Eligible Orders'}</h3>
+                                            <p className="text-white/30 text-xs max-w-sm mx-auto mt-4 leading-relaxed font-bold uppercase tracking-widest">
+                                                {isAr 
+                                                    ? 'تظهر هنا فقط الطلبات التي تم تسليمها (DELIVERED) خلال الـ 72 ساعة الماضية. إذا تم استلام الطلب مسبقاً، يرجى التواصل مع الدعم.' 
+                                                    : 'Only orders officially DELIVERED within the last 72 hours are eligible. For older orders, please contact executive support.'}
                                             </p>
                                         </div>
+                                        <button 
+                                            onClick={onClose}
+                                            className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                                        >
+                                            {isAr ? 'فهمت، إغلاق' : 'Understood, Close'}
+                                        </button>
                                     </div>
                                 ) : (
-                                    eligibleOrders.map((order) => (
+                                    eligibleOrders.map((order, idx) => (
                                         <motion.div
                                             key={order.id}
-                                            whileHover={{ scale: 1.02 }}
-                                            whileTap={{ scale: 0.98 }}
-                                            className="group bg-white/5 border border-white/5 rounded-3xl p-6 hover:border-gold-500/30 transition-all cursor-pointer relative overflow-hidden"
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: idx * 0.1 }}
+                                            className="group bg-[#0D0D0C] border border-white/5 rounded-[32px] p-8 hover:border-gold-500/20 transition-all relative overflow-hidden"
                                         >
-                                            <div className="flex items-start justify-between relative z-10">
-                                                <div className="flex gap-4">
-                                                    <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 text-white/40 group-hover:text-gold-400 transition-colors">
-                                                        <Package size={28} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-[10px] font-black text-gold-500 uppercase tracking-widest">ORDER #{order.orderNumber}</span>
-                                                            <div className="px-2 py-0.5 bg-green-500/10 text-green-400 text-[8px] font-black rounded-full border border-green-500/20">DELIVERED</div>
+                                            <div className="flex flex-col gap-8 relative z-10">
+                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                                    <div className="flex gap-6 items-center">
+                                                        <div className="w-20 h-20 bg-white/5 rounded-[24px] flex items-center justify-center border border-white/10 text-white/20 group-hover:text-gold-500 group-hover:scale-110 transition-all duration-700 shadow-2xl shrink-0">
+                                                            <Package size={40} strokeWidth={1} />
                                                         </div>
-                                                        <h4 className="text-lg font-black text-white">{order.part}</h4>
-                                                        <p className="text-white/40 text-[10px] font-bold uppercase flex items-center gap-2 mt-1">
-                                                            <Clock size={12} /> {new Date(order.deliveredAt || order.updatedAt).toLocaleString()}
-                                                        </p>
-                                                        {((new Date().getTime() - new Date(order.deliveredAt || order.updatedAt).getTime()) / (1000 * 60 * 60)) <= 24 && (
-                                                            <div className="mt-2 text-[8px] font-black text-green-400 uppercase tracking-tighter bg-green-500/10 px-2 py-0.5 rounded-full inline-block border border-green-500/20">
-                                                                DISPUTE ELIGIBLE (within 24h)
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-[11px] font-black text-gold-500/80 uppercase tracking-widest">#{order.orderNumber}</span>
+                                                                <div className="px-3 py-1 bg-green-500/10 text-green-400 text-[9px] font-black rounded-full border border-green-500/20 uppercase tracking-tighter">Status: Delivered</div>
                                                             </div>
-                                                        )}
+                                                            <h4 className="text-2xl font-black text-white group-hover:text-gold-400 transition-colors uppercase leading-none truncate max-w-[200px]">{order.part}</h4>
+                                                            <div className="flex items-center gap-2">
+                                                                <Clock size={12} className="text-white/20" />
+                                                                <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">
+                                                                    {new Date(order.deliveredAt || order.updatedAt).toLocaleString(isAr ? 'ar-EG' : 'en-GB')}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col items-end gap-3 self-center">
+                                                        <OrderCountdown 
+                                                            deliveredAt={order.deliveredAt || order.updatedAt} 
+                                                            compact
+                                                        />
                                                     </div>
                                                 </div>
 
-                                                <div className="flex flex-col gap-2">
-                                                    <button 
-                                                        onClick={() => onSelect(order, 'return')}
-                                                        className="px-4 py-2 bg-white/5 hover:bg-white text-white hover:text-black rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10"
-                                                    >
-                                                        {t.dashboard.resolution.initiate.returnItem}
-                                                    </button>
+                                                {/* Multi-Part Selection Logic: MANDATORY */}
+                                                {order.parts && order.parts.length > 1 && (
+                                                    <div className="pt-6 border-t border-white/5 space-y-4">
+                                                        <div className="flex items-center gap-3 text-[10px] font-black text-white/40 uppercase tracking-widest">
+                                                            <Zap size={14} className="text-gold-500 animate-pulse" />
+                                                            {isAr ? 'اختر القطعة المتضررة (إلزامي):' : 'Select Target Part (Mandatory):'}
+                                                        </div>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                            {order.parts.map(p => (
+                                                                <button
+                                                                    key={p.id}
+                                                                    onClick={() => handlePartSelect(order.id, p.id)}
+                                                                    className={`px-5 py-4 rounded-2xl text-[11px] font-black text-left transition-all border relative overflow-hidden group/part
+                                                                        ${selectedParts[order.id] === p.id 
+                                                                            ? 'bg-gold-500/10 text-gold-500 border-gold-500 shadow-[0_0_20px_rgba(212,175,55,0.2)]' 
+                                                                            : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10 hover:text-white/60'}`}
+                                                                >
+                                                                    <div className="flex items-center justify-between relative z-10">
+                                                                        <span className="truncate pr-4">{p.name}</span>
+                                                                        {selectedParts[order.id] === p.id && <CheckCircle2 size={16} />}
+                                                                    </div>
+                                                                    {selectedParts[order.id] === p.id && (
+                                                                        <motion.div 
+                                                                            layoutId={`glow-${order.id}`}
+                                                                            className="absolute inset-0 bg-gold-500/5 blur-xl pointer-events-none"
+                                                                        />
+                                                                    )}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-6 border-t border-white/5">
+                                                    <div className="flex items-center gap-2 text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">
+                                                        <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                                                        Escrow Safe Protocol
+                                                    </div>
                                                     
-                                                    {(() => {
-                                                        const diffHours = (new Date().getTime() - new Date(order.deliveredAt || order.updatedAt).getTime()) / (1000 * 60 * 60);
-                                                        const canDispute = diffHours <= 24;
-                                                        
-                                                        return (
-                                                            <button 
-                                                                onClick={() => canDispute && onSelect(order, 'dispute')}
-                                                                disabled={!canDispute}
-                                                                className={`
-                                                                    px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border
-                                                                    ${canDispute 
-                                                                        ? 'bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border-red-500/20' 
-                                                                        : 'bg-white/5 text-white/20 border-white/5 cursor-not-allowed opacity-50'
-                                                                    }
-                                                                `}
-                                                            >
-                                                                {t.dashboard.resolution.initiate.openDispute}
-                                                            </button>
-                                                        );
-                                                    })()}
+                                                    <button 
+                                                        onClick={() => onSelect(order, mode, selectedParts[order.id])}
+                                                        disabled={isActionDisabled(order)}
+                                                        className={`w-full sm:w-auto px-10 py-4 rounded-2xl text-[12px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale
+                                                            ${mode === 'return' 
+                                                                ? 'bg-cyan-500 text-black hover:shadow-[0_0_30px_rgba(6,182,212,0.4)]' 
+                                                                : 'bg-red-500 text-white hover:shadow-[0_0_30px_rgba(239,68,68,0.4)]'}`}
+                                                    >
+                                                        {mode === 'return' 
+                                                            ? (isAr ? 'فتح بروتوكول الإرجاع' : 'Open Return Protocol') 
+                                                            : (isAr ? 'فتح نزاع رسمي' : 'Open Formal Dispute')}
+                                                    </button>
                                                 </div>
                                             </div>
                                             
-                                            {/* Decorative Background Gradient */}
-                                            <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 blur-[60px] pointer-events-none group-hover:bg-gold-500/10 transition-all" />
+                                            {/* Luxury Grid Decoration */}
+                                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/[0.01] -translate-y-1/2 translate-x-1/2 rounded-full blur-3xl pointer-events-none transition-all group-hover:bg-gold-500/[0.03]" />
                                         </motion.div>
                                     ))
                                 )}
                             </div>
 
-                            {/* Footer Note */}
-                            <div className="p-6 bg-black/40 border-t border-white/5">
-                                <div className="flex gap-4 items-center">
-                                    <div className="w-10 h-10 bg-gold-500/10 rounded-full flex items-center justify-center border border-gold-500/20">
-                                        <CheckCircle2 size={20} className="text-gold-400" />
+                            {/* Safety Footer */}
+                            <div className="p-8 bg-white/[0.01] border-t border-white/5">
+                                <div className="flex gap-6 items-start">
+                                    <div className="w-14 h-14 bg-gold-500/10 rounded-[20px] flex items-center justify-center border border-gold-500/20 shrink-0">
+                                        <CheckCircle2 size={28} className="text-gold-500" />
                                     </div>
-                                    <p className="text-[10px] text-white/40 font-bold uppercase leading-relaxed">
-                                        {t.dashboard.resolution.returnPolicy}
-                                    </p>
+                                    <div className="space-y-1">
+                                        <p className="text-[11px] text-white font-black uppercase tracking-widest leading-none">Escrow Asset Security</p>
+                                        <p className="text-[10px] text-white/30 font-bold uppercase leading-relaxed tracking-wider">
+                                            {isAr 
+                                                ? 'عند بدء الطلب، يتم تجميد أموالك في خزانة آمنة تماماً. يمنع المتجر من سحب التسييل حتى يتم حل القضية بشكل نهائي وعادل.' 
+                                                : 'Upon initiation, your funds are frozen in a high-security vault. The merchant is blocked from withdrawal until a final/fair resolution is reached.'}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </GlassCard>
+                        </div>
                     </motion.div>
                 </div>
             )}

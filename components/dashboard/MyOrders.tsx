@@ -6,8 +6,10 @@ import { Badge, StatusType } from '../ui/Badge';
 import { Search, Filter, Calendar, Box, ChevronRight, ChevronLeft, RefreshCw, XCircle, Trash2, CreditCard, Tag, Clock, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useOrdersStore } from '../../stores/useOrdersStore';
+import { useShipmentsStore } from '../../stores/useShipmentsStore';
 import { Order } from '../../types';
 import { CountdownTimer } from './OrderDetails';
+import { OrderCountdown } from '../ui/OrderCountdown';
 import { getDynamicOrderDeadline, isOrderExpired } from '../../utils/dateUtils';
 
 
@@ -19,6 +21,7 @@ interface MyOrdersProps {
 export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const { orders, loading, fetchOrders, cancelOrder, deleteOrder, renewOrder, canCancelOrder } = useOrdersStore();
+    const { shipments, fetchShipments } = useShipmentsStore();
 
     // Filters State
     const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -30,7 +33,8 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
 
     useEffect(() => {
         fetchOrders();
-    }, [fetchOrders]);
+        fetchShipments(); // Fetch shipments for the badges
+    }, [fetchOrders, fetchShipments]);
 
 
 
@@ -249,7 +253,21 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                             <div className="flex items-center justify-between md:justify-end gap-6 pl-16 md:pl-0">
                                                 <div className="flex flex-col items-end gap-2">
                                                     {/* Always show actual status badge */}
-                                                    <Badge status={order.status as StatusType} />
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge status={order.status as StatusType} />
+                                                        {(() => {
+                                                            const shipment = shipments.find(s => s.orderId === order.id);
+                                                            if (shipment && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status)) {
+                                                                return (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Badge status={shipment.status as StatusType} className="animate-in fade-in zoom-in duration-500" />
+                                                                        <OrderCountdown updatedAt={order.updatedAt} status={order.status} />
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
 
                                                     {/* Independent Timer: only for specific pending/tracking states */}
                                                     {(() => {

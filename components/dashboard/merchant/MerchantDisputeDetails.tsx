@@ -3,12 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AlertTriangle, Clock, ChevronRight, ChevronLeft, FileText, 
-  UploadCloud, Send, ShieldCheck, User, MessageSquare, Scale, CheckCircle2, X
+  UploadCloud, Send, ShieldCheck, User, MessageSquare, Scale, CheckCircle2, X,
+  FileIcon, FileImage, FileStack, Trash2
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { SecurityUtils } from '../../../utils/security';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 
 interface MerchantDisputeDetailsProps {
@@ -18,50 +18,97 @@ interface MerchantDisputeDetailsProps {
 
 export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ caseId, onBack }) => {
   const { t, language } = useLanguage();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isAr = language === 'ar';
   const ArrowIcon = isAr ? ChevronLeft : ChevronRight;
   
-  const { getCaseById, respondToCase } = useResolutionStore();
+  const { getCaseById, respondToCase, escalateCase } = useResolutionStore();
   const { addNotification } = useNotificationStore();
   const dispute = getCaseById(caseId);
 
   const [response, setResponse] = useState('');
-  const [acceptReturn, setAcceptReturn] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
+  const [decision, setDecision] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [showEscalateModal, setShowEscalateModal] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [timeLeft, setTimeLeft] = useState<{h: number, m: number} | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEscalating, setIsEscalating] = useState(false);
+
+  const calcTimeLeft = (deadlineStr: string) => {
+    const diff = new Date(deadlineStr).getTime() - new Date().getTime();
+    if (diff <= 0) return { h: 0, m: 0 };
+    return {
+      h: Math.floor(diff / (1000 * 60 * 60)),
+      m: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+    };
+  };
 
   // Timer Logic: Countdown to Auto-Escalation
   useEffect(() => {
     if (!dispute) return;
+    // Initial calculation to prevent flicker
+    setTimeLeft(calcTimeLeft(dispute.deadline));
     const interval = setInterval(() => {
-      const deadline = new Date(dispute.deadline).getTime();
-      const now = new Date().getTime();
-      const diff = deadline - now;
-
-      if (diff <= 0) {
-        setTimeLeft({ h: 0, m: 0 });
-      } else {
-        setTimeLeft({
-          h: Math.floor(diff / (1000 * 60 * 60)),
-          m: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-        });
-      }
+      setTimeLeft(calcTimeLeft(dispute.deadline));
     }, 60000);
     return () => clearInterval(interval);
   }, [dispute]);
 
   if (!dispute) return <div className="p-8 text-center text-white">Case not found</div>;
 
-  const handleSubmit = () => {
-    if (!response && !acceptReturn) return;
+  const handleManualEscalate = async () => {
+    setIsEscalating(true);
+    await escalateCase(dispute.id);
+    
+    addNotification({
+        type: 'dispute',
+        titleKey: 'disputeUpdate',
+        message: isAr
+          ? `تم تصعيد النزاع #${dispute.id} للإدارة يدوياً.`
+          : `Dispute #${dispute.id} manually escalated to administration.`,
+        orderId: dispute.orderId,
+        linkTo: 'resolution',
+        priority: 'high'
+    });
+    
+    setIsEscalating(false);
+    setShowEscalateModal(false);
+    onBack();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files) as File[];
+      // Validate size (10MB) and count (5 max)
+      const validFiles = newFiles.filter((f: File) => f.size <= 10 * 1024 * 1024);
+      if (validFiles.length !== newFiles.length) {
+        addNotification({
+          type: 'alert',
+          titleKey: 'error',
+          message: isAr ? 'بعض الملفات تتجاوز الحد الأقصى (10 ميجابايت)' : 'Some files exceed the 10MB limit',
+          priority: 'high'
+        });
+      }
+      setSelectedFiles(prev => [...prev, ...validFiles].slice(0, 5));
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async () => {
+    if (!decision) return;
+    if (decision === 'REJECT' && !response.trim()) return;
+    
     setIsSubmitting(true);
     
-    setTimeout(() => {
-      respondToCase(dispute.id, dispute.type, {
+    try {
+      // Secure Backend Upload (Bypasses Frontend RLS using NestJS Service Role Key)
+      await respondToCase(dispute.id, dispute.type, {
         text: response,
-        acceptedReturn: acceptReturn,
-        evidence: files
+        acceptedReturn: decision === 'APPROVE',
+        evidence: selectedFiles // Passing files to be handled by backend
       });
 
       addNotification({
@@ -75,9 +122,18 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
           priority: 'normal'
       });
 
-      setIsSubmitting(false);
       onBack();
-    }, 2000);
+    } catch (error: any) {
+      addNotification({
+        type: 'alert',
+        titleKey: 'error',
+        message: isAr ? 'فشل إرسال الرد، يرجى المحاولة لاحقاً' : 'Failed to submit response, please try again',
+        priority: 'high'
+      });
+      console.error('Submission error:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getUrgencyColor = () => {
@@ -99,14 +155,19 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
         
         <div className="flex items-center gap-4 bg-[#151310] px-4 py-2 rounded-xl border border-white/10">
            <div className="text-right">
-              <span className="block text-[10px] text-white/40 uppercase tracking-wider">{isAr ? 'الموعد النهائي للرد (تلقائي)' : 'Auto-Escalation Deadline'}</span>
-              {timeLeft ? (
+              <span className="block text-[10px] text-white/40 uppercase tracking-wider">{isAr ? 'التصعيد التلقائي خلال' : 'Auto-Escalation In'}</span>
+               {timeLeft ? (
                 <div className={`flex items-center gap-2 font-mono font-bold ${getUrgencyColor()}`}>
                    <Clock size={14} />
                    {timeLeft.h}h {timeLeft.m}m
                 </div>
+              ) : dispute.status === 'ESCALATED' ? (
+                <span className="text-xs text-red-500 font-bold uppercase">{isAr ? 'تم التصعيد للإدارة' : 'ESCALATED TO ADMIN'}</span>
               ) : (
-                <span className="text-xs text-red-500 font-bold">ESCALATED TO ADMIN</span>
+                <div className="flex items-center gap-2 text-white/20 animate-pulse">
+                  <Clock size={14} />
+                  <span className="text-[10px] font-mono">--h --m</span>
+                </div>
               )}
            </div>
            <div className="h-8 w-px bg-white/10" />
@@ -129,14 +190,12 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                     <h2 className="text-lg font-bold text-white mb-1">{isAr ? 'تفاصيل شكوى العميل' : 'Customer Claim Details'}</h2>
                     <div className="flex items-center gap-2 text-xs text-white/50">
                        <User size={12} />
-                       {dispute.customerName}
-                       <span className="w-1 h-1 rounded-full bg-white/20" />
-                       <span className="font-mono">{SecurityUtils.maskPhone('0551234567')}</span>
+                       <span>{isAr ? 'كود العميل' : 'Customer Code'}: {dispute.customerId.split('-')[0]}</span>
                     </div>
                  </div>
                  <div className="bg-red-500/10 text-red-400 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
                     <Scale size={14} />
-                    {dispute.reason.toUpperCase()}
+                    {isAr ? (t.dashboard.merchant.resolution.reasons[dispute.reason.toLowerCase()] || dispute.reason) : dispute.reason.toUpperCase()}
                  </div>
               </div>
 
@@ -207,25 +266,96 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                     </p>
                  </div>
 
-                 <div className="flex-1 space-y-6">
-                    {/* Decision Toggle */}
-                    <div 
-                       onClick={() => setAcceptReturn(!acceptReturn)}
-                       className={`
-                          p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-4
-                          ${acceptReturn 
-                             ? 'bg-blue-500/10 border-blue-500/50' 
-                             : 'bg-white/5 border-white/10 hover:bg-white/10'}
-                       `}
-                    >
-                       <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${acceptReturn ? 'bg-blue-500 border-blue-500 text-white' : 'border-white/30'}`}>
-                          {acceptReturn && <CheckCircle2 size={16} />}
+                  <div className="flex-1 space-y-4">
+                    {/* Decision Buttons */}
+                    <div className="grid grid-cols-2 gap-4">
+                       <div 
+                          onClick={() => setDecision('APPROVE')}
+                          className={`
+                             p-4 rounded-xl border cursor-pointer transition-all flex flex-col gap-2 relative overflow-hidden
+                             ${decision === 'APPROVE' 
+                                ? 'bg-green-500/10 border-green-500/50' 
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'}
+                          `}
+                       >
+                          <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${decision === 'APPROVE' ? 'bg-green-500 border-green-500 text-white' : 'border-white/30'}`}>
+                             {decision === 'APPROVE' && <CheckCircle2 size={16} />}
+                          </div>
+                          <div>
+                             <h4 className="font-bold text-white text-[12px]">{isAr ? 'الموافقة على الإرجاع والصلح' : 'Accept Return & Resolve'}</h4>
+                             <p className="text-[9px] text-white/40 leading-tight">{isAr ? 'سيتم إصدار بوليصة إرجاع للعميل فوراً' : 'Return waybill will be issued immediately'}</p>
+                          </div>
                        </div>
-                       <div>
-                          <h4 className="font-bold text-white text-sm">{isAr ? 'الموافقة على الإرجاع والصلح' : 'Accept Return & Resolve'}</h4>
-                          <p className="text-[10px] text-white/40">{isAr ? 'سيتم إصدار بوليصة إرجاع للعميل فوراً' : 'Return waybill will be issued immediately'}</p>
+
+                       <div 
+                          onClick={() => setDecision('REJECT')}
+                          className={`
+                             p-4 rounded-xl border cursor-pointer transition-all flex flex-col gap-2 relative overflow-hidden
+                             ${decision === 'REJECT' 
+                                ? 'bg-red-500/10 border-red-500/50' 
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'}
+                          `}
+                       >
+                          <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${decision === 'REJECT' ? 'bg-red-500 border-red-500 text-white' : 'border-white/30'}`}>
+                             {decision === 'REJECT' && <X size={16} />}
+                          </div>
+                          <div>
+                             <h4 className="font-bold text-white text-[12px]">{isAr ? 'رفض الإرجاع' : 'Reject Return'}</h4>
+                             <p className="text-[9px] text-white/40 leading-tight">{isAr ? 'سيتم مراجعة دفاعك من قبل الإدارة' : 'Decision will be reviewed by admin'}</p>
+                          </div>
                        </div>
                     </div>
+
+                     {/* Dynamic Decision Warnings (Phase 2) */}
+                     <AnimatePresence mode="wait">
+                        {decision === 'APPROVE' && (
+                           <motion.div
+                              key="approve-warning"
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden"
+                           >
+                              <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20 flex gap-3 text-left mb-4">
+                                 <AlertTriangle size={18} className="text-green-500 shrink-0 mt-0.5" />
+                                 <div className="flex-1">
+                                    <h5 className="text-[11px] font-bold text-green-500 mb-1">
+                                       {isAr ? 'ماذا سيحدث الآن؟' : 'What happens next?'}
+                                    </h5>
+                                    <p className="text-[10px] text-white/60 leading-relaxed">
+                                       {isAr 
+                                         ? 'بمجرد الموافقة، سنقوم بإصدار بوليصة شحن للعميل آلياً. بعد استلامك للمنتج وفحصه، يمكنك تأكيد استرداد الأموال للعميل.' 
+                                         : 'Upon approval, a return waybill will be automatically generated for the customer. Once you receive and inspect the item, you can confirm the final refund.'}
+                                    </p>
+                                 </div>
+                              </div>
+                           </motion.div>
+                        )}
+
+                        {decision === 'REJECT' && (
+                           <motion.div
+                              key="reject-warning"
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden"
+                           >
+                              <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 flex gap-3 text-left mb-4">
+                                 <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" />
+                                 <div className="flex-1">
+                                    <h5 className={`text-[11px] font-bold text-red-500 mb-1 ${isAr ? 'text-right' : 'text-left'}`}>
+                                       {isAr ? 'تنبيه هـام' : 'Important Note'}
+                                    </h5>
+                                    <p className={`text-[10px] text-white/60 leading-relaxed ${isAr ? 'text-right' : 'text-left'}`}>
+                                       {isAr 
+                                         ? 'يجب كتابة سبب الرفض بوضوح وإرفاق الأدلة اللازمة. قد يقوم العميل بطلب "تصعيد" القضية للإدارة للمراجعة النهائية في حال عدم الاقتناع بالسبب.' 
+                                         : 'A clear reason for rejection and supporting evidence must be provided. The customer may escalate the case to administration for final review if the reason is unsatisfactory.'}
+                                    </p>
+                                 </div>
+                              </div>
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
 
                     {/* Defense Text */}
                     <div>
@@ -240,38 +370,151 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                        />
                     </div>
 
-                    {/* Evidence Upload */}
-                    <div className="border border-dashed border-white/10 rounded-xl p-4 flex items-center justify-center gap-3 text-white/40 hover:text-gold-400 hover:border-gold-500/30 hover:bg-white/5 cursor-pointer transition-all">
-                       <UploadCloud size={20} />
-                       <span className="text-xs font-bold">{isAr ? 'إرفاق صور أو مستندات (اختياري)' : 'Attach Proof (Optional)'}</span>
-                    </div>
+                     {/* Evidence Upload */}
+                     <div className="space-y-4">
+                        <input 
+                           type="file" 
+                           ref={fileInputRef}
+                           onChange={handleFileSelect}
+                           multiple 
+                           accept="image/*,application/pdf,video/*"
+                           className="hidden" 
+                        />
+                        <div 
+                           onClick={() => fileInputRef.current?.click()}
+                           className="border border-dashed border-white/10 rounded-xl p-4 flex items-center justify-center gap-3 text-white/40 hover:text-gold-400 hover:border-gold-500/30 hover:bg-white/5 cursor-pointer transition-all"
+                        >
+                           <UploadCloud size={20} />
+                           <span className="text-xs font-bold">{isAr ? 'إرفاق صور أو مستندات (اختياري)' : 'Attach Proof (Optional)'}</span>
+                        </div>
+
+                        {/* Selected Files Gallery */}
+                        <AnimatePresence>
+                           {selectedFiles.length > 0 && (
+                              <motion.div 
+                                 initial={{ opacity: 0, y: 10 }}
+                                 animate={{ opacity: 1, y: 0 }}
+                                 exit={{ opacity: 0, y: 10 }}
+                                 className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                              >
+                                 {selectedFiles.map((file, idx) => (
+                                    <div key={idx} className="group relative bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3 hover:bg-white/10 transition-colors">
+                                       <div className="w-10 h-10 rounded-lg bg-gold-500/10 flex items-center justify-center text-gold-400 shrink-0">
+                                          {file.type.startsWith('image/') ? <FileImage size={20} /> : <FileText size={20} />}
+                                       </div>
+                                       <div className="flex-1 min-w-0">
+                                          <p className="text-[10px] text-white font-bold truncate">{file.name}</p>
+                                          <p className="text-[9px] text-white/40">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                       </div>
+                                       <button 
+                                          onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
+                                          className="p-1.5 bg-black/20 hover:bg-red-500/10 text-white/40 hover:text-red-400 rounded-md transition-all"
+                                          title={isAr ? 'حذف' : 'Remove'}
+                                       >
+                                          <X size={14} />
+                                       </button>
+                                    </div>
+                                 ))}
+                              </motion.div>
+                           )}
+                        </AnimatePresence>
+                     </div>
                  </div>
 
-                 <div className="mt-8 pt-6 border-t border-white/10 flex justify-end gap-3">
-                    <button 
-                       onClick={onBack}
-                       className="px-6 py-3 rounded-xl hover:bg-white/5 text-white/60 hover:text-white transition-colors text-sm font-bold"
-                    >
-                       {isAr ? 'إلغاء' : 'Cancel'}
-                    </button>
-                    <button 
-                       onClick={handleSubmit}
-                       disabled={isSubmitting || (!response && !acceptReturn)}
-                       className="px-8 py-3 bg-gold-500 hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center gap-2"
-                    >
-                       {isSubmitting ? 'Processing...' : (
-                          <>
-                             <Send size={16} />
-                             {isAr ? 'إرسال الرد' : 'Submit Response'}
-                          </>
-                       )}
-                    </button>
-                 </div>
+                  <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap justify-between items-center gap-4">
+                     <button 
+                        onClick={() => setShowEscalateModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-400 hover:bg-red-500/10 hover:border-red-500/50 transition-all duration-300 active:scale-95 shadow-lg shadow-red-500/5"
+                     >
+                        <Scale size={14} />
+                        {isAr ? 'تصعيد للادارة' : 'Escalate to Admin'}
+                     </button>
+
+                     <div className="flex gap-3">
+                        <button 
+                           onClick={onBack}
+                           className="px-6 py-3 rounded-xl hover:bg-white/5 text-white/60 hover:text-white transition-colors text-sm font-bold"
+                        >
+                           {isAr ? 'إلغاء' : 'Cancel'}
+                        </button>
+                        <button 
+                           onClick={handleSubmit}
+                           disabled={isSubmitting || !decision || (decision === 'REJECT' && !response.trim())}
+                           className="px-8 py-3 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed text-black rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                           {isSubmitting ? (
+                              <div className="flex items-center gap-2">
+                                 <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                                 <span>{isAr ? 'جاري الرفع...' : 'Uploading...'}</span>
+                              </div>
+                           ) : (
+                              <>
+                                 <Send size={16} />
+                                 {isAr ? 'إرسال الرد' : 'Send Response'}
+                              </>
+                           )}
+                        </button>
+                     </div>
+                  </div>
               </GlassCard>
            )}
         </div>
 
       </div>
+
+      {/* Manual Escalation Warning Modal */}
+      <AnimatePresence>
+         {showEscalateModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+               <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowEscalateModal(false)}
+                  className="absolute inset-0 bg-black/80 backdrop-blur-md"
+               />
+               <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                  className="relative w-full max-w-md bg-[#1A1814] border border-white/10 rounded-3xl p-8 shadow-2xl overflow-hidden"
+               >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/0 via-red-500 to-red-500/0" />
+                  
+                  <div className="flex flex-col items-center text-center gap-6">
+                     <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
+                        <AlertTriangle size={40} />
+                     </div>
+                     
+                     <div className="space-y-2">
+                        <h3 className="text-xl font-bold text-white">{isAr ? 'هل أنت متأكد من التصعيد؟' : 'Confirm Manual Escalation'}</h3>
+                        <p className="text-sm text-white/50 leading-relaxed">
+                           {isAr 
+                              ? 'عند تصعيد النزاع، سيتم سحب الصلاحيات من التاجر والعميل وسيتم تحويل المراجعة إلى فريق فض النزاعات بالإدارة لإصدار حكم نهائي وغير قابل للنقاش.'
+                              : 'By escalating, you transfer full control to the administration. A final, non-negotiable verdict will be issued by the dispute team.'}
+                        </p>
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-3 w-full mt-4">
+                        <button 
+                           onClick={() => setShowEscalateModal(false)}
+                           className="py-4 rounded-2xl bg-white/5 text-white/60 hover:text-white font-bold transition-all"
+                        >
+                           {isAr ? 'تراجع' : 'Back'}
+                        </button>
+                        <button 
+                           onClick={handleManualEscalate}
+                           disabled={isEscalating}
+                           className="py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-bold shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2"
+                        >
+                           {isEscalating ? <Clock className="animate-spin" size={18} /> : (isAr ? 'نعم، تصعيد الآن' : 'Yes, Escalate Now')}
+                        </button>
+                     </div>
+                  </div>
+               </motion.div>
+            </div>
+         )}
+      </AnimatePresence>
     </div>
   );
 };

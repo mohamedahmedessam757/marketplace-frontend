@@ -26,6 +26,7 @@ interface DisputeModalProps {
     onClose: () => void;
     onSuccess: () => void;
     orderId: string;
+    orderPartId?: string;
     merchantName: string;
     partName: string;
 }
@@ -35,6 +36,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
     onClose, 
     onSuccess,
     orderId,
+    orderPartId,
     merchantName,
     partName
 }) => {
@@ -69,7 +71,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
         
         setIsSubmitting(true);
 
-        const success = await escalateDispute(String(orderId), undefined, reason, description, files);
+        const success = await escalateDispute(String(orderId), orderPartId, reason, description, files);
 
         if (success) {
             const orderData = getOrder(orderId);
@@ -105,18 +107,19 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={onClose}
-                    className="absolute inset-0 bg-black/90 backdrop-blur-2xl"
+                    className="absolute inset-0 bg-black/85"
                 />
 
                 <motion.div
-                    initial={{ scale: 0.95, opacity: 0, y: 30 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.95, opacity: 0, y: 30 }}
-                    className="w-full max-w-2xl relative z-10"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="w-full max-w-lg relative z-10"
                 >
-                    <GlassCard className="p-0 border-red-500/20 overflow-hidden shadow-[0_0_80px_rgba(239, 68, 68, 0.15)] bg-[#0A0A0A]/80">
+                    <div className="p-0 border border-red-500/20 rounded-[2rem] overflow-hidden shadow-2xl bg-[#0A0A0A] relative">
                         {/* 2026 Header - Dispute (High Alert) */}
-                        <div className="p-8 border-b border-white/5 relative overflow-hidden">
+                        <div className="p-6 border-b border-white/5 relative overflow-hidden">
                             <div className="flex justify-between items-start relative z-10">
                                 <div>
                                     <div className="flex items-center gap-2 mb-3">
@@ -135,7 +138,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                     onClick={onClose}
                                     className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10 active:scale-95"
                                 >
-                                    <X size={24} className="text-white/40" />
+                                    <X size={20} className="text-white/40" />
                                 </button>
                             </div>
                             {/* Visual background element - Red glow */}
@@ -143,11 +146,11 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                         </div>
 
                         {/* Interactive Form Body */}
-                        <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto no-scrollbar">
+                        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                             {/* Order Context Recap Card */}
                             <div className="flex items-center gap-6 p-6 bg-white/[0.02] border border-white/5 rounded-3xl group">
-                                <div className="w-20 h-20 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform duration-500">
-                                    <Package size={40} className="text-red-500/50" />
+                                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform duration-500">
+                                    <Package size={32} className="text-red-500/50" />
                                 </div>
                                 <div className="space-y-1">
                                     <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">#{orderId}</span>
@@ -177,16 +180,11 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                 <div className="group">
                                     <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 ml-2">{t.dashboard.resolution.form.reason}</label>
                                     <div className="relative">
-                                        <select
+                                        <select 
                                             value={reason}
                                             onChange={(e) => setReason(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white focus:border-red-500/50 outline-none appearance-none transition-all hover:bg-white/[0.08]"
+                                            className={`w-full bg-[#0A0A0A] border border-white/10 rounded-2xl px-5 py-4 text-xs text-white outline-none focus:border-red-500/50 transition-all appearance-none cursor-pointer ${isAr ? 'text-right' : 'text-left'}`}
                                         >
-                                            <option value="" className="bg-[#0A0A0A]">{t.dashboard.common?.select || 'Select Violation Protocol...'}</option>
-                                            <option value="delayed" className="bg-[#0A0A0A]">{t.dashboard.resolution.reasons?.delayed || 'Delivery Fault: Delayed'}</option>
-                                            <option value="shipping_error" className="bg-[#0A0A0A]">{isAr ? 'خطأ من شركة الشحن' : 'Shipping: Logistics Error'}</option>
-                                            <option value="defective" className="bg-[#0A0A0A]">{t.dashboard.resolution.reasons?.defective || 'Quality Violation: Defective'}</option>
-                                            <option value="not_matching" className="bg-[#0A0A0A]">{t.dashboard.resolution.reasons?.not_matching || 'Integrity: Counterfeit / Misled'}</option>
                                             <option value="other" className="bg-[#0A0A0A]">{isAr ? 'أخرى - فتح قضية رسمية' : 'Other - Open Formal Case'}</option>
                                         </select>
                                         <div className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'left-6' : 'right-6'} pointer-events-none text-white/20 group-hover:text-red-500 transition-colors`}>
@@ -249,7 +247,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                         </div>
 
                         {/* Luxury Footer with High-Stakes Button */}
-                        <div className="p-8 bg-white/[0.02] border-t border-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
+                        <div className="p-6 bg-white/[0.02] border-t border-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
                                     <Scale size={16} />
@@ -272,7 +270,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                 )}
                             </button>
                         </div>
-                    </GlassCard>
+                    </div>
                 </motion.div>
             </div>
         </AnimatePresence>

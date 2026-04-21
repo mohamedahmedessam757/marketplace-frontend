@@ -5,7 +5,8 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { GlassCard } from '../../ui/GlassCard';
-import { Badge } from '../../ui/Badge';
+import { Badge, StatusType } from '../../ui/Badge';
+import { OrderCountdown } from '../../ui/OrderCountdown';
 
 const CarIcon = (props: any) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>
@@ -231,7 +232,12 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                             </div>
                             <div>
                                 <span className="text-gold-400 font-mono font-bold text-sm block leading-none mb-1">#{order.orderNumber || order.id}</span>
-                                <StatusIndicator status={order.status} />
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <StatusIndicator status={order.status} />
+                                    {order.shipments?.[0] && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
+                                        <Badge status={order.shipments[0].status as StatusType} className="scale-75 origin-left animate-in fade-in zoom-in duration-500" />
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all" title={t.dashboard.merchant.merchantSettings.viewDetails}>
@@ -280,6 +286,8 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                                 <div className="flex items-center gap-2 text-[10px] text-white/30 font-mono mb-3">
                                     <Calendar size={12} />
                                     {isAr ? 'سلمت يوم:' : 'Delivered:'} {new Date(order.deliveredAt || order.updatedAt).toLocaleDateString()}
+                                    <div className="mx-2">•</div>
+                                    <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} />
                                 </div>
                                 {order.acceptedOffer?.warranty && order.acceptedOffer.warranty !== 'none' ? (
                                     <WarrantyProgress deliveredAt={order.deliveredAt || order.updatedAt} durationStr={order.acceptedOffer.warranty} isAr={isAr} />

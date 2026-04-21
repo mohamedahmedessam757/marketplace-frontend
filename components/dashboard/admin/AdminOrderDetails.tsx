@@ -7,6 +7,7 @@ import { OfferCard } from '../OfferCard';
 import { PartOffersDrawer } from '../PartOffersDrawer';
 import { CountdownTimer } from '../OrderDetails';
 import { ShipmentTracker } from '../shipments/ShipmentTracker';
+import { OrderCountdown } from '../../ui/OrderCountdown';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore, SLA_LIMITS } from '../../../stores/useOrderStore';
 import { useAdminStore } from '../../../stores/useAdminStore';
@@ -308,7 +309,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
     const getReturnDeadline = () => {
         if (!order.deliveredAt) return '';
         const d = new Date(order.deliveredAt);
-        d.setHours(d.getHours() + 48);
+        d.setHours(d.getHours() + 72); // 3 Day Protection Window
         return d.toISOString();
     };
 
@@ -388,11 +389,15 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                         {order.status === 'AWAITING_PAYMENT' && order.offerAcceptedAt && (
                             <CountdownTimer targetDate={getPaymentDeadline()} label={(t.dashboard.timers as any)?.payment_expires || 'Payment Expires'} />
                         )}
-                        {order.status === 'DELIVERED' && order.deliveredAt && (
-                            <CountdownTimer targetDate={getReturnDeadline()} label={(t.dashboard.timers as any)?.return_window || 'Return Window'} />
+                        {(order.status === 'DELIVERED' || order.status === 'DELIVERED_TO_CUSTOMER') && (
+                            <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} variant="badge" />
                         )}
                     </div>
                 </div>
+
+                {(order.status === 'DELIVERED' || order.status === 'DELIVERED_TO_CUSTOMER') && (
+                    <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} variant="full" />
+                )}
 
                 <GlassCard className="p-0 overflow-hidden bg-[#1A1814] border-white/5">
                     <div className="p-6 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -404,6 +409,9 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                         : order.part}
                                 </h1>
                                 <Badge status={order.status} />
+                                {order.shipments && order.shipments.length > 0 && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
+                                    <Badge status={order.shipments[0].status as StatusType} className="animate-in fade-in zoom-in duration-500" />
+                                )}
                             </div>
                             <div className="text-white/60 text-sm flex flex-wrap items-center gap-2">
                                 <span>{(t.dashboard.orders as any)?.orderId || 'Order #'} {order.id}</span>

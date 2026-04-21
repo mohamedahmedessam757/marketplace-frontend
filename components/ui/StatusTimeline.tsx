@@ -52,10 +52,10 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus })
       case 'ARRIVED_AT_LOCAL_FACILITY':
       case 'CUSTOMS_CLEARANCE':
       case 'AT_LOCAL_WAREHOUSE':
-      case 'OUT_FOR_DELIVERY': return 5;
+      case 'OUT_FOR_DELIVERY': 
+      case 'DELIVERY_ATTEMPTED': return 5;
       
       // Delivery / Completed phase
-      case 'DELIVERY_ATTEMPTED':
       case 'DELIVERED': 
       case 'DELIVERED_TO_CUSTOMER':
       case 'COMPLETED': return 6;

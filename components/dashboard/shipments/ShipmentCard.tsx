@@ -5,6 +5,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { ShipmentTracker, statusTranslations } from './ShipmentTracker';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Shipment } from '../../../stores/useShipmentsStore';
+import { Badge, StatusType } from '../../ui/Badge';
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -44,14 +45,9 @@ export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment, onNavigate
                         </div>
                     </div>
 
-                    {/* Status Badge - Now closer to info */}
+                    {/* Status Badge - Now using the enhanced Badge component */}
                     <div className="flex items-center shrink-0">
-                        <div className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border ${shipment.status === 'DELIVERED_TO_CUSTOMER'
-                            ? 'bg-green-500/10 border-green-500/20 text-green-400'
-                            : 'bg-gold-500/10 border-gold-500/20 text-gold-400'
-                            }`}>
-                            {statusTranslations[shipment.status]?.[isAr ? 'ar' : 'en'] || shipment.status}
-                        </div>
+                        <Badge status={shipment.status as StatusType} />
                     </div>
                 </div>
 
