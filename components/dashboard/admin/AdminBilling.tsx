@@ -231,7 +231,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                         <td className="p-4 font-mono text-white font-bold">{inv.id}</td>
                                         <td className="p-4">{getTypeBadge(inv.type)}</td>
                                         <td className={`p-4 font-mono font-bold ${inv.type === 'PAYOUT_INVOICE' ? 'text-red-400' : 'text-green-400'}`}>
-                                            {inv.type === 'PAYOUT_INVOICE' ? '-' : '+'}{inv.totalAmount.toLocaleString()} SAR
+                                            {inv.type === 'PAYOUT_INVOICE' ? '-' : '+'}{inv.totalAmount.toLocaleString()} AED
                                         </td>
                                         <td className="p-4 text-sm text-white/60">{new Date(inv.date).toLocaleDateString()}</td>
                                         <td className="p-4">

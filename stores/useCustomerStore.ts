@@ -22,9 +22,10 @@ export interface Customer {
   email: string;
   phone: string;
   status: 'ACTIVE' | 'SUSPENDED';
-  joinedAt: string;
+  joinedAt?: string; // Kept for legacy if needed
+  createdAt: string;
   avatar?: string;
-  balance?: number;
+  balance?: number; // Legacy, kept for compatibility
   ltv?: number;
   successRate?: number;
   ordersCount?: number;
@@ -33,6 +34,28 @@ export interface Customer {
   securityLogs?: SecurityLog[];
   orders?: any[];
   disputes?: any[];
+  payments?: any[]; // Enriched with order/offer in Phase 3.1
+  invoices?: any[]; // New field from Phase 3.1
+
+  // 2026 Enhanced Fields
+  customerBalance?: number;
+  totalSpent?: number;
+  loyaltyTier?: 'BASIC' | 'SILVER' | 'GOLD' | 'VIP' | 'BRONZE' | 'PLATINUM';
+  loyaltyPoints?: number;
+  referralCode?: string;
+  referralCount?: number;
+  violationScore?: number;
+  country?: string;
+  countryCode?: string;
+  emailVerifiedAt?: string;
+  suspendedUntil?: string;
+  suspendReason?: string;
+  _count?: {
+    violations: number;
+    disputes: number;
+    orders: number;
+    referredUsers: number;
+  };
 }
 
 interface CustomerState {
@@ -41,9 +64,13 @@ interface CustomerState {
   error: string | null;
   fetchCustomers: () => Promise<void>;
   fetchCustomerById: (id: string) => Promise<Customer | null>;
-  toggleStatus: (id: string) => Promise<void>;
+  toggleStatus: (id: string, reason?: string) => Promise<void>;
   updateNotes: (id: string, notes: string) => Promise<void>;
+  updateCustomer: (id: string, data: Partial<Customer>) => Promise<void>;
+  subscribeToCustomerChanges: (id: string, onUpdate: () => void) => { unsubscribe: () => void };
 }
+
+import { supabase } from '../services/supabase';
 
 export const useCustomerStore = create<CustomerState>((set, get) => ({
   customers: [],
@@ -76,27 +103,72 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     return response.json();
   },
 
-  toggleStatus: async (id: string) => {
+  toggleStatus: async (id: string, reason?: string) => {
+    const customer = get().customers.find(c => c.id === id);
+    if (!customer) return;
+
+    const newStatus = customer.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+
     // Optimistic Update
     set((state) => ({
       customers: state.customers.map(c =>
-        c.id === id ? { ...c, status: c.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' } : c
+        c.id === id ? { ...c, status: newStatus } : c
       )
     }));
 
     try {
       const token = localStorage.getItem('access_token');
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await Patch(`${API_URL}/users/admin/customers/${id}/status`, token);
+      const response = await fetch(`${API_URL}/users/admin/customers/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus, reason })
+      });
       if (!response.ok) throw new Error('Failed to toggle status');
     } catch (err) {
       console.error(err);
-      // Revert if failed (Simple refetch for safety)
       get().fetchCustomers();
     }
   },
 
+  updateCustomer: async (id, data) => {
+    const previousCustomers = get().customers;
+    
+    // Optimistic Update
+    set((state) => ({
+      customers: state.customers.map(c => String(c.id) === String(id) ? { ...c, ...data } : c)
+    }));
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${API_URL}/users/admin/customers/${id}/update`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to update customer');
+    } catch (err) {
+      console.error(err);
+      // Revert on failure
+      set({ customers: previousCustomers });
+    }
+  },
+
   updateNotes: async (id: string, notes: string) => {
+    const previousCustomers = get().customers;
+
+    // Optimistic Update
+    set((state) => ({
+      customers: state.customers.map(c => String(c.id) === String(id) ? { ...c, adminNotes: notes } : c)
+    }));
+
     try {
       const token = localStorage.getItem('access_token');
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -109,13 +181,29 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
         body: JSON.stringify({ notes })
       });
       if (!response.ok) throw new Error('Failed to update notes');
-
-      set((state) => ({
-        customers: state.customers.map(c => String(c.id) === String(id) ? { ...c, adminNotes: notes } : c)
-      }));
     } catch (err) {
       console.error(err);
+      // Revert on failure
+      set({ customers: previousCustomers });
     }
+  },
+
+  subscribeToCustomerChanges: (id: string, onUpdate: () => void) => {
+    // Phase 5: Luxury Real-time Sync (2026 Standard)
+    // Subscribe to all relevant financial tables for this specific customer
+    const channel = supabase
+      .channel(`customer-finance-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_transactions', filter: `customer_id=eq.${id}` }, onUpdate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_transactions', filter: `user_id=eq.${id}` }, onUpdate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `user_id=eq.${id}` }, onUpdate)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${id}` }, onUpdate)
+      .subscribe();
+
+    return {
+      unsubscribe: () => {
+        supabase.removeChannel(channel);
+      }
+    };
   }
 }));
 

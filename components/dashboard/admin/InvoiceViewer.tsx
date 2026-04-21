@@ -143,22 +143,22 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoiceId, onBack 
                         <div className="w-full max-w-xs space-y-3">
                             <div className="flex justify-between text-sm text-gray-600">
                                 <span>{t.admin.billing.invoiceViewer.subtotal}</span>
-                                <span className="font-mono">{invoice.subtotal.toFixed(2)} SAR</span>
+                                <span className="font-mono">{invoice.subtotal.toFixed(2)} AED</span>
                             </div>
                             {invoice.shippingAmount > 0 && (
                                 <div className="flex justify-between text-sm text-gray-600">
                                     <span>{t.admin.billing.invoiceViewer.shipping}</span>
-                                    <span className="font-mono">{invoice.shippingAmount.toFixed(2)} SAR</span>
+                                    <span className="font-mono">{invoice.shippingAmount.toFixed(2)} AED</span>
                                 </div>
                             )}
                             <div className="flex justify-between text-sm text-gray-600">
                                 <span>{t.admin.billing.invoiceViewer.vat}</span>
-                                <span className="font-mono">{invoice.taxAmount.toFixed(2)} SAR</span>
+                                <span className="font-mono">{invoice.taxAmount.toFixed(2)} AED</span>
                             </div>
                             <div className="h-px bg-gray-200 my-2" />
                             <div className="flex justify-between items-center text-lg font-bold text-gray-900 bg-gray-50 p-2 rounded">
                                 <span>{t.admin.billing.invoiceViewer.totalDue}</span>
-                                <span className="font-mono text-[#A88B3E]">{invoice.totalAmount.toLocaleString()} SAR</span>
+                                <span className="font-mono text-[#A88B3E]">{invoice.totalAmount.toLocaleString()} AED</span>
                             </div>
                         </div>
                     </div>

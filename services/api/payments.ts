@@ -14,4 +14,9 @@ export const paymentsApi = {
         const res = await client.post('/payments/create-intent', data);
         return res.data;
     },
+
+    getAdminMerchantDashboard: async (targetUserId: string, filters?: { startDate?: string; endDate?: string }) => {
+        const res = await client.get(`/payments/admin/merchant/${targetUserId}/dashboard`, { params: filters });
+        return res.data;
+    },
 };

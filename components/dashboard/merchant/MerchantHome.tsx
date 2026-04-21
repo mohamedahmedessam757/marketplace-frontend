@@ -7,6 +7,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
+import { useReviewStore } from '../../../stores/useReviewStore';
 
 interface MerchantHomeProps {
     onNavigate: (path: string, id?: number) => void;
@@ -23,14 +24,15 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
 
     // Fetch Dashboard Stats on Mount
     const { fetchDashboardStats, fetchVendorProfile } = useVendorStore();
+    const { fetchImpactRules, impactRules } = useReviewStore();
     const fetchLock = useRef(false);
 
     useEffect(() => {
         if (fetchLock.current) return;
         fetchLock.current = true;
-        Promise.all([fetchDashboardStats(), fetchVendorProfile()])
+        Promise.all([fetchDashboardStats(), fetchVendorProfile(), fetchImpactRules()])
             .finally(() => fetchLock.current = false);
-    }, [fetchDashboardStats, fetchVendorProfile]);
+    }, [fetchDashboardStats, fetchVendorProfile, fetchImpactRules]);
 
     // --- LOGIC: Alerts ---
     const activeAlerts = [];
@@ -181,6 +183,29 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Featured Badge Logic */}
+            {(() => {
+                const isFeatured = impactRules.some(r => 
+                    r.actionType === 'FEATURED' && 
+                    r.isActive && 
+                    (performance?.rating || 0) >= Number(r.minRating) && 
+                    (performance?.rating || 0) <= Number(r.maxRating)
+                );
+                
+                if (!isFeatured) return null;
+
+                return (
+                    <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center gap-3 px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl w-fit"
+                    >
+                        <Star size={18} className="text-emerald-400" fill="currentColor" />
+                        <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">{t.dashboard.merchant.reviews.featuredStore}</span>
+                    </motion.div>
+                );
+            })()}
 
             {/* Reputation & Performance Overview [NEW 2026] */}
             <div className="grid lg:grid-cols-4 gap-6">

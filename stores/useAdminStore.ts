@@ -705,6 +705,25 @@ export const useAdminStore = create<AdminState>()(
               silentFetchStoreProfile(id);
             }
           )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `store_id=eq.${id}` },
+            () => {
+              console.log(`🔔 Admin Store Withdrawal Update Received for ${id}`);
+              silentFetchStoreProfile(id);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'wallet_transactions' },
+            (payload: any) => {
+              const { currentStoreProfile } = get();
+              if (currentStoreProfile?.ownerId === payload.new?.user_id || currentStoreProfile?.ownerId === payload.old?.user_id) {
+                console.log(`🔔 Admin Store Wallet Transaction Received for owner: ${currentStoreProfile?.ownerId}`);
+                silentFetchStoreProfile(id);
+              }
+            }
+          )
           .subscribe();
 
         set({ storeProfileSubscription: channel });

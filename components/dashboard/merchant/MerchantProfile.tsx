@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, MapPin, Clock, FileText, UploadCloud, Edit3, Save, CheckCircle2, User, Phone, Mail, Shield, ShieldCheck, Fingerprint, Globe, RefreshCw, Eye, Archive, CreditCard, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Store, MapPin, Clock, FileText, UploadCloud, Edit3, Save, CheckCircle2, User, Phone, Mail, Shield, ShieldCheck, Fingerprint, Globe, RefreshCw, Eye, Archive, CreditCard, ExternalLink, AlertTriangle, Star } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useVendorStore } from '../../../stores/useVendorStore';
+import { useReviewStore } from '../../../stores/useReviewStore';
 import { GlassCard } from '../../ui/GlassCard';
 import { MultiSelectDropdown } from '../../ui/MultiSelectDropdown';
 import { manufacturers } from '../../../data/manufacturers';
@@ -17,6 +18,8 @@ export const MerchantProfile: React.FC = () => {
         contractAcceptance, subscribeToVendorProfile, unsubscribeFromVendorProfile,
         connectStripe, openStripeDashboard
     } = useVendorStore();
+
+    const { fetchImpactRules, impactRules } = useReviewStore();
     
     const [activeProfileTab, setActiveProfileTab] = useState<'info' | 'contract'>('info');
     const [isEditing, setIsEditing] = useState(false);
@@ -27,9 +30,10 @@ export const MerchantProfile: React.FC = () => {
 
     useEffect(() => {
         fetchVendorProfile();
+        fetchImpactRules();
         subscribeToVendorProfile();
         return () => unsubscribeFromVendorProfile();
-    }, [fetchVendorProfile, subscribeToVendorProfile, unsubscribeFromVendorProfile]);
+    }, [fetchVendorProfile, fetchImpactRules, subscribeToVendorProfile, unsubscribeFromVendorProfile]);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -286,7 +290,26 @@ export const MerchantProfile: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
-                                    <h2 className="text-xl font-bold text-white mb-2">{storeInfo.storeName || t.dashboard.merchant.storeProfile.fields.name}</h2>
+                                    <div className="flex flex-col items-center gap-2 mb-2">
+                                        <h2 className="text-xl font-bold text-white leading-tight">{storeInfo.storeName || t.dashboard.merchant.storeProfile.fields.name}</h2>
+                                        {(() => {
+                                            const isFeatured = impactRules.some(r => 
+                                                r.actionType === 'FEATURED' && 
+                                                r.isActive && 
+                                                (performance?.rating || 0) >= Number(r.minRating) && 
+                                                (performance?.rating || 0) <= Number(r.maxRating)
+                                            );
+                                            
+                                            if (!isFeatured) return null;
+
+                                            return (
+                                                <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                                                    <Star size={10} className="text-emerald-400" fill="currentColor" />
+                                                    <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">{t.dashboard.merchant.reviews.featuredStore}</span>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
                                     
                                     <div className="flex items-center justify-center gap-1 mb-6">
                                         {[1, 2, 3, 4, 5].map(s => (

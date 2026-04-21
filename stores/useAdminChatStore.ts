@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
+import { getCurrentUserId } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -17,6 +18,7 @@ export interface AdminChatMessage {
     mediaUrl?: string;
     mediaType?: string;
     mediaName?: string;
+    senderRole?: string;
 }
 
 export interface AdminChat {
@@ -28,8 +30,10 @@ export interface AdminChat {
     customerName: string;
     customerAvatar?: string;
     vendorId?: string;
+    vendorOwnerId?: string;
     vendorName?: string;
     vendorLogo?: string;
+    vendorCode?: string;
     status: string;
     type: 'order' | 'support';
     lastMessage: string;
@@ -40,6 +44,12 @@ export interface AdminChat {
     customerTranslationEnabledAt?: string;
     vendorTranslationEnabledAt?: string;
     adminTranslationEnabledAt?: string;
+    adminInitReason?: string;
+    category?: string;
+    guestName?: string;
+    guestEmail?: string;
+    guestPhone?: string;
+    source?: string;
     messages?: AdminChatMessage[];
 }
 
@@ -59,6 +69,7 @@ interface AdminChatState {
     adminAction: (chatId: string, action: string, payload?: any) => Promise<any>;
     sendMessage: (chatId: string, text: string, mediaUrl?: string, mediaType?: string, mediaName?: string) => Promise<void>;
     toggleTranslation: (chatId: string, enabled: boolean) => Promise<void>;
+    initSupportChat: (params: { targetUserId: string; targetRole: 'CUSTOMER' | 'VENDOR'; reason: string; orderId?: string }) => Promise<AdminChat>;
     clearActiveChat: () => void;
     
     // WebSockets
@@ -88,13 +99,34 @@ export const useAdminChatStore = create<AdminChatState>((set, get) => ({
             autoConnect: true,
         });
 
-        newSocket.on('connect', () => console.log('Admin Chat Socket Connected'));
+        newSocket.on('connect', () => {
+            console.log('Admin Chat Socket Connected');
+            
+            // Phase 4: Join global oversight room for real-time list updates
+            const token = localStorage.getItem('access_token');
+            if (token) {
+                // We assume the user is an admin here because this is the admin store
+                newSocket.emit('joinChat', { chatId: 'admin_global', role: 'admin' });
+            }
+        });
+
+        // Listen for global chat updates (Phase 4)
+        newSocket.on('chatListUpdate', (data: { chatId: string, type: 'order' | 'support' }) => {
+            const { currentType, fetchChats } = get();
+            // Only refetch if the update matches our current view
+            if (currentType === data.type) {
+                console.log(`Real-time update for ${data.type} list`);
+                fetchChats(data.type);
+            }
+        });
 
         newSocket.on('newMessage', (message: AdminChatMessage) => {
             const { activeChat } = get();
-            // Instantly append if it belongs to the active chat and isn't our own optimistic message
-            if (activeChat && activeChat.id === message?.chatId && message.senderId !== 'admin_optimistic') {
-                // Prevent duplicate if we already refetched
+            const currentUserId = getCurrentUserId();
+            
+            // Instantly append if it belongs to the active chat and isn't our own message (we handle our own in sendMessage)
+            if (activeChat && activeChat.id === message?.chatId && message.senderId !== currentUserId) {
+                // Prevent duplicate if we already refetched or updated
                 const exists = activeChat.messages?.some(m => m.id === message.id);
                 if (!exists) {
                     set({
@@ -161,9 +193,16 @@ export const useAdminChatStore = create<AdminChatState>((set, get) => ({
     },
 
     fetchChatById: async (id) => {
-        // Only show loading when switching to a new chat
-        const currentActive = get().activeChat;
-        if (!currentActive || currentActive.id !== id) {
+        const { orderChats, activeChat: currentActive } = get();
+        
+        // 1. Optimistic Selection: Set basic chat info immediately from the list
+        const chatFromList = orderChats.find(c => c.id === id);
+        if (chatFromList) {
+            set({ 
+                activeChat: { ...chatFromList, messages: [] }, // Clear messages for fresh load
+                isLoading: true 
+            });
+        } else {
             set({ isLoading: true });
         }
         
@@ -172,12 +211,13 @@ export const useAdminChatStore = create<AdminChatState>((set, get) => ({
             const response = await axios.get(`${API_URL}/chats/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            
+            // 2. Final Update: Replace with full data from backend
             set({ activeChat: response.data, isLoading: false });
 
-            // Ensure socket joins this chat's room
+            // Socket Room Management
             const { socket } = get();
             if (socket) {
-                // If we were in another chat, leave it first
                 if (currentActive && currentActive.id !== id) {
                     socket.emit('leaveChat', { chatId: currentActive.id });
                 }
@@ -191,19 +231,23 @@ export const useAdminChatStore = create<AdminChatState>((set, get) => ({
 
     adminAction: async (chatId, action, payload) => {
         try {
+            // 1) Optimistic UI update for 'close' and 'block'
+            const activeChat = get().activeChat;
+            if (activeChat && activeChat.id === chatId) {
+                if (action === 'block') {
+                    set({ activeChat: { ...activeChat, status: 'CLOSED' } }); // Blocking can stay optimistic as it's more severe
+                }
+            }
+
             const token = localStorage.getItem('access_token');
             const response = await axios.post(`${API_URL}/chats/${chatId}/admin-action`, 
                 { action, payload },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             
-            // Refresh the current list after a destructive action
-            if (['deleteChat', 'deleteMessage', 'close', 'block'].includes(action)) {
-                const currentType = get().currentType || 'order';
-                await get().fetchChats(currentType);
-                if (get().activeChat?.id === chatId) {
-                    await get().fetchChatById(chatId);
-                }
+            // 3) Update status after server confirmation for 'close'
+            if (action === 'close' && get().activeChat?.id === chatId) {
+                set({ activeChat: { ...get().activeChat!, status: 'CLOSED' } });
             }
 
             return response.data;
@@ -242,17 +286,30 @@ export const useAdminChatStore = create<AdminChatState>((set, get) => ({
             }
 
             // 2) Send actual request to server
-            await axios.post(`${API_URL}/chats/${chatId}/messages`, 
+            const response = await axios.post(`${API_URL}/chats/${chatId}/messages`, 
                 { text, mediaUrl, mediaType, mediaName },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             
-            // 3) Refetch to get actual DB IDs and proper format
-            await get().fetchChatById(chatId);
+            // 3) Update optimistic message with real DB data to avoid refetch/loading
+            const realMessage = response.data;
+            if (get().activeChat?.id === chatId) {
+                set((state) => ({
+                    activeChat: state.activeChat ? {
+                        ...state.activeChat,
+                        messages: (state.activeChat.messages || []).map(m => 
+                            m.senderId === 'admin_optimistic' && m.text === text ? realMessage : m
+                        )
+                    } : null
+                }));
+            }
         } catch (error: any) {
             console.error('Send message failed:', error);
-            // On failure, refetch to revert the optimistic update
-            await get().fetchChatById(chatId);
+            // On failure, refetch to clean up the optimistic state
+            const currentActive = get().activeChat;
+            if (currentActive?.id === chatId) {
+                await get().fetchChatById(chatId);
+            }
         }
     },
 
@@ -275,6 +332,24 @@ export const useAdminChatStore = create<AdminChatState>((set, get) => ({
             }
         } catch (error) {
             console.error('Failed to toggle translation:', error);
+        }
+    },
+
+    initSupportChat: async (params) => {
+        try {
+            const token = localStorage.getItem('access_token');
+            const response = await axios.post(`${API_URL}/chats/admin-init-support`, 
+                params,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            // Refresh support chats list
+            await get().fetchChats('support');
+            
+            return response.data;
+        } catch (error: any) {
+            console.error('Init support chat failed:', error);
+            throw error;
         }
     }
 }));

@@ -25,10 +25,6 @@ export const AdminChatOversight: React.FC = () => {
         clearActiveChat();
         initSocket();
         fetchChats('order');
-        
-        // Polling for updates every 10 seconds as a fallback to WebSocket
-        const interval = setInterval(() => fetchChats('order'), 10000);
-        return () => clearInterval(interval);
     }, [fetchChats, clearActiveChat, initSocket]);
 
     if (isLoading && !_hasLoadedOrder) {

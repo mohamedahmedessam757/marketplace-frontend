@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useAdminChatStore } from '../../../stores/useAdminChatStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { Search, MessageSquare, User, CheckCircle2, Send, ChevronRight, ChevronLeft, Loader2, Download, Video, FileText, Image as ImageIcon, Inbox, X, Globe, Paperclip } from 'lucide-react';
+import { Search, MessageSquare, User, CheckCircle2, Send, ChevronRight, ChevronLeft, Loader2, Download, Video, FileText, Image as ImageIcon, Inbox, X, Globe, Paperclip, ShieldCheck, Info, Layers, Store, Package, RefreshCcw, DollarSign, ShieldAlert } from 'lucide-react';
 import { supabase } from '../../../services/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const AdminSupport: React.FC = () => {
+export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
   const { t, language } = useLanguage();
   const { supportChats, activeChat, fetchChats, fetchChatById, sendMessage, adminAction, isLoading, clearActiveChat, _hasLoadedSupport, initSocket } = useAdminChatStore();
 
@@ -21,22 +21,30 @@ export const AdminSupport: React.FC = () => {
   const [pendingAttachment, setPendingAttachment] = useState<{ url: string; type: 'image' | 'video' | 'document'; file: File } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showTranslated, setShowTranslated] = useState(false);
+  const [isTranslationLoading, setIsTranslationLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   const isAr = language === 'ar';
   
   useEffect(() => {
-    // CRITICAL: Clear any stale activeChat from another page (e.g. Oversight)
-    clearActiveChat();
     initSocket();
     fetchChats('support');
-    const interval = setInterval(() => fetchChats('support'), 15000);
-    return () => clearInterval(interval);
-  }, [fetchChats, clearActiveChat, initSocket]);
+
+    if (viewId) {
+      fetchChatById(viewId);
+    } else {
+      // CRITICAL: Clear any stale activeChat from another page (e.g. Oversight) if no specific viewId
+      clearActiveChat();
+    }
+  }, [fetchChats, clearActiveChat, initSocket, viewId, fetchChatById]);
 
   const filteredTickets = supportChats.filter(chat => {
       const matchesFilter = filter === 'ALL' || (filter === 'OPEN' ? chat.status === 'OPEN' : chat.status === 'CLOSED');
-      const matchesSearch = chat.customerName?.toLowerCase().includes(search.toLowerCase()) || 
-                           chat.lastMessage?.toLowerCase().includes(search.toLowerCase());
+      const searchLower = search.toLowerCase();
+      const matchesSearch = 
+        chat.customerName?.toLowerCase().includes(searchLower) || 
+        chat.guestName?.toLowerCase().includes(searchLower) ||
+        chat.lastMessage?.toLowerCase().includes(searchLower);
       return matchesFilter && matchesSearch;
   });
 
@@ -105,15 +113,50 @@ export const AdminSupport: React.FC = () => {
     }
   };
 
-  const handleToggleTranslation = () => {
-    if (activeChat?.id) {
-       const isCurrentlyEnabled = !!activeChat.adminTranslationEnabledAt;
-       toggleTranslation(activeChat.id, !isCurrentlyEnabled);
+  const handleToggleTranslation = async () => {
+    if (activeChat?.id && !isTranslationLoading) {
+       setIsTranslationLoading(true);
+       try {
+           const isCurrentlyEnabled = !!activeChat.adminTranslationEnabledAt;
+           await toggleTranslation(activeChat.id, !isCurrentlyEnabled);
+       } finally {
+           setIsTranslationLoading(false);
+       }
     }
   };
 
   const getPriorityColor = (status: string) => {
     return status === 'OPEN' ? 'text-red-400 bg-red-500/10 border-red-500/20' : 'text-green-400 bg-green-500/10 border-green-500/20';
+  };
+
+  const getCategoryInfo = (category: string) => {
+      const isAr = language === 'ar';
+      switch (category?.toUpperCase()) {
+          case 'ORDERS': return { 
+              icon: Package, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20', 
+              label: isAr ? 'طلبات' : 'Orders' 
+          };
+          case 'RETURNS': return { 
+              icon: RefreshCcw, color: 'bg-orange-500/10 text-orange-400 border-orange-500/20', 
+              label: isAr ? 'مرتجعات' : 'Returns' 
+          };
+          case 'PAYMENT': return { 
+              icon: DollarSign, color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', 
+              label: isAr ? 'مالية' : 'Payment' 
+          };
+          case 'TECHNICAL': return { 
+              icon: ShieldAlert, color: 'bg-purple-500/10 text-purple-400 border-purple-500/20', 
+              label: isAr ? 'تقني' : 'Technical' 
+          };
+          case 'ACCOUNT': return { 
+              icon: User, color: 'bg-red-500/10 text-red-400 border-red-500/20', 
+              label: isAr ? 'حساب' : 'Account' 
+          };
+          default: return { 
+              icon: Inbox, color: 'bg-white/5 text-white/40 border-white/10', 
+              label: isAr ? 'أخرى' : 'Other' 
+          };
+      }
   };
 
   const renderMedia = (mediaUrl: string, mediaType?: string) => {
@@ -193,9 +236,45 @@ export const AdminSupport: React.FC = () => {
                   <span className="text-[10px] text-white/20">{ticket.lastMessageTime ? new Date(ticket.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                 </div>
                 <h4 className="text-sm font-bold text-white mb-1 truncate">{ticket.lastMessage || (isAr ? 'بدون محتوى' : 'No Content')}</h4>
+                
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                    {ticket.category && (
+                        <span className={`flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-widest ${getCategoryInfo(ticket.category).color}`}>
+                            {React.createElement(getCategoryInfo(ticket.category).icon, { size: 10 })}
+                            {getCategoryInfo(ticket.category).label}
+                        </span>
+                    )}
+                    {ticket.adminInitReason && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-gold-500/10 text-gold-500 border border-gold-500/20 uppercase">
+                            <ShieldCheck size={10} />
+                            {isAr ? 'مُبادرة إدارية' : 'Admin-Init'}
+                        </span>
+                    )}
+                    {ticket.orderNumber && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
+                            <Layers size={10} />
+                            #{ticket.orderNumber}
+                        </span>
+                    )}
+                    <span className={`flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase ${ticket.source === 'LANDING' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : ticket.vendorId ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-gold-500/5 text-gold-500/60 border-gold-500/10'}`}>
+                        {ticket.source === 'LANDING' ? <Globe size={10} /> : ticket.vendorId ? <Store size={10} /> : <User size={10} />}
+                        {ticket.source === 'LANDING' ? (isAr ? 'زائر' : 'Guest') : ticket.vendorId ? (isAr ? 'تاجر' : 'Merchant') : (isAr ? 'عميل' : 'Customer')}
+                    </span>
+                </div>
+
                 <div className="flex items-center gap-2 text-[11px] text-white/40">
-                  <User size={12} className="text-gold-500/50" />
-                  <span className="truncate">{ticket.customerName || (isAr ? 'عميل' : 'Customer')}</span>
+                  {ticket.vendorId ? (
+                      <Store size={12} className="text-purple-400/50" />
+                  ) : (
+                      <User size={12} className="text-gold-500/50" />
+                  )}
+                  <span className="truncate">
+                      {ticket.source === 'LANDING'
+                        ? (ticket.guestName || (isAr ? 'زائر' : 'Guest'))
+                        : ticket.vendorId 
+                          ? (ticket.vendorName || (isAr ? 'متجر' : 'Store')) 
+                          : (ticket.customerName || (isAr ? 'عميل' : 'Customer'))}
+                  </span>
                   {ticket.unreadCount > 0 && (
                       <span className="w-1.5 h-1.5 rounded-full bg-gold-500 animate-pulse ml-auto" />
                   )}
@@ -229,14 +308,45 @@ export const AdminSupport: React.FC = () => {
             <div className="p-4 border-b border-white/10 bg-[#151310] flex justify-between items-center">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-                    {activeChat.customerAvatar ? <img src={activeChat.customerAvatar} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gold-500" />}
+                    {activeChat.vendorId ? (
+                        activeChat.vendorLogo ? <img src={activeChat.vendorLogo} alt="" className="w-full h-full object-cover" /> : <Store size={20} className="text-purple-400" />
+                    ) : (
+                        activeChat.customerAvatar ? <img src={activeChat.customerAvatar} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gold-500" />
+                    )}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white leading-tight">{activeChat.customerName}</h3>
-                  <div className="text-[10px] text-white/40 flex items-center gap-2 mt-1">
+                  <h3 className="text-lg font-bold text-white leading-tight">
+                      {activeChat.source === 'LANDING' ? activeChat.guestName : activeChat.vendorId ? activeChat.vendorName : activeChat.customerName}
+                  </h3>
+                  <div className="text-[10px] text-white/40 flex flex-wrap items-center gap-2 mt-1">
                     <span className="text-gold-500 font-mono">TICKET: {activeChat.id?.substring(0,8)}</span>
                     <span className="w-1 h-1 rounded-full bg-white/10" />
-                    <span>REF: {activeChat.orderNumber || 'GENERIC'}</span>
+                    {activeChat.source === 'LANDING' ? (
+                        <>
+                            <span className="text-orange-400 font-medium">{activeChat.guestEmail}</span>
+                            {activeChat.guestPhone && (
+                                <>
+                                    <span className="w-1 h-1 rounded-full bg-white/10" />
+                                    <span className="text-white/30">{activeChat.guestPhone}</span>
+                                </>
+                            )}
+                            <span className="w-1 h-1 rounded-full bg-white/10" />
+                            <span className="flex items-center gap-1 bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest">
+                                <Globe size={8} />
+                                {isAr ? 'صفحة الهبوط' : 'Landing Page'}
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <span>REF: {activeChat.orderNumber || 'GENERIC'}</span>
+                            {activeChat.vendorCode && (
+                                <>
+                                    <span className="w-1 h-1 rounded-full bg-white/10" />
+                                    <span className="text-purple-400 font-mono">{activeChat.vendorCode}</span>
+                                </>
+                            )}
+                        </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -244,10 +354,11 @@ export const AdminSupport: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleToggleTranslation}
-                  className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${activeChat.adminTranslationEnabledAt ? 'bg-gold-500 text-[#1A1814]' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                  disabled={isTranslationLoading}
+                  className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${activeChat.adminTranslationEnabledAt ? 'bg-gold-500 text-[#1A1814]' : 'bg-white/5 text-white/50 hover:bg-white/10'} ${isTranslationLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title={isAr ? 'تفعيل الترجمة التلقائية بالذكاء الاصطناعي' : 'Toggle AI Auto-Translation'}
                 >
-                  <Globe size={18} />
+                  {isTranslationLoading ? <Loader2 size={18} className="animate-spin" /> : <Globe size={18} />}
                   <span className="text-xs font-bold hidden md:inline">
                     {activeChat.adminTranslationEnabledAt ? (isAr ? 'ترجمة تلقائية مفعلة' : 'AI Translation ON') : (isAr ? 'تفعيل الترجمة' : 'Translate')}
                   </span>
@@ -256,10 +367,21 @@ export const AdminSupport: React.FC = () => {
                 
                 {activeChat.status !== 'CLOSED' ? (
                   <button
-                    onClick={() => adminAction(activeChat.id, 'close')}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/20 rounded-xl text-xs font-bold hover:bg-green-500/20 transition-all active:scale-95"
+                    onClick={async () => {
+                        if (isActionLoading) return;
+                        setIsActionLoading(true);
+                        try {
+                            // The store already handles optimistic update to CLOSED status
+                            await adminAction(activeChat.id, 'close');
+                        } finally {
+                            // Even if it re-renders, local state cleanup is safe
+                            setIsActionLoading(false);
+                        }
+                    }}
+                    disabled={isActionLoading}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${isActionLoading ? 'bg-white/10 text-white/40' : 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20'}`}
                   >
-                    <CheckCircle2 size={14} />
+                    {isActionLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                     {isAr ? 'تم الحل' : 'Mark Resolved'}
                   </button>
                 ) : (
@@ -271,17 +393,42 @@ export const AdminSupport: React.FC = () => {
               </div>
             </div>
 
+            {/* Info Banner for Admin-Initiated Reason */}
+            {activeChat.adminInitReason && (
+              <div className="px-6 py-3 bg-gold-500/5 border-b border-gold-500/10 flex items-center gap-4 animate-in fade-in slide-in-from-top-2">
+                <div className="w-8 h-8 rounded-full bg-gold-500/10 flex items-center justify-center text-gold-500 shrink-0">
+                  <Info size={16} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black text-gold-500 uppercase tracking-widest mb-0.5">
+                    {isAr ? 'ملاحظة الأدمن عند فتح التذكرة' : 'Admin Note upon Ticket Initiation'}
+                  </p>
+                  <p className="text-xs text-white/60 italic truncate leading-tight">
+                    "{activeChat.adminInitReason}"
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Chat Body */}
             <div className={`flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar ${isAr ? 'text-right' : 'text-left'}`}>
               <AnimatePresence mode="popLayout">
               {activeChat.messages?.map((msg) => {
-                const isAdmin = msg.senderId !== activeChat.customerId;
+                // Absolute Alignment: Admin on the Right, Other on the Left
+                const isAdmin = msg.senderRole === 'ADMIN' || msg.senderId === 'admin_optimistic' || (msg.senderId && msg.senderId !== activeChat.customerId && msg.senderId !== activeChat.vendorOwnerId);
+                
+                // In RTL (Arabic): justify-start is Right, justify-end is Left.
+                // In LTR (English): justify-start is Left, justify-end is Right.
+                const alignmentClass = isAdmin 
+                    ? (isAr ? 'justify-start' : 'justify-end') 
+                    : (isAr ? 'justify-end' : 'justify-start');
+
                 return (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     key={msg.id} 
-                    className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${alignmentClass}`}
                   >
                     <div className={`max-w-[75%] group relative ${isAdmin ? 'items-end' : 'items-start'}`}>
                       <div className={`p-4 rounded-2xl ${isAdmin ? 'bg-gold-500 text-[#1A1814] rounded-tr-none' : 'bg-white/5 border border-white/5 text-white rounded-tl-none'}`}>

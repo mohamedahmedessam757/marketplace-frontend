@@ -431,7 +431,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
           <div className="flex justify-center my-4">
             <span className="text-xs text-gray-400 bg-gray-500/10 px-3 py-1 rounded-full border border-gray-500/20 flex items-center gap-1">
               <CheckCircle2 size={12} />
-              {language === 'ar' ? 'تم إغلاق المحادثة (تم قبول عرض آخر)' : 'Chat Closed (Offer Accepted Elsewhere)'}
+              {orderChat?.type === 'support' 
+                ? (language === 'ar' ? 'تم إغلاق المحادثة (تم حل المشكلة)' : 'Chat Closed (Issue Resolved)')
+                : (language === 'ar' ? 'تم إغلاق المحادثة (تم قبول عرض آخر)' : 'Chat Closed (Offer Accepted Elsewhere)')
+              }
             </span>
           </div>
         )}
@@ -528,8 +531,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
               <>
                 <CheckCircle2 className="text-gold-500" size={24} />
                 <div>
-                  <h4 className="text-white font-bold text-sm">{language === 'ar' ? 'تم الاختيار' : 'Order in Progress'}</h4>
-                  <p className="text-xs text-white/40">{language === 'ar' ? 'تم إغلاق هذه المحادثة بسبب قبولك لعرض آخر لهذا الطلب.' : 'This chat is closed because you accepted another offer for this order.'}</p>
+                  <h4 className="text-white font-bold text-sm">
+                    {orderChat?.type === 'support' 
+                      ? (language === 'ar' ? 'تم حل المشكلة' : 'Issue Resolved')
+                      : (language === 'ar' ? 'تم الاختيار' : 'Order in Progress')
+                    }
+                  </h4>
+                  <p className="text-xs text-white/40">
+                    {orderChat?.type === 'support'
+                      ? (language === 'ar' ? 'تم إغلاق هذه المحادثة لأن المشكلة الخاصة بك قد حُلّت بنجاح.' : 'This chat is closed because your issue has been successfully resolved.')
+                      : (language === 'ar' ? 'تم إغلاق هذه المحادثة بسبب قبولك لعرض آخر لهذا الطلب.' : 'This chat is closed because you accepted another offer for this order.')
+                    }
+                  </p>
                 </div>
               </>
             )}

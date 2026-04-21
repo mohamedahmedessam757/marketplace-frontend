@@ -173,7 +173,7 @@ export const MerchantOffers: React.FC<MerchantOffersProps> = ({ onNavigate }) =>
                                                                 ? (offer.offers?.filter((o: any) => o.storeId === myStoreId) || [])
                                                                 : [];
                                                             const myLastOffer = myStoreOffers[myStoreOffers.length - 1];
-                                                            return myLastOffer ? `SAR ${myLastOffer.price || myLastOffer.unitPrice || '-'}` : '-';
+                                                            return myLastOffer ? `AED ${myLastOffer.price || myLastOffer.unitPrice || '-'}` : '-';
                                                         })()}
                                                     </div>
                                                 </div>

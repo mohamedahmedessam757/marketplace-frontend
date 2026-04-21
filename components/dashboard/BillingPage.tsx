@@ -73,7 +73,7 @@ export const BillingPage: React.FC = () => {
                                         <div className="flex items-center gap-8">
                                             <div className="text-right">
                                                 <p className="text-xs text-white/50">Amount</p>
-                                                <p className="text-lg font-bold text-white">{inv.totalAmount || 0} SAR</p>
+                                                <p className="text-lg font-bold text-white">{inv.totalAmount || 0} AED</p>
                                             </div>
 
                                             <div className="flex items-center gap-2">

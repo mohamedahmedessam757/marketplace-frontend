@@ -295,7 +295,7 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                             <div className="flex items-end justify-between pt-4 border-t border-white/5 mt-auto">
                                 <div>
                                     <span className="block text-[10px] text-white/30 uppercase font-bold tracking-wider mb-1">{t.dashboard.merchant.home.paidAmount || (isAr ? 'المبلغ المحصل' : 'Collected Amount')}</span>
-                                    <span className="text-xl font-bold text-white font-mono">{info.formattedPrice} <span className="text-xs text-gold-400">SAR</span></span>
+                                    <span className="text-xl font-bold text-white font-mono">{info.formattedPrice} <span className="text-xs text-gold-400">AED</span></span>
                                 </div>
                                 {order.acceptedOffer?.submittedAt || order.createdAt ? (
                                     <ShippingTimer startDate={order.acceptedOffer?.submittedAt || order.createdAt} label={t.dashboard.merchant.timers.shipping_deadline || (isAr ? 'موعد الشحن' : 'Ship Within')} isAr={isAr} />

@@ -214,7 +214,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     if (subPath === 'audit-logs') return <AdminAuditLogs />;
     if (subPath === 'shipping') return <AdminShipping initialSearch={viewId} />;
     if (subPath === 'settings') return <AdminSettings />;
-    if (subPath === 'support') return <AdminSupport />;
+    if (subPath === 'support') return <AdminSupport viewId={viewId} />;
     if (subPath === 'security-audit') return <SecurityAudit />;
     if (subPath === 'violations') return <AdminViolations />;
 

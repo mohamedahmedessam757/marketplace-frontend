@@ -225,7 +225,7 @@ export const AdminSettings: React.FC = () => {
                     <tr>
                       <th className="p-3">Min Weight (kg)</th>
                       <th className="p-3">Max Weight (kg)</th>
-                      <th className="p-3">Price (SAR)</th>
+                      <th className="p-3">Price (AED)</th>
                       <th className="p-3 text-right">Action</th>
                     </tr>
                   </thead>
@@ -251,7 +251,7 @@ export const AdminSettings: React.FC = () => {
               </div>
 
               <div className="mt-6 border-t border-white/10 pt-6">
-                <label className="block text-white/60 text-sm mb-2">Base Fallback Shipping Cost (SAR)</label>
+                <label className="block text-white/60 text-sm mb-2">Base Fallback Shipping Cost (AED)</label>
                 <input
                   type="number"
                   value={formData.logistics.baseShippingCost}

@@ -176,11 +176,32 @@ export const admin = {
       pending: 'بانتظار المراجعة',
       published: 'منشورة',
       rejected: 'مرفوضة',
+      impact: 'قواعد التأثير',
       rating: 'التقييم',
       comment: 'التعليق',
       approve: 'نشر التقييم',
       reject: 'رفض وحذف',
-      rejectReason: 'سبب الرفض'
+      rejectReason: 'سبب الرفض',
+      rules: {
+        add: 'إضافة قاعدة جديدة',
+        edit: 'تعديل القاعدة',
+        delete: 'حذف القاعدة',
+        minRating: 'الحد الأدنى للتقييم',
+        maxRating: 'الحد الأعلى للتقييم',
+        actionType: 'نوع الإجراء',
+        actionLabelAr: 'اسم الإجراء (عربي)',
+        actionLabelEn: 'اسم الإجراء (إنجليزي)',
+        duration: 'مدة الإيقاف (أيام)',
+        status: 'الحالة',
+        active: 'مفعل',
+        inactive: 'غير مفعل',
+        actions: {
+          SUSPEND: 'إيقاف مؤقت',
+          WARNING: 'تحذير',
+          FEATURED: 'تاجر مميز',
+          NONE: 'بدون إجراء'
+        }
+      }
     },
     ordersTable: {
       id: 'رقم الطلب',
@@ -275,8 +296,53 @@ export const admin = {
         orders: 'الطلبات',
         disputes: 'النزاعات والشكاوى',
         reviews: 'التقييمات',
+        financial: 'السجل المالي',
         sessions: 'الجلسات والأمان',
         contract: 'بيانات العقد'
+      },
+      financial: {
+        available: 'الرصيد المتاح',
+        pending: 'الرصيد المعلق',
+        frozen: 'المبالغ المجمدة',
+        lifetime: 'صافي الأرباح',
+        totalSales: 'إجمالي المبيعات',
+        completedOrders: 'الطلبات المكتملة',
+        ready: 'قابل للسحب فوراً',
+        verification: 'تحت إجراءات التحقق',
+        frozenAwaiting: 'في انتظار حل النزاعات',
+        totalSalesSub: 'القيمة الإجمالية للطلبات',
+        completedOrdersSub: 'الطلبات المسلمة والمحصلة',
+        since: 'منذ تاريخ الانضمام',
+        walletLedger: 'سجل حركات المحفظة',
+        withdrawalLedger: 'سجل طلبات السحب والبنوك',
+        operationDate: 'العملية / التاريخ',
+        amount: 'المبلغ',
+        status: 'الحالة',
+        description: 'البيان',
+        bankDate: 'البنك / التاريخ',
+        payoutMethod: 'طريقة السداد',
+        orderId: 'رقم الطلب',
+        date: 'التاريخ',
+        paymentStatus: 'حالة الدفع',
+        orderStatus: 'حالة الطلب',
+        operation: 'العملية',
+        actions: 'إجراء',
+        method: 'الطريقة',
+        reviewDate: 'تاريخ المراجعة',
+        requestDate: 'تاريخ الطلب',
+        sales: 'مبيعات',
+        withdrawal: 'سحب',
+        noTransactions: 'لا توجد حركات مالية حالياً',
+        noWithdrawals: 'لا توجد طلبات سحب سابقة',
+        types: {
+            CREDIT: 'إيداع (له)',
+            DEBIT: 'سحب (عليه)'
+        },
+        withdrawStatus: {
+            COMPLETED: 'مكتمل',
+            PENDING: 'قيد المراجعة',
+            REJECTED: 'مرفوض'
+        }
       },
       details: {
         category: 'التصنيف',
@@ -692,10 +758,7 @@ export const admin = {
       }
     },
     stats: {
-      totalRevenue: 'Total Revenue',
-      activeUsers: 'Active Users',
-      pendingVendors: 'Pending Vendors',
-      openDisputes: 'Open Disputes'
+      totalRevenue: 'Total Revenue'
     },
     usersTable: {
       name: 'Store Name',
@@ -853,8 +916,53 @@ export const admin = {
         orders: 'Orders',
         disputes: 'Disputes & Claims',
         reviews: 'Reviews',
+        financial: 'Financial Journal',
         sessions: 'Sessions & Security',
         contract: 'Contract Details'
+      },
+      financial: {
+        available: 'Available Balance',
+        pending: 'Pending Clearance',
+        frozen: 'Escrow / Frozen',
+        lifetime: 'Net Lifetime Earnings',
+        totalSales: 'Total Sales Volume',
+        completedOrders: 'Completed Orders',
+        ready: 'Available/Withdrawal Ready',
+        verification: 'Under Verification',
+        frozenAwaiting: 'Awaiting Resolution',
+        totalSalesSub: 'Gross Order Value',
+        completedOrdersSub: 'Delivered & Paid',
+        since: 'Joined Since',
+        walletLedger: 'Wallet Ledger',
+        withdrawalLedger: 'Withdrawal Ledger',
+        operationDate: 'Operation / Date',
+        amount: 'Amount',
+        status: 'Status',
+        description: 'Description',
+        bankDate: 'Bank / Date',
+        payoutMethod: 'Payout Method',
+        orderId: 'Order Number',
+        date: 'Date',
+        paymentStatus: 'Payment Status',
+        orderStatus: 'Order Status',
+        operation: 'Operation',
+        actions: 'Action',
+        method: 'Method',
+        reviewDate: 'Review Date',
+        requestDate: 'Request Date',
+        sales: 'Sales',
+        withdrawal: 'Withdrawal',
+        noTransactions: 'No recent transactions currently',
+        noWithdrawals: 'No withdrawal history found',
+        types: {
+            CREDIT: 'Credit (+)',
+            DEBIT: 'Debit (-)'
+        },
+        withdrawStatus: {
+            COMPLETED: 'Completed',
+            PENDING: 'Pending Review',
+            REJECTED: 'Rejected'
+        }
       },
       details: {
         category: 'Category',

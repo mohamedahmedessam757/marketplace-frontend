@@ -4,7 +4,7 @@ import { GlassCard } from '../../ui/GlassCard';
 import { useReviewStore } from '../../../stores/useReviewStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { Star, MessageSquare, User, Calendar, Quote, TrendingUp, Award, ThumbsUp, Loader2, Search } from 'lucide-react';
+import { Star, MessageSquare, User, Calendar, Quote, TrendingUp, Award, ThumbsUp, Loader2, Search, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 export const MerchantReviews: React.FC = () => {
     const { t, language } = useLanguage();
@@ -13,6 +13,8 @@ export const MerchantReviews: React.FC = () => {
         merchantStats, 
         fetchMerchantReviews, 
         fetchMerchantStats, 
+        fetchImpactRules,
+        impactRules,
         subscribeToMerchantReviews,
         unsubscribeFromMerchantReviews,
         isLoading 
@@ -23,6 +25,7 @@ export const MerchantReviews: React.FC = () => {
     useEffect(() => {
         fetchMerchantReviews();
         fetchMerchantStats();
+        fetchImpactRules();
 
         // Real-time synchronization
         if (storeId) {
@@ -40,6 +43,11 @@ export const MerchantReviews: React.FC = () => {
     const fiveStarPercentage = merchantStats?.satisfaction || 0;
     const reputationGrowth = merchantStats?.reputationGrowth || 0;
     const currentRank = merchantStats?.storeRank || 5; 
+
+    // Find applicable impact rule
+    const applicableRule = impactRules
+        .filter(r => r.isActive)
+        .find(r => averageRating >= Number(r.minRating) && averageRating <= Number(r.maxRating));
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -117,6 +125,53 @@ export const MerchantReviews: React.FC = () => {
                      </div>
                 </GlassCard>
             </div>
+
+            {/* Impact Status Card */}
+            <GlassCard className="p-8 border-white/5 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 blur-[60px] rounded-full -translate-y-12 translate-x-12 group-hover:bg-gold-500/10 transition-all duration-700" />
+                
+                <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
+                    <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shrink-0 border transition-all duration-500 ${
+                        applicableRule?.actionType === 'FEATURED' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                        applicableRule?.actionType === 'WARNING' ? 'bg-amber-500/10 border-amber-400/20 text-amber-400' :
+                        applicableRule?.actionType === 'SUSPEND' ? 'bg-rose-500/10 border-rose-400/20 text-rose-400' :
+                        'bg-white/5 border-white/10 text-white/40'
+                    }`}>
+                        {applicableRule?.actionType === 'FEATURED' ? <Star size={40} fill="currentColor" /> :
+                         applicableRule?.actionType === 'WARNING' ? <ShieldCheck size={40} /> :
+                         applicableRule?.actionType === 'SUSPEND' ? <AlertTriangle size={40} /> :
+                         <TrendingUp size={40} />}
+                    </div>
+
+                    <div className="flex-1 text-center md:text-right rtl:md:text-left">
+                        <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
+                             <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">{t.dashboard.merchant.reviews.impactStatus}</span>
+                             <div className="h-px w-8 bg-white/10" />
+                        </div>
+                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-1">
+                            {applicableRule 
+                                ? (isAr ? applicableRule.actionLabelAr : applicableRule.actionLabelEn)
+                                : (averageRating >= 4 ? t.dashboard.merchant.reviews.featuredStore : t.dashboard.merchant.reviews.maintainingQuality)
+                            }
+                        </h2>
+                        <p className="text-white/50 text-sm max-w-xl">
+                            {applicableRule 
+                                ? (applicableRule.actionType === 'SUSPEND' 
+                                    ? (isAr ? `تنبيه: تقييمك الحالي قد يؤدي إلى إيقاف المتجر لمدة ${applicableRule.suspendDurationDays} أيام.` : `Warning: Your current rating may lead to a ${applicableRule.suspendDurationDays} day store suspension.`)
+                                    : t.dashboard.merchant.reviews.impactDesc)
+                                : (averageRating >= 4 ? t.dashboard.merchant.reviews.featuredDesc : t.dashboard.merchant.reviews.qualityDesc)
+                            }
+                        </p>
+                    </div>
+
+                    <div className="shrink-0 flex flex-col items-center gap-2">
+                         <div className="bg-black/40 px-6 py-4 rounded-2xl border border-white/5 text-center">
+                            <span className="block text-[10px] font-black text-white/30 uppercase tracking-widest mb-1">{t.dashboard.merchant.reviews.ratingRules}</span>
+                            <div className="text-2xl font-black text-gold-500">{averageRating.toFixed(1)} / 5.0</div>
+                         </div>
+                    </div>
+                </div>
+            </GlassCard>
 
             {/* List Header */}
             <div className="flex justify-between items-center px-2">

@@ -119,7 +119,7 @@ export const AccountRecoveries: React.FC = () => {
                                 </td>
                                 <td className="py-4 px-4">
                                     <div className="text-sm text-white flex flex-col gap-1">
-                                        <span className="text-gold-400 font-bold">{req.balanceSnapshot.toFixed(2)} SAR</span>
+                                        <span className="text-gold-400 font-bold">{req.balanceSnapshot.toFixed(2)} AED</span>
                                         <span className="text-xs text-white/50">
                                             Orders: {req.openOrdersCount} | Disputes: {req.disputesCount}
                                         </span>

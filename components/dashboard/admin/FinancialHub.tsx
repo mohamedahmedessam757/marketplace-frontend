@@ -96,14 +96,14 @@ export const FinancialHub: React.FC = () => {
                 <GlassCard className="p-6 flex items-center justify-between">
                     <div>
                         <p className="text-white/40 text-xs font-bold uppercase">Total Platform Revenue</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">1,250,400 SAR</h3>
+                        <h3 className="text-2xl font-bold text-white mt-1">1,250,400 AED</h3>
                     </div>
                     <TrendingUp className="text-green-400" size={24} />
                 </GlassCard>
                 <GlassCard className="p-6 flex items-center justify-between">
                     <div>
                         <p className="text-white/40 text-xs font-bold uppercase">Pending Payouts</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">45,200 SAR</h3>
+                        <h3 className="text-2xl font-bold text-white mt-1">45,200 AED</h3>
                     </div>
                     <div className="text-white/20">Thursday Next</div>
                 </GlassCard>

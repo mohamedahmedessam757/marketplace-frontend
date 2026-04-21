@@ -7,10 +7,12 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { 
     ChevronLeft, ChevronRight, Store, CheckCircle2, XCircle, FileText, Activity, 
     Star, Eye, X, ExternalLink, Mail, Phone, Calendar, Hash, MapPin, CreditCard, 
-    Wallet, Smartphone, Tablet, Monitor, Verified, Shield, Award, TrendingUp
+    Wallet, Smartphone, Tablet, Monitor, Verified, Shield, Award, TrendingUp,
+    Clock, ShieldAlert, ShoppingCart, Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storesApi } from '../../../services/api/stores';
+import { paymentsApi } from '../../../services/api/payments';
 // import { toast } from 'react-hot-toast'; // Removed to avoid dependency issue
 import { DocumentReviewModal } from '../../modals/DocumentReviewModal'; // Import New Modal
 
@@ -33,7 +35,16 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
     const [adminNotes, setAdminNotes] = useState(currentStoreProfile?.adminNotes || '');
     const [banType, setBanType] = useState<'BLOCKED' | 'SUSPENDED'>('SUSPENDED');
     const [suspensionDays, setSuspensionDays] = useState(7);
-    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'reviews' | 'sessions' | 'contract'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'reviews' | 'financial' | 'sessions' | 'contract'>('overview');
+    const [financialStats, setFinancialStats] = useState<{
+        available: number;
+        pending: number;
+        frozen: number;
+        totalSales: number;
+        netEarnings: number;
+        completedOrders: number;
+    } | null>(null);
+    const [isLoadingFinancial, setIsLoadingFinancial] = useState(false);
 
     const handleStatusUpdate = async (newStatus: 'ACTIVE' | 'BLOCKED' | 'REJECTED' | 'SUSPENDED', reason?: string, days?: number) => {
         if (!vendorId) return;
@@ -79,6 +90,19 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         }
     };
 
+    const fetchFinancialData = async () => {
+        if (!vendor?.ownerId) return;
+        setIsLoadingFinancial(true);
+        try {
+            const response = await paymentsApi.getAdminMerchantDashboard(vendor.ownerId);
+            setFinancialStats(response.stats);
+        } catch (error) {
+            console.error('Failed to fetch financial stats:', error);
+        } finally {
+            setIsLoadingFinancial(false);
+        }
+    };
+
     const vendor = currentStoreProfile;
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronRight : ChevronLeft;
@@ -87,6 +111,12 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         if (vendorId) subscribeToStoreProfile(vendorId);
         return () => unsubscribeFromStoreProfile();
     }, [vendorId]);
+
+    React.useEffect(() => {
+        if (vendor?.ownerId) {
+            fetchFinancialData();
+        }
+    }, [vendor?.ownerId]);
 
     React.useEffect(() => {
         if (vendor?.adminNotes) setAdminNotes(vendor.adminNotes);
@@ -370,20 +400,20 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                             <GlassCard className="p-4 bg-white/5 border-white/5 hover:border-gold-500/30 transition-all">
                                 <div className="flex items-center gap-3 mb-1">
                                     <div className="w-6 h-6 rounded bg-gold-500/10 flex items-center justify-center"><Wallet size={12} className="text-gold-500" /></div>
-                                    <span className="text-[10px] uppercase font-black text-white/40 tracking-wider font-sans">Available</span>
+                                    <span className="text-[10px] uppercase font-black text-white/40 tracking-wider font-sans">{isAr ? 'المتاح' : 'Available'}</span>
                                 </div>
                                 <div className="text-lg font-black text-white tabular-nums">
-                                    {Math.abs(Number(vendor.balance || 0)).toLocaleString()} <span className="text-[10px] text-white/40 ml-1">AED</span>
+                                    {isLoadingFinancial ? '...' : (financialStats?.available || 0).toLocaleString()} <span className="text-[10px] text-white/40 ml-1">AED</span>
                                 </div>
                             </GlassCard>
 
                             <GlassCard className="p-4 bg-white/5 border-white/5 hover:border-green-500/30 transition-all">
                                 <div className="flex items-center gap-3 mb-1">
                                     <div className="w-6 h-6 rounded bg-green-500/10 flex items-center justify-center"><CreditCard size={12} className="text-green-500" /></div>
-                                    <span className="text-[10px] uppercase font-black text-white/40 tracking-wider font-sans">Earnings</span>
+                                    <span className="text-[10px] uppercase font-black text-white/40 tracking-wider font-sans">{isAr ? 'صافي الأرباح' : 'Earnings'}</span>
                                 </div>
                                 <div className="text-lg font-black text-white tabular-nums">
-                                    {Math.abs(Number(vendor.lifetimeEarnings || 0)).toLocaleString()} <span className="text-[10px] text-white/40 ml-1">AED</span>
+                                    {isLoadingFinancial ? '...' : (financialStats?.netEarnings || 0).toLocaleString()} <span className="text-[10px] text-white/40 ml-1">AED</span>
                                 </div>
                             </GlassCard>
 
@@ -413,10 +443,9 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                             </GlassCard>
                         </div>
 
-                    </div>
                 </div>
             </div>
-
+        </div>
             {/* Advanced Tabs Navigation */}
             <div className="flex gap-2 p-1.5 bg-white/5 border border-white/10 rounded-2xl overflow-x-auto no-scrollbar scroll-smooth">
                 {[
@@ -424,6 +453,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                     { id: 'orders', icon: CreditCard, label: t.admin.storeProfile.tabs.orders },
                     { id: 'disputes', icon: XCircle, label: t.admin.storeProfile.tabs.disputes },
                     { id: 'reviews', icon: Star, label: t.admin.storeProfile.tabs.reviews },
+                    { id: 'financial', icon: Wallet, label: t.admin.storeProfile.tabs.financial },
                     { id: 'sessions', icon: Smartphone, label: t.admin.storeProfile.tabs.sessions },
                     { id: 'contract', icon: FileText, label: t.admin.storeProfile.tabs.contract },
                 ].map((tab) => (
@@ -495,12 +525,12 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                         </div>
                                         <div className="flex gap-4">
                                             <div>
-                                                <p className="text-[10px] text-white/20 mb-1 italic">Balance</p>
-                                                <p className="text-white font-black">{Number(vendor.balance).toLocaleString()} <span className="text-[10px] opacity-30">AED</span></p>
+                                                <p className="text-[10px] text-white/20 mb-1 italic">Available</p>
+                                                <p className="text-white font-black">{isLoadingFinancial ? '...' : (financialStats?.available || 0).toLocaleString()} <span className="text-[10px] opacity-30">AED</span></p>
                                             </div>
                                             <div className="border-l border-white/5 pl-4">
                                                 <p className="text-[10px] text-white/20 mb-1 italic">Pending</p>
-                                                <p className="text-white/60 font-black">{Number(vendor.pendingBalance || 0).toLocaleString()} <span className="text-[10px] opacity-30">AED</span></p>
+                                                <p className="text-white/60 font-black">{isLoadingFinancial ? '...' : (financialStats?.pending || 0).toLocaleString()} <span className="text-[10px] opacity-30">AED</span></p>
                                             </div>
                                         </div>
                                     </div>
@@ -588,10 +618,10 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                             
                             <div className="space-y-8 relative z-10">
                                 <div>
-                                    <p className="text-[10px] font-black text-white/30 uppercase tracking-wide mb-4 flex items-center gap-2">
+                                    <div className="text-[10px] font-black text-white/30 uppercase tracking-wide mb-4 flex items-center gap-2">
                                         <div className="w-1 h-1 rounded-full bg-blue-500" />
                                         {t.admin.storeProfile.details.makes}
-                                    </p>
+                                    </div>
                                     <div className="flex flex-wrap gap-2">
                                         {vendor.selectedMakes && vendor.selectedMakes.length > 0 ? (
                                             vendor.selectedMakes.map((make: string) => (
@@ -611,10 +641,10 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                 </div>
 
                                 <div>
-                                    <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-4 flex items-center gap-2">
                                         <div className="w-1 h-1 rounded-full bg-gold-500" />
                                         {t.admin.storeProfile.details.models}
-                                    </p>
+                                    </div>
                                     <div className="flex flex-wrap gap-2">
                                         {vendor.selectedModels && vendor.selectedModels.length > 0 ? (
                                             vendor.selectedModels.map((model: string) => (
@@ -998,108 +1028,452 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                 </div>
             )}
 
-            {activeTab === 'sessions' && (
-                <div className="grid lg:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest px-2 mb-4 flex items-center gap-2">
-                            <Smartphone size={18} className="text-blue-500" />
-                            {isAr ? 'الجلسات النشطة' : 'Active Sessions'}
-                        </h3>
-                        {vendor.owner?.sessions?.length > 0 ? (
-                            vendor.owner.sessions.map((session: any) => {
-                                // Determine Icon & Label based on device/OS
-                                const isMobile = session.os?.toLowerCase().includes('android') || session.os?.toLowerCase().includes('ios');
-                                const isTablet = session.os?.toLowerCase().includes('ipad') || session.device?.toLowerCase().includes('tablet');
-                                const DeviceIcon = isMobile ? Smartphone : isTablet ? Tablet : Monitor;
-
-                                return (
-                                    <GlassCard key={session.id} className="p-5 border-white/5 hover:border-gold-500/20 transition-all group relative overflow-hidden flex items-center justify-between gap-4">
-                                        <div className="flex items-center gap-5">
-                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 border ${
-                                                'bg-white/5 text-white/30 border-white/10 group-hover:bg-gold-500/10 group-hover:text-gold-500 group-hover:border-gold-500/20'
-                                            }`}>
-                                                <DeviceIcon size={24} />
-                                            </div>
-                                            
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-white font-black text-sm tracking-wide">
-                                                        {session.device || (isAr ? 'جهاز مجهول' : 'Unknown Device')}
-                                                    </span>
-                                                    <span className="text-[9px] bg-white/5 text-white/40 px-2 py-0.5 rounded border border-white/5 font-mono">
-                                                        {session.os || 'N/A'}
-                                                    </span>
-                                                </div>
-                                                
-                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/30">
-                                                        <Activity size={12} className="text-gold-500/50" />
-                                                        <span className="text-white/60">{session.ip || '0.0.0.0'}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/30">
-                                                        <MapPin size={12} className="text-blue-500/50" />
-                                                        <span className="text-white/60">{session.location || (isAr ? 'موقع غير معروف' : 'Unknown Location')}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="text-right shrink-0">
-                                            <div className="flex flex-col items-end gap-1">
-                                                <span className="text-[9px] text-green-500 font-black uppercase tracking-[0.2em] animate-pulse">
-                                                    {isAr ? 'نشط الآن' : 'LIVE'}
-                                                </span>
-                                                <span className="text-[10px] text-white/20 font-bold tabular-nums">
-                                                    {isAr ? 'آخر نشاط:' : 'Last:'} {new Date(session.lastActive || session.updatedAt).toLocaleTimeString(isAr ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </GlassCard>
-                                );
-                            })
-                        ) : (
-                            <GlassCard className="p-12 text-center text-white/20 text-xs italic border-dashed border-white/10 flex flex-col items-center gap-4">
-                                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center opacity-20">
-                                    <Smartphone size={32} />
+            {activeTab === 'financial' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 max-w-4xl mx-auto">
+                    {/* Phase 3: Premium 6-Card Financial Matrix */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {/* 1. Available Balance */}
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                            <GlassCard className="p-6 border-green-500/10 bg-green-500/[0.02] relative overflow-hidden group hover:border-green-500/30 transition-all">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <Wallet size={40} className="text-green-500" />
                                 </div>
-                                {isAr ? 'لا توجد جلسات نشطة حالياً لهذا المستخدم' : 'This commander has no active field transmissions.'}
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center"><Wallet size={16} className="text-green-500" /></div>
+                                    <p className="text-[10px] font-black text-green-500/60 uppercase tracking-widest">{t.admin.storeProfile.financial.available}</p>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    {isLoadingFinancial ? (
+                                        <div className="h-8 w-24 bg-white/5 rounded-lg animate-pulse" />
+                                    ) : (
+                                        <>
+                                            <span className="text-3xl font-black text-white font-mono leading-none">
+                                                {Number(financialStats?.available || 0).toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-tighter">{t.admin.storeProfile.financial.ready}</span>
+                                    <div className={`w-2 h-2 rounded-full bg-green-500 ${isLoadingFinancial ? 'opacity-20' : 'animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
+                                </div>
                             </GlassCard>
-                        )}
+                        </motion.div>
+
+                        {/* 2. Pending Clearance */}
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                            <GlassCard className="p-6 border-amber-500/10 bg-amber-500/[0.02] relative overflow-hidden group hover:border-amber-500/30 transition-all">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <Clock size={40} className="text-amber-500" />
+                                </div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center"><Clock size={16} className="text-amber-500" /></div>
+                                    <p className="text-[10px] font-black text-amber-500/60 uppercase tracking-widest">{t.admin.storeProfile.financial.pending}</p>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    {isLoadingFinancial ? (
+                                        <div className="h-8 w-24 bg-white/5 rounded-lg animate-pulse" />
+                                    ) : (
+                                        <>
+                                            <span className="text-3xl font-black text-white font-mono leading-none">
+                                                {Number(financialStats?.pending || 0).toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-tighter">{t.admin.storeProfile.financial.verification}</span>
+                                    <div className={`w-2 h-2 rounded-full bg-amber-500 ${isLoadingFinancial ? 'opacity-20' : 'animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]'}`} />
+                                </div>
+                            </GlassCard>
+                        </motion.div>
+
+                        {/* 3. Escrow / Frozen */}
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                            <GlassCard className="p-6 border-red-500/10 bg-red-500/[0.02] relative overflow-hidden group hover:border-red-500/30 transition-all">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <ShieldAlert size={40} className="text-red-500" />
+                                </div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center"><ShieldAlert size={16} className="text-red-500" /></div>
+                                    <p className="text-[10px] font-black text-red-500/60 uppercase tracking-widest">{t.admin.storeProfile.financial.frozen}</p>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    {isLoadingFinancial ? (
+                                        <div className="h-8 w-24 bg-white/5 rounded-lg animate-pulse" />
+                                    ) : (
+                                        <>
+                                            <span className="text-3xl font-black text-white font-mono leading-none">
+                                                {Number(financialStats?.frozen || 0).toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-tighter">{t.admin.storeProfile.financial.frozenAwaiting}</span>
+                                    <div className={`w-2 h-2 rounded-full bg-red-500 ${isLoadingFinancial ? 'opacity-20' : 'shadow-[0_0_10px_rgba(239,68,68,0.5)]'}`} />
+                                </div>
+                            </GlassCard>
+                        </motion.div>
+
+                        {/* 4. Net Lifetime Earnings */}
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                            <GlassCard className="p-6 border-gold-500/10 bg-gold-500/[0.02] relative overflow-hidden group hover:border-gold-500/30 transition-all">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <TrendingUp size={40} className="text-gold-500" />
+                                </div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-gold-500/10 flex items-center justify-center"><TrendingUp size={16} className="text-gold-500" /></div>
+                                    <p className="text-[10px] font-black text-gold-500/60 uppercase tracking-widest">{t.admin.storeProfile.financial.lifetime}</p>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    {isLoadingFinancial ? (
+                                        <div className="h-8 w-32 bg-white/5 rounded-lg animate-pulse" />
+                                    ) : (
+                                        <>
+                                            <span className="text-3xl font-black text-white font-mono leading-none">
+                                                {Number(financialStats?.netEarnings || 0).toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-gold-500 uppercase tracking-tighter">{t.admin.storeProfile.financial.since} {new Date(vendor.createdAt).getFullYear()}</span>
+                                </div>
+                            </GlassCard>
+                        </motion.div>
+
+                        {/* 5. Total Sales Volume */}
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+                            <GlassCard className="p-6 border-blue-500/10 bg-blue-500/[0.02] relative overflow-hidden group hover:border-blue-500/30 transition-all">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <ShoppingCart size={40} className="text-blue-500" />
+                                </div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center"><ShoppingCart size={16} className="text-blue-500" /></div>
+                                    <p className="text-[10px] font-black text-blue-500/60 uppercase tracking-widest">{t.admin.storeProfile.financial.totalSales}</p>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    {isLoadingFinancial ? (
+                                        <div className="h-8 w-32 bg-white/5 rounded-lg animate-pulse" />
+                                    ) : (
+                                        <>
+                                            <span className="text-3xl font-black text-white font-mono leading-none">
+                                                {Number(financialStats?.totalSales || 0).toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-tighter">{t.admin.storeProfile.financial.totalSalesSub}</span>
+                                </div>
+                            </GlassCard>
+                        </motion.div>
+
+                        {/* 6. Completed Orders */}
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                            <GlassCard className="p-6 border-purple-500/10 bg-purple-500/[0.02] relative overflow-hidden group hover:border-purple-500/30 transition-all">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <Package size={40} className="text-purple-500" />
+                                </div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center"><Package size={16} className="text-purple-500" /></div>
+                                    <p className="text-[10px] font-black text-purple-500/60 uppercase tracking-widest">{t.admin.storeProfile.financial.completedOrders}</p>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    {isLoadingFinancial ? (
+                                        <div className="h-8 w-20 bg-white/5 rounded-lg animate-pulse" />
+                                    ) : (
+                                        <>
+                                            <span className="text-3xl font-black text-white font-mono leading-none">
+                                                {(financialStats?.completedOrders || 0).toString().padStart(2, '0')}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-white/30 uppercase">{isAr ? 'طلب' : 'Orders'}</span>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-tighter">{t.admin.storeProfile.financial.completedOrdersSub}</span>
+                                </div>
+                            </GlassCard>
+                        </motion.div>
                     </div>
 
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest px-2 mb-4 flex items-center gap-2">
-                            <Activity size={18} className="text-red-500" />
-                            {isAr ? 'سجل الأمان' : 'Security Logs'}
-                        </h3>
-                        <GlassCard className="p-0 overflow-hidden border-white/5">
-                            <table className={`w-full ${isAr ? 'text-right' : 'text-left'} text-white/70`}>
-                                <thead className="bg-white/5 text-[10px] font-black uppercase tracking-widest">
-                                    <tr>
-                                        <th className="px-5 py-4">{isAr ? 'الحدث' : 'Event'}</th>
-                                        <th className="px-5 py-4">{isAr ? 'تاريخ العملية' : 'Time'}</th>
-                                        <th className="px-5 py-4">{isAr ? 'العنوان الرقمي' : 'IP / Identifier'}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {vendor.owner?.securityLogs?.slice(0, 10).map((log: any) => (
-                                        <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
-                                            <td className="px-5 py-4 text-xs font-bold text-white capitalize">
-                                                {log.action?.replace(/_/g, ' ') || (isAr ? 'عملية نظام' : 'System Action')}
-                                            </td>
-                                            <td className="px-5 py-4 text-[10px] text-white/40 font-mono tracking-tighter">
-                                                {new Date(log.createdAt).toLocaleString(isAr ? 'ar-EG' : 'en-GB')}
-                                            </td>
-                                            <td className="px-5 py-4">
-                                                <span className={`text-[9px] font-black px-2 py-1 rounded-lg border ${log.ipAddress ? 'text-blue-400 border-blue-400/20 bg-blue-400/5' : 'text-white/40 border-white/10'}`}>
-                                                    {log.ipAddress || 'INTERNAL'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </GlassCard>
+                    {/* Ledgers Stack */}
+                    <div className="flex flex-col gap-8">
+                        {/* 1. Transaction Ledger */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between px-2">
+                                <h4 className="text-[11px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shadow-[0_0_10px_rgba(212,175,55,0.5)]" />
+                                    {t.admin.storeProfile.financial.walletLedger}
+                                </h4>
+                            </div>
+                            <GlassCard className="min-h-[300px] border-white/5 bg-white/[0.01] overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-white/5 bg-white/[0.02]">
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.orderId}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.date}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.amount}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.paymentStatus}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.orderStatus}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.operation}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest text-center">{t.admin.storeProfile.financial.actions}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/[0.03]">
+                                            {vendor.walletTransactions && vendor.walletTransactions.length > 0 ? (
+                                                vendor.walletTransactions.map((tx: any, idx: number) => (
+                                                    <motion.tr 
+                                                        key={tx.id} 
+                                                        initial={{ opacity: 0, x: -10 }} 
+                                                        animate={{ opacity: 1, x: 0 }} 
+                                                        transition={{ delay: 0.4 + (idx * 0.05) }}
+                                                        className="group hover:bg-white/[0.02] transition-colors"
+                                                    >
+                                                        <td className="p-4">
+                                                            <div className="text-[11px] font-bold text-gold-500/80 font-mono tracking-tight bg-gold-500/5 px-2 py-1 rounded inline-flex">
+                                                                {tx.payment?.order?.orderNumber || tx.escrow?.order?.orderNumber || tx.metadata?.orderNumber || (tx.metadata?.orderId || tx.orderId)?.split('-').slice(-1)[0] || 'N/A'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="text-[10px] text-white/60 font-medium">
+                                                                {new Date(tx.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className={`text-sm font-black font-mono tabular-nums ${tx.type === 'CREDIT' ? 'text-green-500' : 'text-red-500'}`}>
+                                                                {tx.type === 'CREDIT' ? '+' : '-'}
+                                                                {Number(tx.amount).toLocaleString()}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className={`inline-flex px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${tx.payment?.status === 'SUCCESS' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
+                                                                {tx.payment?.status || 'PENDING'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className={`inline-flex px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-tight ${
+                                                                (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 
+                                                                (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'PREPARATION' ? 'bg-amber-500/10 text-amber-500' : 
+                                                                (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'READY_FOR_SHIPPING' ? 'bg-blue-500/10 text-blue-500' : 
+                                                                'bg-white/5 text-white/40'
+                                                            }`}>
+                                                                {tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus || 'N/A'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <Activity size={10} className="text-white/20" />
+                                                                <span className="text-[10px] font-bold text-white/60 uppercase tracking-wide">
+                                                                    {tx.type === 'CREDIT' ? t.admin.storeProfile.financial.sales : t.admin.storeProfile.financial.withdrawal}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <button 
+                                                                className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-white/30 hover:text-white transition-all border border-white/5"
+                                                                onClick={() => {
+                                                                    const orderId = tx.payment?.order?.id || tx.escrow?.order?.id || tx.metadata?.orderId;
+                                                                    if (orderId && onNavigate) {
+                                                                        onNavigate('admin-order-details', orderId);
+                                                                    } else if (orderId) {
+                                                                        window.location.hash = `/dashboard/admin/orders/${orderId}`;
+                                                                    }
+                                                                }}
+                                                                title={isAr ? 'عرض تفاصيل الطلب' : 'View Order Details'}
+                                                            >
+                                                                <FileText size={14} />
+                                                            </button>
+                                                        </td>
+                                                    </motion.tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={7} className="p-20 text-center opacity-10">
+                                                        <Activity size={40} className="mx-auto mb-2" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">{t.admin.storeProfile.financial.noTransactions}</p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </GlassCard>
+                        </div>
+
+                        {/* 2. Withdrawal Ledger */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between px-2">
+                                <h4 className="text-[11px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                                    {t.admin.storeProfile.financial.withdrawalLedger}
+                                </h4>
+                            </div>
+                            <GlassCard className="min-h-[300px] border-white/5 bg-white/[0.01] overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-white/5 bg-white/[0.02]">
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.amount}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest text-center">{t.admin.storeProfile.financial.status}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.method}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.reviewDate}</th>
+                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.requestDate}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/[0.03]">
+                                            {vendor.withdrawalRequests && vendor.withdrawalRequests.length > 0 ? (
+                                                vendor.withdrawalRequests.map((req: any, idx: number) => (
+                                                    <motion.tr 
+                                                        key={req.id} 
+                                                        initial={{ opacity: 0, x: 10 }} 
+                                                        animate={{ opacity: 1, x: 0 }} 
+                                                        transition={{ delay: 0.4 + (idx * 0.05) }}
+                                                        className="group hover:bg-white/[0.02] transition-colors"
+                                                    >
+                                                        <td className="p-4">
+                                                            <div className="text-sm font-black text-white font-mono tracking-tight tabular-nums">
+                                                                {Number(req.amount).toLocaleString()}
+                                                                <span className="text-[10px] text-white/40 ml-1">AED</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <div className={`px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-tight inline-flex ${
+                                                                req.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
+                                                                req.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 
+                                                                'bg-red-500/10 text-red-500 border-red-500/20'
+                                                            }`}>
+                                                                {req.status}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center">
+                                                                    <Hash size={12} className="text-blue-400/50" />
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-white/60 uppercase">
+                                                                    {req.payoutMethod || t.admin.storeProfile.financial.payoutMethod}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="text-[10px] text-white/40 font-mono">
+                                                                {req.reviewedAt ? new Date(req.reviewedAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="text-[10px] text-white/60 font-black">
+                                                                {new Date(req.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                                            </div>
+                                                        </td>
+                                                    </motion.tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={5} className="p-20 text-center opacity-10">
+                                                        <Activity size={40} className="mx-auto mb-2" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">{isAr ? 'لا يوجد سجل سحوبات' : 'No withdrawal records'}</p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </GlassCard>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'sessions' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 max-w-4xl mx-auto">
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between px-4">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2 text-[10px] font-black text-gold-500 uppercase tracking-widest">
+                                    <Shield size={12} />
+                                    {isAr ? 'حماية الحساب' : 'Account Security'}
+                                </div>
+                                <h3 className="text-xl font-black text-white">{isAr ? 'الجلسات النشطة' : 'Active Sessions'}</h3>
+                            </div>
+                            <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl">
+                                <span className="text-[10px] font-black text-white/40 uppercase block mb-0.5">{isAr ? 'إجمالي الأجهزة' : 'Total Devices'}</span>
+                                <span className="text-xl font-bold text-white font-mono">{(vendor.owner?.sessions?.length || 0).toString().padStart(2, '0')}</span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                            {vendor.owner?.sessions && vendor.owner.sessions.length > 0 ? (
+                                vendor.owner.sessions.map((session: any) => {
+                                    // Determine Icon & Label based on device/OS
+                                    const isMobile = session.os?.toLowerCase().includes('android') || session.os?.toLowerCase().includes('ios');
+                                    const isTablet = session.os?.toLowerCase().includes('ipad') || session.device?.toLowerCase().includes('tablet');
+                                    const DeviceIcon = isMobile ? Smartphone : isTablet ? Tablet : Monitor;
+
+                                    return (
+                                        <div 
+                                            key={session.id} 
+                                            className="flex items-center justify-between p-6 bg-white/[0.03] border border-white/5 rounded-3xl hover:bg-white/[0.05] transition-all group relative overflow-hidden"
+                                        >
+                                            <div className="flex items-center gap-6 relative z-10">
+                                                <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                                                    <DeviceIcon size={24} className="text-gold-500/60" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-black text-white uppercase tracking-wider text-sm">{session.device || (isAr ? 'جهاز غير معروف' : 'Unknown Device')}</h4>
+                                                        {session.id === currentStoreProfile?.currentSessionId && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-[8px] font-black uppercase tracking-tighter border border-green-500/20">
+                                                                {isAr ? 'الجلسة الحالية' : 'Current Session'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                                        <div className="flex items-center gap-1.5 text-[10px] text-white/40 font-bold uppercase tracking-tight">
+                                                            <Hash size={10} className="text-gold-500/40" />
+                                                            {session.ipAddress}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-[10px] text-white/40 font-bold uppercase tracking-tight">
+                                                            <MapPin size={10} className="text-gold-500/40" />
+                                                            {session.location || (isAr ? 'موقع غير محدد' : 'Unknown Location')}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-[10px] text-green-500/60 font-black uppercase tracking-tight">
+                                                            <CheckCircle2 size={10} />
+                                                            {isAr ? 'نشط الآن' : 'Active Now'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-right hidden sm:block">
+                                                    <div className="text-[10px] font-black text-green-500 uppercase tracking-widest animate-pulse">{isAr ? 'متصل الآن' : 'Connected'}</div>
+                                                    <div className="text-[9px] text-white/20 uppercase font-mono">
+                                                        {new Date(session.lastActive || session.updatedAt).toLocaleTimeString(isAr ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
+                                                <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)] animate-pulse" />
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="py-20 text-center space-y-4 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl">
+                                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto text-white/10">
+                                        <Smartphone size={32} />
+                                    </div>
+                                    <p className="text-xs font-black text-white/20 uppercase tracking-[0.2em]">{isAr ? 'لا توجد جلسات نشطة حالياً' : 'No active transmissions found'}</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
