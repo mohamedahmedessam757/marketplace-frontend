@@ -30,7 +30,7 @@ interface SubmitOfferModalProps {
 }
 
 // Logic Types
-type PartType = 'normal' | 'engine' | 'gearbox';
+type PartType = string; // Dynamic from systemConfig.logistics.shipmentTypes
 
 interface PartFormData {
     basePrice: string;
@@ -47,7 +47,7 @@ interface PartFormData {
 const DEFAULT_FORM: PartFormData = {
     basePrice: '',
     weight: '',
-    partType: 'normal',
+    partType: 'standard',
     hasWarranty: false,
     warrantyDuration: 'month1',
     deliveryTime: 'd1_3',
@@ -60,7 +60,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     const { t, language } = useLanguage();
     const { fetchChat } = useOrderChatStore();
     const { addNotification } = useNotificationStore();
-    const { systemConfig } = useAdminStore();
+    const { systemConfig, fetchPublicConfig } = useAdminStore();
     const { getOrder, addOfferToOrder } = useOrderStore();
     const { storeId } = useVendorStore();
 
@@ -112,6 +112,8 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     // If existingOffers exist, pre-fill form data from them
     useEffect(() => {
         if (!isOpen || !requestDetails) return;
+        
+        fetchPublicConfig(); // 2026 Real-time logistics sync
 
         const buildFormFromOffer = (offer: any): PartFormData => ({
             basePrice: offer.unitPrice?.toString() || offer.unit_price?.toString() || '',
@@ -157,7 +159,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             setActivePartId(partId);
             setFormDataMap({ [partId]: existingOffer ? buildFormFromOffer(existingOffer) : { ...DEFAULT_FORM } });
         }
-    }, [isOpen, requestDetails?.id, existingOfferMap]);
+    }, [isOpen, requestDetails?.id, existingOfferMap, fetchPublicConfig]);
 
     // Get active form data
     const activeForm = activePartId ? (formDataMap[activePartId] || DEFAULT_FORM) : DEFAULT_FORM;
@@ -172,33 +174,36 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         if (error) setError(null);
     }, [activePartId, error]);
 
-    // --- Calculations for active part ---
-    const calculations = useMemo(() => {
-        const price = parseFloat(activeForm.basePrice) || 0;
-        const w = parseFloat(activeForm.weight) || 0;
-        let shippingCost = 0;
+    // Shared Calculation Logic for 2026 Resiliency
+    const getQuoteCalculations = useCallback((basePriceStr: string, weightStr: string, partType: string) => {
+        const price = parseFloat(basePriceStr) || 0;
+        const w = parseFloat(weightStr) || 0;
+        
+        const shipmentType = systemConfig.logistics.shipmentTypes?.find((t: any) => t.id === partType) 
+                          || systemConfig.logistics.shipmentTypes?.find((t: any) => t.id === 'standard');
 
-        if (activeForm.partType === 'engine') {
-            shippingCost = 350;
-        } else if (activeForm.partType === 'gearbox') {
-            shippingCost = 250;
-        } else {
-            // Weight-based shipping table for normal parts
-            if (w <= 0) {
-                shippingCost = 0;
-            } else if (w <= 5) {
-                shippingCost = 100;
-            } else if (w <= 10) {
-                shippingCost = 150;
-            } else {
-                shippingCost = 150 + Math.ceil((w - 10) / 5) * 50;
+        let shippingCost = 0;
+        if (shipmentType) {
+            shippingCost = shipmentType.basePrice || 0;
+            if (shipmentType.isWeightBound && w > 0) {
+                const brackets = shipmentType.weightBrackets || [];
+                const bracket = brackets.find((b: any) => w >= b.minWeight && w <= b.maxWeight);
+                if (bracket) {
+                    shippingCost += bracket.price || 0;
+                } else if (brackets.length > 0) {
+                    const sorted = [...brackets].sort((a, b) => b.maxWeight - a.maxWeight);
+                    if (w > sorted[0].maxWeight) {
+                        shippingCost += sorted[0].price || 0;
+                    }
+                }
             }
         }
 
         const subtotal = price + shippingCost;
-        // Commission rule: 25% of price or 100 AED, whichever is greater
-        const percentCommission = Math.round(price * 0.25);
-        const commission = price > 0 ? Math.max(percentCommission, 100) : 0;
+        const rate = (systemConfig.financial?.commissionRate || 25) / 100;
+        const minComm = systemConfig.financial?.minCommission || 100;
+        const percentCommission = Math.round(price * rate);
+        const commission = price > 0 ? Math.max(percentCommission, minComm) : 0;
         const finalPrice = subtotal + commission;
 
         return { 
@@ -206,9 +211,14 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             subtotal, 
             commission, 
             finalPrice,
-            merchantEarnings: price // Net is the basePrice loaded
+            merchantEarnings: price 
         };
-    }, [activeForm.basePrice, activeForm.weight, activeForm.partType, systemConfig]);
+    }, [systemConfig]);
+
+    // --- Calculations for active part (UI Preview) ---
+    const calculations = useMemo(() => {
+        return getQuoteCalculations(activeForm.basePrice, activeForm.weight, activeForm.partType);
+    }, [activeForm.basePrice, activeForm.weight, activeForm.partType, getQuoteCalculations]);
 
     // Toggle part selection
     const togglePart = (partId: string) => {
@@ -307,26 +317,11 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                 const part = parts.find((p: any) => p.id === partId);
 
                 // Calculate per-part pricing
-                const price = parseFloat(form.basePrice) || 0;
-                const w = parseFloat(form.weight) || 0;
-                let shippingCost = 0;
-
-                if (form.partType === 'engine') shippingCost = 350;
-                else if (form.partType === 'gearbox') shippingCost = 250;
-                else {
-                    if (w > 0 && w <= 5) shippingCost = 100;
-                    else if (w > 5 && w <= 10) shippingCost = 150;
-                    else if (w > 10 && w <= 15) shippingCost = 200;
-                    else if (w > 15) {
-                        const extraWeight = w - 15;
-                        const extraSets = Math.ceil(extraWeight / 5);
-                        shippingCost = 200 + (extraSets * 50);
-                    }
-                }
-
-                const percentCommission = Math.round(price * 0.25);
-                const commission = price > 0 ? Math.max(percentCommission, 100) : 0;
-                const finalPrice = price + shippingCost + commission;
+                // Dynamic calculation using shared logic (2026 Standard)
+                const { shipping: shippingCost, finalPrice, merchantEarnings: price, weightKg: w } = {
+                    ...getQuoteCalculations(form.basePrice, form.weight, form.partType),
+                    weightKg: parseFloat(form.weight) || 0
+                };
 
                 // Determine if this is an update or a new offer
                 const existingOffer = existingOfferMap.get(partId);
@@ -676,45 +671,59 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                             </label>
                                             <select
                                                 value={activeForm.partType}
-                                                onChange={(e) => updateField('partType', e.target.value as PartType)}
+                                                onChange={(e) => updateField('partType', e.target.value)}
                                                 className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-gold-500 outline-none appearance-none"
                                             >
-                                                <option value="normal" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.normal}</option>
-                                                <option value="engine" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.engine}</option>
-                                                <option value="gearbox" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.gearbox}</option>
+                                                {(systemConfig.logistics?.shipmentTypes || []).map((type: any) => (
+                                                    <option key={type.id} value={type.id} className="bg-[#1A1814]">
+                                                        {isAr ? type.nameAr : type.nameEn}
+                                                    </option>
+                                                ))}
+                                                {(!systemConfig.logistics?.shipmentTypes || systemConfig.logistics.shipmentTypes.length === 0) && (
+                                                    <>
+                                                        <option value="standard" className="bg-[#1A1814]">{isAr ? 'شحن قياسي' : 'Standard Shipping'}</option>
+                                                        <option value="engine" className="bg-[#1A1814]">{isAr ? 'شحن ماكينة' : 'Engine'}</option>
+                                                        <option value="gearbox" className="bg-[#1A1814]">{isAr ? 'شحن جيربوكس' : 'Gearbox'}</option>
+                                                    </>
+                                                )}
                                             </select>
                                         </div>
                                     </div>
 
                                     {/* 2. Weight */}
                                     <AnimatePresence>
-                                        {activeForm.partType === 'normal' && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                className="overflow-hidden"
-                                            >
-                                                <label className="block text-xs text-white/60 mb-2 uppercase tracking-wider">
-                                                    {t.dashboard.merchant.offerModal.weightLabel} <span className="text-red-500">*</span>
-                                                </label>
-                                                <div className="relative">
-                                                    <input
-                                                        type="number"
-                                                        required={activeForm.partType === 'normal'}
-                                                        min="0.1"
-                                                        step="0.1"
-                                                        value={activeForm.weight}
-                                                        onChange={(e) => updateField('weight', e.target.value)}
-                                                        className={`w-full bg-white/5 border rounded-xl py-3 px-4 text-white font-mono outline-none transition-all placeholder-white/10 ${error && !activeForm.weight ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
-                                                        placeholder="0.0"
-                                                    />
-                                                    <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-white/30 text-xs">
-                                                        {t.dashboard.merchant.offerModal.weightUnit}
+                                        {(() => {
+                                            const activeType = systemConfig.logistics?.shipmentTypes?.find((t: any) => t.id === activeForm.partType);
+                                            if (!activeType?.isWeightBound) return null;
+                                            
+                                            return (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <label className="block text-xs text-white/60 mb-2 uppercase tracking-wider">
+                                                        {t.dashboard.merchant.offerModal.weightLabel} <span className="text-red-500">*</span>
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="number"
+                                                            required
+                                                            min="0.1"
+                                                            step="0.1"
+                                                            value={activeForm.weight}
+                                                            onChange={(e) => updateField('weight', e.target.value)}
+                                                            className={`w-full bg-white/5 border rounded-xl py-3 px-4 text-white font-mono outline-none transition-all placeholder-white/10 ${error && !activeForm.weight ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
+                                                            placeholder="0.0"
+                                                        />
+                                                        <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-white/30 text-xs">
+                                                            {t.dashboard.merchant.offerModal.weightUnit}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </motion.div>
-                                        )}
+                                                </motion.div>
+                                            );
+                                        })()}
                                     </AnimatePresence>
 
                                     <div className="h-px bg-white/5 my-4" />

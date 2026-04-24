@@ -642,6 +642,23 @@ export const admin = {
         cancel: 'إلغاء',
         permanent: 'دائم'
       }
+    },
+    systemSettings: {
+      platformName: 'اسم المنصة',
+      contactEmail: 'بريد الدعم الفني',
+      supportPhone: 'رقم الدعم الفني',
+      enablePreferences: 'تفعيل خطوة التفضيلات',
+      commissionRate: 'نسبة العمولة',
+      minCommission: 'الحد الأدنى للعمولة (AED)',
+      baseShipping: 'تكلفة الشحن الأساسية',
+      shippingRules: 'قواعد الشحن',
+      minWeight: 'الوزن الأدنى',
+      maxWeight: 'الوزن الأقصى',
+      price: 'السعر',
+      maintenanceMode: 'وضع الصيانة',
+      maintenanceMsg: 'رسالة الصيانة',
+      saveSuccess: 'تم حفظ الإعدادات بنجاح',
+      realtimeUpdate: 'تم تحديث الإعدادات لحظياً'
     }
   },
   en: {
@@ -1262,6 +1279,23 @@ export const admin = {
         cancel: 'Cancel',
         permanent: 'Permanent'
       }
+    },
+    systemSettings: {
+      platformName: 'Platform Name',
+      contactEmail: 'Support Email',
+      supportPhone: 'Support Phone',
+      enablePreferences: 'Enable Preferences Step',
+      commissionRate: 'Commission Rate',
+      minCommission: 'Minimum Commission (AED)',
+      baseShipping: 'Base Shipping Cost',
+      shippingRules: 'Shipping Rules',
+      minWeight: 'Min Weight',
+      maxWeight: 'Max Weight',
+      price: 'Price',
+      maintenanceMode: 'Maintenance Mode',
+      maintenanceMsg: 'Maintenance Message',
+      saveSuccess: 'Settings saved successfully',
+      realtimeUpdate: 'Settings updated in real-time'
     }
   }
 };

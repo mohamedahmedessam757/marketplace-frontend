@@ -20,7 +20,7 @@ interface CreateOrderWizardProps {
 
 export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete, onNavigate }) => {
   const { step, setStep, submitOrder, reset, vehicle, parts, preferences, setShowErrors, requestType } = useCreateOrderStore();
-  const { systemConfig } = useAdminStore(); // Hook into admin config
+  const { systemConfig, fetchPublicConfig } = useAdminStore(); // Hook into admin config
   const { addNotification } = useNotificationStore();
   const { t, language } = useLanguage();
 
@@ -33,8 +33,9 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
 
   useEffect(() => {
     reset(); // Clear store on mount
+    fetchPublicConfig(); // Load platform rules (real-time 2026 sync)
     setIsReady(true);
-  }, []);
+  }, [fetchPublicConfig]);
 
   // Use Dynamic Config
   const SHOW_PREFERENCES_STEP = systemConfig.general.enablePreferencesStep;

@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import { shipmentsApi } from '../services/api/shipments.api';
+import { useAdminStore } from './useAdminStore';
 
 export interface ShipmentItem {
     name: string;
@@ -79,6 +80,9 @@ export const useShipmentsStore = create<ShipmentsState>((set, get) => ({
     },
 
     fetchShipments: async () => {
+        // MAINTENANCE GUARD (2026 Silencer)
+        if (useAdminStore.getState().publicSystemStatus?.maintenanceMode) return;
+
         set({ loading: true, error: null });
         try {
             // Use the NestJS API (Prisma) to bypass Supabase RLS recursion

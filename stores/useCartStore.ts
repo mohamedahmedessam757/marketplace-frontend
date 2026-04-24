@@ -79,6 +79,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     },
 
     fetchCartItems: async () => {
+        // MAINTENANCE GUARD
+        const isMaintenance = (window as any).useAdminStore?.getState?.().publicSystemStatus?.maintenanceMode;
+        if (isMaintenance) return;
+
         set({ loading: true, error: null });
         try {
             const data = await ordersApi.getAssemblyCart();
@@ -98,6 +102,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     },
     
     fetchMerchantCartItems: async () => {
+        // MAINTENANCE GUARD
+        const isMaintenance = (window as any).useAdminStore?.getState?.().publicSystemStatus?.maintenanceMode;
+        if (isMaintenance) return;
+
         set({ loading: true, error: null });
         try {
             const data = await ordersApi.getMerchantAssemblyCart();

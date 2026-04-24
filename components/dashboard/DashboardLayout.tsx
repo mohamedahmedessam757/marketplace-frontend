@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Home, Package, PlusCircle, MessageSquare, User, Bell, LogOut, Menu, Scale, Info, ChevronDown, Search, Wallet, Grid, Users, ShieldAlert, BarChart3, Settings, ShoppingBag, ListChecks, Truck, FileText, BadgeDollarSign, Store, Star, Award, Database, Headset, ShieldCheck, Lock, CreditCard, RotateCcw, ArrowRight, ArrowLeft, Receipt, PackageSearch } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotificationStore } from '../../stores/useNotificationStore';
@@ -36,7 +36,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { unreadCount, fetchNotifications, subscribeToNotifications, unsubscribeFromNotifications } = useNotificationStore(); // Added fetchNotifications
   const { checkLicenseStatus, vendorStatus, fetchVendorProfile, profile: vendorProfile } = useVendorStore();
-  const { currentAdmin } = useAdminStore();
+  const { currentAdmin, systemStatus, publicSystemStatus } = useAdminStore();
   const { startRealtime, stopRealtime } = useOrderStore();
   const { fetchInvoices, fetchCards } = useBillingStore();
   const { fetchWallet } = useMerchantWalletStore();
@@ -48,6 +48,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     if (userId && role) {
       // 1. Core Profile & Notification Init
       fetchProfile();
+      
+      // SAFETY: SILENCE ALL BACKGROUND FETCHES IF MAINTENANCE IS ACTIVE
+      const isMaintenance = useAdminStore.getState().publicSystemStatus?.maintenanceMode;
+      if (isMaintenance && role !== 'admin') {
+         console.log("🛡️ Dashboard Silencer: Maintenance active, skipping resource pre-fetch.");
+         return;
+      }
+
       fetchNotifications(userId, role);
       subscribeToNotifications(userId, role);
 
@@ -63,7 +71,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     return () => {
       unsubscribeFromNotifications();
     };
-  }, [role]);
+  }, [role, publicSystemStatus?.maintenanceMode]);
 
   const isAr = language === 'ar';
 
@@ -354,6 +362,40 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
         {/* Page Content */}
         <div className="flex-1 p-4 md:p-8 mt-2 md:mt-4 pb-24 md:pb-8">
+          {/* Global Maintenance Awareness (2026 UX) */}
+          {role === 'admin' && (
+            <AnimatePresence>
+              {systemStatus.maintenanceMode && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+                  animate={{ height: 'auto', opacity: 1, marginBottom: 24 }}
+                  exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-[2rem] p-5 flex items-center justify-between shadow-2xl shadow-red-500/5">
+                    <div className="flex items-center gap-5">
+                      <div className="w-10 h-10 bg-red-500/20 rounded-xl flex items-center justify-center text-red-500 animate-pulse">
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-red-400 uppercase tracking-tighter">
+                          {isAr ? 'النظام في وضع الصيانة' : 'System Maintenance Mode'}
+                        </h4>
+                        <p className="text-[9px] text-white/40 font-bold uppercase tracking-tight mt-0.5">
+                          {isAr ? 'وصول المستخدمين والتجار مقيد حالياً.' : 'User and Vendor access is currently restricted.'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 rounded-lg border border-red-400/20">
+                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
+                      <span className="text-[8px] font-black text-red-300 uppercase tracking-widest">{isAr ? 'نشط' : 'Active'}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
+
           <motion.div
             key={currentPath}
             initial={{ opacity: 0, y: 10 }}

@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { MerchantStatus } from './useVendorStore';
@@ -15,6 +16,23 @@ export interface AdminUser {
   email: string;
   role: AdminRole;
   avatar?: string;
+}
+
+export interface AdminActivityLog {
+  id: string;
+  adminId: string;
+  email: string;
+  action: string;
+  ipAddress: string;
+  deviceType: string;
+  browser: string;
+  location: string;
+  metadata?: any;
+  createdAt: string;
+  admin?: {
+    name: string;
+    role: string;
+  };
 }
 
 export interface DashboardStats {
@@ -44,7 +62,25 @@ export interface ShippingRule {
   id: string;
   minWeight: number;
   maxWeight: number;
-  price: number;
+  price: number; // Bracket surcharge
+}
+
+export interface ShipmentType {
+  id: string; // 'standard', 'engine', 'gearbox'
+  nameAr: string;
+  nameEn: string;
+  basePrice: number;
+  isWeightBound: boolean;
+  weightBrackets: ShippingRule[];
+}
+
+export interface SystemStatus {
+  maintenanceMode: boolean;
+  endTime: string | null;
+  maintenanceMsgAr: string;
+  maintenanceMsgEn: string;
+  statusMessageAr: string;
+  statusMessageEn: string;
 }
 
 export interface SystemConfig {
@@ -56,11 +92,10 @@ export interface SystemConfig {
   };
   financial: {
     commissionRate: number;
-    vatRate: number;
+    minCommission: number;
   };
   logistics: {
-    shippingRules: ShippingRule[];
-    baseShippingCost: number;
+    shipmentTypes: ShipmentType[];
   };
   content: {
     vendorContract: {
@@ -135,9 +170,17 @@ export interface WithdrawalLimits {
 export interface AdminState {
   currentAdmin: AdminUser | null;
   commissionRate: number;
-  systemStatus: 'active' | 'maintenance';
+  systemStatus: SystemStatus;
+  adminActivityLogs: AdminActivityLog[];
+  isLoadingLogs: boolean;
   vendorsList: Vendor[];
   systemConfig: SystemConfig;
+  activeContract: {
+    contentAr: string;
+    contentEn: string;
+    firstPartyConfig: Record<string, any>;
+    version?: number;
+  } | null;
   dashboardStats: DashboardStats | null;
   isLoadingStats: boolean;
   dashboardFilters: { startDate?: string; endDate?: string };
@@ -148,15 +191,6 @@ export interface AdminState {
   withdrawalLimits: WithdrawalLimits;
   isLoadingWithdrawals: boolean;
 
-  loginAdmin: (email: string) => void;
-  logoutAdmin: () => void;
-  setDashboardFilters: (filters: { startDate?: string; endDate?: string }) => void;
-  fetchDashboardStats: (filters?: { startDate?: string; endDate?: string }) => Promise<void>;
-  setCommissionRate: (rate: number) => void;
-  toggleSystemStatus: () => void;
-  updateSystemConfig: (section: keyof SystemConfig, data: any) => void;
-  fetchAllStores: () => Promise<void>;
-  silentFetchStores: () => Promise<void>;
   fetchStoreProfile: (id: string) => Promise<void>;
   silentFetchStoreProfile: (id: string) => Promise<void>;
   clearStoreProfile: () => void;
@@ -164,18 +198,32 @@ export interface AdminState {
   updateVendorStatus: (id: string, status: MerchantStatus) => void;
   updateVendorDocStatus: (vendorId: string, docType: 'cr' | 'license', status: 'approved' | 'rejected') => void;
   updateStoreNotes: (id: string, notes: string) => Promise<boolean>;
+  
   // Withdrawal Management
   fetchWithdrawals: () => Promise<void>;
   processWithdrawal: (id: string, action: 'approve' | 'reject', notes?: string) => Promise<{ success: boolean; message: string }>;
   fetchWithdrawalLimits: () => Promise<void>;
   updateWithdrawalLimits: (limits: WithdrawalLimits) => Promise<boolean>;
 
+  // Activity Logs
+  fetchAdminActivityLogs: () => Promise<void>;
+  publicSystemStatus: any;
+  fetchPublicStatus: () => Promise<void>;
+  fetchPublicConfig: () => Promise<void>;
+
   // Contract Management
   fetchVendorContract: () => Promise<void>;
   saveVendorContract: (contractData: any) => Promise<boolean>;
 
+  // Platform Settings (2026 Enhanced)
+  fetchSystemSettings: () => Promise<void>;
+  saveSystemSetting: (key: string, value: any, reason?: string) => Promise<boolean>;
+  subscribeToSettings: () => void;
+  unsubscribeFromSettings: () => void;
+
   // Real-time
   subscription: any;
+  fetchDashboardStats: (filters?: { startDate?: string; endDate?: string }) => Promise<void>;
   silentFetchDashboardStats: (filters?: { startDate?: string; endDate?: string }) => Promise<void>;
   subscribeToStats: () => void;
   unsubscribeFromStats: () => void;
@@ -191,24 +239,37 @@ export interface AdminState {
   withdrawalSubscription: any;
   subscribeToWithdrawals: () => void;
   unsubscribeFromWithdrawals: () => void;
+  
+  // Backward compatibility / UI state
+  loginAdmin: (email: string) => void;
+  logoutAdmin: () => void;
+  setDashboardFilters: (filters: { startDate?: string; endDate?: string }) => void;
+  setCommissionRate: (rate: number) => void;
+  toggleSystemStatus: () => void;
+  updateSystemConfig: (section: keyof SystemConfig, data: any) => void;
+  fetchAllStores: () => Promise<void>;
+  silentFetchStores: () => Promise<void>;
 }
 
-const MOCK_VENDORS: Vendor[] = [
-  { id: '1', name: 'Mohammed Ali', storeName: 'Al-Jazira Parts', email: 'mohammed@store.com', status: 'ACTIVE', licenseExpiry: '2024-12-01', rating: 4.8, totalSales: 450000, joinedAt: '2023-01-15', balance: 12500, docs: { cr: 'approved', license: 'approved' } },
-  { id: '2', name: 'Khalid Omar', storeName: 'Seoul Auto', email: 'khalid@seoul.com', status: 'ACTIVE', licenseExpiry: '2024-10-10', rating: 4.5, totalSales: 320000, joinedAt: '2023-03-20', balance: 8400, docs: { cr: 'approved', license: 'approved' } },
-  { id: '3', name: 'Sami Ahmed', storeName: 'German Elite', email: 'sami@german.com', status: 'LICENSE_EXPIRED', licenseExpiry: '2024-02-01', rating: 4.9, totalSales: 550000, joinedAt: '2022-11-05', balance: 2000, docs: { cr: 'approved', license: 'expired' } },
-  { id: '4', name: 'New Vendor', storeName: 'Fast Parts', email: 'new@vendor.com', status: 'PENDING_REVIEW', licenseExpiry: '2025-01-01', rating: 0, totalSales: 0, joinedAt: '2024-02-25', balance: 0, docs: { cr: 'pending', license: 'pending' } },
-];
-
-const DEFAULT_CONTRACT = `عقد شراكة وتوريد إلكتروني...`;
+const DEFAULT_STATUS: SystemStatus = {
+  maintenanceMode: false,
+  endTime: null,
+  maintenanceMsgAr: 'النظام حالياً في وضع الصيانة لترقية الخوادم...',
+  maintenanceMsgEn: 'System is currently under maintenance for server upgrades...',
+  statusMessageAr: 'النظام يعمل بشكل طبيعي',
+  statusMessageEn: 'System is operating normally'
+};
 
 export const useAdminStore = create<AdminState>()(
   persist(
     (set, get) => ({
       currentAdmin: JSON.parse(sessionStorage.getItem('admin') || 'null'),
-      commissionRate: 20,
-      systemStatus: 'active',
-      vendorsList: MOCK_VENDORS,
+      commissionRate: 25,
+      systemStatus: DEFAULT_STATUS,
+      adminActivityLogs: [],
+      isLoadingLogs: false,
+      publicSystemStatus: null,
+      vendorsList: [],
       dashboardStats: null,
       isLoadingStats: false,
       dashboardFilters: {
@@ -219,6 +280,7 @@ export const useAdminStore = create<AdminState>()(
       currentStoreProfile: null,
       pendingWithdrawals: [],
       withdrawalLimits: { min: 100, max: 10000 },
+      activeContract: null,
       isLoadingWithdrawals: false,
       isLoadingStores: false,
 
@@ -227,33 +289,49 @@ export const useAdminStore = create<AdminState>()(
           platformName: 'e-tashleh',
           contactEmail: 'cs@e-tashleh.net',
           supportPhone: '0525700525',
-          enablePreferencesStep: false
+          enablePreferencesStep: true
         },
         financial: {
-          commissionRate: 20,
-          vatRate: 15
+          commissionRate: 25,
+          minCommission: 100
         },
         logistics: {
-          baseShippingCost: 150,
-          shippingRules: [
-            { id: '1', minWeight: 0, maxWeight: 5, price: 35 },
-            { id: '2', minWeight: 5.1, maxWeight: 15, price: 65 },
-            { id: '3', minWeight: 15.1, maxWeight: 30, price: 120 },
+          shipmentTypes: [
+            {
+              id: 'standard',
+              nameAr: 'شحن قياسي (قطع غيار عادية)',
+              nameEn: 'Standard Shipping (Normal Parts)',
+              basePrice: 60,
+              isWeightBound: true,
+              weightBrackets: [
+                { id: '1', minWeight: 0, maxWeight: 5, price: 0 },
+                { id: '2', minWeight: 5.1, maxWeight: 10, price: 40 },
+                { id: '3', minWeight: 10.1, maxWeight: 20, price: 90 },
+              ]
+            },
+            {
+              id: 'engine',
+              nameAr: 'شحن ماكينة (محرك)',
+              nameEn: 'Engine Shipping',
+              basePrice: 450,
+              isWeightBound: false,
+              weightBrackets: []
+            },
+            {
+              id: 'gearbox',
+              nameAr: 'شحن جيربوكس',
+              nameEn: 'Gearbox Shipping',
+              basePrice: 350,
+              isWeightBound: false,
+              weightBrackets: []
+            }
           ]
         },
         content: {
           vendorContract: {
             contentAr: '',
             contentEn: '',
-            firstPartyConfig: {
-              companyNameAr: '',
-              companyNameEn: '',
-              crNumber: '',
-              licenseNumber: '',
-              licenseExpiry: '',
-              headquartersAr: '',
-              headquartersEn: ''
-            }
+            firstPartyConfig: {}
           },
           privacyPolicy: '...',
           invoiceFooter: 'ELLIPP FZ LLC...'
@@ -275,6 +353,18 @@ export const useAdminStore = create<AdminState>()(
 
         sessionStorage.setItem('admin', JSON.stringify(user));
         set({ currentAdmin: user });
+        
+        // Push Mock Log to Backend explicitly to ensure Activity Tracker catches it
+        fetch('http://localhost:3000/system/mock-admin-log', {
+           method: 'PUT',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+              email: email,
+              action: 'LOGIN',
+              metadata: { role, note: 'Mock Login bypassing Auth API' }
+           })
+        }).catch(err => console.warn('Mock log failed', err));
+
         get().fetchDashboardStats();
         get().fetchAllStores();
       },
@@ -302,6 +392,167 @@ export const useAdminStore = create<AdminState>()(
           }
         } catch (e) {
           console.error("Failed to silently fetch stats", e);
+        }
+      },
+
+      fetchAdminActivityLogs: async () => {
+        set({ isLoadingLogs: true });
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/admin/platform-settings/activity/logs`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            set({ adminActivityLogs: data });
+          }
+        } catch (e) {
+          console.error("Failed to fetch admin logs", e);
+        } finally {
+          set({ isLoadingLogs: false });
+        }
+      },
+
+      fetchSystemSettings: async () => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/admin/platform-settings`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            
+            if (data.system_config) {
+              const config = data.system_config;
+              if (config.financial && config.financial.vatRate !== undefined && config.financial.minCommission === undefined) {
+                config.financial.minCommission = config.financial.vatRate;
+              }
+              set({ systemConfig: config });
+              if (config.financial?.commissionRate) set({ commissionRate: config.financial.commissionRate });
+            }
+            
+            if (data.system_status) set({ systemStatus: data.system_status });
+            if (data.withdrawal_limits) set({ withdrawalLimits: data.withdrawal_limits });
+          }
+        } catch (error) {
+          console.error("Failed to fetch system settings", error);
+        }
+      },
+
+      fetchPublicStatus: async () => {
+        try {
+          // Dynamic API URL check
+          const res = await fetch(`${API_URL}/system/status`);
+          if (res.ok) {
+            const data = await res.json();
+            set({ publicSystemStatus: data });
+          }
+        } catch (e) {
+          console.warn("Public status fetch failed", e);
+        }
+      },
+
+      fetchPublicConfig: async () => {
+        try {
+          const res = await fetch(`${API_URL}/system/config`);
+          if (res.ok) {
+            const config = await res.json();
+            
+            // Sync backward compatibility for commission
+            if (config.financial && config.financial.vatRate !== undefined && config.financial.minCommission === undefined) {
+              config.financial.minCommission = config.financial.vatRate;
+            }
+            
+            set({ systemConfig: config });
+            if (config.financial?.commissionRate) set({ commissionRate: config.financial.commissionRate });
+          }
+        } catch (e) {
+          console.warn("Public config fetch failed", e);
+        }
+      },
+
+      saveSystemSetting: async (key: string, value: any, reason?: string) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          // OPTIMISTIC UPDATE: Reflect changes immediately for both Admin and Public states
+          if (key === 'system_status') {
+             const newStatus = { 
+               ...get().systemStatus,
+               maintenanceMode: value.maintenanceMode,
+               maintenanceMsgAr: value.maintenanceMsgAr,
+               maintenanceMsgEn: value.maintenanceMsgEn,
+               endTime: value.endTime
+             };
+             set({ 
+               systemStatus: newStatus,
+               publicSystemStatus: newStatus 
+             });
+          }
+
+          const res = await fetch(`${API_URL}/admin/platform-settings/${key}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ value, reason })
+          });
+          if (res.ok) {
+            await get().fetchSystemSettings();
+            await get().fetchPublicStatus(); // IMMEDIATE SYNC (2026 Optimization)
+            return true;
+          }
+          return false;
+        } catch (error) {
+          console.error(`Failed to save setting ${key}`, error);
+          return false;
+        }
+      },
+
+      subscribeToSettings: () => {
+        if (get().subscription) return;
+
+        const sub = supabase
+          .channel('platform_settings_changes')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'platform_settings' },
+            (payload) => {
+              const { setting_key, setting_value } = payload.new as any;
+              
+              if (setting_key === 'system_config') {
+                const config = setting_value;
+                if (config.financial && config.financial.vatRate !== undefined && config.financial.minCommission === undefined) {
+                  config.financial.minCommission = config.financial.vatRate;
+                }
+                set({ systemConfig: config });
+                if (config.financial?.commissionRate) set({ commissionRate: config.financial.commissionRate });
+              } else if (setting_key === 'system_status') {
+                set({ systemStatus: setting_value });
+              } else if (setting_key === 'withdrawal_limits') {
+                set({ withdrawalLimits: setting_value });
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'platform_contracts' },
+            (payload) => {
+              if (payload.new && (payload.new as any).isActive) {
+                set({ activeContract: payload.new as any });
+              }
+            }
+          )
+          .subscribe();
+
+        set({ subscription: sub });
+      },
+
+      unsubscribeFromSettings: () => {
+        const { subscription } = get();
+        if (subscription) {
+          supabase.removeChannel(subscription);
+          set({ subscription: null });
         }
       },
 
@@ -334,7 +585,7 @@ export const useAdminStore = create<AdminState>()(
       setCommissionRate: (rate) => set({ commissionRate: rate }),
 
       toggleSystemStatus: () => set((state) => ({
-        systemStatus: state.systemStatus === 'active' ? 'maintenance' : 'active'
+        systemStatus: { ...state.systemStatus, maintenanceMode: !state.systemStatus.maintenanceMode }
       })),
 
       updateSystemConfig: (section, data) => set((state) => {
@@ -388,7 +639,7 @@ export const useAdminStore = create<AdminState>()(
       },
 
       fetchStoreProfile: async (id: string) => {
-        set({ isLoadingStores: true, currentStoreProfile: null }); // CLEAR old profile
+        set({ isLoadingStores: true, currentStoreProfile: null }); 
         try {
           const token = localStorage.getItem('access_token');
           if (token) {
@@ -429,7 +680,6 @@ export const useAdminStore = create<AdminState>()(
       updateStoreNotes: async (id, notes) => {
         try {
           await storesApi.updateNotes(id, notes);
-          // Optimistically update local state if matches current profile
           const { currentStoreProfile } = get();
           if (currentStoreProfile && currentStoreProfile.id === id) {
             set({ currentStoreProfile: { ...currentStoreProfile, adminNotes: notes } });
@@ -462,19 +712,7 @@ export const useAdminStore = create<AdminState>()(
           const res = await fetch(`${API_URL}/contracts/active`);
           if (res.ok) {
             const data = await res.json();
-            set(state => ({
-              systemConfig: {
-                ...state.systemConfig,
-                content: {
-                  ...state.systemConfig.content,
-                  vendorContract: {
-                    contentAr: data.contentAr || '',
-                    contentEn: data.contentEn || '',
-                    firstPartyConfig: data.firstPartyConfig || {}
-                  }
-                }
-              }
-            }));
+            set({ activeContract: data });
           }
         } catch (e) {
           console.error("Failed to fetch contract", e);
@@ -496,15 +734,8 @@ export const useAdminStore = create<AdminState>()(
           });
           
           if (res.ok) {
-            set(state => ({
-              systemConfig: {
-                ...state.systemConfig,
-                content: {
-                  ...state.systemConfig.content,
-                  vendorContract: contractData
-                }
-              }
-            }));
+            const data = await res.json();
+            set({ activeContract: data });
             return true;
           }
           return false;
@@ -588,8 +819,6 @@ export const useAdminStore = create<AdminState>()(
         }
       },
 
-
-
       subscription: null,
 
       subscribeToStats: () => {
@@ -601,7 +830,6 @@ export const useAdminStore = create<AdminState>()(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'orders' },
             () => {
-              console.log('🔔 Admin Stats Update: Orders');
               silentFetchDashboardStats();
             }
           )
@@ -609,7 +837,6 @@ export const useAdminStore = create<AdminState>()(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'users' },
             () => {
-              console.log('🔔 Admin Stats Update: Users');
               silentFetchDashboardStats();
             }
           )
@@ -617,7 +844,6 @@ export const useAdminStore = create<AdminState>()(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'stores' },
             () => {
-              console.log('🔔 Admin Stats Update: Stores');
               silentFetchDashboardStats();
             }
           )
@@ -647,7 +873,6 @@ export const useAdminStore = create<AdminState>()(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'stores' },
             () => {
-              console.log('🔔 Admin Stores Update Received');
               silentFetchStores();
             }
           )
@@ -668,16 +893,15 @@ export const useAdminStore = create<AdminState>()(
 
       subscribeToStoreProfile: (id: string) => {
         const { storeProfileSubscription, fetchStoreProfile, silentFetchStoreProfile } = get();
-        if (storeProfileSubscription) return; // Already subscribed
+        if (storeProfileSubscription) return; 
 
-        fetchStoreProfile(id); // Initial fetch with skeleton loader
+        fetchStoreProfile(id); 
 
         const channel = supabase.channel(`admin-store-profile-${id}`)
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'stores', filter: `id=eq.${id}` },
             () => {
-              console.log(`🔔 Admin Store Profile Update Received for ${id}`);
               silentFetchStoreProfile(id);
             }
           )
@@ -685,7 +909,6 @@ export const useAdminStore = create<AdminState>()(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'store_documents', filter: `store_id=eq.${id}` },
             () => {
-              console.log(`🔔 Admin Store Documents Update Received for ${id}`);
               silentFetchStoreProfile(id);
             }
           )
@@ -693,7 +916,6 @@ export const useAdminStore = create<AdminState>()(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${id}` },
             () => {
-              console.log(`🔔 Admin Store Orders Update Received for ${id}`);
               silentFetchStoreProfile(id);
             }
           )
@@ -701,27 +923,7 @@ export const useAdminStore = create<AdminState>()(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'reviews', filter: `store_id=eq.${id}` },
             () => {
-              console.log(`🔔 Admin Store Reviews Update Received for ${id}`);
               silentFetchStoreProfile(id);
-            }
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `store_id=eq.${id}` },
-            () => {
-              console.log(`🔔 Admin Store Withdrawal Update Received for ${id}`);
-              silentFetchStoreProfile(id);
-            }
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'wallet_transactions' },
-            (payload: any) => {
-              const { currentStoreProfile } = get();
-              if (currentStoreProfile?.ownerId === payload.new?.user_id || currentStoreProfile?.ownerId === payload.old?.user_id) {
-                console.log(`🔔 Admin Store Wallet Transaction Received for owner: ${currentStoreProfile?.ownerId}`);
-                silentFetchStoreProfile(id);
-              }
             }
           )
           .subscribe();
@@ -730,26 +932,26 @@ export const useAdminStore = create<AdminState>()(
       },
 
       unsubscribeFromStoreProfile: () => {
-        const { storeProfileSubscription, clearStoreProfile } = get();
+        const { storeProfileSubscription } = get();
         if (storeProfileSubscription) {
           supabase.removeChannel(storeProfileSubscription);
           set({ storeProfileSubscription: null });
         }
-        clearStoreProfile(); // Cleanup on unmount!
       },
 
       withdrawalSubscription: null,
+
       subscribeToWithdrawals: () => {
         const { withdrawalSubscription, fetchWithdrawals } = get();
         if (withdrawalSubscription) return;
 
         fetchWithdrawals();
+
         const channel = supabase.channel('admin-withdrawals-realtime')
           .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'WithdrawalRequest' },
+            { event: '*', schema: 'public', table: 'withdrawal_requests' },
             () => {
-              console.log('🔔 Admin Withdrawal Update Received');
               fetchWithdrawals();
             }
           )
@@ -769,14 +971,17 @@ export const useAdminStore = create<AdminState>()(
     {
       name: 'etashleh-admin-storage',
       storage: createJSONStorage(() => sessionStorage),
-      partialize: (state) => ({
-        currentAdmin: state.currentAdmin,
-        commissionRate: state.commissionRate,
-        systemStatus: state.systemStatus,
-        vendorsList: state.vendorsList,
-        systemConfig: state.systemConfig,
-        // Exclude subscription and others
-      }),
+      partialize: (state) => {
+        // Exclude circular/non-serializable objects from persistence
+        const { 
+          subscription, 
+          storeSubscription, 
+          storeProfileSubscription, 
+          withdrawalSubscription,
+          ...rest 
+        } = state;
+        return rest;
+      }
     }
   )
 );
