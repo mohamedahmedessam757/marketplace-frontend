@@ -198,6 +198,7 @@ interface OrderState {
     hasMore: boolean;
 
     fetchOrders: (params?: { search?: string; status?: string; page?: number; retry?: number }) => Promise<void>;
+    fetchOrder: (id: string) => Promise<void>;
     fetchMoreOrders: (params?: { search?: string; status?: string }) => Promise<void>;
     silentFetch: () => Promise<void>;
     mapBackendOrders: (items: any[]) => Order[];
@@ -306,6 +307,26 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             if (subscription.offersChannel) supabase.removeChannel(subscription.offersChannel);
         }
         set({ subscription: null });
+    },
+
+    fetchOrder: async (id: string) => {
+        try {
+            const result = await ordersApi.getById(id);
+            const mappedOrder = get().mapBackendOrders([result])[0];
+            
+            set((state) => {
+                const existingIndex = state.orders.findIndex(o => String(o.id) === String(id));
+                if (existingIndex > -1) {
+                    const newOrders = [...state.orders];
+                    newOrders[existingIndex] = mappedOrder;
+                    return { orders: newOrders };
+                } else {
+                    return { orders: [mappedOrder, ...state.orders] };
+                }
+            });
+        } catch (err) {
+            console.error(`Failed to fetch order ${id}`, err);
+        }
     },
 
     fetchOrders: async (params = {}) => {
@@ -456,7 +477,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     ...o.customer,
                     customerCode: o.customer.id ? `CUS-${o.customer.id.substring(0, 6).toUpperCase()}` : undefined
                 } : undefined,
-                price: (() => {
+                price: o.totalAmount ? Number(o.totalAmount) : (() => {
                     const allAccepted = o.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())) || [];
                     if (allAccepted.length > 0) {
                         return allAccepted.reduce((total: number, of: any) => {
@@ -467,7 +488,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                             return total + base + shipping + commission;
                         }, 0);
                     }
-                    return null;
+                    return 0;
                 })(),
                 merchantName: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase()))?.store?.name || null,
                 acceptedOffer: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),

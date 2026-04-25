@@ -58,6 +58,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
     });
     const [files, setFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -66,11 +67,13 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
             setUsageCondition('');
             setConfirmations({ integrity: false, packaging: false, policy: false });
             setFiles([]);
+            setAttemptedSubmit(false);
         }
     }, [isOpen]);
 
     const handleSubmit = async () => {
-        if (!orderId || !reason || !description || !usageCondition) return;
+        setAttemptedSubmit(true);
+        if (!orderId || !reason || !description || !usageCondition || files.length === 0) return;
         if (!confirmations.integrity || !confirmations.packaging || !confirmations.policy) return;
         
         setIsSubmitting(true);
@@ -186,7 +189,8 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                         <select 
                                             value={reason}
                                             onChange={(e) => setReason(e.target.value)}
-                                            className={`w-full bg-[#0A0A0A] border border-white/10 rounded-2xl px-5 py-4 text-xs text-white outline-none focus:border-cyan-500/50 transition-all appearance-none cursor-pointer ${isAr ? 'text-right' : 'text-left'}`}
+                                            className={`w-full bg-[#0A0A0A] border rounded-2xl px-5 py-4 text-xs text-white outline-none transition-all appearance-none cursor-pointer ${isAr ? 'text-right' : 'text-left'}
+                                            ${attemptedSubmit && !reason ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'border-white/10 focus:border-cyan-500/50'}`}
                                         >
                                             <option value="" className="bg-[#0A0A0A]">{t.dashboard.common?.select || (isAr ? 'اختر السبب...' : 'Select Reason...')}</option>
                                             <option value="not_matching" className="bg-[#0A0A0A]">{t.dashboard.resolution.reasons.not_matching}</option>
@@ -211,7 +215,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         {[
                                             { id: 'UNUSED', labelAr: 'لم يتم الاستخدام', labelEn: 'Unused' },
-                                            { id: 'OPENED', labelAr: 'فتح التغليف فقط', labelEn: 'Packaging Opened' },
+                                            { id: 'OPENED', labelAr: 'مفتوح الغلاف', labelEn: 'Packaging Opened' },
                                             { id: 'INSTALLED', labelAr: 'تم تركيب القطعة', labelEn: 'Item Installed' }
                                         ].map((cond) => (
                                             <button
@@ -221,7 +225,9 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                                     p-4 rounded-2xl border transition-all text-center group
                                                     ${usageCondition === cond.id 
                                                         ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400' 
-                                                        : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:border-white/20'
+                                                        : attemptedSubmit && !usageCondition 
+                                                            ? 'bg-red-500/5 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
+                                                            : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:border-white/20'
                                                     }
                                                 `}
                                             >
@@ -239,21 +245,24 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                     <textarea
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-3xl px-6 py-5 text-sm text-white focus:border-cyan-500/50 outline-none resize-none h-32 placeholder-white/10 transition-all hover:bg-white/[0.08]"
+                                        className={`w-full bg-white/5 border rounded-3xl px-6 py-5 text-sm text-white outline-none resize-none h-32 placeholder-white/10 transition-all hover:bg-white/[0.08]
+                                        ${attemptedSubmit && !description ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'border-white/10 focus:border-cyan-500/50'}`}
                                         placeholder={isAr ? 'صف الحالة بالتفصيل للمراجع الإداري...' : 'Narrate the issue for administrative audit...'}
                                     />
                                 </div>
 
                                 <div className="space-y-3">
                                     <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">{t.dashboard.resolution.form.evidence}</label>
-                                    <FileUploader
-                                        onFilesSelected={setFiles}
-                                        accept={{
-                                            'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'],
-                                            'video/*': ['.mp4', '.mov', '.webm']
-                                        }}
-                                        maxFiles={5}
-                                    />
+                                    <div className={`rounded-3xl transition-all ${attemptedSubmit && files.length === 0 ? 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : ''}`}>
+                                        <FileUploader
+                                            onFilesSelected={setFiles}
+                                            accept={{
+                                                'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'],
+                                                'video/*': ['.mp4', '.mov', '.webm']
+                                            }}
+                                            maxFiles={5}
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* Mandatory Confirmations - Spec §6 */}
@@ -275,11 +284,12 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                                         ? 'bg-cyan-500 border-cyan-500 text-black' 
                                                         : 'bg-white/5 border-white/10 group-hover:border-white/30'
                                                     }
+                                                    ${attemptedSubmit && !confirmations[check.id as keyof typeof confirmations] ? 'border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : ''}
                                                 `}
                                             >
                                                 {confirmations[check.id as keyof typeof confirmations] && <X size={14} className="stroke-[4]" />}
                                             </div>
-                                            <span className="text-[11px] text-white/40 group-hover:text-white/60 transition-colors font-bold uppercase tracking-tight">
+                                            <span className={`text-[11px] group-hover:text-white/60 transition-colors font-bold uppercase tracking-tight ${attemptedSubmit && !confirmations[check.id as keyof typeof confirmations] ? 'text-red-400' : 'text-white/40'}`}>
                                                 {isAr ? check.textAr : check.textEn}
                                             </span>
                                         </label>
@@ -299,7 +309,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
 
                             <button
                                 onClick={handleSubmit}
-                                disabled={!reason || !description || !usageCondition || !confirmations.integrity || !confirmations.packaging || !confirmations.policy || isSubmitting}
+                                disabled={isSubmitting}
                                 className="w-full md:w-auto px-12 py-5 bg-cyan-500 text-black font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(6,182,212,0.3)] disabled:opacity-30 disabled:hover:scale-100 disabled:grayscale group"
                             >
                                 {isSubmitting ? (

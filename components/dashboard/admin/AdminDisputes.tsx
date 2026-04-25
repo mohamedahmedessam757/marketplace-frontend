@@ -25,14 +25,15 @@ export const AdminDisputes: React.FC<AdminDisputesProps> = ({ onNavigate }) => {
         if (!matchesSearch) return false;
 
         if (filter === 'open') return c.status === 'OPEN' || c.status === 'AWAITING_MERCHANT';
-        if (filter === 'urgent') return c.status === 'AWAITING_ADMIN';
+        if (filter === 'urgent') return c.status === 'AWAITING_ADMIN' || c.status === 'ESCALATED';
         if (filter === 'resolved') return c.status === 'RESOLVED' || c.status === 'REFUNDED' || c.status === 'CLOSED';
         return true;
     });
 
     const getStatusBadge = (status: CaseStatus) => {
         switch (status) {
-            case 'AWAITING_ADMIN': return <span className="bg-orange-500/10 text-orange-400 px-2 py-1 rounded text-[10px] border border-orange-500/20 font-bold animate-pulse">{t.admin.disputeManager.status.awaiting_admin}</span>;
+            case 'AWAITING_ADMIN': 
+            case 'ESCALATED': return <span className="bg-orange-500/10 text-orange-400 px-2 py-1 rounded text-[10px] border border-orange-500/20 font-bold animate-pulse">{t.admin.disputeManager.status.awaiting_admin}</span>;
             case 'OPEN': return <span className="bg-red-500/10 text-red-400 px-2 py-1 rounded text-[10px] border border-red-500/20 font-bold">{t.admin.disputeManager.status.open}</span>;
             case 'AWAITING_MERCHANT': return <span className="bg-yellow-500/10 text-yellow-400 px-2 py-1 rounded text-[10px] border border-yellow-500/20">{t.admin.disputeManager.status.awaiting_merchant}</span>;
             case 'RESOLVED':

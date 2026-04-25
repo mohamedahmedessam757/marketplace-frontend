@@ -43,14 +43,16 @@ export type StatusType =
   | 'RESOLVED';
 
 interface BadgeProps {
-  status: StatusType;
+  status?: StatusType | string;
   className?: string;
+  children?: React.ReactNode;
+  variant?: 'gold' | 'cyan' | 'red' | 'green' | 'outline' | 'default';
 }
 
-export const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
+export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, variant = 'default' }) => {
   const { t, language } = useLanguage();
 
-  const isShipmentStatus = [
+  const isShipmentStatus = status && [
     'RECEIVED_AT_HUB', 'QUALITY_CHECK_PASSED', 'PACKAGED_FOR_SHIPPING',
     'AWAITING_CARRIER_PICKUP', 'PICKED_UP_BY_CARRIER', 'IN_TRANSIT_TO_DESTINATION',
     'ARRIVED_AT_LOCAL_FACILITY', 'CUSTOMS_CLEARANCE', 'AT_LOCAL_WAREHOUSE',
@@ -61,9 +63,9 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
   const styles: Record<string, string> = {
     AWAITING_OFFERS: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
     AWAITING_PAYMENT: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-    PREPARATION: "bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse", // Pulse for urgency (48h)
-    DELAYED_PREPARATION: "bg-red-600/20 text-red-500 border-red-600/80 animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.5)] font-bold", // Critical 24h Warning
-    PREPARED: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30", // Delivered cleanly
+    PREPARATION: "bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse",
+    DELAYED_PREPARATION: "bg-red-600/20 text-red-500 border-red-600/80 animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.5)] font-bold",
+    PREPARED: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
     VERIFICATION: "bg-amber-500/10 text-amber-500 border-amber-500/30", 
     VERIFICATION_SUCCESS: "bg-green-500/10 text-green-400 border-green-500/30", 
     READY_FOR_SHIPPING: "bg-blue-500/10 text-blue-400 border-blue-500/30 animate-pulse",
@@ -75,7 +77,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
     COMPLETED: "bg-green-500/10 text-green-400 border-green-500/20",
     CANCELLED: "bg-red-500/10 text-red-400 border-red-500/20",
     RETURNED: "bg-red-500/10 text-red-400 border-red-500/20",
-    DISPUTED: "bg-red-600/20 text-red-500 border-red-600/50 animate-pulse font-bold", // High Alert
+    DISPUTED: "bg-red-600/20 text-red-500 border-red-600/50 animate-pulse font-bold",
     REFUNDED: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
 
     // Shipment Detailed Styles
@@ -94,18 +96,27 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
     RETURN_TO_SENDER_INITIATED: "bg-red-500/10 text-red-400 border-red-500/20",
     RETURNED_TO_SENDER: "bg-red-600/20 text-red-500 border-red-600/50",
 
-    // Fallbacks
+    // Fallbacks & Extra
     RETURN_REQUESTED: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
     RETURN_APPROVED: "bg-teal-500/10 text-teal-400 border-teal-500/20",
     RESOLVED: "bg-gray-500/10 text-gray-400 border-gray-500/20",
   };
 
-  const statusLabel = (t.common as any).status?.[status] || status;
+  const variantStyles: Record<string, string> = {
+    gold: "bg-gold-500/10 text-gold-500 border-gold-500/30 shadow-[0_0_15px_rgba(234,179,8,0.15)]",
+    cyan: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+    red: "bg-red-500/10 text-red-500 border-red-500/20",
+    green: "bg-green-500/10 text-green-500 border-green-500/20",
+    outline: "bg-transparent border-white/10 text-white/60",
+    default: status ? styles[status] || styles.CANCELLED : "bg-white/5 border-white/10 text-white/40"
+  };
+
+  const statusLabel = status ? ((t.common as any).status?.[status] || status) : null;
 
   return (
-    <span className={`inline-flex items-center justify-center px-3 py-1 rounded-lg text-xs font-bold border backdrop-blur-sm whitespace-nowrap ${isShipmentStatus ? 'border-dashed' : ''} ${styles[status] || styles.CANCELLED} ${className}`}>
+    <span className={`inline-flex items-center justify-center px-3 py-1 rounded-lg text-[10px] font-bold border backdrop-blur-sm whitespace-nowrap ${isShipmentStatus ? 'border-dashed' : ''} ${variant !== 'default' ? variantStyles[variant] : variantStyles.default} ${className}`}>
       {isShipmentStatus && <Truck size={12} className={language === 'ar' ? 'ml-1.5' : 'mr-1.5'} />}
-      {statusLabel}
+      {children || statusLabel}
     </span>
   );
 };

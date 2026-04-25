@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, Truck, CheckCircle2, DollarSign, MessageSquare, AlertTriangle, Package, Mail, Smartphone } from 'lucide-react';
+import { X, Bell, Truck, CheckCircle2, DollarSign, MessageSquare, AlertTriangle, Package, Mail, Smartphone, RotateCcw } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNotificationStore, NotificationType } from '../../../stores/useNotificationStore';
 import { getCurrentUserId } from '../../../utils/auth';
@@ -26,6 +26,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
             case 'DELIVERED': return <Package size={18} className="text-emerald-400" />;
             case 'RATE': return <Bell size={18} className="text-yellow-400" />;
             case 'DISPUTE': return <AlertTriangle size={18} className="text-red-400" />;
+            case 'RETURN': return <RotateCcw size={18} className="text-orange-400" />;
             case 'DOC_EXPIRY': return <AlertTriangle size={18} className="text-orange-400" />;
             case 'SECURITY': return <AlertTriangle size={18} className="text-red-500" />;
             default: return <Bell size={18} />;
@@ -95,18 +96,15 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
                                                 if (uid) markAsRead(notif.id, uid);
 
                                                 if (notif.link) {
-                                                    const parts = notif.link.split('/');
-                                                    const id = parts[parts.length - 1]; // naive check
-                                                    // better:
-                                                    onNavigate(notif.link); // DashboardLayout handles path?
-                                                    // onNavigate takes (path, id).
-                                                    // If link is /dashboard/orders/123
-                                                    // path = 'order-details', id = 123
-                                                    // I'll parse it or just rely on 'order-details' and orderId from metadata.
+                                                    // High-Fidelity Navigation (2026 Router Sync)
                                                     if (notif.metadata?.orderId) {
                                                         onNavigate('order-details', notif.metadata.orderId);
-                                                    } else if (notif.link) {
-                                                        // If link is just a path name
+                                                    } else if (notif.metadata?.caseId) {
+                                                        // Map to correct detail view based on role context
+                                                        const detailPath = role === 'admin' ? 'admin-dispute-details' : 'dispute-details';
+                                                        onNavigate(detailPath, notif.metadata.caseId);
+                                                    } else {
+                                                        // Fallback for simple paths
                                                         onNavigate(notif.link.replace('/', ''));
                                                     }
                                                     onClose();

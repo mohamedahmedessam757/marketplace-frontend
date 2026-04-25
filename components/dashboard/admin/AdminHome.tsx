@@ -203,7 +203,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     if (subPath === 'billing' || subPath === 'financials') return <AdminBilling onNavigate={navigate} />;
     if (subPath === 'invoice-details' && viewId) return <InvoiceViewer invoiceId={viewId} onBack={() => navigate('billing')} />;
     if (subPath === 'resolution') return <AdminResolutionPage onNavigate={navigate} />;
-    if (subPath === 'admin-dispute-details' && viewId) return <AdminDisputeDetails caseId={viewId} onBack={() => navigate('resolution')} />;
+    if (subPath === 'admin-dispute-details' && viewId) return <AdminDisputeDetails caseId={viewId} onBack={() => navigate('resolution')} onNavigate={navigate} />;
     if (subPath === 'users') return <StoreManagement onNavigate={navigate} />;
     if (subPath === 'store-profile' && viewId) return <AdminStoreProfile vendorId={viewId} onBack={() => navigate('users')} onNavigate={navigate} />;
     if (subPath === 'customers') return <CustomerManagement onNavigate={navigate} />;

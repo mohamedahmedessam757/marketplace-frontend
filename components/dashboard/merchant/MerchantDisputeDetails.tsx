@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AlertTriangle, Clock, ChevronRight, ChevronLeft, FileText, 
   UploadCloud, Send, ShieldCheck, User, MessageSquare, Scale, CheckCircle2, X,
-  FileIcon, FileImage, FileStack, Trash2
+  FileIcon, FileImage, FileStack, Trash2, Gavel, History
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
+import { Badge } from '../../ui/Badge';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
@@ -33,6 +34,7 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
   const [timeLeft, setTimeLeft] = useState<{h: number, m: number} | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEscalating, setIsEscalating] = useState(false);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
 
   const calcTimeLeft = (deadlineStr: string) => {
     const diff = new Date(deadlineStr).getTime() - new Date().getTime();
@@ -66,7 +68,7 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
         message: isAr
           ? `تم تصعيد النزاع #${dispute.id} للإدارة يدوياً.`
           : `Dispute #${dispute.id} manually escalated to administration.`,
-        orderId: dispute.orderId,
+        orderId: Number(dispute.orderId),
         linkTo: 'resolution',
         priority: 'high'
     });
@@ -98,8 +100,18 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
   };
 
   const handleSubmit = async () => {
-    if (!decision) return;
-    if (decision === 'REJECT' && !response.trim()) return;
+    // 2026 Enhanced Validation Logic
+    if (!decision || !response.trim() || selectedFiles.length === 0) {
+      setShowValidationErrors(true);
+      addNotification({
+        type: 'alert',
+        titleKey: 'error',
+        message: isAr ? 'يجب إكمال جميع الحقول وإرفاق الأدلة للمتابعة' : 'All fields and evidence are required to proceed',
+        priority: 'high'
+      });
+      // Sound or Haptic feedback could be triggered here in a mobile environment
+      return;
+    }
     
     setIsSubmitting(true);
     
@@ -117,7 +129,7 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
           message: isAr
             ? `تم إرسال ردك على النزاع #${dispute.id}.`
             : `Response submitted for Dispute #${dispute.id}.`,
-          orderId: dispute.orderId,
+          orderId: Number(dispute.orderId),
           linkTo: 'resolution',
           priority: 'normal'
       });
@@ -153,7 +165,14 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
           <span>{isAr ? 'العودة للمركز' : 'Back to Center'}</span>
         </button>
         
-        <div className="flex items-center gap-4 bg-[#151310] px-4 py-2 rounded-xl border border-white/10">
+           <div className="flex items-center gap-4 bg-[#151310] px-4 py-2 rounded-xl border border-white/10">
+           {dispute.adminApproval && (
+             <div className={`px-4 py-2 rounded-xl flex items-center gap-2 border shadow-lg mr-4
+                ${dispute.adminApproval === 'APPROVED' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                <Gavel size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">{isAr ? 'حكم إداري نهائي' : 'OFFICIAL ADMIN VERDICT'}</span>
+             </div>
+           )}
            <div className="text-right">
               <span className="block text-[10px] text-white/40 uppercase tracking-wider">{isAr ? 'التصعيد التلقائي خلال' : 'Auto-Escalation In'}</span>
                {timeLeft ? (
@@ -243,17 +262,109 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
 
         {/* RIGHT: Merchant Response Form */}
         <div className="relative">
-           {dispute.status !== 'OPEN' && dispute.status !== 'AWAITING_MERCHANT' ? (
-              <GlassCard className="h-full flex flex-col items-center justify-center text-center p-12 bg-green-500/5 border-green-500/20">
-                 <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center text-green-500 mb-6">
-                    <CheckCircle2 size={40} />
+           {dispute.adminApproval ? (
+              <GlassCard className="h-full bg-black/40 border-gold-500/20 relative overflow-hidden flex flex-col">
+                 {/* 2026 Admin Verdict Header */}
+                 <div className={`p-8 border-b border-white/5 flex items-center justify-between
+                    ${dispute.adminApproval === 'APPROVED' ? 'bg-green-500/[0.03]' : 'bg-red-500/[0.03]'}`}>
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 rounded-xl bg-gold-500/10 flex items-center justify-center text-gold-500 border border-gold-500/20">
+                          <Gavel size={24} />
+                       </div>
+                       <div>
+                          <h3 className="text-lg font-black text-white uppercase tracking-tight">{isAr ? 'الحكم الإداري النهائي' : 'FINAL ADMIN RULING'}</h3>
+                          <div className="flex items-center gap-2">
+                             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                             <span className="text-[10px] text-white/40 font-mono">CASE_AUTHORIZED_SECURE</span>
+                          </div>
+                       </div>
+                    </div>
+                    <Badge variant={dispute.adminApproval === 'APPROVED' ? 'green' : 'red'} className="px-4 py-1.5 text-[10px] uppercase">
+                       {dispute.adminApproval === 'APPROVED' ? (isAr ? 'تمت الموافقة' : 'APPROVED') : (isAr ? 'تم الرفض' : 'REJECTED')}
+                    </Badge>
                  </div>
-                 <h3 className="text-xl font-bold text-white mb-2">{isAr ? 'تم استلام ردك' : 'Response Submitted'}</h3>
+
+                 <div className="p-8 flex-1 space-y-8">
+                    {/* Rationale Section */}
+                    <div className="space-y-3">
+                       <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">{isAr ? 'موجز الحكم الإداري' : 'OFFICIAL RATIONALE'}</span>
+                       <div className="p-6 bg-white/[0.02] rounded-2xl border border-white/5 italic text-sm text-white/80 leading-relaxed shadow-inner">
+                          "{dispute.adminApprovalReason || (isAr ? 'تم اتخاذ القرار بناءً على الأدلة والسياسات المتبعة.' : 'Decision reached based on provided evidence and platform integrity protocols.')}"
+                       </div>
+                    </div>
+
+                    {/* Financial & Responsibility Hub */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 space-y-2">
+                          <span className="text-[9px] font-black text-white/20 uppercase">{isAr ? 'تحديد المسؤولية' : 'Liability Assigned'}</span>
+                          <div className="text-md font-black text-gold-500 flex items-center gap-2">
+                             <ShieldCheck size={16} />
+                             {dispute.faultParty || 'ADMIN_DETERMINED'}
+                          </div>
+                          <p className="text-[8px] text-white/30 leading-tight uppercase font-bold">
+                             {isAr ? 'هذا القرار نهائي بناءً على معايير المنصة' : 'Verdict final based on platform standards'}
+                          </p>
+                       </div>
+                       <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 space-y-2">
+                          <span className="text-[9px] font-black text-white/20 uppercase">{isAr ? 'الأثر المالي' : 'Financial Impact'}</span>
+                          <div className="text-xl font-black text-white font-mono">
+                             {dispute.adminApproval === 'APPROVED' ? (
+                                <>
+                                   -{Number(dispute.refundAmount || 0).toLocaleString()} <span className="text-[10px] text-red-500">SAR</span>
+                                </>
+                             ) : (
+                                <span className="text-green-500">0.00 SAR</span>
+                             )}
+                          </div>
+                          <p className="text-[8px] text-white/30 leading-tight uppercase font-bold">
+                             {dispute.adminApproval === 'APPROVED' ? (isAr ? 'سيتم الخصم من المحفظة' : 'Deducted from balance') : (isAr ? 'لم يتم إجراء خصم' : 'No deduction applied')}
+                          </p>
+                       </div>
+                    </div>
+
+                    {/* Admin Signature & Verification */}
+                    <div className="pt-8 border-t border-white/5 mt-auto">
+                       <div className="flex flex-col items-center gap-4">
+                          <div className="text-center">
+                             <div className="text-signature text-3xl text-gold-500 opacity-60 mb-2 select-none">
+                                {dispute.adminSignature || 'ADMIN_SIGNED'}
+                             </div>
+                             <div className="flex items-center gap-3">
+                                <div className="h-px w-8 bg-white/10" />
+                                <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.4em]">{isAr ? 'معتمد إلكترونياً' : 'ELECTRONICALLY SIGNED'}</span>
+                                <div className="h-px w-8 bg-white/10" />
+                             </div>
+                          </div>
+                          
+                          <div className="flex gap-4 opacity-30">
+                             <div className="flex items-center gap-2 text-[9px] font-bold text-white px-3 py-1 bg-white/5 rounded-full border border-white/10">
+                                <User size={10} />
+                                {dispute.adminName || 'ADR-OFFICER'}
+                             </div>
+                             <div className="flex items-center gap-2 text-[9px] font-bold text-white px-3 py-1 bg-white/5 rounded-full border border-white/10">
+                                <History size={10} />
+                                {new Date(dispute.updatedAt).toLocaleDateString()}
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+              </GlassCard>
+           ) : dispute.status !== 'OPEN' && dispute.status !== 'AWAITING_MERCHANT' ? (
+              <GlassCard className="h-full flex flex-col items-center justify-center text-center p-12 bg-gold-500/5 border-gold-500/20">
+                 <div className="w-20 h-20 bg-gold-500/10 rounded-full flex items-center justify-center text-gold-500 mb-6">
+                    <Clock size={40} className="animate-pulse" />
+                 </div>
+                 <h3 className="text-xl font-bold text-white mb-2">{isAr ? 'الشكوى قيد المراجعة' : 'Claim Under Review'}</h3>
                  <p className="text-white/50 max-w-xs mx-auto mb-6">
                     {isAr 
-                      ? 'جاري مراجعة القضية من قبل فريق فض النزاعات. سيتم إشعارك بالقرار النهائي.'
-                      : 'The case is currently under review by the dispute team. You will be notified of the final decision.'}
+                      ? 'تم استلام ردك بنجاح. يقوم فريق الإدارة الآن بمراجعة الأدلة المقدمة من كافة الأطراف.'
+                      : 'Your response has been received. The administration team is currently reviewing evidence from all parties.'}
                  </p>
+                 <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-[10px] font-black text-white/30 uppercase tracking-widest">
+                    <ShieldCheck size={14} className="text-cyan-400" />
+                    {isAr ? 'المراجعة الإدارية نشطة' : 'ADMIN REVIEW ACTIVE'}
+                 </div>
               </GlassCard>
            ) : (
               <GlassCard className="h-full flex flex-col bg-[#151310] border-gold-500/20">
@@ -268,9 +379,9 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
 
                   <div className="flex-1 space-y-4">
                     {/* Decision Buttons */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className={`grid grid-cols-2 gap-4 rounded-2xl transition-all duration-500 ${showValidationErrors && !decision ? 'ring-2 ring-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)] bg-red-500/5' : ''}`}>
                        <div 
-                          onClick={() => setDecision('APPROVE')}
+                          onClick={() => { setDecision('APPROVE'); setShowValidationErrors(false); }}
                           className={`
                              p-4 rounded-xl border cursor-pointer transition-all flex flex-col gap-2 relative overflow-hidden
                              ${decision === 'APPROVE' 
@@ -288,7 +399,7 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                        </div>
 
                        <div 
-                          onClick={() => setDecision('REJECT')}
+                          onClick={() => { setDecision('REJECT'); setShowValidationErrors(false); }}
                           className={`
                              p-4 rounded-xl border cursor-pointer transition-all flex flex-col gap-2 relative overflow-hidden
                              ${decision === 'REJECT' 
@@ -364,8 +475,8 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                        </label>
                        <textarea 
                           value={response}
-                          onChange={(e) => setResponse(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-gold-500 outline-none resize-none h-40 placeholder-white/20"
+                          onChange={(e) => { setResponse(e.target.value); setShowValidationErrors(false); }}
+                          className={`w-full bg-white/5 border rounded-xl p-4 text-white text-sm outline-none resize-none h-40 placeholder-white/20 transition-all duration-500 ${showValidationErrors && !response.trim() ? 'border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)] ring-2 ring-red-500/20' : 'border-white/10 focus:border-gold-500'}`}
                           placeholder={isAr ? 'اكتب تفاصيل ردك هنا...' : 'Write your detailed response here...'}
                        />
                     </div>
@@ -381,11 +492,11 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                            className="hidden" 
                         />
                         <div 
-                           onClick={() => fileInputRef.current?.click()}
-                           className="border border-dashed border-white/10 rounded-xl p-4 flex items-center justify-center gap-3 text-white/40 hover:text-gold-400 hover:border-gold-500/30 hover:bg-white/5 cursor-pointer transition-all"
+                           onClick={() => { fileInputRef.current?.click(); setShowValidationErrors(false); }}
+                           className={`border border-dashed rounded-xl p-4 flex items-center justify-center gap-3 text-white/40 hover:text-gold-400 hover:border-gold-500/30 hover:bg-white/5 cursor-pointer transition-all duration-500 ${showValidationErrors && selectedFiles.length === 0 ? 'border-red-500 bg-red-500/5 shadow-[0_0_20px_rgba(239,68,68,0.4)] ring-2 ring-red-500/20' : 'border-white/10'}`}
                         >
-                           <UploadCloud size={20} />
-                           <span className="text-xs font-bold">{isAr ? 'إرفاق صور أو مستندات (اختياري)' : 'Attach Proof (Optional)'}</span>
+                           <UploadCloud size={20} className={showValidationErrors && selectedFiles.length === 0 ? 'text-red-400' : ''} />
+                           <span className={`text-xs font-bold ${showValidationErrors && selectedFiles.length === 0 ? 'text-red-400' : ''}`}>{isAr ? 'إرفاق صور أو مستندات دفاعية' : 'Attach Supporting Evidence'}</span>
                         </div>
 
                         {/* Selected Files Gallery */}
@@ -439,7 +550,7 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                         </button>
                         <button 
                            onClick={handleSubmit}
-                           disabled={isSubmitting || !decision || (decision === 'REJECT' && !response.trim())}
+                           disabled={isSubmitting}
                            className="px-8 py-3 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed text-black rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center gap-2"
                         >
                            {isSubmitting ? (

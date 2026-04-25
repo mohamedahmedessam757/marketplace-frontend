@@ -102,6 +102,13 @@ export const CustomerDisputeDetails: React.FC<CustomerDisputeDetailsProps> = ({ 
         </button>
         
         <div className="flex items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 backdrop-blur-xl shrink-0">
+           {dispute.adminApproval && (
+             <div className={`px-4 py-2 rounded-xl flex items-center gap-2 border shadow-lg
+                ${dispute.adminApproval === 'APPROVED' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                <ShieldCheck size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">{dispute.adminApproval === 'APPROVED' ? (isAr ? 'قرار إيجابي' : 'POSITIVE RULING') : (isAr ? 'قرار نهائي' : 'FINAL RULING')}</span>
+             </div>
+           )}
            {showCountdown && (
              <div className="px-4 py-2 text-right">
               <span className="block text-[9px] text-white/30 uppercase font-black mb-1">
@@ -203,32 +210,168 @@ export const CustomerDisputeDetails: React.FC<CustomerDisputeDetailsProps> = ({ 
                    </div>
                 </div>
               )}
-           </GlassCard>
+            </GlassCard>
+
+            {/* Merchant Response Section (2026 Phase 4 Transparency) */}
+            {dispute.merchantResponse && (
+               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+                  <GlassCard className="p-8 space-y-8 border-cyan-500/10 bg-cyan-500/[0.02] relative overflow-hidden">
+                     <div className="absolute top-0 right-0 p-4 bg-cyan-500/10 rounded-bl-3xl border-l border-b border-cyan-500/10 flex items-center gap-2">
+                        <Store size={14} className="text-cyan-400" />
+                        <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">{isAr ? 'رد المتجر الرسمي' : 'OFFICIAL STORE RESPONSE'}</span>
+                     </div>
+
+                     <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 bg-cyan-500/10 rounded-2xl flex items-center justify-center border border-cyan-500/20 shadow-lg shadow-cyan-500/10">
+                           <MessageSquare className="text-cyan-400" size={32} />
+                        </div>
+                        <div>
+                           <h3 className="text-xl font-black text-white tracking-tight uppercase">{isAr ? 'توضيح من المتجر' : 'Store Explanation'}</h3>
+                           <p className="text-[10px] text-cyan-400/60 font-bold uppercase tracking-tight">
+                              {isAr ? 'تم الرد في' : 'Submitted on'} {new Date(dispute.merchantResponse.submittedAt).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US')}
+                           </p>
+                        </div>
+                     </div>
+
+                     <div className="bg-white/5 rounded-2xl p-6 border border-white/10 relative">
+                        <div className="absolute -top-3 left-6 px-3 py-1 bg-[#151310] border border-white/10 rounded-lg">
+                           <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">{isAr ? 'البيان' : 'STATEMENT'}</span>
+                        </div>
+                        <p className="text-white/80 leading-relaxed font-medium text-sm italic">
+                           "{dispute.merchantResponse.text}"
+                        </p>
+                     </div>
+
+                     {dispute.merchantResponse.evidence && dispute.merchantResponse.evidence.length > 0 && (
+                        <div className="space-y-4">
+                           <div className="flex items-center gap-2">
+                              <Search size={14} className="text-white/20" />
+                              <span className="text-[10px] font-black text-white/30 uppercase tracking-tight">{isAr ? 'الأدلة المقدمة من التاجر' : 'MERCHANT EVIDENCE ASSETS'}</span>
+                           </div>
+                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              {dispute.merchantResponse.evidence.map((img, i) => (
+                                 <motion.div 
+                                    key={i} 
+                                    whileHover={{ scale: 1.05 }}
+                                    onClick={() => setSelectedImage(img)}
+                                    className="aspect-square bg-white/5 rounded-2xl border border-white/10 overflow-hidden relative cursor-zoom-in group/mimg"
+                                 >
+                                    <img src={img} alt="Merchant Evidence" className="w-full h-full object-cover opacity-60 group-hover/mimg:opacity-100 transition-all duration-700" />
+                                    <div className="absolute inset-0 bg-cyan-500/20 opacity-0 group-hover/mimg:opacity-100 transition-all flex items-center justify-center">
+                                       <Search className="text-white" size={20} />
+                                    </div>
+                                 </motion.div>
+                              ))}
+                           </div>
+                        </div>
+                     )}
+                  </GlassCard>
+               </motion.div>
+            )}
         </div>
 
         {/* Intelligence Sidebar */}
         <div className="lg:col-span-4 space-y-6">
-           {/* Final Decision Panel */}
-           {(dispute.status === 'RESOLVED' || dispute.status === 'REFUNDED') && (
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-                <GlassCard className="p-8 border-green-500/20 bg-green-500/[0.05] relative overflow-hidden">
-                   <div className="absolute top-0 right-0 w-20 h-20 bg-green-500/10 blur-2xl -mr-10 -mt-10" />
-                   <div className="flex items-center gap-3 mb-6 relative z-10">
-                      <ShieldCheck size={28} className="text-green-400" />
-                      <h3 className="text-lg font-black text-white uppercase tracking-tight">{t.dashboard.resolution.details.verdict}</h3>
+           {/* Final Decision Panel: Elevated 2026 Admin Transparency */}
+           {(dispute.adminApproval) && (
+              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                <GlassCard className={`p-8 border-none relative overflow-hidden shadow-3xl
+                   ${dispute.adminApproval === 'APPROVED' ? 'bg-green-500/[0.04]' : 'bg-red-500/[0.04]'}`}>
+                   
+                   {/* Background Decorative Element */}
+                   <div className={`absolute -right-10 -top-10 w-40 h-40 blur-[80px] rounded-full 
+                      ${dispute.adminApproval === 'APPROVED' ? 'bg-green-500/10' : 'bg-red-500/10'}`} />
+                   
+                   <div className="flex items-center justify-between mb-8 relative z-10">
+                      <div className="flex items-center gap-4">
+                         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl
+                            ${dispute.adminApproval === 'APPROVED' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                            <Gavel size={28} />
+                         </div>
+                         <div>
+                            <h3 className="text-xl font-black text-white uppercase tracking-tighter">{t.dashboard.resolution.details.verdict}</h3>
+                            <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">{isAr ? 'قرار لجنة فض النزاعات' : 'ADR COMMITTEE RULING'}</p>
+                         </div>
+                      </div>
+                      <Badge variant={dispute.adminApproval === 'APPROVED' ? 'green' : 'red'} className="px-5 py-2 text-[10px] font-black uppercase">
+                         {dispute.adminApproval === 'APPROVED' ? (isAr ? 'تم قبول الطلب' : 'REQUEST APPROVED') : (isAr ? 'تم رفض الطلب' : 'REQUEST REJECTED')}
+                      </Badge>
                    </div>
-                   <div className="space-y-4 relative z-10">
-                      <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                         <span className="text-[10px] font-black text-white/30 uppercase mb-2 block">{t.dashboard.resolution.details.conclusion}</span>
-                         <p className="text-xs font-bold text-white leading-relaxed">
-                            {isAr ? 'تمت مراجعة الحالة من قبل الإدارة. تم تنفيذ القرار النهائي وضمان حماية حقوق كافة الأطراف.' : 'Administrative review complete. The final verdict has been executed, ensuring protection for both parties.'}
+
+                   <div className="space-y-8 relative z-10">
+                      <div className="p-8 bg-black/40 rounded-[32px] border border-white/5 space-y-4">
+                         <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-gold-500 uppercase tracking-[0.2em]">{t.dashboard.resolution.details.conclusion}</span>
+                            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg border border-white/10">
+                               <ShieldCheck size={12} className="text-cyan-400" />
+                               <span className="text-[9px] font-black text-white/40 uppercase font-mono tracking-widest">S-AUTH: {dispute.id.substring(0,6)}</span>
+                            </div>
+                         </div>
+                         <p className="text-sm font-bold text-white/90 leading-relaxed italic">
+                            "{dispute.adminApprovalReason || (isAr ? 'لم يتم ذكر سبب إضافي.' : 'No additional rationale provided.')}"
                          </p>
                       </div>
-                      <div className="text-[9px] text-white/30 font-bold uppercase text-center py-2 border-t border-white/5">
-                         {t.dashboard.resolution.details.closedAt} {new Date(dispute.updatedAt).toLocaleString()}
+
+                      {/* Fault and Responsibility Hub */}
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="p-5 bg-white/[0.02] rounded-2xl border border-white/5">
+                            <span className="text-[9px] font-black text-white/20 uppercase block mb-1">{isAr ? 'الطرف المتسبب' : 'Fault Party'}</span>
+                            <div className="text-xs font-black text-white uppercase tracking-tight flex items-center gap-2">
+                               <div className="w-1.5 h-1.5 rounded-full bg-gold-400 shadow-[0_0_8px_#fbbf24]" />
+                               {dispute.faultParty || 'OFFICIAL_REVIEW'}
+                            </div>
+                         </div>
+                         <div className="p-5 bg-white/[0.02] rounded-2xl border border-white/5">
+                            <span className="text-[9px] font-black text-white/20 uppercase block mb-1">{isAr ? 'تاريخ التنفيذ' : 'Execution Date'}</span>
+                            <div className="text-xs font-black text-white uppercase tracking-tight">
+                               {new Date(dispute.updatedAt).toLocaleDateString()}
+                            </div>
+                         </div>
+                      </div>
+
+                      {/* Official Digital Signature */}
+                      <div className="pt-8 border-t border-white/5 flex flex-col items-center gap-4">
+                         <div className="text-center">
+                            <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] block mb-4">{isAr ? 'توقيع المسؤول الإداري' : 'OFFICIAL ADMIN SIGNATURE'}</span>
+                            <div className="font-signature text-3xl text-gold-500/80 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)] transform -rotate-2">
+                               {dispute.adminSignature || 'ADMIN_SIGNED_PROTOCOL'}
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-4 px-4 py-2 bg-white/5 rounded-xl border border-white/5 opacity-40">
+                            <div className="text-center px-4 border-r border-white/10 last:border-0">
+                               <div className="text-[8px] font-black text-white/40 uppercase mb-0.5">{isAr ? 'اسم المسؤول' : 'OFFICER NAME'}</div>
+                               <div className="text-[10px] font-bold text-white">{dispute.adminName || 'ADR-SYSTEM'}</div>
+                            </div>
+                            <div className="text-center px-4 border-r border-white/10 last:border-0">
+                               <div className="text-[8px] font-black text-white/40 uppercase mb-0.5">{isAr ? 'البريد الرسمي' : 'OFFICIAL EMAIL'}</div>
+                               <div className="text-[10px] font-bold text-white">{dispute.adminEmail || 'admin@marketplace.gov'}</div>
+                            </div>
+                         </div>
                       </div>
                    </div>
                 </GlassCard>
+
+                {/* Evidence Assets from Admin (if any) */}
+                {dispute.adminEvidence && dispute.adminEvidence.length > 0 && (
+                  <div className="space-y-4">
+                     <span className="text-[9px] font-black text-white/20 uppercase tracking-widest block">{isAr ? 'مرفقات الإقرار الإداري' : 'ADMINISTRATIVE EVIDENCE'}</span>
+                     <div className="grid grid-cols-4 gap-3">
+                        {dispute.adminEvidence.map((img, i) => (
+                           <motion.div 
+                              key={i} 
+                              whileHover={{ scale: 1.05 }}
+                              onClick={() => setSelectedImage(img)}
+                              className="aspect-square bg-white/5 rounded-xl border border-white/10 overflow-hidden cursor-zoom-in relative group"
+                           >
+                              <img src={img} alt="Admin Evidence" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                                 <Search className="text-white" size={16} />
+                              </div>
+                           </motion.div>
+                        ))}
+                     </div>
+                  </div>
+                )}
               </motion.div>
            )}
 
