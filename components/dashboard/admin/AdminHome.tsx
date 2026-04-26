@@ -1,7 +1,8 @@
 
 import React, { useMemo, useState } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
-import { Users, Store, Activity, DollarSign, Package, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight, MoreHorizontal, ShieldCheck, CheckCircle2, Download, Filter, Search, Plus, Trash2, Edit } from 'lucide-react';
+import { Users, Store, Activity, DollarSign, Package, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight, MoreHorizontal, ShieldCheck, CheckCircle2, Download, Filter, Search, Plus, Trash2, Edit, Car, User } from 'lucide-react';
+import { Badge } from '../../ui/Badge';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
@@ -133,9 +134,17 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
         // Start Global Shipment Sync
         useShipmentStore.getState().startRealtime();
 
+        // Listen for internal navigation events (fixes profile button issue)
+        const handleInternalNav = (e: any) => {
+            const { path, id } = e.detail;
+            navigate(path, id);
+        };
+        window.addEventListener('admin-nav', handleInternalNav);
+
         return () => {
             unsubscribeFromStats();
             useShipmentStore.getState().stopRealtime();
+            window.removeEventListener('admin-nav', handleInternalNav);
         };
     }, [dateRange]);
 
@@ -183,14 +192,33 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
         });
 
         const sDist = dashboardStats.statusDistribution;
-        const getCount = (statuses: string[]) => sDist.filter(s => statuses.includes(s.status)).reduce((acc, curr) => acc + curr.count, 0);
+        
+        // Dynamic mapping of all possible statuses to 2026 premium colors
+        const statusConfig: Record<string, string> = {
+            AWAITING_OFFERS: '#818CF8', // Indigo
+            AWAITING_PAYMENT: '#A78BFA', // Violet
+            PREPARATION: '#FBBF24', // Amber
+            VERIFICATION: '#22D3EE', // Cyan
+            VERIFICATION_SUCCESS: '#34D399', // Emerald
+            SHIPPED: '#60A5FA', // Blue
+            DELIVERED: '#2DD4BF', // Teal
+            COMPLETED: '#10B981', // Green
+            CANCELLED: '#F87171', // Red
+            DISPUTED: '#EF4444', // Bright Red
+            RETURN_REQUESTED: '#FB923C', // Orange
+            RETURN_APPROVED: '#F97316', // Dark Orange
+            REFUNDED: '#F472B6', // Pink
+            WARRANTY_ACTIVE: '#38BDF8', // Light Blue
+            WARRANTY_EXPIRED: '#94A3B8', // Slate
+            NON_MATCHING: '#F43F5E', // Rose
+            CORRECTION_PERIOD: '#F59E0B', // Amber
+        };
 
-        const donutData = [
-            { label: t.admin.alerts.legend.completed, value: getCount(['COMPLETED', 'DELIVERED']), color: '#4ade80' },
-            { label: t.admin.alerts.legend.active, value: getCount(['SHIPPED', 'PREPARATION']), color: '#fbbf24' },
-            { label: t.admin.alerts.legend.pending, value: getCount(['AWAITING_OFFERS', 'AWAITING_PAYMENT']), color: '#3b82f6' },
-            { label: t.admin.alerts.legend.issues, value: getCount(['CANCELLED', 'DISPUTED', 'REFUNDED', 'RETURNED']), color: '#f87171' }
-        ];
+        const donutData = sDist.map(item => ({
+            label: (t.common.status as any)[item.status] || item.status,
+            value: item.count,
+            color: statusConfig[item.status] || '#FFFFFF'
+        })).sort((a, b) => b.value - a.value);
 
         const barData = dashboardStats.topStores.map(s => ({
             label: s.name,
@@ -333,20 +361,41 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
                 {/* Side Column: Alerts & Status */}
                 <div className="space-y-6">
                     {/* Status Donut */}
-                    <GlassCard className="p-6 bg-[#1A1814]/80 flex flex-col items-center justify-center min-h-[350px]">
-                        <h3 className="text-sm font-bold text-white mb-6 w-full text-left">{t.admin.charts.orderStatus}</h3>
-                        <DonutChart data={chartsData.donutData} size={220} />
+                    <GlassCard className="p-6 bg-[#1A1814]/80 flex flex-col items-center justify-between min-h-[420px] relative overflow-hidden border-white/5">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 blur-3xl rounded-full -mr-16 -mt-16" />
+                        
+                        <div className="w-full flex justify-between items-start mb-6">
+                            <div>
+                                <h3 className="text-sm font-bold text-white mb-1">{t.admin.charts.orderStatus}</h3>
+                                <p className="text-[10px] text-white/40 uppercase tracking-widest">{isAr ? 'توزيع الحالات اللحظي' : 'Real-time status distribution'}</p>
+                            </div>
+                            <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/20">
+                                <Activity size={14} />
+                            </div>
+                        </div>
 
-                        <div className="w-full grid grid-cols-2 gap-3 mt-8">
-                            {chartsData.donutData.map((d, i) => (
-                                <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
-                                        <span className="text-[10px] text-white/60">{d.label}</span>
+                        <div className="flex-1 flex items-center justify-center py-4">
+                            <DonutChart data={chartsData.donutData} size={200} />
+                        </div>
+
+                        <div className="w-full grid grid-cols-2 gap-2 mt-6 max-h-[140px] overflow-y-auto custom-scrollbar pr-2">
+                            {chartsData.donutData.map((d, i) => {
+                                const total = chartsData.donutData.reduce((acc, curr) => acc + curr.value, 0);
+                                const percent = total > 0 ? Math.round((d.value / total) * 100) : 0;
+                                
+                                return (
+                                    <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all group">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-1.5 h-1.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: d.color, boxShadow: `0 0 8px ${d.color}` }} />
+                                            <span className="text-[9px] text-white/60 font-medium truncate group-hover:text-white transition-colors">{d.label}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 ml-2">
+                                            <span className="text-[10px] font-bold text-white">{d.value}</span>
+                                            <span className="text-[8px] text-white/20 font-mono">{percent}%</span>
+                                        </div>
                                     </div>
-                                    <span className="text-xs font-bold text-white">{d.value}</span>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </GlassCard>
                 </div>
@@ -432,102 +481,143 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
                 </div>
             </div>
 
-            {/* RECENT ORDERS TABLE */}
-            <GlassCard className="p-0 overflow-hidden bg-[#1A1814]/90 border-white/10">
+            {/* RECENT ORDERS TABLE - REDESIGNED 2026 */}
+            <GlassCard className="p-0 overflow-hidden bg-[#1A1814]/90 border-white/10 relative">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-gold-500/20 to-transparent" />
+                
                 <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
-                    <h3 className="font-bold text-white flex items-center gap-2">
-                        <Activity size={18} className="text-gold-500" />
-                        {t.admin.headers.recentOrders}
-                    </h3>
+                    <div className="flex flex-col">
+                        <h3 className="font-bold text-white flex items-center gap-2">
+                            <Activity size={18} className="text-gold-500" />
+                            {t.admin.headers.recentOrders}
+                        </h3>
+                        <p className="text-[10px] text-white/30 uppercase tracking-widest mt-1">{isAr ? 'آخر 5 عمليات تجارية' : 'Latest 5 transactions'}</p>
+                    </div>
+                    <button 
+                        onClick={() => navigate('orders-control')}
+                        className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
+                    >
+                        {isAr ? 'عرض الكل' : 'View All'}
+                    </button>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left rtl:text-right">
-                        <thead className="bg-[#0F0E0C] text-[10px] uppercase text-white/30 font-bold tracking-wider">
-                            <tr>
-                                <th className="p-4 text-start">{t.admin.ordersTable.id}</th>
-                                <th className="p-4 text-start">{isAr ? 'القطعة (Part)' : 'Part'}</th>
-                                <th className="p-4 text-start">{t.admin.ordersTable.date}</th>
-                                <th className="p-4 text-start">{t.admin.ordersTable.status}</th>
-                                <th className="p-4 text-end px-8">{isAr ? 'التفاصيل المالية' : 'Financials'}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5 text-sm">
-                            {dashboardStats.recentOrders.map((order: any) => {
-                                const allAccepted = order.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())) || [];
-                                const calculatedPrice = allAccepted.length > 0 
-                                    ? allAccepted.reduce((total: number, of: any) => {
-                                        const base = Number(of.unitPrice || 0);
-                                        const shipping = Number(of.shippingCost || 0);
-                                        const percentCommission = Math.round(base * 0.25);
-                                        const commission = base > 0 ? Math.max(percentCommission, 100) : 0;
-                                        return total + base + shipping + commission;
-                                      }, 0)
-                                    : (order.totalAmount ? Number(order.totalAmount) : null);
+                <div className="px-6 py-4">
+                    {/* Header - Hidden on mobile, visible as grid on desktop */}
+                    <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-2 text-[10px] uppercase text-white/20 font-bold tracking-widest">
+                        <div className="col-span-2">{t.admin.ordersTable.id}</div>
+                        <div className="col-span-5">{isAr ? 'العميل والطلب' : 'Customer & Order'}</div>
+                        <div className="col-span-2">{t.admin.ordersTable.status}</div>
+                        <div className="col-span-3 text-end">{isAr ? 'القيمة الإجمالية' : 'Total Value'}</div>
+                    </div>
 
-                                const displayOffer = order.acceptedOffer || allAccepted[0];
+                    <div className="space-y-2 mt-2">
+                        {dashboardStats.recentOrders.map((order: any) => {
+                            const allAccepted = order.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())) || [];
+                            const calculatedPrice = allAccepted.length > 0 
+                                ? allAccepted.reduce((total: number, of: any) => {
+                                    const base = Number(of.unitPrice || 0);
+                                    const shipping = Number(of.shippingCost || 0);
+                                    const percentCommission = Math.round(base * 0.25);
+                                    const commission = base > 0 ? Math.max(percentCommission, 100) : 0;
+                                    return total + base + shipping + commission;
+                                  }, 0)
+                                : (order.totalAmount ? Number(order.totalAmount) : null);
 
-                                return (
-                                <tr key={order.id} className="hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate('admin-order-details', order.id)}>
-                                    <td className="p-4 font-mono text-gold-400 font-bold group-hover:text-gold-300">
-                                        #{order.id.split('-').pop()}
-                                    </td>
-                                    <td className="p-4 text-white font-medium">
-                                        <div className="flex flex-col">
-                                            <span className="truncate max-w-[150px]">{order.partName}</span>
-                                            <span className="text-[10px] text-white/40 mt-1">{order.vehicleMake} {order.vehicleModel} {order.vehicleYear}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 text-white/50 text-xs">
-                                        {new Date(order.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { 
-                                            day: 'numeric', 
-                                            month: 'short', 
-                                            year: 'numeric',
-                                            numberingSystem: 'latn' 
-                                        })}
-                                    </td>
-                                    <td className="p-4">
-                                        <span className={`text-[10px] px-2 py-1 rounded border font-bold uppercase ${
-                                            order.status === 'COMPLETED' ? 'text-green-400 bg-green-500/10 border-green-500/20' :
-                                            order.status === 'SHIPPED' ? 'text-purple-400 bg-purple-500/10 border-purple-500/20' :
-                                            order.status === 'CANCELLED' ? 'text-red-400 bg-red-500/10 border-red-500/10' :
-                                            'text-yellow-400 bg-yellow-500/10 border-yellow-500/10'
-                                        }`}>
-                                            {t.common.status[order.status]}
+                            const displayOffer = order.acceptedOffer || allAccepted[0];
+
+                            return (
+                                <div 
+                                    key={order.id} 
+                                    className="group grid grid-cols-1 md:grid-cols-12 gap-4 items-center p-4 bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-gold-500/30 rounded-2xl cursor-pointer transition-all duration-300" 
+                                    onClick={() => navigate('admin-order-details', order.id)}
+                                >
+                                    {/* Order ID */}
+                                    <div className="col-span-2 flex flex-col gap-1">
+                                        <span className="font-mono text-gold-400 font-bold tracking-tighter group-hover:text-gold-300 transition-colors">
+                                            #{order.id.split('-').pop().toUpperCase()}
                                         </span>
-                                    </td>
-                                    <td className="p-4 text-end px-8">
-                                        <div className="flex flex-col items-end gap-0.5">
+                                        <span className="text-[9px] text-white/20 font-medium">
+                                            {new Date(order.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { day: '2-digit', month: 'short' })}
+                                        </span>
+                                    </div>
+
+                                    {/* Order Details & Customer */}
+                                    <div className="col-span-5 flex items-center gap-4">
+                                        {/* Customer Avatar */}
+                                        <div className="relative shrink-0">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 overflow-hidden flex items-center justify-center">
+                                                {order.customer?.avatar ? (
+                                                    <img src={order.customer.avatar} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User size={18} className="text-white/20" />
+                                                )}
+                                            </div>
+                                            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-black border border-white/10 flex items-center justify-center">
+                                                <Car size={8} className="text-gold-500" />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-white font-bold truncate max-w-[120px]">{order.customer?.name || 'User'}</span>
+                                                <span className="w-1 h-1 rounded-full bg-white/20 shrink-0" />
+                                                <span className="text-gold-400 text-xs font-medium truncate max-w-[140px]">{order.partName}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[10px] text-white/40 mt-0.5">
+                                                <span className="font-bold">{order.vehicleMake} {order.vehicleModel}</span>
+                                                <span className="text-white/10">|</span>
+                                                <span>{order.vehicleYear}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Status */}
+                                    <div className="col-span-2">
+                                        <Badge status={order.status} className="shadow-lg shadow-black/20" />
+                                    </div>
+
+                                    {/* Financials */}
+                                    <div className="col-span-3 text-start md:text-end">
+                                        <div className="flex flex-col items-start md:items-end gap-1">
                                             {calculatedPrice ? (
                                                 <div className="flex items-center gap-2">
-                                                    <div className="font-mono text-gold-400 font-bold text-sm">
-                                                        {calculatedPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                                                    <div className="font-mono text-white font-black text-sm tracking-tighter">
+                                                        {calculatedPrice.toLocaleString('en-US', { minimumFractionDigits: 0 })} <span className="text-[10px] text-gold-400">AED</span>
                                                     </div>
                                                     {!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'CANCELLED'].includes(String(order.status).toUpperCase()) && (
-                                                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 border border-green-500/20">
+                                                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 border border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
                                                             <CheckCircle2 size={10} strokeWidth={3} />
                                                         </div>
                                                     )}
                                                 </div>
                                             ) : (
-                                                <div className="font-mono text-gold-400 font-bold text-sm">— AED</div>
+                                                <div className="font-mono text-white/20 font-bold text-sm">— AED</div>
                                             )}
                                             
                                             {displayOffer?.store?.name && (
-                                                <div className="text-[9px] text-white/30">{displayOffer.store.name}</div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[8px] text-white/20 uppercase font-black">{isAr ? 'التاجر' : 'Vendor'}</span>
+                                                    <span className="text-[10px] text-white/40 font-bold truncate max-w-[100px]">{displayOffer.store.name}</span>
+                                                </div>
                                             )}
                                             {!displayOffer && (
-                                                <div className="text-[9px] text-white/30 flex items-center gap-1">
-                                                    <span>{order._count?.offers ?? 0}</span>
-                                                    <span>{isAr ? 'عرض' : 'offers'}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="flex -space-x-1">
+                                                        {[...Array(Math.min(order._count?.offers || 0, 3))].map((_, i) => (
+                                                            <div key={i} className="w-3 h-3 rounded-full border border-black bg-gold-500/20" />
+                                                        ))}
+                                                    </div>
+                                                    <span className="text-[9px] text-white/40 font-bold">
+                                                        {order._count?.offers ?? 0} {isAr ? 'عروض' : 'offers'}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
-                                    </td>
-                                </tr>
-                            )})}
-                        </tbody>
-                    </table>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </GlassCard>
         </div>

@@ -48,7 +48,9 @@ export const customer = {
         RETURNED: 'مرتجع',
         DISPUTED: 'نزاع قائم',
         REFUNDED: 'تم الاسترداد',
-        AWAITING_SHIPMENT: 'بانتظار الشحن'
+        AWAITING_SHIPMENT: 'بانتظار الشحن',
+        WARRANTY_ACTIVE: 'الضمان نشط',
+        WARRANTY_EXPIRED: 'الضمان منتهي'
       }
     },
     shipments: {
@@ -588,7 +590,8 @@ export const customer = {
         wrong_item: 'استلام قطعة خاطئة',
         wrong_size: 'خطأ في المقاس أو الموديل',
         shipping_error: 'خطأ من شركة الشحن',
-        warranty_claim: 'مطالبة بموجب الضمان'
+        warranty_claim: 'مطالبة بموجب الضمان',
+        replacement: 'استبدال القطعة'
       },
       stats: {
         protectedFunds: 'سيولة محمية',
@@ -852,7 +855,9 @@ export const customer = {
         RETURNED: 'Returned',
         DISPUTED: 'Disputed',
         REFUNDED: 'Refunded',
-        AWAITING_SHIPMENT: 'Awaiting Shipment'
+        AWAITING_SHIPMENT: 'Awaiting Shipment',
+        WARRANTY_ACTIVE: 'Warranty Active',
+        WARRANTY_EXPIRED: 'Warranty Expired'
       }
     },
     shipments: {
@@ -1306,7 +1311,9 @@ export const customer = {
         delayed: 'Shipping delayed',
         wrong_item: 'Wrong item received',
         wrong_size: 'Wrong size or model',
-        shipping_error: 'Shipping logistics error'
+        shipping_error: 'Shipping logistics error',
+        warranty_claim: 'Warranty Claim',
+        replacement: 'Item Replacement'
       },
       stats: {
         protectedFunds: 'Protected Funds',

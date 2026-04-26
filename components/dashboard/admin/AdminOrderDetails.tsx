@@ -5,7 +5,7 @@ import { Badge, StatusType } from '../../ui/Badge';
 import { StatusTimeline } from '../../ui/StatusTimeline';
 import { OfferCard } from '../OfferCard';
 import { PartOffersDrawer } from '../PartOffersDrawer';
-import { CountdownTimer } from '../OrderDetails';
+import { CountdownTimer, WarrantyBadge } from '../OrderDetails';
 import { ShipmentTracker } from '../shipments/ShipmentTracker';
 import { OrderCountdown } from '../../ui/OrderCountdown';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -409,6 +409,12 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                         : order.part}
                                 </h1>
                                 <Badge status={order.status} />
+                                {order.warranty_end_at && (
+                                    <WarrantyBadge 
+                                        endDate={order.warranty_end_at} 
+                                        status={order.status} 
+                                    />
+                                )}
                                 {order.shipments && order.shipments.length > 0 && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
                                     <Badge status={order.shipments[0].status as StatusType} className="animate-in fade-in zoom-in duration-500" />
                                 )}
@@ -422,7 +428,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
 
                         <div className="flex flex-wrap items-center gap-3">
                             {/* Attractive Go to Shipping Button */}
-                            {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                            {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && (
                                 <button
                                     onClick={() => onNavigate?.('shipping', order.id)}
                                     className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 group active:scale-95"
@@ -526,7 +532,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                             <FileText size={16} />
                             {isAr ? 'الفواتير' : 'Invoices'}
                         </button>
-                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && (
                             <button
                                 onClick={() => setActiveTab('waybills')}
                                 className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${
@@ -833,7 +839,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                     </div>
                     {/* WAYBILLS TAB */}
                     <div className={activeTab === 'waybills' ? 'block' : 'hidden'}>
-                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && (
                             <OrderWaybillsPanel 
                                 orderId={order.id} 
                                 orderStatus={order.status} 

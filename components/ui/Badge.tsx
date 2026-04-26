@@ -40,6 +40,15 @@ export type StatusType =
   // Legacy/Extra compatibility
   | 'RETURN_REQUESTED'
   | 'RETURN_APPROVED'
+  | 'WARRANTY_ACTIVE'
+  | 'WARRANTY_EXPIRED'
+  | 'RETURN_LABEL_ISSUED'
+  | 'RETURN_STARTED'
+  | 'RECEIVED_FROM_CUSTOMER'
+  | 'DELIVERED_TO_VENDOR'
+  | 'EXCHANGE_COMPLETED'
+  | 'IN_TRANSIT_TO_CUSTOMER'
+  | 'RETURN_COMPLETED_TO_CUSTOMER'
   | 'RESOLVED';
 
 interface BadgeProps {
@@ -57,7 +66,10 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, 
     'AWAITING_CARRIER_PICKUP', 'PICKED_UP_BY_CARRIER', 'IN_TRANSIT_TO_DESTINATION',
     'ARRIVED_AT_LOCAL_FACILITY', 'CUSTOMS_CLEARANCE', 'AT_LOCAL_WAREHOUSE',
     'OUT_FOR_DELIVERY', 'DELIVERY_ATTEMPTED', 'DELIVERED_TO_CUSTOMER',
-    'RETURN_TO_SENDER_INITIATED', 'RETURNED_TO_SENDER'
+    'RETURN_TO_SENDER_INITIATED', 'RETURNED_TO_SENDER',
+    'RETURN_LABEL_ISSUED', 'RETURN_STARTED', 'RECEIVED_FROM_CUSTOMER',
+    'DELIVERED_TO_VENDOR', 'EXCHANGE_COMPLETED', 'IN_TRANSIT_TO_CUSTOMER',
+    'RETURN_COMPLETED_TO_CUSTOMER'
   ].includes(status);
 
   const styles: Record<string, string> = {
@@ -96,9 +108,20 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, 
     RETURN_TO_SENDER_INITIATED: "bg-red-500/10 text-red-400 border-red-500/20",
     RETURNED_TO_SENDER: "bg-red-600/20 text-red-500 border-red-600/50",
 
+    // 2026 Return Journey Styles
+    RETURN_LABEL_ISSUED: "bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.1)]",
+    RETURN_STARTED: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
+    RECEIVED_FROM_CUSTOMER: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    DELIVERED_TO_VENDOR: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+    EXCHANGE_COMPLETED: "bg-emerald-500/15 text-emerald-400 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)] font-black",
+    IN_TRANSIT_TO_CUSTOMER: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 animate-pulse",
+    RETURN_COMPLETED_TO_CUSTOMER: "bg-green-500/20 text-green-400 border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.3)] font-black",
+
     // Fallbacks & Extra
     RETURN_REQUESTED: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
     RETURN_APPROVED: "bg-teal-500/10 text-teal-400 border-teal-500/20",
+    WARRANTY_ACTIVE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)] font-black",
+    WARRANTY_EXPIRED: "bg-gray-500/10 text-gray-500 border-gray-500/20",
     RESOLVED: "bg-gray-500/10 text-gray-400 border-gray-500/20",
   };
 

@@ -26,13 +26,18 @@ const shipmentStatuses = [
     'OUT_FOR_DELIVERY',
     'DELIVERY_ATTEMPTED',
     'DELIVERED_TO_CUSTOMER',
+    // 2026 Return & Warranty Journey
+    'RETURN_LABEL_ISSUED',
+    'RETURN_STARTED',
+    'RECEIVED_FROM_CUSTOMER',
+    'DELIVERED_TO_VENDOR',
+    'EXCHANGE_COMPLETED',
+    'IN_TRANSIT_TO_CUSTOMER',
+    'RETURN_COMPLETED_TO_CUSTOMER',
 ];
 
-// Return statuses shown separately
-const returnStatuses = [
-    'RETURN_TO_SENDER_INITIATED',
-    'RETURNED_TO_SENDER',
-];
+// Combined for history and tracking
+const allStatuses = [...shipmentStatuses];
 
 const statusTranslations: Record<string, { ar: string, en: string }> = {
     'RECEIVED_AT_HUB':           { ar: '1️⃣ تم استلام الطلب', en: '1️⃣ Order Received' },
@@ -48,8 +53,17 @@ const statusTranslations: Record<string, { ar: string, en: string }> = {
     'OUT_FOR_DELIVERY':          { ar: '🔟 خرج للتوصيل', en: '🔟 Out for Delivery' },
     'DELIVERY_ATTEMPTED':        { ar: '📍 محاولة توصيل', en: '📍 Delivery Attempt' },
     'DELIVERED_TO_CUSTOMER':     { ar: '✅ تم التسليم', en: '✅ Delivered' },
+    // 2026 Return & Warranty Journey - Exact User Phrases with Icons
+    'RETURN_LABEL_ISSUED':       { ar: '📄 يتم أصدار بوليصة أرجاع للمنتج', en: '📄 Return Label Issued' },
+    'RETURN_STARTED':            { ar: '🔄 بدء الارجاع', en: '🔄 Return Started' },
+    'RECEIVED_FROM_CUSTOMER':    { ar: '📥 تم أستلام الشحنه من العميل', en: '📥 Received from Customer' },
+    'DELIVERED_TO_VENDOR':       { ar: '📦 تم تسليم الشحنه للتاجر', en: '📦 Delivered to Vendor' },
+    'EXCHANGE_COMPLETED':        { ar: '✨ تم أستبدال الشحنه بنجاح', en: '✨ Exchange Completed' },
+    'IN_TRANSIT_TO_CUSTOMER':    { ar: '🚚 الشحنه فى طريقها للعميل', en: '🚚 In Transit to Customer' },
+    'RETURN_COMPLETED_TO_CUSTOMER': { ar: '✅ تم أرجاع الشحنه للعميل بنجاح', en: '✅ Return Completed to Customer' },
+    
     'RETURN_TO_SENDER_INITIATED':{ ar: '↩️ بدء الإرجاع', en: '↩️ Return Initiated' },
-    'RETURNED_TO_SENDER':        { ar: '🔄 تم الإرجاع', en: '🔄 Returned' },
+    'RETURNED_TO_SENDER':        { ar: '🔄 تم الإرجاع للمرسل', en: '🔄 Returned to Sender' },
 };
 
 interface AdminShippingProps {
@@ -64,6 +78,13 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
     const [search, setSearch] = useState(initialSearch || '');
     const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    // Sync search state when initialSearch changes from navigation
+    useEffect(() => {
+        if (initialSearch) {
+            setSearch(initialSearch);
+        }
+    }, [initialSearch]);
 
     // Form inputs
     const [formCarrierType, setFormCarrierType] = useState('EXTERNAL');
@@ -212,8 +233,7 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
             || (s.carrierName || '').toLowerCase().includes(query);
     });
 
-    const allStatuses = [...shipmentStatuses, ...returnStatuses];
-    const getStatusIndex = (st: string) => allStatuses.indexOf(st);
+    const getStatusIndex = (st: string) => shipmentStatuses.indexOf(st);
 
     if (view === 'detail' && selectedShipment) {
         return (

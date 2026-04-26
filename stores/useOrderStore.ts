@@ -181,6 +181,10 @@ export interface Order {
     returnWaybillNumber?: string;
     returnShippedAt?: string;
 
+    // Warranty
+    warranty_active_at?: string;
+    warranty_end_at?: string;
+
     // Review
     review?: any;
 }
@@ -499,6 +503,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 shipments: o.shipments || [],
                 shippingWaybills: o.shippingWaybills || [],
                 invoices: o.invoices || [],
+                warranty_active_at: o.warranty_active_at,
+                warranty_end_at: o.warranty_end_at,
             }));
     },
 

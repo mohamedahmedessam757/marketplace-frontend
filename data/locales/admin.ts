@@ -32,8 +32,8 @@ export const admin = {
       forceWarningDialog: '⚠️ تحذير: أنت على وشك تجاوز قواعد النظام وفرض الحالة يدوياً.\nسيتم تسجيل هذا الإجراء في سجلات التدقيق.\n\nهل أنت متأكد؟'
     },
     security: {
-      title: 'مركز الأمان والحماية',
-      auditTrail: 'سجل التدقيق',
+      title: 'مركز استرداد الحسابات',
+      auditTrail: 'سجل العمليات',
       protection: 'الحماية النشطة',
       config: 'إعدادات الأمان',
       webhookStatus: 'حالة Webhooks',
@@ -42,7 +42,8 @@ export const admin = {
       encryption: 'التشفير',
       stripe: 'حماية المدفوعات (Stripe)',
       ratelimit: 'معدل الطلبات (Rate Limit)',
-      mfa: 'التحقق الثنائي'
+      mfa: 'التحقق الثنائي',
+      accountRecoveries: 'مراجعات استرجاع الحسابات'
     },
     support: {
       title: 'الدعم الفني',
@@ -428,8 +429,10 @@ export const admin = {
         approved: 'معتمد',
         accepted: 'مقبول',
         denied: 'مرفوض نهائياً',
-        completed: 'مكتمل'
+        completed: 'مكتمل',
+        closed: 'قضية مغلقة'
       },
+      caseClosed: 'قضية مغلقة',
       types: {
         dispute: 'نزاع نشط',
         return: 'طلب إرجاع'
@@ -501,6 +504,7 @@ export const admin = {
         not_working: 'القطعة لا تعمل / عطل مصنعي',
         wrong_item: 'استلام قطعة خاطئة',
         warranty_claim: 'مطالبة بموجب الضمان',
+        replacement: 'استبدال القطعة',
         changed_mind: 'تغيير الرأي',
         other: 'أخرى - توضيح إضافي'
       },
@@ -751,7 +755,7 @@ export const admin = {
       forceWarningDialog: '⚠️ FORCE UPDATE WARNING\n\nYou are about to bypass FSM rules and force status manually.\nThis will be logged in Audit Trails.\n\nContinue?'
     },
     security: {
-      title: 'Security & Audit Center',
+      title: 'Account Recovery Center',
       auditTrail: 'Audit Trail',
       protection: 'Active Protection',
       config: 'Security Config',
@@ -761,7 +765,8 @@ export const admin = {
       encryption: 'Encryption',
       stripe: 'Stripe Protection',
       ratelimit: 'Rate Limiting',
-      mfa: '2FA Status'
+      mfa: '2FA Status',
+      accountRecoveries: 'Account Recovery Reviews'
     },
     support: {
       title: 'Technical Support',
@@ -1123,8 +1128,10 @@ export const admin = {
         approved: 'Approved',
         accepted: 'Accepted',
         denied: 'Denied',
-        completed: 'Completed'
+        completed: 'Completed',
+        closed: 'Case Closed'
       },
+      caseClosed: 'Case Closed',
       types: {
         dispute: 'Active Dispute',
         return: 'Return Request'
@@ -1193,6 +1200,8 @@ export const admin = {
         not_as_described: 'Not as Described',
         not_fitting: 'Fitting Issues',
         wrong_size: 'Wrong size',
+        warranty_claim: 'Warranty Claim',
+        replacement: 'Item Replacement',
         changed_mind: 'Changed Mind',
         other: 'Other'
       },

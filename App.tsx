@@ -643,7 +643,7 @@ function AppContent() {
                       {dashboardPath === 'billing' && <AdminHome subPath="billing" />}
                       {dashboardPath === 'financials' && <AdminHome subPath="financials" />}
                       {dashboardPath === 'invoice-details' && <AdminHome subPath="invoice-details" viewId={viewId} />}
-                      {dashboardPath === 'shipping' && <AdminHome subPath="shipping" />}
+                      {dashboardPath === 'shipping' && <AdminHome subPath="shipping" viewId={viewId} />}
                       {dashboardPath === 'audit-logs' && <AdminHome subPath="audit-logs" />}
                       {dashboardPath === 'settings' && <AdminHome subPath="settings" />}
                       {dashboardPath === 'support' && <AdminHome subPath="support" />}

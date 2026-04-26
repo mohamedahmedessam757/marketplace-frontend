@@ -61,6 +61,7 @@ export const common = {
       RETURN_REQUESTED: 'طلب إرجاع',
       RETURN_APPROVED: 'موافقة على الإرجاع',
       RESOLVED: 'تم الحل',
+      CLOSED: 'قضية مغلقة',
       // Shipment Detailed Statuses
       RECEIVED_AT_HUB: 'تم الاستلام في المركز',
       QUALITY_CHECK_PASSED: 'اجتاز فحص الجودة',
@@ -75,7 +76,15 @@ export const common = {
       DELIVERY_ATTEMPTED: 'محاولة توصيل',
       DELIVERED_TO_CUSTOMER: 'تم التوصيل للعميل',
       RETURN_TO_SENDER_INITIATED: 'بدء الإرجاع للمرسل',
-      RETURNED_TO_SENDER: 'تم الإرجاع للمرسل'
+      RETURNED_TO_SENDER: 'تم الإرجاع للمرسل',
+      // New Return & Warranty Journey 2026
+      RETURN_LABEL_ISSUED: '📄 يتم أصدار بوليصة أرجاع للمنتج',
+      RETURN_STARTED: '🔄 بدء الارجاع',
+      RECEIVED_FROM_CUSTOMER: '📥 تم أستلام الشحنه من العميل',
+      DELIVERED_TO_VENDOR: '📦 تم تسليم الشحنه للتاجر',
+      EXCHANGE_COMPLETED: '✨ تم أستبدال الشحنه بنجاح',
+      IN_TRANSIT_TO_CUSTOMER: '🚚 الشحنه فى طريقها للعميل',
+      RETURN_COMPLETED_TO_CUSTOMER: '✅ تم أرجاع الشحنه للعميل بنجاح'
     },
     daysShort: ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'],
     location: 'الرياض، السعودية',
@@ -190,6 +199,7 @@ export const common = {
       RETURN_REQUESTED: 'Return Requested',
       RETURN_APPROVED: 'Return Approved',
       RESOLVED: 'Resolved',
+      CLOSED: 'Case Closed',
       // Shipment Detailed Statuses
       RECEIVED_AT_HUB: 'Received at Hub',
       QUALITY_CHECK_PASSED: 'Quality Check Passed',
@@ -204,7 +214,15 @@ export const common = {
       DELIVERY_ATTEMPTED: 'Delivery Attempted',
       DELIVERED_TO_CUSTOMER: 'Delivered to Customer',
       RETURN_TO_SENDER_INITIATED: 'Return to Sender Initiated',
-      RETURNED_TO_SENDER: 'Returned to Sender'
+      RETURNED_TO_SENDER: 'Returned to Sender',
+      // New Return & Warranty Journey 2026
+      RETURN_LABEL_ISSUED: '📄 Return Label Issued',
+      RETURN_STARTED: '🔄 Return Started',
+      RECEIVED_FROM_CUSTOMER: '📥 Received from Customer',
+      DELIVERED_TO_VENDOR: '📦 Delivered to Vendor',
+      EXCHANGE_COMPLETED: '✨ Exchange Completed',
+      IN_TRANSIT_TO_CUSTOMER: '🚚 In Transit to Customer',
+      RETURN_COMPLETED_TO_CUSTOMER: '✅ Return Completed to Customer'
     },
     roleSelection: {
       customerOrders: 'Customer Parts Orders',

@@ -6,7 +6,7 @@ import { useVendorStore } from '../../../stores/useVendorStore';
 import {
     ArrowLeft, ArrowRight, Clock, MapPin, Package, Settings, Monitor, ShieldCheck, FileText, CheckCircle2, ChevronDown, MessageCircle, AlertTriangle, Search, Car, Box, Calendar, Truck, User, DollarSign, Weight, Shield, Edit3, XCircle, Loader2, ExternalLink
 } from 'lucide-react';
-import { CountdownTimer } from '../OrderDetails';
+import { CountdownTimer, WarrantyBadge } from '../OrderDetails';
 import { SubmitOfferModal } from './SubmitOfferModal';
 import { GlassCard } from '../../ui/GlassCard';
 import { Badge, StatusType } from '../../ui/Badge';
@@ -449,6 +449,12 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 {isAr ? 'تفاصيل طلب العميل' : 'Customer Request Details'}
                             </h1>
                             <Badge status={order.status} />
+                            {order.warranty_end_at && (
+                                <WarrantyBadge 
+                                    endDate={order.warranty_end_at} 
+                                    status={order.status} 
+                                />
+                            )}
                             {shipment && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
                                 <Badge status={shipment.status as StatusType} className="animate-in fade-in zoom-in duration-500" />
                             )}
@@ -611,7 +617,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                             <FileText size={16} />
                             {isAr ? 'الفواتير' : 'Invoices'}
                         </button>
-                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && (
                             <button
                                 onClick={() => setActiveTab('waybills')}
                                 className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${
@@ -632,7 +638,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                         />
                     </div>
                     <div className={activeTab === 'waybills' ? 'block' : 'hidden'}>
-                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && (
                             <OrderWaybillsPanel 
                                 orderId={order.id} 
                                 orderStatus={order.status} 
@@ -649,7 +655,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                         <div className="p-6">
                             <StatusTimeline currentStatus={order.status} />
                         </div>
-                        {['SHIPPED', 'PREPARATION', 'READY_FOR_SHIPPING', 'DELIVERED', 'COMPLETED'].includes(order.status) && shipment && (
+                        {['SHIPPED', 'PREPARATION', 'READY_FOR_SHIPPING', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && shipment && (
                             <div className="border-t border-white/5 pt-6 mt-2 px-6 pb-6 shadow-inner">
                                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                                     <Truck className="text-gold-500" size={20} />

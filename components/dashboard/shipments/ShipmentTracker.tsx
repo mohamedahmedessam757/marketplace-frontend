@@ -14,7 +14,6 @@ export const shipmentStatuses = [
     'IN_TRANSIT_TO_DESTINATION',
     'ARRIVED_AT_LOCAL_FACILITY',
     'CUSTOMS_CLEARANCE',
-    'CUSTOMS_DELAY',
     'AT_LOCAL_WAREHOUSE',
     'OUT_FOR_DELIVERY',
     'DELIVERY_ATTEMPTED',
@@ -22,8 +21,13 @@ export const shipmentStatuses = [
 ];
 
 export const returnStatuses = [
-    'RETURN_TO_SENDER_INITIATED',
-    'RETURNED_TO_SENDER',
+    'RETURN_LABEL_ISSUED',
+    'RETURN_STARTED',
+    'RECEIVED_FROM_CUSTOMER',
+    'DELIVERED_TO_VENDOR',
+    'EXCHANGE_COMPLETED',
+    'IN_TRANSIT_TO_CUSTOMER',
+    'RETURN_COMPLETED_TO_CUSTOMER',
 ];
 
 // Combined for index calculation
@@ -32,21 +36,32 @@ export const allShipmentStatuses = [...shipmentStatuses, ...returnStatuses];
 export const statusTranslations: Record<string, { ar: string, en: string }> = {
     'PREPARATION':               { ar: '⏳ قيد التجهيز', en: '⏳ Preparing' },
     'PREPARED':                  { ar: '📦 جاهز للشحن', en: '📦 Ready' },
-    'RECEIVED_AT_HUB':           { ar: '1️⃣ تم الاستلام في المركز', en: '1️⃣ Received at Hub' },
+    'RECEIVED_AT_HUB':           { ar: '1️⃣ استلام بالمركز', en: '1️⃣ Hub Received' },
     'QUALITY_CHECK_PASSED':      { ar: '2️⃣ تم فحص الجودة', en: '2️⃣ Quality Passed' },
     'PACKAGED_FOR_SHIPPING':     { ar: '3️⃣ تم التغليف', en: '3️⃣ Packaged' },
     'AWAITING_CARRIER_PICKUP':   { ar: '4️⃣ بانتظار المندوب', en: '4️⃣ Awaiting Carrier' },
     'PICKED_UP_BY_CARRIER':      { ar: '5️⃣ تم الاستلام من المندوب', en: '5️⃣ Picked Up' },
     'IN_TRANSIT_TO_DESTINATION': { ar: '6️⃣ في الطريق', en: '6️⃣ In Transit' },
-    'ARRIVED_AT_LOCAL_FACILITY': { ar: '7️⃣ في المرفق المحلي', en: '7️⃣ Local Facility' },
+    'ARRIVED_AT_LOCAL_FACILITY': { ar: '7️⃣ المرفق المحلي', en: '7️⃣ Local Hub' },
     'CUSTOMS_CLEARANCE':         { ar: '8️⃣ التخليص الجمركي', en: '8️⃣ Customs' },
-    'CUSTOMS_DELAY':             { ar: '⚠️ تأخير جمركي', en: '⚠️ Customs Delay' },
-    'AT_LOCAL_WAREHOUSE':        { ar: '9️⃣ في المستودع المحلي', en: '9️⃣ Local Warehouse' },
+    'AT_LOCAL_WAREHOUSE':        { ar: '9️⃣ المستودع المحلي', en: '9️⃣ Local Warehouse' },
     'OUT_FOR_DELIVERY':          { ar: '🔟 جاري التوصيل', en: '🔟 Out for Delivery' },
     'DELIVERY_ATTEMPTED':        { ar: '📍 محاولة توصيل', en: '📍 Delivery Attempt' },
     'DELIVERED_TO_CUSTOMER':     { ar: '✅ تم التسليم', en: '✅ Delivered' },
+    
+    // Return & Warranty Journey 2026
+    'RETURN_LABEL_ISSUED':       { ar: '📄 إصدار بوليصة الإرجاع', en: '📄 Label Issued' },
+    'RETURN_STARTED':            { ar: '🔄 بدء الإرجاع', en: '🔄 Return Started' },
+    'RECEIVED_FROM_CUSTOMER':    { ar: '📥 استلام من العميل', en: '📥 Received from User' },
+    'DELIVERED_TO_VENDOR':       { ar: '📦 تسليم للتاجر', en: '📦 Delivered to Vendor' },
+    'EXCHANGE_COMPLETED':        { ar: '✨ تم الاستبدال', en: '✨ Exchange Done' },
+    'IN_TRANSIT_TO_CUSTOMER':    { ar: '🚚 في الطريق إليك', en: '🚚 Heading Back' },
+    'RETURN_COMPLETED_TO_CUSTOMER': { ar: '✅ إتمام الإرجاع', en: '✅ Return Completed' },
+
+    // Legacy Support (Safety)
+    'CUSTOMS_DELAY':             { ar: '⚠️ تأخير جمركي', en: '⚠️ Customs Delay' },
     'RETURN_TO_SENDER_INITIATED':{ ar: '↩️ بدء الإرجاع', en: '↩️ Return Initiated' },
-    'RETURNED_TO_SENDER':        { ar: '🔄 تم الإرجاع', en: '🔄 Returned' },
+    'RETURNED_TO_SENDER':        { ar: '🔄 تم الإرجاع للمرسل', en: '🔄 Returned to Sender' },
 };
 
 interface ShipmentTrackerProps {

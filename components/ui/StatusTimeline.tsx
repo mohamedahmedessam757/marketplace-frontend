@@ -55,14 +55,20 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus })
       case 'OUT_FOR_DELIVERY': 
       case 'DELIVERY_ATTEMPTED': return 5;
       
-      // Delivery / Completed phase
+      // Delivery / Completed / Resolution phase
       case 'DELIVERED': 
       case 'DELIVERED_TO_CUSTOMER':
-      case 'COMPLETED': return 6;
+      case 'COMPLETED':
+      case 'RETURNED':
+      case 'RETURN_REQUESTED':
+      case 'RETURN_APPROVED':
+      case 'DISPUTED':
+      case 'RESOLVED':
+      case 'REFUNDED':
+      case 'WARRANTY_ACTIVE':
+      case 'WARRANTY_EXPIRED': return 6;
       
-      case 'CANCELLED': 
-      case 'RETURNED': 
-      case 'DISPUTED': return 0;
+      case 'CANCELLED': return 0;
       default: return 0;
     }
   };
@@ -70,7 +76,7 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus })
   const isDelayed = currentStatus === 'DELAYED_PREPARATION';
   const isPrepared = currentStatus === 'PREPARED';
   const activeIndex = getActiveStepIndex(currentStatus);
-  const isCancelled = ['CANCELLED', 'RETURNED', 'DISPUTED'].includes(currentStatus);
+  const isCancelled = currentStatus === 'CANCELLED';
 
   return (
     <div className="w-full py-8 px-4">

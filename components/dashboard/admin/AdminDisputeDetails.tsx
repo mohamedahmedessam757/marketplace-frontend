@@ -210,11 +210,11 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                                     <span className="text-xs font-bold text-white/60">{new Date(dispute.createdAt).toLocaleString(isAr ? 'ar-EG' : 'en-US')}</span>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-2.5 h-2.5 rounded-full ${dispute.status === 'RESOLVED' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-red-500 animate-pulse shadow-[0_0_10px_#ef4444]'}`} />
+                                    <div className={`w-2.5 h-2.5 rounded-full ${['RESOLVED', 'REFUNDED', 'APPROVED'].includes(dispute.status) ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-red-500 animate-pulse shadow-[0_0_10px_#ef4444]'}`} />
                                     <span className="text-xs font-black text-white uppercase tracking-widest">
                                         {['AWAITING_ADMIN', 'MERCHANT_REJECTED', 'UNDER_REVIEW', 'ESCALATED'].includes(dispute.status) 
                                           ? (isAr ? 'تحت المراجعة الإدارية' : 'UNDER ADMIN REVIEW')
-                                          : (t.admin.disputeManager.status as any)[(dispute.status || '').trim().toLowerCase()] || dispute.status}
+                                          : (t.admin.disputeManager.status as any)[(dispute.status || '').toLowerCase()] || dispute.status}
                                     </span>
                                 </div>
                             </div>
@@ -472,256 +472,354 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                         </div>
                     </GlassCard>
 
-                    {/* 2026 VERDICT WIZARD TERMINAL */}
-                    <GlassCard className="p-10 bg-red-500/[0.03] border-red-500/20 rounded-[40px] shadow-2xl relative overflow-hidden">
-                        {/* WIZARD STEPS INDICATOR */}
-                        <div className="flex items-center justify-between mb-12 border-b border-white/5 pb-8 relative z-10">
-                            {[1, 2, 3].map((step) => (
-                                <div key={step} className="flex items-center gap-4 relative">
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 shadow-2xl ${verdictStep >= step ? 'bg-gradient-to-br from-gold-500 to-amber-600 text-black scale-105' : 'bg-white/5 text-white/40 border border-white/10'}`}>
-                                        <span className="text-xs font-black">{step}</span>
-                                    </div>
-                                    <div className="hidden md:block">
-                                        <p className={`text-[7px] font-black uppercase tracking-[0.2em] mb-0.5 ${verdictStep >= step ? 'text-gold-500' : 'text-white/20'}`}>
-                                            Stage 0{step}
-                                        </p>
-                                        <p className={`text-xs font-bold ${verdictStep >= step ? 'text-white' : 'text-white/40'}`}>
-                                            {(t.admin.disputeManager.verdictTerminal as any)[`stepTitle_${step}`]}
-                                        </p>
-                                    </div>
-                                    {step < 3 && <div className={`hidden lg:block w-16 h-px mx-4 ${verdictStep > step ? 'bg-gold-500/50' : 'bg-white/10'}`} />}
-                                </div>
-                            ))}
-                        </div>
+                    {/* 2026 VERDICT TERMINAL: WIZARD OR FINAL DISPLAY */}
+                    {(!dispute.verdictIssuedAt && !['APPROVED', 'REFUNDED', 'RESOLVED', 'CLOSED', 'CANCELLED'].includes(dispute.status)) ? (
+                       <GlassCard className="p-10 bg-red-500/[0.03] border-red-500/20 rounded-[40px] shadow-2xl relative overflow-hidden">
+                          {/* WIZARD STEPS INDICATOR */}
+                          <div className="flex items-center justify-between mb-12 border-b border-white/5 pb-8 relative z-10">
+                             {[1, 2, 3].map((step) => (
+                                 <div key={step} className="flex items-center gap-4 relative">
+                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 shadow-2xl ${verdictStep >= step ? 'bg-gradient-to-br from-gold-500 to-amber-600 text-black scale-105' : 'bg-white/5 text-white/40 border border-white/10'}`}>
+                                         <span className="text-xs font-black">{step}</span>
+                                     </div>
+                                     <div className="hidden md:block">
+                                         <p className={`text-[7px] font-black uppercase tracking-[0.2em] mb-0.5 ${verdictStep >= step ? 'text-gold-500' : 'text-white/20'}`}>
+                                             Stage 0{step}
+                                         </p>
+                                         <p className={`text-xs font-bold ${verdictStep >= step ? 'text-white' : 'text-white/40'}`}>
+                                             {(t.admin.disputeManager.verdictTerminal as any)[`stepTitle_${step}`]}
+                                         </p>
+                                     </div>
+                                     {step < 3 && <div className={`hidden lg:block w-16 h-px mx-4 ${verdictStep > step ? 'bg-gold-500/50' : 'bg-white/10'}`} />}
+                                 </div>
+                             ))}
+                          </div>
 
-                        {/* STEP CONTENT */}
-                        <div className="min-h-[400px]">
-                            {verdictStep === 1 && (
-                                <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-8">
-                                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                                        {/* LEFT: Decision & Reasoning */}
-                                        <div className="lg:col-span-12 xl:col-span-8 space-y-8">
-                                            <div className="space-y-4">
-                                                <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">1. {t.admin.disputeManager.verdictTerminal.adminApproval_APPROVED} / {t.admin.disputeManager.verdictTerminal.adminApproval_REJECTED}</label>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <button 
-                                                        onClick={() => setAdminApproval('APPROVED')}
-                                                        className={`p-6 rounded-3xl border flex items-center gap-6 transition-all ${adminApproval === 'APPROVED' ? 'bg-green-500/10 border-green-500/50 shadow-2xl' : 'bg-white/5 border-white/5 hover:border-white/10 opacity-60'}`}
-                                                    >
-                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${adminApproval === 'APPROVED' ? 'bg-green-500 text-black' : 'bg-white/10 text-white/40'}`}>
-                                                            <CheckCircle2 size={24} />
-                                                        </div>
-                                                        <span className="text-lg font-black text-white">{t.admin.disputeManager.verdictTerminal.adminApproval_APPROVED}</span>
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setAdminApproval('REJECTED')}
-                                                        className={`p-6 rounded-3xl border flex items-center gap-6 transition-all ${adminApproval === 'REJECTED' ? 'bg-red-500/10 border-red-500/50 shadow-2xl' : 'bg-white/5 border-white/5 hover:border-white/10 opacity-60'}`}
-                                                    >
-                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${adminApproval === 'REJECTED' ? 'bg-red-500 text-white' : 'bg-white/10 text-white/40'}`}>
-                                                            <X size={24} />
-                                                        </div>
-                                                        <span className="text-lg font-black text-white">{t.admin.disputeManager.verdictTerminal.adminApproval_REJECTED}</span>
-                                                    </button>
-                                                </div>
-                                            </div>
+                          {/* STEP CONTENT (WIZARD) */}
+                          <div className="min-h-[400px]">
+                             {verdictStep === 1 && (
+                                 <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-8">
+                                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                         {/* LEFT: Decision & Reasoning */}
+                                         <div className="lg:col-span-12 xl:col-span-8 space-y-8">
+                                             <div className="space-y-4">
+                                                 <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">1. {t.admin.disputeManager.verdictTerminal.adminApproval_APPROVED} / {t.admin.disputeManager.verdictTerminal.adminApproval_REJECTED}</label>
+                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                     <button 
+                                                         onClick={() => setAdminApproval('APPROVED')}
+                                                         className={`p-6 rounded-3xl border flex items-center gap-6 transition-all ${adminApproval === 'APPROVED' ? 'bg-green-500/10 border-green-500/50 shadow-2xl' : 'bg-white/5 border-white/5 hover:border-white/10 opacity-60'}`}
+                                                     >
+                                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${adminApproval === 'APPROVED' ? 'bg-green-500 text-black' : 'bg-white/10 text-white/40'}`}>
+                                                             <CheckCircle2 size={24} />
+                                                         </div>
+                                                         <span className="text-lg font-black text-white">{t.admin.disputeManager.verdictTerminal.adminApproval_APPROVED}</span>
+                                                     </button>
+                                                     <button 
+                                                         onClick={() => setAdminApproval('REJECTED')}
+                                                         className={`p-6 rounded-3xl border flex items-center gap-6 transition-all ${adminApproval === 'REJECTED' ? 'bg-red-500/10 border-red-500/50 shadow-2xl' : 'bg-white/5 border-white/5 hover:border-white/10 opacity-60'}`}
+                                                     >
+                                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${adminApproval === 'REJECTED' ? 'bg-red-500 text-white' : 'bg-white/10 text-white/40'}`}>
+                                                             <X size={24} />
+                                                         </div>
+                                                         <span className="text-lg font-black text-white">{t.admin.disputeManager.verdictTerminal.adminApproval_REJECTED}</span>
+                                                     </button>
+                                                 </div>
+                                             </div>
 
-                                            <div className="space-y-4">
-                                                <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{t.admin.disputeManager.verdictTerminal.adminReasonLabel}</label>
-                                                <textarea 
-                                                    value={adminApprovalReason}
-                                                    onChange={(e) => setAdminApprovalReason(e.target.value)}
-                                                    placeholder={isAr ? 'اكتب بالتفصيل أسباب قرارك الإداري...' : 'State the administrative rationale for this decision...'}
-                                                    className="w-full bg-white/5 border border-white/10 rounded-3xl p-5 text-white text-sm focus:border-gold-500/50 outline-none transition-all min-h-[120px]"
-                                                />
-                                            </div>
-                                        </div>
+                                             <div className="space-y-4">
+                                                 <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{t.admin.disputeManager.verdictTerminal.adminReasonLabel}</label>
+                                                 <textarea 
+                                                     value={adminApprovalReason}
+                                                     onChange={(e) => setAdminApprovalReason(e.target.value)}
+                                                     placeholder={isAr ? 'اكتب بالتفصيل أسباب قرارك الإداري...' : 'State the administrative rationale for this decision...'}
+                                                     className="w-full bg-white/5 border border-white/10 rounded-3xl p-5 text-white text-sm focus:border-gold-500/50 outline-none transition-all min-h-[120px]"
+                                                 />
+                                             </div>
+                                         </div>
 
-                                        {/* RIGHT: Asset Upload (Integrated Phase 1) */}
-                                        <div className="lg:col-span-12 xl:col-span-4 space-y-4">
-                                            <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{t.admin.disputeManager.intelligence.assets}</label>
-                                            <div className="p-6 bg-white/[0.02] border border-white/5 rounded-[32px] space-y-6">
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    {adminEvidence.map((url, idx) => (
-                                                        <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 group shadow-xl">
-                                                            <img src={url} alt="Evidence" className="w-full h-full object-cover" />
-                                                            <button 
-                                                                onClick={() => setAdminEvidence(prev => prev.filter((_, i) => i !== idx))}
-                                                                className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-lg"
-                                                            >
-                                                                <X size={12} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                    <label className={`aspect-square rounded-2xl border-2 border-dashed border-white/10 hover:border-gold-500/50 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all bg-white/5 group ${isUploading ? 'animate-pulse pointer-events-none' : ''}`}>
-                                                        <input type="file" className="hidden" onChange={handleFileUpload} accept="image/*" />
-                                                        <Activity size={24} className={`${isUploading ? 'text-gold-500' : 'text-white/20 group-hover:text-gold-500'} transition-colors`} />
-                                                        <span className="text-[8px] font-black uppercase tracking-widest text-white/40 group-hover:text-white transition-colors">{isUploading ? 'UPLOADING...' : 'ADD ASSET'}</span>
-                                                    </label>
-                                                </div>
-                                                <p className="text-[9px] text-white/20 font-bold uppercase text-center leading-tight">
-                                                    {isAr ? 'ارفع المستندات أو الصور الداعمة لقرارك' : 'Upload supporting documents or images for your verdict'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                         {/* RIGHT: Asset Upload */}
+                                         <div className="lg:col-span-12 xl:col-span-4 space-y-4">
+                                             <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{t.admin.disputeManager.intelligence.assets}</label>
+                                             <div className="p-6 bg-white/[0.02] border border-white/5 rounded-[32px] space-y-6">
+                                                 <div className="grid grid-cols-2 gap-3">
+                                                     {adminEvidence.map((url, idx) => (
+                                                         <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 group shadow-xl">
+                                                             <img src={url} alt="Evidence" className="w-full h-full object-cover" />
+                                                             <button 
+                                                                 onClick={() => setAdminEvidence(prev => prev.filter((_, i) => i !== idx))}
+                                                                 className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                                                             >
+                                                                 <X size={12} />
+                                                             </button>
+                                                         </div>
+                                                     ))}
+                                                     <label className={`aspect-square rounded-2xl border-2 border-dashed border-white/10 hover:border-gold-500/50 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all bg-white/5 group ${isUploading ? 'animate-pulse pointer-events-none' : ''}`}>
+                                                         <input type="file" className="hidden" onChange={handleFileUpload} accept="image/*" />
+                                                         <Activity size={24} className={`${isUploading ? 'text-gold-500' : 'text-white/20 group-hover:text-gold-500'} transition-colors`} />
+                                                         <span className="text-[8px] font-black uppercase tracking-widest text-white/40 group-hover:text-white transition-colors">{isUploading ? 'UPLOADING...' : 'ADD ASSET'}</span>
+                                                     </label>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                     </div>
 
-                                    <div className="flex justify-end pt-6 border-t border-white/5">
-                                        <Button 
-                                            onClick={() => setVerdictStep(2)}
-                                            disabled={!adminApproval || !adminApprovalReason}
-                                            className={`px-8 py-4 bg-gold-500 hover:bg-gold-400 text-black font-black uppercase tracking-widest text-[11px] rounded-xl shadow-xl shadow-gold-500/10 flex items-center gap-3 transition-all hover:translate-x-${isAr ? '[-4px]' : '[4px]'}`}
-                                        >
-                                            {t.common.actions.continue}
-                                            <NextIcon size={16} />
-                                        </Button>
-                                    </div>
-                                </motion.div>
-                            )}
+                                     <div className="flex justify-end pt-6 border-t border-white/5">
+                                         <Button 
+                                             onClick={() => setVerdictStep(2)}
+                                             disabled={!adminApproval || !adminApprovalReason}
+                                             className={`px-8 py-4 bg-gold-500 hover:bg-gold-400 text-black font-black uppercase tracking-widest text-[11px] rounded-xl shadow-xl shadow-gold-500/10 flex items-center gap-3 transition-all hover:translate-x-${isAr ? '[-4px]' : '[4px]'}`}
+                                         >
+                                             {t.common.actions.continue}
+                                             <NextIcon size={16} />
+                                         </Button>
+                                     </div>
+                                 </motion.div>
+                             )}
 
-                            {verdictStep === 2 && (
-                                <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-10">
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                                        <div className="space-y-6">
-                                            <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{t.admin.disputeManager.verdictTerminal.assignFaultParty}</label>
-                                            <div className="space-y-3">
-                                                {[
-                                                    { id: 'MERCHANT', label: isAr ? 'التاجر (إهمال)' : 'Merchant (Negligence)', icon: Store },
-                                                    { id: 'CUSTOMER', label: isAr ? 'العميل (إدعاء)' : 'Customer (Claim)', icon: User },
-                                                    { id: 'SHIPPING_COMPANY', label: t.admin.disputeManager.verdictTerminal.shippingNegligence, icon: Truck }
-                                                ].map((opt) => (
-                                                    <button
-                                                        key={opt.id}
-                                                        onClick={() => setFaultParty(opt.id as any)}
-                                                        className={`w-full p-5 rounded-2xl border flex items-center justify-between transition-all ${faultParty === opt.id ? 'bg-gold-500/10 border-gold-500/40 text-white' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'}`}
-                                                    >
-                                                        <div className="flex items-center gap-4">
-                                                            <div className={`p-2 rounded-lg ${faultParty === opt.id ? 'bg-gold-500 text-black' : 'bg-white/5'}`}>
-                                                                <opt.icon size={16} />
-                                                            </div>
-                                                            <span className="text-xs font-bold">{opt.label}</span>
-                                                        </div>
-                                                        {faultParty === opt.id && <CheckCircle2 size={16} className="text-gold-500" />}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
+                             {verdictStep === 2 && (
+                                 <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-10">
+                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                                         <div className="space-y-6">
+                                             <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{t.admin.disputeManager.verdictTerminal.assignFaultParty}</label>
+                                             <div className="space-y-3">
+                                                 {[
+                                                     { id: 'MERCHANT', label: isAr ? 'التاجر (إهمال)' : 'Merchant (Negligence)', icon: Store },
+                                                     { id: 'CUSTOMER', label: isAr ? 'العميل (إدعاء)' : 'Customer (Claim)', icon: User },
+                                                     { id: 'SHIPPING_COMPANY', label: t.admin.disputeManager.verdictTerminal.shippingNegligence, icon: Truck }
+                                                 ].map((opt) => (
+                                                     <button
+                                                         key={opt.id}
+                                                         onClick={() => setFaultParty(opt.id as any)}
+                                                         className={`w-full p-5 rounded-2xl border flex items-center justify-between transition-all ${faultParty === opt.id ? 'bg-gold-500/10 border-gold-500/40 text-white' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'}`}
+                                                     >
+                                                         <div className="flex items-center gap-4">
+                                                             <div className={`p-2 rounded-lg ${faultParty === opt.id ? 'bg-gold-500 text-black' : 'bg-white/5'}`}>
+                                                                 <opt.icon size={16} />
+                                                             </div>
+                                                             <span className="text-xs font-bold">{opt.label}</span>
+                                                         </div>
+                                                         {faultParty === opt.id && <CheckCircle2 size={16} className="text-gold-500" />}
+                                                     </button>
+                                                 ))}
+                                             </div>
+                                         </div>
 
-                                            <div className="space-y-4">
-                                                <div className="flex justify-between items-center">
-                                                    <label className="text-[9px] font-black text-white/40 uppercase tracking-widest">{t.admin.disputeManager.verdictTerminal.financialBreakdown}</label>
-                                                    <Badge className="bg-green-500/10 text-green-500 border-none font-black text-[10px] px-3 py-1">AED</Badge>
-                                                </div>
-                                                <div className="relative group p-10 bg-black/60 rounded-[40px] border border-white/10 flex flex-col items-center shadow-inner">
-                                                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4">{t.admin.disputeManager.verdictTerminal.refundAmount}</span>
-                                                    <div className="flex items-center gap-3">
-                                                       <input 
-                                                           type="number"
-                                                           value={refundAmount}
-                                                           onChange={(e) => setRefundAmount(Number(e.target.value))}
-                                                           className="w-full bg-transparent text-6xl font-black text-white focus:text-gold-500 outline-none transition-all text-center"
-                                                           placeholder="0.00"
-                                                       />
-                                                       <span className="text-2xl font-black text-white/20 uppercase">AED</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                    </div>
-
-                                    <div className="flex justify-between pt-8 border-t border-white/5">
-                                        <Button 
-                                            onClick={() => setVerdictStep(1)}
-                                            variant="outline"
-                                            className={`px-8 py-3.5 border-white/10 text-white/40 hover:text-white flex items-center gap-3 text-[10px] uppercase font-black tracking-widest rounded-xl transition-all`}
-                                        >
-                                            <PrevIcon size={14} />
-                                            {t.common.actions.back}
-                                        </Button>
-                                        <Button 
-                                            onClick={() => setVerdictStep(3)}
-                                            className={`px-8 py-4 bg-gold-500 hover:bg-gold-400 text-black font-black uppercase tracking-widest text-[11px] rounded-xl shadow-xl flex items-center gap-3 transition-all hover:translate-x-${isAr ? '[-4px]' : '[4px]'}`}
-                                        >
-                                            {t.common.actions.continue}
-                                            <NextIcon size={16} />
-                                        </Button>
-                                    </div>
-                                </motion.div>
-                            )}
-
-                            {verdictStep === 3 && (
-                                <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-12">
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                                        <div className="space-y-8">
-                                            <div className="p-8 bg-gold-500/5 rounded-[40px] border border-gold-500/20 space-y-6">
-                                                <div className="flex items-center gap-4 text-gold-500">
-                                                    <ShieldCheck size={20} />
-                                                    <span className="text-sm font-black uppercase tracking-widest">{t.admin.disputeManager.verdictTerminal.adminSignatureLabel}</span>
-                                                </div>
-                                                <div className="space-y-4">
+                                         <div className="space-y-4">
+                                             <div className="flex justify-between items-center">
+                                                 <label className="text-[9px] font-black text-white/40 uppercase tracking-widest">{t.admin.disputeManager.verdictTerminal.financialBreakdown}</label>
+                                                 <Badge className="bg-green-500/10 text-green-500 border-none font-black text-[10px] px-3 py-1">AED</Badge>
+                                             </div>
+                                             <div className="relative group p-10 bg-black/60 rounded-[40px] border border-white/10 flex flex-col items-center shadow-inner">
+                                                 <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4">{t.admin.disputeManager.verdictTerminal.refundAmount}</span>
+                                                 <div className="flex items-center gap-3">
                                                     <input 
-                                                        type="text" 
-                                                        value={adminSignature}
-                                                        onChange={(e) => setAdminSignature(e.target.value)}
-                                                        placeholder={isAr ? 'أدخل اسمك الكامل للموافقة والتوقيع...' : 'Type full name to sign & authorize...'}
-                                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white font-mono text-lg focus:border-gold-500/50 outline-none transition-all block"
+                                                        type="number"
+                                                        value={refundAmount}
+                                                        onChange={(e) => setRefundAmount(Number(e.target.value))}
+                                                        className="w-full bg-transparent text-6xl font-black text-white focus:text-gold-500 outline-none transition-all text-center"
+                                                        placeholder="0.00"
                                                     />
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <input 
-                                                            type="text" 
-                                                            value={adminName} 
-                                                            onChange={(e) => setAdminName(e.target.value)}
-                                                            placeholder={t.admin.disputeManager.verdictTerminal.adminNameLabel}
-                                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-white focus:border-gold-500/50 outline-none"
-                                                        />
-                                                        <input 
-                                                            type="email" 
-                                                            value={adminEmail} 
-                                                            onChange={(e) => setAdminEmail(e.target.value)}
-                                                            placeholder={t.admin.disputeManager.verdictTerminal.adminEmailLabel}
-                                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-white focus:border-gold-500/50 outline-none"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                                    <span className="text-2xl font-black text-white/20 uppercase">AED</span>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                     </div>
 
-                                        <div className="p-10 bg-black/60 rounded-[40px] border border-white/10 flex flex-col justify-between h-full relative group">
-                                            <div className="absolute -inset-0.5 bg-gradient-to-r from-gold-500/20 to-amber-500/20 rounded-[40px] blur opacity-0 group-hover:opacity-100 transition duration-1000" />
-                                            <div className="relative space-y-6">
-                                                <div className="flex items-center gap-3">
-                                                    <Gavel size={24} className="text-gold-500" />
-                                                    <h3 className="text-2xl font-black text-white tracking-tighter uppercase">{t.admin.disputeManager.verdictTerminal.executeVerdict}</h3>
-                                                </div>
-                                                <p className="text-xs text-white leading-relaxed">
-                                                    {isAr 
-                                                        ? 'من خلال النقر على تنفيذ، سيتم إرسال الإشعارات الفورية للعميل والمتجر بالقرار الإداري الرسمي.'
-                                                        : 'By clicking execute, automated real-time notifications of the official administrative decision will be dispatched to both parties.'}
-                                                </p>
-                                            </div>
-                                            <Button 
-                                                onClick={confirmVerdict}
-                                                isLoading={isExecuting}
-                                                disabled={!adminSignature || !adminName || !adminEmail}
-                                                className="relative mt-8 py-5 bg-gradient-to-r from-gold-600 to-amber-500 hover:from-gold-500 hover:to-amber-400 text-black font-black uppercase tracking-[0.2em] text-sm rounded-2xl shadow-2xl shadow-gold-500/20 w-full transition-all hover:scale-[1.02]"
-                                            >
-                                                {t.admin.disputeManager.verdictTerminal.executeVerdict}
-                                            </Button>
-                                        </div>
-                                    </div>
+                                     <div className="flex justify-between pt-8 border-t border-white/5">
+                                         <Button 
+                                             onClick={() => setVerdictStep(1)}
+                                             variant="outline"
+                                             className={`px-8 py-3.5 border-white/10 text-white/40 hover:text-white flex items-center gap-3 text-[10px] uppercase font-black tracking-widest rounded-xl transition-all`}
+                                         >
+                                             <PrevIcon size={14} />
+                                             {t.common.actions.back}
+                                         </Button>
+                                         <Button 
+                                             onClick={() => setVerdictStep(3)}
+                                             className={`px-8 py-4 bg-gold-500 hover:bg-gold-400 text-black font-black uppercase tracking-widest text-[11px] rounded-xl shadow-xl flex items-center gap-3 transition-all hover:translate-x-${isAr ? '[-4px]' : '[4px]'}`}
+                                         >
+                                             {t.common.actions.continue}
+                                             <NextIcon size={16} />
+                                         </Button>
+                                     </div>
+                                 </motion.div>
+                             )}
 
-                                    <div className="flex items-center gap-4 pt-8 border-t border-white/5">
-                                        <Button 
-                                            onClick={() => setVerdictStep(2)}
-                                            variant="outline"
-                                            className={`px-8 py-3.5 border-white/10 text-white/40 hover:text-white flex items-center gap-3 text-[10px] uppercase font-black tracking-widest rounded-xl transition-all`}
-                                        >
-                                            <PrevIcon size={14} />
-                                            {t.common.actions.back}
-                                        </Button>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </div>
-                    </GlassCard>
+                             {verdictStep === 3 && (
+                                 <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-12">
+                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                                         <div className="space-y-8">
+                                             <div className="p-8 bg-gold-500/5 rounded-[40px] border border-gold-500/20 space-y-6">
+                                                 <div className="flex items-center gap-4 text-gold-500">
+                                                     <ShieldCheck size={20} />
+                                                     <span className="text-sm font-black uppercase tracking-widest">{t.admin.disputeManager.verdictTerminal.adminSignatureLabel}</span>
+                                                 </div>
+                                                 <div className="space-y-4">
+                                                     <input 
+                                                         type="text" 
+                                                         value={adminSignature}
+                                                         onChange={(e) => setAdminSignature(e.target.value)}
+                                                         placeholder={isAr ? 'أدخل اسمك الكامل للموافقة والتوقيع...' : 'Type full name to sign & authorize...'}
+                                                         className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white font-mono text-lg focus:border-gold-500/50 outline-none transition-all block"
+                                                     />
+                                                     <div className="grid grid-cols-2 gap-4">
+                                                         <input 
+                                                             type="text" 
+                                                             value={adminName} 
+                                                             onChange={(e) => setAdminName(e.target.value)}
+                                                             placeholder={t.admin.disputeManager.verdictTerminal.adminNameLabel}
+                                                             className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-white focus:border-gold-500/50 outline-none"
+                                                         />
+                                                         <input 
+                                                             type="email" 
+                                                             value={adminEmail} 
+                                                             onChange={(e) => setAdminEmail(e.target.value)}
+                                                             placeholder={t.admin.disputeManager.verdictTerminal.adminEmailLabel}
+                                                             className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-white focus:border-gold-500/50 outline-none"
+                                                         />
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                         </div>
+
+                                         <div className="p-10 bg-black/60 rounded-[40px] border border-white/10 flex flex-col justify-between h-full relative group">
+                                             <div className="absolute -inset-0.5 bg-gradient-to-r from-gold-500/20 to-amber-500/20 rounded-[40px] blur opacity-0 group-hover:opacity-100 transition duration-1000" />
+                                             <div className="relative space-y-6">
+                                                 <div className="flex items-center gap-3">
+                                                     <Gavel size={24} className="text-gold-500" />
+                                                     <h3 className="text-2xl font-black text-white tracking-tighter uppercase">{t.admin.disputeManager.verdictTerminal.executeVerdict}</h3>
+                                                 </div>
+                                                 <p className="text-xs text-white leading-relaxed">
+                                                     {isAr 
+                                                         ? 'من خلال النقر على تنفيذ، سيتم إرسال الإشعارات الفورية للعميل والمتجر بالقرار الإداري الرسمي.'
+                                                         : 'By clicking execute, automated real-time notifications of the official administrative decision will be dispatched to both parties.'}
+                                                 </p>
+                                             </div>
+                                             <Button 
+                                                 onClick={confirmVerdict}
+                                                 isLoading={isExecuting}
+                                                 disabled={!adminSignature || !adminName || !adminEmail}
+                                                 className="relative mt-8 py-5 bg-gradient-to-r from-gold-600 to-amber-500 hover:from-gold-500 hover:to-amber-400 text-black font-black uppercase tracking-[0.2em] text-sm rounded-2xl shadow-2xl shadow-gold-500/20 w-full transition-all hover:scale-[1.02]"
+                                             >
+                                                 {t.admin.disputeManager.verdictTerminal.executeVerdict}
+                                             </Button>
+                                         </div>
+                                     </div>
+
+                                     <div className="flex items-center gap-4 pt-8 border-t border-white/5">
+                                         <Button 
+                                             onClick={() => setVerdictStep(2)}
+                                             variant="outline"
+                                             className={`px-8 py-3.5 border-white/10 text-white/40 hover:text-white flex items-center gap-3 text-[10px] uppercase font-black tracking-widest rounded-xl transition-all`}
+                                         >
+                                             <PrevIcon size={14} />
+                                             {t.common.actions.back}
+                                         </Button>
+                                     </div>
+                                 </motion.div>
+                             )}
+                          </div>
+                      </GlassCard>
+                    ) : (
+                       /* 2026 POST-VERDICT HUB: READ-ONLY AUDIT DISPLAY */
+                       <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+                          <GlassCard className="p-12 bg-white/[0.02] border-gold-500/30 rounded-[40px] shadow-2xl relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-6 bg-gold-500/10 rounded-bl-[40px] border-l border-b border-gold-500/20 flex items-center gap-3">
+                                <ShieldCheck size={20} className="text-gold-500" />
+                                <span className="text-xs font-black text-gold-500 uppercase tracking-[0.2em]">{isAr ? 'حكم إداري نهائي ومؤرشف' : 'FINAL ARCHIVED VERDICT'}</span>
+                             </div>
+
+                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
+                                {/* LEFT: VERDICT CONTENT */}
+                                <div className="lg:col-span-12 xl:col-span-8 space-y-10">
+                                   <div className="flex items-center gap-8">
+                                      <div className={`w-24 h-24 rounded-[32px] flex items-center justify-center shadow-2xl
+                                         ${dispute.adminApproval === 'APPROVED' ? 'bg-green-500/20 text-green-500 border border-green-500/30' : 'bg-red-500/20 text-red-500 border border-red-500/30'}`}>
+                                         {dispute.adminApproval === 'APPROVED' ? <CheckCircle2 size={48} /> : <X size={48} />}
+                                      </div>
+                                      <div>
+                                         <h3 className="text-4xl font-black text-white tracking-tighter uppercase mb-2">
+                                            {dispute.adminApproval === 'APPROVED' ? (isAr ? 'تم قبول الطلب' : 'Verdict: APPROVED') : (isAr ? 'تم رفض الطلب' : 'Verdict: REJECTED')}
+                                         </h3>
+                                         <p className="text-[10px] text-white/30 font-black uppercase tracking-[0.3em]">
+                                            {isAr ? 'تم الإصدار في' : 'ISSUED ON'} {new Date(dispute.verdictIssuedAt).toLocaleString(isAr ? 'ar-EG' : 'en-US')}
+                                         </p>
+                                      </div>
+                                   </div>
+
+                                   <div className="bg-white/[0.03] rounded-[40px] p-10 border border-white/5 relative">
+                                      <div className="absolute -top-4 left-10 px-4 py-1.5 bg-[#0F0E0C] border border-white/10 rounded-xl">
+                                         <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{isAr ? 'منطق الحكم الرسمي' : 'OFFICIAL RATIONALE'}</span>
+                                      </div>
+                                      <p className="text-lg text-white/90 leading-relaxed font-medium italic">
+                                         "{dispute.adminApprovalReason}"
+                                      </p>
+                                   </div>
+
+                                   {dispute.adminEvidence && dispute.adminEvidence.length > 0 && (
+                                      <div className="space-y-6">
+                                         <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{isAr ? 'الأدلة والحقائق المرفقة' : 'ATTACHED EVIDENCE & EXHIBITS'}</span>
+                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {dispute.adminEvidence.map((url, idx) => (
+                                               <motion.div 
+                                                  key={idx} 
+                                                  whileHover={{ scale: 1.05 }}
+                                                  onClick={() => setSelectedEvidence(url)}
+                                                  className="aspect-video rounded-2xl overflow-hidden border border-white/10 cursor-zoom-in brightness-75 hover:brightness-100 transition-all shadow-xl"
+                                               >
+                                                  <img src={url} alt="Evidence" className="w-full h-full object-cover" />
+                                               </motion.div>
+                                            ))}
+                                         </div>
+                                      </div>
+                                   )}
+                                </div>
+
+                                {/* RIGHT: SIGNATURE & AUTHORITY */}
+                                <div className="lg:col-span-12 xl:col-span-4 space-y-8">
+                                   <div className="p-8 bg-black/40 rounded-[40px] border border-white/5 space-y-8">
+                                      <div className="space-y-2 border-b border-white/5 pb-6">
+                                         <span className="text-[9px] font-black text-gold-500/40 uppercase tracking-widest block">{isAr ? 'الطرف المسؤول' : 'PARTY AT FAULT'}</span>
+                                         <Badge className="bg-white/5 text-white border-white/10 text-xs px-4 py-2 font-black uppercase">
+                                            {(isAr && dispute.faultParty === 'MERCHANT') ? 'التاجر (إهمال)' : (isAr && dispute.faultParty === 'CUSTOMER') ? 'العميل (إدعاء)' : dispute.faultParty}
+                                         </Badge>
+                                      </div>
+
+                                      <div className="space-y-6 pt-2">
+                                         <div className="space-y-2">
+                                            <span className="text-[9px] font-black text-white/20 uppercase tracking-widest block">{isAr ? 'المسؤول المصدر' : 'ISSUING AUTHORITY'}</span>
+                                            <div className="flex items-center gap-4">
+                                               <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center border border-gold-500/20">
+                                                  <Gavel size={18} className="text-gold-500" />
+                                               </div>
+                                               <div>
+                                                  <p className="text-sm font-black text-white">{dispute.adminName}</p>
+                                                  <p className="text-[10px] text-white/40 font-bold">{dispute.adminEmail}</p>
+                                               </div>
+                                            </div>
+                                         </div>
+
+                                         <div className="pt-6 border-t border-white/5 space-y-6">
+                                            <span className="text-[9px] font-black text-white/20 uppercase tracking-widest block">{isAr ? 'التوقيع الرقمي المعتمد' : 'VERIFIED DIGITAL SIGNATURE'}</span>
+                                            <div className="p-8 bg-white/[0.02] border border-white/5 rounded-3xl flex flex-col items-center justify-center gap-4 relative group">
+                                               <div className="absolute top-2 right-4 flex items-center gap-1.5 opacity-20">
+                                                  <Lock size={10} className="text-green-500" />
+                                                  <span className="text-[8px] font-black text-green-500">SECURE HASH v4.0</span>
+                                               </div>
+                                               <p className="text-3xl font-black text-white font-mono tracking-tighter opacity-80 group-hover:opacity-100 transition-opacity">
+                                                  {dispute.adminSignature}
+                                               </p>
+                                               <div className="w-full h-px bg-gradient-to-r from-transparent via-gold-500/30 to-transparent" />
+                                               <p className="text-[8px] text-gold-500/40 font-bold tracking-[0.4em] uppercase">{isAr ? 'حكم نهائي ملزم' : 'LEGALLY BINDING VERDICT'}</p>
+                                            </div>
+                                         </div>
+                                      </div>
+                                   </div>
+                                </div>
+                             </div>
+                          </GlassCard>
+                       </motion.div>
+                    )}
                 </div>
             </div>
 

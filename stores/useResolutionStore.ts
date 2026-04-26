@@ -242,7 +242,7 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 customerAvatar: r.customer?.avatar,
                 merchantResponse: r.merchantResponseText ? {
                     text: r.merchantResponseText,
-                    acceptedReturn: r.status === 'APPROVED',
+                    acceptedReturn: String((r as any).merchantDecision || '').startsWith('APPROV') || r.status === 'APPROVED',
                     evidence: Array.isArray(r.merchantEvidence) ? r.merchantEvidence : [],
                     submittedAt: r.updatedAt
                 } : undefined,
@@ -301,7 +301,7 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminSignature: (d as any).adminSignature,
                 merchantResponse: d.merchantResponseText ? {
                     text: d.merchantResponseText,
-                    acceptedReturn: false, // Not applicable for dispute
+                    acceptedReturn: String((d as any).merchantDecision || '').startsWith('APPROV') || d.status === 'APPROVED',
                     evidence: Array.isArray(d.merchantEvidence) ? d.merchantEvidence : [],
                     submittedAt: d.updatedAt
                 } : undefined
@@ -354,7 +354,7 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminSignature: (r as any).adminSignature,
                 merchantResponse: r.merchantResponseText ? {
                     text: r.merchantResponseText,
-                    acceptedReturn: r.status === 'APPROVED',
+                    acceptedReturn: String((r as any).merchantDecision || '').startsWith('APPROV') || r.status === 'APPROVED',
                     evidence: Array.isArray(r.merchantEvidence) ? r.merchantEvidence : [],
                     submittedAt: r.updatedAt
                 } : undefined
@@ -395,7 +395,7 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminSignature: (d as any).adminSignature,
                 merchantResponse: d.merchantResponseText ? {
                     text: d.merchantResponseText,
-                    acceptedReturn: d.status === 'APPROVED',
+                    acceptedReturn: String((d as any).merchantDecision || '').startsWith('APPROV') || d.status === 'APPROVED',
                     evidence: Array.isArray(d.merchantEvidence) ? d.merchantEvidence : [],
                     submittedAt: d.updatedAt
                 } : undefined

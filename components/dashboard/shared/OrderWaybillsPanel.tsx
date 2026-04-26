@@ -107,9 +107,10 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
         return <div className="text-white/50 text-center py-8">{isAr ? 'جاري التحميل...' : 'Loading...'}</div>;
     }
 
-    const canIssue = (role === 'ADMIN' || role === 'SUPER_ADMIN') && 
-        ['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING'].includes(orderStatus) && 
-        waybills.length === 0;
+    const canIssue = (role === 'ADMIN' || role === 'SUPER_ADMIN') && (
+        (['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING'].includes(orderStatus) && waybills.length === 0) ||
+        (orderStatus === 'RETURN_APPROVED')
+    );
 
     // Shared Visual Content for Screen/Print
     const WaybillVisualContent: React.FC<{ wb: any, isPrint?: boolean }> = ({ wb, isPrint = false }) => {

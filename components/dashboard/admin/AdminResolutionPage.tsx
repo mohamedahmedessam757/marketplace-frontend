@@ -117,7 +117,7 @@ export const AdminResolutionPage: React.FC<AdminResolutionPageProps> = ({ onNavi
       activeTab === 'all' ? true :
       activeTab === 'escrow' ? (c.status === 'AWAITING_ADMIN' || c.status === 'UNDER_REVIEW' || c.status === 'ESCALATED') :
       activeTab === 'escalated' ? (c.status === 'AWAITING_ADMIN' || c.status === 'ESCALATED') :
-      activeTab === 'resolved' ? (c.status === 'RESOLVED' || c.status === 'REFUNDED') : true;
+      activeTab === 'resolved' ? (c.status === 'RESOLVED' || c.status === 'REFUNDED' || c.status === 'CLOSED' || !!c.verdictIssuedAt) : true;
 
     return matchesSearch && matchesTab;
   });
@@ -236,7 +236,15 @@ export const AdminResolutionPage: React.FC<AdminResolutionPageProps> = ({ onNavi
                         group-hover:rotate-[15deg] group-hover:scale-110 shadow-2xl shadow-black`}>
                         {item.type === 'dispute' ? <Scale size={24} /> : <RotateCcw size={24} />}
                       </div>
-                      <div className={isAr ? 'text-left flex flex-col items-start gap-2' : 'text-right flex flex-col items-end gap-2'}>
+                      <div className={isAr ? 'text-right flex flex-col items-end gap-2' : 'text-right flex flex-col items-end gap-2'}>
+                        {/* 2026 LUXURY STATUS: Case Closed Badge (Integrated into Flow) */}
+                        {item.verdictIssuedAt && (
+                          <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.2em] shadow-[0_0_15px_rgba(16,185,129,0.15)] backdrop-blur-md flex items-center gap-1.5 self-end mb-1">
+                            <CheckCircle2 size={10} className="animate-pulse" />
+                            {t.admin.disputeManager.caseClosed}
+                          </div>
+                        )}
+                        
                         <span 
                            className={`px-3 py-1 flex items-center justify-center text-[9px] uppercase font-black tracking-widest border-none shadow-lg rounded-xl
                               ${(item.type || '').toLowerCase() === 'dispute' 
@@ -245,7 +253,7 @@ export const AdminResolutionPage: React.FC<AdminResolutionPageProps> = ({ onNavi
                         >
                            {(t.admin.disputeManager.types as any)[(item.type || '').toLowerCase()] || item.type}
                         </span>
-                        <div>
+                        <div className="flex flex-col items-end">
                            <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-1">{t.admin.ordersTable.id}</div>
                            <div className="text-sm font-mono text-gold-500 font-bold">#{item.orderNumber || String(item.orderId).substring(0, 8)}</div>
                         </div>
@@ -293,17 +301,32 @@ export const AdminResolutionPage: React.FC<AdminResolutionPageProps> = ({ onNavi
                     {/* Visual Divider */}
                     <div className="my-6 border-t border-white/5 relative z-10" />
 
-                    {/* Footer: SLA & Status */}
+                    {/* Footer: SLA & Status / Final Verdict */}
                     <div className="flex items-center justify-between relative z-10">
                       <div className="flex flex-col gap-1">
-                        <EscalationTimer deadline={item.deadline} language={language} />
+                        {item.verdictIssuedAt ? (
+                          <div className="flex items-center gap-2">
+                             <div className={`px-4 py-1.5 rounded-xl border-none shadow-2xl flex items-center gap-2
+                                ${item.adminApproval === 'APPROVED' ? 'bg-green-500/20 text-green-500 shadow-green-500/20' : 'bg-red-500/20 text-red-500 shadow-red-500/20'}`}>
+                                <ShieldCheck size={12} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                   {item.adminApproval === 'APPROVED' 
+                                      ? (isAr ? 'تمت الموافقة' : 'VERDICT: REFUND') 
+                                      : (isAr ? 'تم الرفض' : 'VERDICT: DENIED')}
+                                </span>
+                             </div>
+                          </div>
+                        ) : (
+                          <EscalationTimer deadline={item.deadline} language={language} />
+                        )}
                       </div>
 
                       <div className="flex flex-col items-end gap-2">
                         <motion.div 
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          className="p-3 bg-gold-500 rounded-2xl text-black shadow-lg shadow-gold-500/20 border border-gold-400/50"
+                          className={`p-3 rounded-2xl text-black shadow-lg border transition-all
+                             ${item.verdictIssuedAt ? 'bg-white/10 text-white/40 border-white/10' : 'bg-gold-500 text-black border-gold-400/50 shadow-gold-500/20'}`}
                         >
                           <ArrowIcon size={18} strokeWidth={3} />
                         </motion.div>

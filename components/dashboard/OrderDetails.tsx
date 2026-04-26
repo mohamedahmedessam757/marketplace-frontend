@@ -71,6 +71,73 @@ export const CountdownTimer = ({ targetDate, label, compact = false, hideExpired
     );
 };
 
+export const WarrantyBadge = ({ endDate, status, onReplace }: { endDate: string, status: string, onReplace?: () => void }) => {
+    const { t, language } = useLanguage();
+    const isAr = language === 'ar';
+    const [timeLeft, setTimeLeft] = useState<{ d: number, h: number, m: number } | null>(null);
+
+    useEffect(() => {
+        const calculate = () => {
+            const now = new Date().getTime();
+            const target = new Date(endDate).getTime();
+            const diff = target - now;
+
+            if (diff <= 0) {
+                setTimeLeft(null);
+            } else {
+                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                setTimeLeft({ d, h, m });
+            }
+        };
+        calculate();
+        const interval = setInterval(calculate, 60000); // Update every minute
+        return () => clearInterval(interval);
+    }, [endDate]);
+
+    const isExpired = !timeLeft || status === 'WARRANTY_EXPIRED';
+
+    return (
+        <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`flex items-center gap-3 px-4 py-2 rounded-2xl border backdrop-blur-md shadow-lg transition-all ${
+                isExpired 
+                ? 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400' 
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10'
+            }`}
+        >
+            <div className={`relative ${!isExpired && 'animate-pulse'}`}>
+                <Shield size={18} className={isExpired ? 'text-zinc-500' : 'text-emerald-400'} />
+                {!isExpired && <div className="absolute inset-0 bg-emerald-400 blur-md opacity-30" />}
+            </div>
+            
+            <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                    {isAr ? 'حماية الضمان 2026' : '2026 Warranty Protection'}
+                </span>
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold">
+                        {isExpired 
+                            ? (isAr ? 'الضمان منتهي' : 'Warranty Expired') 
+                            : (isAr ? `ينتهي خلال: ${timeLeft.d} يوم و ${timeLeft.h} س` : `Ends in: ${timeLeft.d}d ${timeLeft.h}h`)
+                        }
+                    </span>
+                    {!isExpired && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onReplace?.(); }}
+                            className="ms-3 px-3 py-1 bg-emerald-500 text-black text-[10px] font-black rounded-lg hover:bg-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                        >
+                            {isAr ? 'استبدال القطعة' : 'REPLACE PART'}
+                        </button>
+                    )}
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
 export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
     const { getOrder, checkSLA, updateOrderStatus } = useOrderStore();
@@ -90,6 +157,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const [showExpiredModal, setShowExpiredModal] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'waybills'>('overview');
+    const [returnInitialReason, setReturnInitialReason] = useState<string | undefined>(undefined);
 
     // Rejection State
     const [offerToReject, setOfferToReject] = useState<OrderOffer | null>(null);
@@ -407,6 +475,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 orderId={order.id}
                 merchantName={order.merchantName || 'Store'}
                 partName={order.part}
+                initialReason={returnInitialReason}
                 onSuccess={() => onNavigate('resolution')}
             />
 
@@ -557,6 +626,16 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                         : order.part}
                                 </h1>
                                 <Badge status={order.status} />
+                                {order.warranty_end_at && (
+                                    <WarrantyBadge 
+                                        endDate={order.warranty_end_at} 
+                                        status={order.status} 
+                                        onReplace={() => {
+                                            setReturnInitialReason('warranty_claim');
+                                            setShowReturnModal(true);
+                                        }} 
+                                    />
+                                )}
                                 {shipment && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
                                     <Badge status={shipment.status as StatusType} className="animate-in fade-in zoom-in duration-500" />
                                 )}
@@ -606,8 +685,20 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
+                            {/* Warranty Badge (New 2026 Logic) */}
+                            {order.warranty_end_at && ['DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && (
+                                <WarrantyBadge 
+                                    endDate={order.warranty_end_at} 
+                                    status={order.status}
+                                    onReplace={() => {
+                                        setReturnInitialReason('replacement');
+                                        setShowReturnModal(true);
+                                    }}
+                                />
+                            )}
+
                             {/* Review Button */}
-                            {(order.status === 'COMPLETED' || order.status === 'DELIVERED') && (
+                            {(order.status === 'COMPLETED' || order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
                                 <button
                                     onClick={() => !order.review && setShowReviewModal(true)}
                                     disabled={!!order.review}
@@ -624,10 +715,13 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
-                            {/* Return Button (DELIVERED Only) */}
-                            {order.status === 'DELIVERED' && (
+                            {/* Return Button (DELIVERED or WARRANTY_ACTIVE) */}
+                            {(order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
                                 <button
-                                    onClick={() => setShowReturnModal(true)}
+                                    onClick={() => {
+                                        setReturnInitialReason(undefined);
+                                        setShowReturnModal(true);
+                                    }}
                                     className="flex items-center gap-2 px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-white border border-cyan-500/30 rounded-lg transition-all font-bold text-sm"
                                 >
                                     <RefreshCcw size={16} />
@@ -635,8 +729,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
-                            {/* Dispute Button (For DELIVERED Only) */}
-                            {order.status === 'DELIVERED' && (
+                            {/* Dispute Button (For DELIVERED or WARRANTY_ACTIVE) */}
+                            {(order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
                                 <button
                                     onClick={() => setShowDisputeModal(true)}
                                     className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 rounded-lg transition-all font-bold text-sm"
@@ -754,7 +848,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             <FileText size={16} />
                             {language === 'ar' ? 'الفواتير' : 'Invoices'}
                         </button>
-                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                        {!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED'].includes(order.status) && (
                             <button
                                 onClick={() => setActiveTab('waybills')}
                                 className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap flex items-center gap-2 ${
@@ -776,7 +870,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         />
                     </div>
                     <div className={activeTab === 'waybills' ? 'block' : 'hidden'}>
-                        {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                        {!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED'].includes(order.status) && (
                             <OrderWaybillsPanel 
                                 orderId={order.id} 
                                 orderStatus={order.status} 
@@ -1319,6 +1413,36 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 )}
             </AnimatePresence>
 
+            {/* Resolution Modals */}
+            <ReturnRequestModal 
+                isOpen={showReturnModal}
+                onClose={() => setShowReturnModal(false)}
+                orderId={order.id}
+                initialReason={returnInitialReason}
+                merchantName={order.merchantName || 'Merchant'}
+                partName={order.part}
+                onSuccess={() => getOrder(order.id)}
+            />
+
+            <DisputeModal 
+                isOpen={showDisputeModal}
+                onClose={() => setShowDisputeModal(false)}
+                orderId={order.id}
+            />
+
+            {/* Review Modal */}
+            <ReviewModal 
+                isOpen={showReviewModal}
+                onClose={() => setShowReviewModal(false)}
+                orderId={order.id}
+            />
+
+            {/* Expired Modal */}
+            <OrderExpiredModal 
+                isOpen={showExpiredModal}
+                onClose={() => setShowExpiredModal(false)}
+                orderId={order.id}
+            />
         </div >
     );
 };

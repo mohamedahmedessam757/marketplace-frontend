@@ -30,6 +30,7 @@ interface ReturnRequestModalProps {
     orderPartId?: string;
     merchantName: string;
     partName: string;
+    initialReason?: string;
 }
 
 export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ 
@@ -39,7 +40,8 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
     orderId,
     orderPartId,
     merchantName,
-    partName
+    partName,
+    initialReason
 }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
@@ -48,7 +50,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
     const { getOrder } = useOrderStore();
 
     // Form State
-    const [reason, setReason] = useState('');
+    const [reason, setReason] = useState(initialReason || '');
     const [description, setDescription] = useState('');
     const [usageCondition, setUsageCondition] = useState<'UNUSED' | 'OPENED' | 'INSTALLED' | ''>('');
     const [confirmations, setConfirmations] = useState({
@@ -62,7 +64,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
 
     useEffect(() => {
         if (isOpen) {
-            setReason('');
+            setReason(initialReason || '');
             setDescription('');
             setUsageCondition('');
             setConfirmations({ integrity: false, packaging: false, policy: false });
@@ -199,6 +201,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                             <option value="wrong_item" className="bg-[#0A0A0A]">{t.dashboard.resolution.reasons.wrong_item}</option>
                                             <option value="wrong_size" className="bg-[#0A0A0A]">{t.dashboard.resolution.reasons.wrong_size}</option>
                                             <option value="warranty_claim" className="bg-[#0A0A0A]">{t.dashboard.resolution.reasons.warranty_claim}</option>
+                                            <option value="replacement" className="bg-[#0A0A0A]">{t.dashboard.resolution.reasons.replacement}</option>
                                             <option value="other" className="bg-[#0A0A0A]">{isAr ? 'أخرى - توضيح إضافي' : 'Other - Additional Context'}</option>
                                         </select>
                                         <div className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'left-6' : 'right-6'} pointer-events-none text-white/20 group-hover:text-cyan-500 transition-colors`}>
