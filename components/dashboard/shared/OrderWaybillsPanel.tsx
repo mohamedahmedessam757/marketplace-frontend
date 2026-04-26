@@ -114,8 +114,13 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
 
     // Shared Visual Content for Screen/Print
     const WaybillVisualContent: React.FC<{ wb: any, isPrint?: boolean }> = ({ wb, isPrint = false }) => {
+        const isReturn = wb.waybillNumber?.startsWith('RTN');
         const qrData = `E-Tashleh|WB|${wb.waybillNumber}|Order:${wb.orderId}`;
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+
+        // 2026 Dynamic Color Palette (Blue for Returns, Gold for Shipping)
+        const themeColor = isReturn ? 'cyan' : 'amber';
+        const themeHex = isReturn ? '#06b6d4' : '#f59e0b';
 
         return (
             <div className={`${isPrint ? 'bg-white text-black p-8' : 'bg-white/5 text-white p-6 md:p-8'} relative overflow-hidden transition-all duration-500`}>
@@ -128,48 +133,92 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                     <div className="flex gap-4 items-center">
                         <img src="/logo.png" alt="Logo" className={`w-16 h-16 object-contain ${isPrint ? 'filter invert' : ''}`} />
                         <div>
-                            <h2 className={`text-2xl font-bold tracking-tight uppercase ${isPrint ? 'text-black' : 'text-white'}`}>
-                                {isAr ? 'بوليصة شحن' : 'SHIPPING WAYBILL'}
+                            <h2 className={`text-2xl font-black tracking-tighter uppercase ${isPrint ? 'text-black' : 'text-white'}`}>
+                                {isAr ? (isReturn ? 'بوليصة إرجاع' : 'بوليصة شحن') : (isReturn ? 'RETURN WAYBILL' : 'SHIPPING WAYBILL')}
                             </h2>
-                            <p className={`${isPrint ? 'text-gray-500' : 'text-white/40'} text-xs font-bold mt-1 uppercase tracking-widest`}>
+                            <p className={`${isPrint ? 'text-gray-500' : 'text-white/40'} text-[10px] font-black mt-1 uppercase tracking-[0.3em]`}>
                                 E-TASHLEH.NET MARKETPLACE
                             </p>
                         </div>
                     </div>
                     <div className="text-right">
                         <img src={qrUrl} alt="QR Code" className={`w-24 h-24 border ${isPrint ? 'border-gray-200' : 'border-white/10'} p-1 bg-white`} />
-                        <div className={`font-mono text-xs font-bold mt-2 text-center ${isPrint ? 'text-gray-800' : 'text-amber-500/70'}`}>{wb.waybillNumber}</div>
+                        <div className={`font-mono text-[10px] font-black mt-2 text-center ${isPrint ? 'text-gray-800' : (isReturn ? 'text-cyan-500' : 'text-amber-500/70')}`}>{wb.waybillNumber}</div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 relative z-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-8 relative z-10">
                     <div className="space-y-4">
                         <div>
-                            <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${isPrint ? 'text-gray-400 border-gray-100' : 'text-amber-500/40 border-amber-500/10'} border-b pb-1`}>
+                            <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] mb-3 ${isPrint ? 'text-gray-400 border-gray-100' : `text-${themeColor}-500/40 border-${themeColor}-500/10`} border-b pb-1`}>
                                 {isAr ? 'المرسِل (From)' : 'Sender (From)'}
                             </h3>
-                            <div className={`font-bold text-lg ${isPrint ? 'text-black' : 'text-white'}`}>E-TASHLEH.NET</div>
-                            <div className={`text-sm font-semibold mt-1 ${isPrint ? 'text-gray-700' : 'text-white/70'}`}>
-                                {isAr ? 'مفوّض عن المتجر:' : 'Authorized for Store:'} <span className={isPrint ? '' : 'text-amber-500'}>{wb.storeName}</span>
+                            
+                            {/* Header Logic: Returns show Sender Name, Forward shows Platform Authority */}
+                            <div className={`font-black text-xl tracking-tighter ${isPrint ? 'text-black' : 'text-white'}`}>
+                                {isReturn ? (wb.senderName || 'Customer') : 'E-TASHLEH.NET'}
                             </div>
-                            <div className={`text-[10px] mt-1 uppercase font-mono ${isPrint ? 'text-gray-500' : 'text-white/30'}`}>Store Code: {wb.storeCode}</div>
+
+                            {/* Store Authorization (Crucial for Forward Shipments) */}
+                            {!isReturn && (
+                                <div className={`text-sm font-semibold mt-1 ${isPrint ? 'text-gray-700' : 'text-white/70'}`}>
+                                    {isAr ? 'مفوّض عن المتجر:' : 'Authorized for Store:'} <span className={isPrint ? '' : 'text-amber-500'}>{wb.storeName}</span>
+                                </div>
+                            )}
+
+                            {/* Detailed Logistics Metadata (2026 Schema) */}
+                            {(wb.senderPhone || wb.senderCity) ? (
+                                <>
+                                    <div className={`text-sm font-bold mt-1 ${isPrint ? 'text-gray-700' : 'text-white/70'}`}>
+                                        {wb.senderPhone}
+                                    </div>
+                                    <div className={`text-xs font-black mt-1 uppercase tracking-wider ${isPrint ? 'text-gray-800' : `text-${themeColor}-500`}`}>
+                                        {wb.senderCity}{wb.senderCity && wb.senderCountry ? ', ' : ''}{wb.senderCountry}
+                                    </div>
+                                    <div className={`text-xs mt-2 leading-relaxed max-w-xs ${isPrint ? 'text-gray-600' : 'text-white/40'}`}>
+                                        {wb.senderAddress}
+                                    </div>
+                                </>
+                            ) : (
+                                /* Legacy/Missing Data Fallback: Store Code */
+                                !isReturn && wb.storeCode && (
+                                    <div className={`text-[10px] mt-1 uppercase font-mono ${isPrint ? 'text-gray-500' : 'text-white/30'}`}>
+                                        Store Code: {wb.storeCode}
+                                    </div>
+                                )
+                            )}
                         </div>
                     </div>
                     
                     <div className="space-y-4 text-left md:text-right">
                         <div>
-                            <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${isPrint ? 'text-gray-400 border-gray-100' : 'text-amber-500/40 border-amber-500/10'} border-b pb-1`}>
+                            <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] mb-3 ${isPrint ? 'text-gray-400 border-gray-100' : `text-${themeColor}-500/40 border-${themeColor}-500/10`} border-b pb-1`}>
                                 {isAr ? 'المرسَل إليه (To)' : 'Recipient (To)'}
                             </h3>
-                            <div className={`font-bold text-lg ${isPrint ? 'text-black' : 'text-white'}`}>{wb.recipientName}</div>
-                            <div className={`text-sm mt-1 font-mono ${isPrint ? 'text-gray-700' : 'text-white/60'}`}>{wb.recipientPhone}</div>
-                            <div className={`text-sm font-bold mt-1 ${isPrint ? 'text-gray-800' : 'text-white/80'}`}>{wb.recipientCity}, {wb.recipientCountry}</div>
-                            <div className={`text-xs mt-1 line-clamp-2 ${isPrint ? 'text-gray-600' : 'text-white/40'}`}>{wb.recipientAddress}</div>
-                            {wb.customerCode && (
-                                <div className={`text-[10px] mt-3 uppercase font-black px-2 py-0.5 inline-block rounded ${isPrint ? 'bg-gray-100 text-gray-700' : 'bg-white/5 text-white/30 border border-white/5'}`}>
-                                    Client ID: {wb.customerCode}
+                            
+                            {/* Platform Branding for Return Journey */}
+                            {isReturn && (
+                                <div className={`text-[10px] font-black text-gold-500/80 uppercase tracking-[0.3em] mb-2`}>
+                                    E-TASHLEH.NET MARKETPLACE
                                 </div>
                             )}
+
+                            <div className={`font-black text-xl tracking-tighter ${isPrint ? 'text-black' : 'text-white'}`}>{wb.recipientName}</div>
+                            <div className={`text-sm font-bold mt-1 font-mono ${isPrint ? 'text-gray-700' : 'text-white/60'}`}>{wb.recipientPhone}</div>
+                            <div className={`text-xs font-black mt-1 uppercase tracking-wider ${isPrint ? 'text-gray-800' : `text-${themeColor}-500`}`}>{wb.recipientCity}, {wb.recipientCountry}</div>
+                            <div className={`text-xs mt-2 leading-relaxed md:ml-auto max-w-xs ${isPrint ? 'text-gray-600' : 'text-white/40'}`}>{wb.recipientAddress}</div>
+                            <div className="flex flex-wrap gap-2 mt-4">
+                                {wb.customerCode && (
+                                    <div className={`text-[10px] uppercase font-black px-3 py-1 rounded-lg ${isPrint ? 'bg-gray-100 text-gray-700' : 'bg-white/5 text-white/30 border border-white/5'}`}>
+                                        {isAr ? 'معرف العميل' : 'Client Node ID'}: {wb.customerCode}
+                                    </div>
+                                )}
+                                {isReturn && wb.storeCode && (
+                                    <div className={`text-[10px] uppercase font-black px-3 py-1 rounded-lg ${isPrint ? 'bg-gray-100 text-gray-700' : 'bg-gold-500/10 text-gold-500/70 border border-gold-500/20'}`}>
+                                        {isAr ? 'كود المتجر' : 'Store Code'}: {wb.storeCode}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -189,17 +238,38 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                         </thead>
                         <tbody className={`divide-y ${isPrint ? 'divide-gray-100' : 'divide-white/5'}`}>
                             <tr>
-                                <td className={`py-4 px-4 ${isAr ? 'text-right' : 'text-left'}`}>
-                                    <div className={`font-bold ${isPrint ? 'text-black' : 'text-white'}`}>{wb.partName}</div>
-                                    <div className={`text-xs mt-1 ${isPrint ? 'text-gray-500' : 'text-white/30'}`}>{wb.partDescription || 'Auto part / قطع غيار'}</div>
+                                <td className={`py-5 px-4 ${isAr ? 'text-right' : 'text-left'}`}>
+                                    <div className={`font-black ${isPrint ? 'text-black' : 'text-white'}`}>{wb.partName}</div>
+                                    <div className={`text-xs mt-1 font-medium ${isPrint ? 'text-gray-500' : 'text-white/30'}`}>{wb.partDescription || 'Auto part / قطع غيار'}</div>
                                 </td>
-                                <td className={`py-4 px-4 text-center font-mono font-bold ${isPrint ? 'text-gray-700' : 'text-white/50'}`}>1</td>
-                                <td className={`py-4 px-4 ${isAr ? 'text-left' : 'text-right'} font-mono font-black ${isPrint ? 'text-black' : 'text-amber-500'}`}>
+                                <td className={`py-5 px-4 text-center font-mono font-black ${isPrint ? 'text-gray-700' : 'text-white/50'}`}>1</td>
+                                <td className={`py-5 px-4 ${isAr ? 'text-left' : 'text-right'} font-mono font-black ${isPrint ? 'text-black' : `text-${themeColor}-500`}`}>
                                     {Number(wb.finalPrice).toLocaleString()}
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+
+                    {/* 2026 Dedicated Logistics Band: Round-trip Shipping */}
+                    {Number(wb.shippingRefund) > 0 && (
+                        <div className={`p-4 border-t border-dashed ${isPrint ? 'border-gray-300 bg-gray-50/50' : 'border-white/10 bg-cyan-500/5'} flex justify-between items-center`}>
+                            <div className="flex items-center gap-3">
+                                <Truck size={16} className={isPrint ? 'text-gray-600' : 'text-cyan-400'} />
+                                <div>
+                                    <div className={`text-[11px] font-black uppercase tracking-widest ${isPrint ? 'text-black' : 'text-cyan-400'}`}>
+                                        {isAr ? 'الشحن ذهاباً وإياباً' : 'Round-trip Shipping'}
+                                    </div>
+                                    <div className={`text-[9px] font-medium ${isPrint ? 'text-gray-500' : 'text-white/30'}`}>
+                                        {isAr ? 'رسوم لوجستية إضافية متفق عليها' : 'Additional agreed logistics fees'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className={`font-mono font-black text-sm ${isPrint ? 'text-black' : 'text-cyan-400'}`}>
+                                {Number(wb.shippingRefund).toLocaleString()} {wb.currency}
+                            </div>
+                        </div>
+                    )}
+
                     <div className={`p-4 flex justify-between items-center ${isPrint ? 'bg-gray-50 border-t border-gray-200' : 'bg-white/5 border-t border-white/5'}`}>
                         <div className={`text-[10px] font-bold uppercase tracking-widest ${isPrint ? 'text-gray-400' : 'text-white/20'}`}>
                             {isAr ? 'تاريخ الإصدار' : 'Issue Date'}: {new Date(wb.issuedAt).toLocaleDateString()}
@@ -294,9 +364,9 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                         </div>
                     ) : (
                         <div className="space-y-6">
-                            <h3 className="text-lg font-black text-white flex items-center gap-2 uppercase tracking-widest text-amber-500/80">
-                                <FileText className="text-amber-500" />
-                                {isAr ? 'بوليصات الشحن المُصدرة' : 'Issued Shipping Waybills'}
+                            <h3 className="text-lg font-black text-white flex items-center gap-3 uppercase tracking-widest text-cyan-500/80">
+                                <Truck className="text-cyan-500" />
+                                {isAr ? 'بوليصات الشحن الموثقة (2026)' : 'Verified Shipping Waybills'}
                             </h3>
                             
                             <div className="grid gap-6">
@@ -316,7 +386,7 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                                             <div className="flex items-center gap-2">
                                                 <button 
                                                     onClick={() => handlePrint(wb)} 
-                                                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-black rounded-lg transition-all shadow-lg text-[10px] uppercase"
+                                                    className={`flex items-center gap-2 px-5 py-2.5 ${wb.waybillNumber?.startsWith('RTN') ? 'bg-cyan-500 hover:bg-cyan-600 shadow-cyan-500/20' : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'} text-black font-black rounded-xl transition-all shadow-lg text-[10px] uppercase`}
                                                 >
                                                     <Printer size={14} />
                                                     <span>{isAr ? 'طباعة / PDF' : 'Print'}</span>

@@ -81,9 +81,7 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
 
     // Sync search state when initialSearch changes from navigation
     useEffect(() => {
-        if (initialSearch) {
-            setSearch(initialSearch);
-        }
+        setSearch(initialSearch || '');
     }, [initialSearch]);
 
     // Form inputs
@@ -135,7 +133,14 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
         await silentFetchShipments();
     };
 
+    const navigate = (path: string, id?: any) => {
+        window.dispatchEvent(new CustomEvent('admin-nav', { detail: { path, id } }));
+    };
+
     const handleSelectShipment = async (s: Shipment) => {
+        // Update URL state via bubbling event
+        navigate('shipping', s.id);
+        
         setSelectedShipment(s);
         setView('detail');
         setFormCarrierType(s.carrierType);
@@ -152,6 +157,12 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
             console.error("Failed to fetch logs", e);
             setLogs([]);
         }
+    };
+
+    const handleBackToList = () => {
+        navigate('shipping');
+        setView('list');
+        setSelectedShipment(null);
     };
 
     const handleSaveChanges = async () => {
@@ -273,7 +284,7 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                 <div className="flex items-center justify-between bg-[#1A1814] p-6 rounded-2xl border border-white/5 sticky top-0 z-30 shadow-xl">
                     <div className="flex items-center gap-4">
                         <button 
-                            onClick={() => setView('list')}
+                            onClick={handleBackToList}
                             className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all group"
                         >
                             <ChevronRight size={20} className="rtl:rotate-0 rotate-180 group-hover:-translate-x-1 rtl:group-hover:translate-x-1 transition-transform" />

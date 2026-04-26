@@ -236,7 +236,7 @@ function AppContent() {
     const handleAdminNav = (e: any) => {
       const { path, id } = e.detail;
       setDashboardPath(path);
-      if (id) setViewId(id);
+      setViewId(id || null); // 2026 Navigation Fix: Clear ID if not explicitly provided in the event
       pushView('dashboard', path, id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -340,7 +340,7 @@ function AppContent() {
 
   const handleDashboardNavigate = (path: string, id?: any) => {
     setDashboardPath(path);
-    if (id !== undefined) setViewId(id);
+    setViewId(id || null); // 2026 Navigation Fix: Clear ID if not explicitly provided (e.g. sidebar clicks)
     pushView('dashboard', path, id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

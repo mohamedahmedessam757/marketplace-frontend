@@ -62,6 +62,13 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus })
       case 'RETURNED':
       case 'RETURN_REQUESTED':
       case 'RETURN_APPROVED':
+      case 'RETURN_LABEL_ISSUED':
+      case 'RETURN_STARTED':
+      case 'RECEIVED_FROM_CUSTOMER':
+      case 'DELIVERED_TO_VENDOR':
+      case 'EXCHANGE_COMPLETED':
+      case 'IN_TRANSIT_TO_CUSTOMER':
+      case 'RETURN_COMPLETED_TO_CUSTOMER':
       case 'DISPUTED':
       case 'RESOLVED':
       case 'REFUNDED':

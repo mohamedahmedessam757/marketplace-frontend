@@ -101,9 +101,9 @@ interface ResolutionState {
     isLoading: boolean;
     error: string | null;
 
-    fetchMerchantCases: () => Promise<void>;
-    fetchAdminCases: () => Promise<void>;
-    fetchUserRequests: () => Promise<void>;
+    fetchMerchantCases: (silent?: boolean) => Promise<void>;
+    fetchAdminCases: (silent?: boolean) => Promise<void>;
+    fetchUserRequests: (silent?: boolean) => Promise<void>;
     
     respondToCase: (caseId: string, type: 'return' | 'dispute', response: { text: string, acceptedReturn: boolean, evidence: string[] | File[] }) => Promise<void>;
     adminVerdict: (caseId: string, type: 'return' | 'dispute', verdict: 'REFUND' | 'RELEASE_FUNDS' | 'DENY', notes: string, extra?: any) => Promise<void>;
@@ -133,8 +133,8 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
     isLoading: false,
     error: null,
 
-    fetchMerchantCases: async () => {
-        set({ isLoading: true, error: null });
+    fetchMerchantCases: async (silent = false) => {
+        if (!silent) set({ isLoading: true, error: null });
         try {
             const response = await returnsApi.getMerchantCases();
             const { returns, disputes } = response.data;
@@ -209,8 +209,8 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
         }
     },
 
-    fetchAdminCases: async () => {
-        set({ isLoading: true, error: null });
+    fetchAdminCases: async (silent = false) => {
+        if (!silent) set({ isLoading: true, error: null });
         try {
             const response = await returnsApi.getAdminCases();
             const { returns, disputes } = response.data;
@@ -313,8 +313,8 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
         }
     },
 
-    fetchUserRequests: async () => {
-        set({ isLoading: true, error: null });
+    fetchUserRequests: async (silent = false) => {
+        if (!silent) set({ isLoading: true, error: null });
         try {
             const response = await returnsApi.getUserReturns();
             const { returns, disputes } = response.data;
@@ -549,16 +549,23 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
     },
 
     subscribeToCases: (role: 'merchant' | 'admin' | 'customer') => {
-        const sub = supabase.channel('resolution-changes')
+        // Prevent duplicate subscriptions
+        if ((window as any).resolutionSub) {
+            supabase.removeChannel((window as any).resolutionSub);
+        }
+
+        const sub = supabase.channel(`resolution-changes-${role}-${Math.random().toString(36).substring(7)}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'returns' }, (payload) => {
-                if (role === 'admin') get().fetchAdminCases();
-                else if (role === 'customer') get().fetchUserRequests();
-                else get().fetchMerchantCases();
+                console.log('[RT] Return updated:', payload);
+                if (role === 'admin') get().fetchAdminCases(true);
+                else if (role === 'customer') get().fetchUserRequests(true);
+                else get().fetchMerchantCases(true);
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'disputes' }, (payload) => {
-                if (role === 'admin') get().fetchAdminCases();
-                else if (role === 'customer') get().fetchUserRequests();
-                else get().fetchMerchantCases();
+                console.log('[RT] Dispute updated:', payload);
+                if (role === 'admin') get().fetchAdminCases(true);
+                else if (role === 'customer') get().fetchUserRequests(true);
+                else get().fetchMerchantCases(true);
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'case_messages' }, (payload) => {
                 const newMsg = payload.new as CaseMessage;
@@ -571,7 +578,9 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                     return { caseMessages: [...state.caseMessages, newMsg] };
                 });
             })
-            .subscribe();
+            .subscribe((status) => {
+                console.log(`[RT] Subscription status for ${role}:`, status);
+            });
 
         (window as any).resolutionSub = sub;
     },
