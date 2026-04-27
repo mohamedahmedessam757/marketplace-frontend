@@ -5,7 +5,7 @@ import { returnsApi } from '../services/api/returns';
 import { supabase } from '../services/supabase';
 
 export type CaseType = 'return' | 'dispute';
-export type CaseStatus = 'OPEN' | 'AWAITING_MERCHANT' | 'AWAITING_ADMIN' | 'APPROVED' | 'RESOLVED' | 'CLOSED' | 'REFUNDED' | 'ESCALATED' | 'UNDER_REVIEW' | 'PENDING' | 'MERCHANT_REJECTED';
+export type CaseStatus = 'OPEN' | 'AWAITING_MERCHANT' | 'AWAITING_ADMIN' | 'APPROVED' | 'RESOLVED' | 'CLOSED' | 'REFUNDED' | 'ESCALATED' | 'UNDER_REVIEW' | 'PENDING' | 'MERCHANT_REJECTED' | 'RETURN_STARTED';
 
 // New Detailed Return Lifecycle Phases (The 7 Steps)
 export type ReturnPhase =
@@ -62,6 +62,13 @@ export interface ResolutionCase {
     invoiceId?: string; // Phase 4 Traceability
     shipmentId?: string; // Phase 4 Traceability
     stripeFee?: number; // Phase 4 Governance
+    
+    // Phase 4 Shipping Payment (New 2026 Logistics)
+    shippingPayee?: 'MERCHANT' | 'CUSTOMER';
+    shippingPaymentStatus?: 'PENDING' | 'PAID' | 'FAILED';
+    shippingPaymentMethod?: 'STRIPE' | 'WALLET';
+    shippingStripeId?: string;
+
     customerRisk?: {
         totalReturns: number;
         totalDisputes: number;
@@ -104,6 +111,7 @@ interface ResolutionState {
     fetchMerchantCases: (silent?: boolean) => Promise<void>;
     fetchAdminCases: (silent?: boolean) => Promise<void>;
     fetchUserRequests: (silent?: boolean) => Promise<void>;
+    fetchCases: (role: 'merchant' | 'admin' | 'customer', silent?: boolean) => Promise<void>;
     
     respondToCase: (caseId: string, type: 'return' | 'dispute', response: { text: string, acceptedReturn: boolean, evidence: string[] | File[] }) => Promise<void>;
     adminVerdict: (caseId: string, type: 'return' | 'dispute', verdict: 'REFUND' | 'RELEASE_FUNDS' | 'DENY', notes: string, extra?: any) => Promise<void>;
@@ -152,11 +160,24 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 createdAt: r.createdAt,
                 deadline: new Date(new Date(r.createdAt).getTime() + (48 * 60 * 60 * 1000)).toISOString(),
                 merchantName: 'Your Store',
+                merchantLogo: (r as any).merchantStore?.logo || r.order?.acceptedOffer?.store?.logo || r.order?.store?.logo,
+                merchantStoreId: (r as any).merchantStore?.id || r.order?.acceptedOffer?.storeId,
                 partName: (r.order as any)?.parts?.[0]?.name || 'Parts',
                 updatedAt: r.updatedAt,
+                usageCondition: r.usageCondition,
                 handoverDeadline: r.handoverDeadline,
+                invoiceId: r.invoiceId,
+                shipmentId: r.shipmentId,
                 orderNumber: (r.order as any)?.orderNumber || String(r.orderId),
-                storeCode: (r.order as any)?.acceptedOffer?.store?.storeCode,
+                storeCode: (r.order as any)?.acceptedOffer?.store?.storeCode || (r as any).merchantStore?.storeCode,
+                auditLogs: (r.order as any)?.auditLogs,
+                customerAvatar: r.customer?.avatar,
+                merchantResponse: r.merchantResponseText ? {
+                    text: r.merchantResponseText,
+                    acceptedReturn: String((r as any).merchantDecision || '').startsWith('APPROV') || r.status === 'APPROVED',
+                    evidence: Array.isArray(r.merchantEvidence) ? r.merchantEvidence : [],
+                    submittedAt: r.updatedAt
+                } : undefined,
                 // Governance data (Spec §15)
                 faultParty: (r as any).faultParty,
                 refundAmount: (r as any).refundAmount,
@@ -168,7 +189,12 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminEvidence: Array.isArray((r as any).adminEvidence) ? (r as any).adminEvidence : [],
                 adminName: (r as any).adminName,
                 adminEmail: (r as any).adminEmail,
-                adminSignature: (r as any).adminSignature
+                adminSignature: (r as any).adminSignature,
+                // Shipping Payment Flow (Phase 4)
+                shippingPayee: (r as any).shippingPayee,
+                shippingPaymentStatus: (r as any).shippingPaymentStatus,
+                shippingPaymentMethod: (r as any).shippingPaymentMethod,
+                shippingStripeId: (r as any).shippingStripeId
             }));
 
             const mappedDisputes: ResolutionCase[] = disputes.map(d => ({
@@ -184,11 +210,24 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 createdAt: d.createdAt,
                 deadline: new Date(new Date(d.createdAt).getTime() + (48 * 60 * 60 * 1000)).toISOString(),
                 merchantName: 'Your Store',
+                merchantLogo: (d as any).merchantStore?.logo || d.order?.acceptedOffer?.store?.logo || d.order?.store?.logo,
+                merchantStoreId: (d as any).merchantStore?.id || d.order?.acceptedOffer?.storeId,
                 partName: (d.order as any)?.parts?.[0]?.name || 'Parts',
                 updatedAt: d.updatedAt,
+                usageCondition: (d as any).usageCondition,
                 handoverDeadline: d.handoverDeadline,
+                invoiceId: (d as any).invoiceId,
+                shipmentId: (d as any).shipmentId,
                 orderNumber: (d.order as any)?.orderNumber || String(d.orderId),
-                storeCode: (d.order as any)?.acceptedOffer?.store?.storeCode,
+                storeCode: (d.order as any)?.acceptedOffer?.store?.storeCode || (d as any).merchantStore?.storeCode,
+                auditLogs: (d.order as any)?.auditLogs,
+                customerAvatar: d.customer?.avatar,
+                merchantResponse: (d as any).merchantResponseText ? {
+                    text: (d as any).merchantResponseText,
+                    acceptedReturn: String((d as any).merchantDecision || '').startsWith('APPROV') || d.status === 'APPROVED',
+                    evidence: Array.isArray((d as any).merchantEvidence) ? (d as any).merchantEvidence : [],
+                    submittedAt: d.updatedAt
+                } : undefined,
                 // Governance data (Spec §15)
                 faultParty: (d as any).faultParty,
                 refundAmount: (d as any).refundAmount,
@@ -200,7 +239,12 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminEvidence: Array.isArray((d as any).adminEvidence) ? (d as any).adminEvidence : [],
                 adminName: (d as any).adminName,
                 adminEmail: (d as any).adminEmail,
-                adminSignature: (d as any).adminSignature
+                adminSignature: (d as any).adminSignature,
+                // Shipping Payment Flow (Phase 4)
+                shippingPayee: (d as any).shippingPayee,
+                shippingPaymentStatus: (d as any).shippingPaymentStatus,
+                shippingPaymentMethod: (d as any).shippingPaymentMethod,
+                shippingStripeId: (d as any).shippingStripeId
             }));
 
             set({ cases: [...mappedReturns, ...mappedDisputes], isLoading: false });
@@ -257,7 +301,12 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminEvidence: Array.isArray((r as any).adminEvidence) ? (r as any).adminEvidence : [],
                 adminName: (r as any).adminName,
                 adminEmail: (r as any).adminEmail,
-                adminSignature: (r as any).adminSignature
+                adminSignature: (r as any).adminSignature,
+                // Shipping Payment Flow (Phase 4)
+                shippingPayee: (r as any).shippingPayee,
+                shippingPaymentStatus: (r as any).shippingPaymentStatus,
+                shippingPaymentMethod: (r as any).shippingPaymentMethod,
+                shippingStripeId: (r as any).shippingStripeId
             }));
 
             const mappedDisputes: ResolutionCase[] = disputes.map(d => ({
@@ -299,6 +348,11 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (d as any).adminName,
                 adminEmail: (d as any).adminEmail,
                 adminSignature: (d as any).adminSignature,
+                // Shipping Payment Flow (Phase 4)
+                shippingPayee: (d as any).shippingPayee,
+                shippingPaymentStatus: (d as any).shippingPaymentStatus,
+                shippingPaymentMethod: (d as any).shippingPaymentMethod,
+                shippingStripeId: (d as any).shippingStripeId,
                 merchantResponse: d.merchantResponseText ? {
                     text: d.merchantResponseText,
                     acceptedReturn: String((d as any).merchantDecision || '').startsWith('APPROV') || d.status === 'APPROVED',
@@ -336,10 +390,14 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 merchantStoreId: r.order?.acceptedOffer?.storeId || r.fallbackStore?.id,
                 partName: r.order?.parts?.[0]?.name || 'Parts',
                 updatedAt: r.updatedAt,
+                usageCondition: (r as any).usageCondition,
                 handoverDeadline: r.handoverDeadline,
+                invoiceId: (r as any).invoiceId,
+                shipmentId: (r as any).shipmentId,
                 orderNumber: r.order?.orderNumber || String(r.orderId),
                 storeCode: r.order?.acceptedOffer?.store?.storeCode || r.fallbackStore?.storeCode,
                 chatId: (r as any).chatId,
+                auditLogs: r.order?.auditLogs,
                 // Governance data (Spec §15)
                 faultParty: (r as any).faultParty,
                 refundAmount: (r as any).refundAmount,
@@ -352,6 +410,11 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (r as any).adminName,
                 adminEmail: (r as any).adminEmail,
                 adminSignature: (r as any).adminSignature,
+                // Shipping Payment Flow (Phase 4)
+                shippingPayee: (r as any).shippingPayee,
+                shippingPaymentStatus: (r as any).shippingPaymentStatus,
+                shippingPaymentMethod: (r as any).shippingPaymentMethod,
+                shippingStripeId: (r as any).shippingStripeId,
                 merchantResponse: r.merchantResponseText ? {
                     text: r.merchantResponseText,
                     acceptedReturn: String((r as any).merchantDecision || '').startsWith('APPROV') || r.status === 'APPROVED',
@@ -377,10 +440,14 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 merchantStoreId: d.order?.acceptedOffer?.storeId || d.fallbackStore?.id,
                 partName: d.order?.parts?.[0]?.name || 'Parts',
                 updatedAt: d.updatedAt,
+                usageCondition: (d as any).usageCondition,
                 handoverDeadline: d.handoverDeadline,
+                invoiceId: (d as any).invoiceId,
+                shipmentId: (d as any).shipmentId,
                 orderNumber: d.order?.orderNumber || String(d.orderId),
                 storeCode: d.order?.acceptedOffer?.store?.storeCode || d.fallbackStore?.storeCode,
                 chatId: (d as any).chatId,
+                auditLogs: d.order?.auditLogs,
                 // Governance data (Spec §15)
                 faultParty: (d as any).faultParty,
                 refundAmount: (d as any).refundAmount,
@@ -393,6 +460,11 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (d as any).adminName,
                 adminEmail: (d as any).adminEmail,
                 adminSignature: (d as any).adminSignature,
+                // Shipping Payment Flow (Phase 4)
+                shippingPayee: (d as any).shippingPayee,
+                shippingPaymentStatus: (d as any).shippingPaymentStatus,
+                shippingPaymentMethod: (d as any).shippingPaymentMethod,
+                shippingStripeId: (d as any).shippingStripeId,
                 merchantResponse: d.merchantResponseText ? {
                     text: d.merchantResponseText,
                     acceptedReturn: String((d as any).merchantDecision || '').startsWith('APPROV') || d.status === 'APPROVED',
@@ -405,6 +477,12 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
         } catch (error: any) {
             set({ error: error.message, isLoading: false });
         }
+    },
+
+    fetchCases: async (role, silent = false) => {
+        if (role === 'admin') return get().fetchAdminCases(silent);
+        if (role === 'customer') return get().fetchUserRequests(silent);
+        return get().fetchMerchantCases(silent);
     },
 
     respondToCase: async (caseId, type, response) => {
@@ -437,6 +515,25 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
         set({ isLoading: true });
         try {
             await returnsApi.issueVerdict(caseId, type, verdict, notes, extra);
+            
+            // 2026 Optimistic Governance Sync: Merge verdict data immediately to prevent UI flickering
+            set(state => ({
+                cases: state.cases.map(c => 
+                    c.id === caseId ? { 
+                        ...c, 
+                        status: 'RESOLVED',
+                        verdictNotes: notes,
+                        verdictIssuedAt: new Date().toISOString(),
+                        faultParty: extra?.faultParty,
+                        shippingRefund: extra?.shippingRefund,
+                        shippingPayee: ['STORE', 'MERCHANT', 'VENDOR'].includes(String(extra?.faultParty || '').toUpperCase()) ? 'MERCHANT' : 'CUSTOMER',
+                        shippingPaymentStatus: Number(extra?.shippingRefund || 0) > 0 ? 'PENDING' : 'PAID',
+                        ...extra,
+                        updatedAt: new Date().toISOString()
+                    } : c
+                )
+            }));
+
             await get().fetchAdminCases();
         } catch (error: any) {
             set({ error: error.message, isLoading: false });
@@ -447,6 +544,22 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
         set({ isLoading: true });
         try {
             await returnsApi.updateAdminVerdict(caseId, type, verdict, notes, extra);
+            
+            // Sync local state immediately (Spec §15)
+            set(state => ({
+                cases: state.cases.map(c => 
+                    c.id === caseId ? { 
+                        ...c, 
+                        verdictNotes: notes,
+                        faultParty: extra?.faultParty,
+                        shippingRefund: extra?.shippingRefund,
+                        shippingPayee: ['STORE', 'MERCHANT', 'VENDOR'].includes(String(extra?.faultParty || '').toUpperCase()) ? 'MERCHANT' : 'CUSTOMER',
+                        ...extra,
+                        updatedAt: new Date().toISOString()
+                    } : c
+                )
+            }));
+
             await get().fetchAdminCases();
         } catch (error: any) {
             set({ error: error.message, isLoading: false });
@@ -506,10 +619,15 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
         }
     },
 
-    updateCaseStatus: (caseId, status) => {
+    updateCaseStatus: (caseId, status, partialCase?: Partial<ResolutionCase>) => {
         set(state => ({
             cases: state.cases.map(c => 
-                c.id === caseId ? { ...c, status, updatedAt: new Date().toISOString() } : c
+                c.id === caseId ? { 
+                    ...c, 
+                    status, 
+                    ...partialCase,
+                    updatedAt: new Date().toISOString() 
+                } : c
             )
         }));
     },

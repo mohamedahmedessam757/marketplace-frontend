@@ -10,8 +10,11 @@ import { useAdminStore } from '../../stores/useAdminStore';
 import { useOrderStore } from '../../stores/useOrderStore';
 import { useBillingStore } from '../../stores/useBillingStore';
 import { useMerchantWalletStore } from '../../stores/useMerchantWalletStore';
+import { useResolutionStore } from '../../stores/useResolutionStore';
+import { useCustomerWalletStore, subscribeToWalletUpdates } from '../../stores/useCustomerWalletStore';
 import { NotificationDrawer } from './notifications/NotificationDrawer';
 import { NavigationDrawer } from './NavigationDrawer';
+import { VerdictPopUp } from './resolution/VerdictPopUp';
 import { getCurrentUserId } from '../../utils/auth';
 
 interface DashboardLayoutProps {
@@ -41,7 +44,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const { fetchInvoices, fetchCards } = useBillingStore();
   const { fetchWallet } = useMerchantWalletStore();
   const { user, fetchProfile } = useProfileStore();
+  const { subscribeToCases, unsubscribeFromCases } = useResolutionStore();
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const walletSubRef = useRef<{ unsubscribe: () => void } | null>(null);
 
   useEffect(() => {
     const userId = getCurrentUserId();
@@ -59,6 +64,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       fetchNotifications(userId, role);
       subscribeToNotifications(userId, role);
 
+      // 3. Real-time Resolution & Wallet Sync (Phase 4)
+      subscribeToCases(role);
+      if (role === 'customer') {
+        walletSubRef.current = subscribeToWalletUpdates();
+      }
+
       // 2. Global Pre-fetching (Zero-Loading Architecture)
       // We pull background data based on role so navigating to /wallet or /billing is 0ms
       Promise.all([
@@ -70,6 +81,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
     return () => {
       unsubscribeFromNotifications();
+      unsubscribeFromCases();
+      if (walletSubRef.current) {
+        walletSubRef.current.unsubscribe();
+        walletSubRef.current = null;
+      }
     };
   }, [role, publicSystemStatus?.maintenanceMode]);
 
@@ -407,7 +423,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </div>
 
       </main>
-
+      <VerdictPopUp onNavigate={onNavigate} />
     </div>
   );
 };

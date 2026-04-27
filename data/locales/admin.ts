@@ -432,6 +432,17 @@ export const admin = {
         completed: 'مكتمل',
         closed: 'قضية مغلقة'
       },
+      shipping_logistics: 'لوجستيات الشحن للمرتجعات',
+      shipping_paid: 'مدفوع',
+      shipping_processing: 'جاري معالجة الدفع...',
+      shipping_success: 'تم الدفع بنجاح!',
+      shipping_success_msg: 'تم سداد التكلفة وبدء عملية الإرجاع.',
+      shipping_responsibility_customer: 'العميل هو المسؤول عن سداد تكاليف الشحن.',
+      shipping_responsibility_merchant: 'التاجر هو المسؤول عن سداد تكاليف الشحن.',
+      awaiting_payment: 'بانتظار سداد الطرف المخطئ',
+      pay_via_card: 'الدفع بالبطاقة',
+      deduct_from_wallet: 'الخصم من المحفظة',
+      amount_due: 'المبلغ المطلوب',
       caseClosed: 'قضية مغلقة',
       types: {
         dispute: 'نزاع نشط',
@@ -575,7 +586,17 @@ export const admin = {
         UPDATE: 'تحديث بيانات',
         DELETE: 'حذف نهائي',
         STATUS_CHANGE: 'تغيير حالة',
-        FINANCIAL: 'عملية مالية'
+        FINANCIAL: 'عملية مالية',
+        LOGIN: 'تسجيل دخول'
+      },
+      metadataLabels: {
+        ip: 'عنوان IP',
+        browser: 'المتصفح',
+        device: 'الجهاز',
+        os: 'نظام التشغيل',
+        location: 'الموقع التقريبي',
+        userAgent: 'بصمة المتصفح',
+        fingerprint: 'المعرف الرقمي'
       },
       reasons: {
         AUDIT_REASON_SYSTEM_AUTOMATED: 'إجراء آلي من النظام (تلقائي)',
@@ -587,12 +608,14 @@ export const admin = {
         ALL: 'كل الكيانات',
         STORE: 'المتاجر والبروفايلات',
         ORDER: 'الطلبات والعمليات',
+        SHIPMENT: 'الشحن واللوجستيات',
         USER: 'المستخدمين والأمان',
         SYSTEM: 'برمجيات النظام'
       }
     },
     billing: {
-      title: 'الفواتير والمالية',
+      title: 'إدارة الذكاء المالي',
+      subtitle: 'التحكم المالي والسيولة — رؤية 2026',
       totalRevenue: 'إجمالي الدخل',
       pendingPayouts: 'تحويلات معلقة',
       netIncome: 'صافي الأرباح',
@@ -602,6 +625,84 @@ export const admin = {
       status: 'الحالة',
       date: 'التاريخ',
       frozen: 'أموال مجمدة (نزاعات)',
+      searchPlaceholder: 'بحث في السجلات المالية...',
+      kpis: {
+        totalSales: 'إجمالي المبيعات',
+        netProfit: 'صافي أرباح المنصة',
+        logisticsRevenue: 'أرباح الشحن واللوجستيات',
+        referralEcosystem: 'أرباح الإحالات والنمو',
+        activeReferrals: 'إحالة نشطة',
+        withdrawalQueue: 'سحوبات قيد المعالجة',
+        pendingRequests: 'طلب معلق',
+        escrowLocked: 'أموال النزاعات المجمدة',
+        activityLoad: 'معاملات الـ 24 ساعة الماضية',
+        realtimeOps: 'عمليات فورية',
+        revenueVelocity: 'سرعة الإيرادات (Velocity)'
+      },
+      panels: {
+        overview: 'نظرة عامة',
+        ledger: 'سجل المعاملات',
+        pipeline: 'طلبات السحب',
+        elitePerformance: 'أعلى 5 تجار أداءً',
+        succeededOps: 'عملية مكتملة',
+        liquidityComposition: 'تحليل تركيبة السيولة',
+        totalOps: 'إجمالي العمليات',
+        payoutPipeline: 'خط تدفق السحوبات',
+        pipelineClear: 'خط التدفق خالٍ حالياً'
+      },
+      governance: {
+        commissionThresholds: 'معايير العمولة المالية',
+        revenuePolicy: 'سياسة إيرادات المنصة',
+        liquidityProtocol: 'بروتوكول حدود السيولة',
+        globalGuardrails: 'ضوابط الصرف العالمية'
+      },
+      ledger: {
+        filters: {
+          directions: 'كل الاتجاهات',
+          debit: 'صادر (مدين)',
+          credit: 'وارد (دائن)',
+          roles: 'كل الأدوار',
+          vendors: 'التجار فقط',
+          customers: 'العملاء فقط'
+        },
+        table: {
+          node: 'عقدة المعاملة',
+          operation: 'نوع العملية',
+          netImpact: 'الأثر المالي',
+          timestamp: 'الطابع الزمني',
+          status: 'حالة الحوكمة',
+          scanning: 'جاري فحص السجل الآمن...',
+          noRecords: 'لم يتم رصد سجلات مطابقة'
+        }
+      },
+      withdrawals: {
+        table: {
+          target: 'الجهة المستهدفة',
+          amount: 'المبلغ المطلوب',
+          method: 'بروتوكول التحويل',
+          timestamp: 'الطابع الزمني',
+          status: 'حالة التدفق',
+          actions: 'إجراءات استراتيجية'
+        },
+        actions: {
+          execute: 'تنفيذ التحويل',
+          invalidate: 'إبطال الطلب',
+          empty: 'قائمة السحب فارغة',
+          rejectPrompt: 'بروتوكول الأمان: أدخل سبب الرفض'
+        }
+      },
+      manualPayout: {
+        title: 'بروتوكول تحويل مالي يدوي',
+        subtitle: 'إجراء إداري مصرح به فقط',
+        targetNode: 'العقدة المستهدفة (ID)',
+        volume: 'حجم السيولة (AED)',
+        protocol: 'بروتوكول التوجيه',
+        note: 'ملاحظة مرجعية داخلية',
+        cryptoSignature: 'توقيع الهوية التشفيري',
+        signPrompt: 'أدخل الاسم الكامل للتوقيع',
+        auditCommit: 'التوقيع على هذا المستند يثبت المعاملة في سجل التدقيق غير القابل للتعديل.',
+        execute: 'تنفيذ الأمر'
+      },
       types: {
         CUSTOMER_INVOICE: 'فاتورة مبيعات',
         COMMISSION_INVOICE: 'فاتورة عمولة',
@@ -633,6 +734,11 @@ export const admin = {
         notes: 'ملاحظات',
         generatedBy: 'تم إصدار الفاتورة إلكترونياً بواسطة نظام إي تشليح'
       },
+      alerts: {
+        commissionSuccess: 'تم تحديث نسبة العمولة بنجاح',
+        limitsSuccess: 'تم تحديث حدود السحب بنجاح',
+        fillRequired: 'يرجى ملء كافة الحقول الإلزامية'
+      }
     },
     violationsPage: {
       title: 'نظام المخالفات والعقوبات',
@@ -1067,55 +1173,8 @@ export const admin = {
         unblock: 'Unblock Store',
         saveNotes: 'Save Admin Notes'
       },
-      banModal: {
-        title: 'Account Administrative Action',
-        permanent: 'Permanent Ban (Blocked)',
-        temporary: 'Temporary Suspension (Suspended)',
-        duration: 'Duration (Days)',
-        reason: 'Reason (Visible to Merchant)',
-        confirm: 'Confirm Action',
-        cancel: 'Cancel'
-      },
-      docStatus: {
-        valid: 'Valid',
-        expired: 'Expired',
-        pending: 'Pending Review'
-      },
-      docTypes: {
-        cr: 'Commercial Register',
-        license: 'License / ID',
-        id: 'National ID',
-        iban: 'IBAN Certificate',
-        auth_letter: 'Authorization Letter'
-      },
-      adminNotes: 'Internal Admin Notes (Private)',
-      noData: 'No data available at the moment'
     },
     disputeManager: {
-      title: 'Return & Dispute Center',
-      caseId: 'Case ID',
-      heldAmount: 'Held Amount (Escrow)',
-      verdict: 'Issue Verdict',
-      refundCustomer: 'Refund Customer',
-      releaseFunds: 'Release Funds to Merchant',
-      partialRefund: 'Partial Settlement',
-      evidence: 'Evidence Comparison',
-      customerEvidence: 'Customer Evidence',
-      merchantEvidence: 'Merchant Response',
-      confirmVerdict: 'Confirm Verdict & Close',
-      recordedCases: 'Recorded Cases',
-      statusLabel: 'Status',
-      searchPlaceholder: 'Search Case ID or Order...',
-      returnLifecycle: 'Return Lifecycle',
-      steps: {
-        requested: 'Requested',
-        negotiation: 'Negotiation',
-        approved: 'Approved',
-        waybill: 'Return Waybill',
-        handover: 'Handover',
-        received: 'Received',
-        refunded: 'Refunded'
-      },
       status: {
         open: 'Open',
         awaiting_merchant: 'Awaiting Merchant',
@@ -1131,6 +1190,17 @@ export const admin = {
         completed: 'Completed',
         closed: 'Case Closed'
       },
+      shipping_logistics: 'Return Shipping Logistics',
+      shipping_paid: 'PAID',
+      shipping_processing: 'Processing payment...',
+      shipping_success: 'Payment Successful!',
+      shipping_success_msg: 'Cost settled and return process started.',
+      shipping_responsibility_customer: 'Customer is responsible for shipping costs.',
+      shipping_responsibility_merchant: 'Merchant is responsible for shipping costs.',
+      awaiting_payment: 'Awaiting payment from at-fault party',
+      pay_via_card: 'PAY VIA CARD',
+      deduct_from_wallet: 'DEDUCT FROM WALLET',
+      amount_due: 'AMOUNT DUE',
       caseClosed: 'Case Closed',
       types: {
         dispute: 'Active Dispute',
@@ -1272,7 +1342,17 @@ export const admin = {
         UPDATE: 'Update Data',
         DELETE: 'Permanent Delete',
         STATUS_CHANGE: 'Status Change',
-        FINANCIAL: 'Financial Action'
+        FINANCIAL: 'Financial Action',
+        LOGIN: 'Login Activity'
+      },
+      metadataLabels: {
+        ip: 'IP Address',
+        browser: 'Browser',
+        device: 'Device',
+        os: 'Operating System',
+        location: 'Geo Location',
+        userAgent: 'User Agent',
+        fingerprint: 'Digital Fingerprint'
       },
       reasons: {
         AUDIT_REASON_SYSTEM_AUTOMATED: 'Automated System Action',
@@ -1284,12 +1364,14 @@ export const admin = {
         ALL: 'All Entities',
         STORE: 'Stores & Profiles',
         ORDER: 'Orders & Ops',
+        SHIPMENT: 'Shipping & Logistics',
         USER: 'Users & Security',
         SYSTEM: 'System Internals'
       }
     },
     billing: {
-      title: 'Billing & Finance',
+      title: 'Financial Intelligence Hub',
+      subtitle: 'Financial Governance & Liquidity — Vision 2026',
       totalRevenue: 'Total Revenue',
       pendingPayouts: 'Pending Payouts',
       netIncome: 'Net Income',
@@ -1299,6 +1381,84 @@ export const admin = {
       status: 'Status',
       date: 'Date',
       frozen: 'Frozen Funds (Disputes)',
+      searchPlaceholder: 'Search financial records...',
+      kpis: {
+        totalSales: 'Total Gross Volume',
+        netProfit: 'Net Marketplace Profit',
+        logisticsRevenue: 'Logistics Revenue',
+        referralEcosystem: 'Referral Ecosystem',
+        activeReferrals: 'Active Referrals',
+        withdrawalQueue: 'Withdrawal Queue',
+        pendingRequests: 'Pending Requests',
+        escrowLocked: 'Escrow Locked Funds',
+        activityLoad: '24H Activity Load',
+        realtimeOps: 'Real-time Operations',
+        revenueVelocity: 'Revenue Velocity'
+      },
+      panels: {
+        overview: 'Intelligence Overview',
+        ledger: 'Transaction Ledger',
+        pipeline: 'Withdrawal Pipeline',
+        elitePerformance: 'Elite Performance Panel',
+        succeededOps: 'Succeeded Ops',
+        liquidityComposition: 'Liquidity Composition',
+        totalOps: 'Total Ops',
+        payoutPipeline: 'Payout Pipeline Status',
+        pipelineClear: 'Pipeline Clear'
+      },
+      governance: {
+        commissionThresholds: 'Commission Thresholds',
+        revenuePolicy: 'Platform Revenue Policy',
+        liquidityProtocol: 'Liquidity Limit Protocol',
+        globalGuardrails: 'Global Payout Guardrails'
+      },
+      ledger: {
+        filters: {
+          directions: 'All Directions',
+          debit: 'Debit (Outflow)',
+          credit: 'Credit (Inflow)',
+          roles: 'All Roles',
+          vendors: 'Vendors Only',
+          customers: 'Customers Only'
+        },
+        table: {
+          node: 'Transaction Node',
+          operation: 'Operation Type',
+          netImpact: 'Net Impact',
+          timestamp: 'Timestamp',
+          status: 'Governance Status',
+          scanning: 'Scanning Secure Ledger...',
+          noRecords: 'No matching records detected'
+        }
+      },
+      withdrawals: {
+        table: {
+          target: 'Target Entity',
+          amount: 'Requested Amount',
+          method: 'Protocol Method',
+          timestamp: 'Timestamp',
+          status: 'Flow Status',
+          actions: 'Strategic Actions'
+        },
+        actions: {
+          execute: 'Execute Payout',
+          invalidate: 'Invalidate Request',
+          empty: 'Withdrawal Queue Empty',
+          rejectPrompt: 'Security Protocol: Enter Rejection Reason'
+        }
+      },
+      manualPayout: {
+        title: 'Manual Payout Execution',
+        subtitle: 'Authorized Administrative Action Only',
+        targetNode: 'Target Node (User ID)',
+        volume: 'Liquidity Volume (AED)',
+        protocol: 'Routing Protocol',
+        note: 'Internal Reference Note',
+        cryptoSignature: 'Cryptographic Identity Signature',
+        signPrompt: 'Enter Full Name to Sign',
+        auditCommit: 'Signing this document commits the transaction to the immutable audit log.',
+        execute: 'Execute Order'
+      },
       types: {
         CUSTOMER_INVOICE: 'Sales Invoice',
         COMMISSION_INVOICE: 'Commission Invoice',
@@ -1330,6 +1490,11 @@ export const admin = {
         notes: 'Notes',
         generatedBy: 'Invoice generated electronically by E-Tashleh System'
       },
+      alerts: {
+        commissionSuccess: 'Commission rate updated successfully',
+        limitsSuccess: 'Withdrawal limits updated successfully',
+        fillRequired: 'Please fill all required fields'
+      }
     },
     violationsPage: {
       title: 'Violations & Penalty System',

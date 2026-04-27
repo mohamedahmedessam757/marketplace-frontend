@@ -23,6 +23,8 @@ import { OrderWaybillsPanel } from './shared/OrderWaybillsPanel';
 import { useShipmentsStore } from '../../stores/useShipmentsStore';
 import { ShipmentTracker } from './shipments/ShipmentTracker';
 import { OrderCountdown } from '../ui/OrderCountdown';
+import { useResolutionStore } from '../../stores/useResolutionStore';
+import { ShippingPaymentCard } from './resolution/ShippingPaymentCard';
 
 interface OrderDetailsProps {
     orderId: string | null;
@@ -145,6 +147,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const { fetchChat } = useOrderChatStore();
     const { addNotification } = useNotificationStore();
     const { shipments, fetchShipments } = useShipmentsStore();
+    const { cases, fetchCases } = useResolutionStore();
     // UI State
     const [selectedOffer, setSelectedOffer] = useState<string | null>(null);
     const [acceptLoadingOfferId, setAcceptLoadingOfferId] = useState<string | null>(null);
@@ -196,6 +199,18 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
             return () => clearTimeout(timer);
         }
     }, [order]);
+
+    useEffect(() => {
+        if (orderId) {
+            fetchCases('customer');
+        }
+    }, [orderId]);
+
+    const activeShippingCase = cases.find(c => 
+        c.orderId === orderId && 
+        c.shippingPaymentStatus === 'PENDING' && 
+        !['RESOLVED', 'CLOSED', 'CANCELLED'].includes(c.status)
+    );
 
     const handleCloseExpiredModal = (dontShowAgain: boolean) => {
         if (dontShowAgain && order) {
@@ -828,6 +843,13 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
                 {/* Main Content Area (Offers, Tracking, etc) - Spans 2 cols */}
                 <div className="lg:col-span-2 space-y-6">
+                    {activeShippingCase && (
+                        <ShippingPaymentCard 
+                            caseRecord={activeShippingCase} 
+                            role="CUSTOMER" 
+                            onSuccess={() => fetchCases('customer')}
+                        />
+                    )}
 
                     {/* Tab Navigation */}
                     <div className="flex gap-4 border-b border-white/10 pb-2 overflow-x-auto hide-scrollbar">

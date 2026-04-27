@@ -34,6 +34,7 @@ import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
+import { ShippingPaymentCard } from '../resolution/ShippingPaymentCard';
 
 interface AdminDisputeDetailsProps {
     caseId: string;
@@ -62,9 +63,7 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
     const [adminNotes, setAdminNotes] = useState('');
     const [verdictType, setVerdictType] = useState<'REFUND' | 'RELEASE_FUNDS' | 'DENY' | null>(null);
     const [faultParty, setFaultParty] = useState<'CUSTOMER' | 'MERCHANT' | 'BOTH' | 'SHIPPING_COMPANY' | 'PLATFORM' | 'NO_FAULT'>('MERCHANT');
-    const [refundAmount, setRefundAmount] = useState<number>(0);
     const [shippingRefund, setShippingRefund] = useState<number>(0);
-    const [stripeFee, setStripeFee] = useState<number>(0);
     const [selectedEvidence, setSelectedEvidence] = useState<string | null>(null);
 
     const dispute = getCaseById(caseId);
@@ -81,9 +80,7 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
         useResolutionStore.getState().subscribeToCases(role);
 
         if (dispute) {
-            setRefundAmount(dispute.refundAmount || 0);
             setShippingRefund(dispute.shippingRefund || 0);
-            setStripeFee(dispute.stripeFee || 0);
             if (dispute.verdictNotes) setAdminNotes(dispute.verdictNotes);
             
             // Check if order exists, if not, fetch it
@@ -133,7 +130,6 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
 
         const extra = {
             faultParty,
-            refundAmount: adminApproval === 'APPROVED' ? refundAmount : 0,
             shippingRefund: adminApproval === 'APPROVED' ? shippingRefund : 0,
             stripeFee: 0,
             adminApproval,
@@ -482,7 +478,13 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                         </div>
                     </GlassCard>
 
-                    {/* 2026 VERDICT TERMINAL: WIZARD OR FINAL DISPLAY */}
+                    {/* 2026 Logistics Hub: Shipping Payment Status (ADMIN VIEW) */}
+                    <ShippingPaymentCard 
+                        caseRecord={dispute} 
+                        role="ADMIN" 
+                    />
+
+                     {/* 2026 VERDICT TERMINAL: WIZARD OR FINAL DISPLAY */}
                     {(!dispute.verdictIssuedAt && !['APPROVED', 'REFUNDED', 'RESOLVED', 'CLOSED', 'CANCELLED'].includes(dispute.status)) ? (
                        <GlassCard className="p-10 bg-red-500/[0.03] border-red-500/20 rounded-[40px] shadow-2xl relative overflow-hidden">
                           {/* WIZARD STEPS INDICATOR */}
@@ -616,43 +618,15 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                                          </div>
 
                                          <div className="space-y-6">
-                                             <div className="flex justify-between items-center">
-                                                 <label className="text-[9px] font-black text-white/40 uppercase tracking-widest">{t.admin.disputeManager.verdictTerminal.financialBreakdown}</label>
-                                                 <Badge className="bg-green-500/10 text-green-500 border-none font-black text-[10px] px-3 py-1">AED</Badge>
-                                             </div>
-                                             
-                                             <div className="grid grid-cols-1 gap-6">
-                                                 {/* Refund Amount */}
-                                                 <div className="relative group p-6 bg-black/40 rounded-[32px] border border-white/10 flex flex-col items-center shadow-inner transition-all hover:border-gold-500/30">
-                                                     <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-3">{t.admin.disputeManager.verdictTerminal.refundAmount}</span>
-                                                     <div className="flex items-center gap-3">
-                                                        <input 
-                                                            type="number"
-                                                            value={refundAmount}
-                                                            onChange={(e) => setRefundAmount(Number(e.target.value))}
-                                                            className="w-full bg-transparent text-4xl font-black text-white focus:text-gold-500 outline-none transition-all text-center"
-                                                            placeholder="0.00"
-                                                        />
-                                                        <span className="text-xl font-black text-white/20">AED</span>
-                                                     </div>
+                                             <div className="p-8 bg-gold-500/5 rounded-[40px] border border-gold-500/20 flex flex-col items-center justify-center text-center gap-4">
+                                                 <div className="w-16 h-16 rounded-full bg-gold-500/10 flex items-center justify-center border border-gold-500/20">
+                                                     <Zap size={32} className="text-gold-500" />
                                                  </div>
-
-                                                 {/* Round-trip Shipping Cost */}
-                                                 <div className="relative group p-6 bg-cyan-500/[0.03] rounded-[32px] border border-cyan-500/10 flex flex-col items-center shadow-inner transition-all hover:border-cyan-500/30">
-                                                     <div className="flex items-center gap-2 mb-3">
-                                                        <Truck size={12} className="text-cyan-500" />
-                                                        <span className="text-[9px] font-black text-cyan-500/50 uppercase tracking-[0.2em]">{isAr ? 'تكلفة الشحن (ذهاباً وإياباً)' : 'Round-trip Shipping Cost'}</span>
-                                                     </div>
-                                                     <div className="flex items-center gap-3">
-                                                        <input 
-                                                            type="number"
-                                                            value={shippingRefund}
-                                                            onChange={(e) => setShippingRefund(Number(e.target.value))}
-                                                            className="w-full bg-transparent text-4xl font-black text-white focus:text-cyan-400 outline-none transition-all text-center"
-                                                            placeholder="0.00"
-                                                        />
-                                                        <span className="text-xl font-black text-white/20">AED</span>
-                                                     </div>
+                                                 <div className="space-y-1">
+                                                     <p className="text-sm font-black text-white uppercase tracking-widest">{isAr ? 'حساب تلقائي' : 'AUTOMATED CALCULATION'}</p>
+                                                     <p className="text-[10px] text-white/40 font-bold max-w-[200px]">
+                                                         {isAr ? 'سيقوم النظام بحساب التكاليف المالية تلقائياً بناءً على سياسات المتجر واللوجستيات.' : 'The system will automatically calculate financial costs based on store policies and logistics.'}
+                                                     </p>
                                                  </div>
                                              </div>
                                          </div>
@@ -821,10 +795,6 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                                       <div className="space-y-4 border-b border-white/5 pb-6">
                                          <span className="text-[9px] font-black text-white/20 uppercase tracking-widest block">{isAr ? 'التسوية المالية' : 'FINANCIAL SETTLEMENT'}</span>
                                          <div className="grid grid-cols-1 gap-3">
-                                            <div className="flex justify-between items-center p-3 bg-white/5 rounded-2xl border border-white/5">
-                                               <span className="text-[10px] text-white/40 font-bold uppercase">{isAr ? 'مبلغ الاسترداد' : 'Refund Amount'}</span>
-                                               <span className="text-sm font-black text-white font-mono">{Number(dispute.refundAmount || 0).toLocaleString()} AED</span>
-                                            </div>
                                             {dispute.shippingRefund > 0 && (
                                                 <div className="flex justify-between items-center p-3 bg-cyan-500/5 rounded-2xl border border-cyan-500/10">
                                                    <span className="text-[10px] text-cyan-400/60 font-bold uppercase">{isAr ? 'شحن ذهاباً وإياباً' : 'Round-trip Shipping'}</span>

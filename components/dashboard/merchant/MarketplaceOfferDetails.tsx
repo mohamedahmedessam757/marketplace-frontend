@@ -20,6 +20,8 @@ import { OrderInvoicesPanel } from '../shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from '../shared/OrderWaybillsPanel';
 import { useShipmentsStore } from '../../../stores/useShipmentsStore';
 import { ShipmentTracker } from '../shipments/ShipmentTracker';
+import { useResolutionStore } from '../../../stores/useResolutionStore';
+import { ShippingPaymentCard } from '../resolution/ShippingPaymentCard';
 
 const MarketplaceDetailsSkeleton = ({ isAr }: { isAr: boolean }) => (
     <div className="space-y-6 animate-pulse">
@@ -67,6 +69,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     const { orders, addOfferToOrder } = useOrderStore(); // We'll need to fetch the exact order from API in real app
     const { storeId } = useVendorStore();
     const { shipments, fetchShipments } = useShipmentsStore();
+    const { cases, fetchCases } = useResolutionStore();
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ArrowRight : ArrowLeft;
 
@@ -175,6 +178,18 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
         fetchInitialData();
     }, [orderId, fetchMyOffers, orders]);
+
+    useEffect(() => {
+        if (orderId) {
+            fetchCases('merchant');
+        }
+    }, [orderId]);
+
+    const activeShippingCase = cases.find(c => 
+        c.orderId === orderId && 
+        c.shippingPaymentStatus === 'PENDING' && 
+        !['RESOLVED', 'CLOSED', 'CANCELLED'].includes(c.status)
+    );
 
     // Real-time Subscriptions
     useEffect(() => {
@@ -597,6 +612,13 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
                 {/* LEFT COLUMN: Request Intel */}
                 <div className="lg:col-span-2 space-y-6">
+                    {activeShippingCase && (
+                        <ShippingPaymentCard 
+                            caseRecord={activeShippingCase} 
+                            role="MERCHANT" 
+                            onSuccess={() => fetchCases('merchant')}
+                        />
+                    )}
 
                     {/* Tab Navigation */}
                     <div className="flex gap-4 border-b border-white/10 pb-2 overflow-x-auto hide-scrollbar">

@@ -10,6 +10,7 @@ import { Button } from '../../ui/Button';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Badge } from '../../ui/Badge';
+import { ShippingPaymentCard } from '../resolution/ShippingPaymentCard';
 
 interface CustomerDisputeDetailsProps {
   caseId: string;
@@ -268,7 +269,13 @@ export const CustomerDisputeDetails: React.FC<CustomerDisputeDetailsProps> = ({ 
                   </GlassCard>
                </motion.div>
             )}
-        </div>
+
+            {/* 2026 Logistics Hub: Shipping Payment Status (CUSTOMER VIEW) */}
+            <ShippingPaymentCard 
+                caseRecord={dispute} 
+                role="CUSTOMER" 
+            />
+         </div>
 
         {/* Intelligence Sidebar */}
         <div className="lg:col-span-4 space-y-6">

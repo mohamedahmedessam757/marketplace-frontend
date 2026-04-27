@@ -145,17 +145,30 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
     const { addNotification } = useNotificationStore();
     const isAr = language === 'ar';
 
-    const [activeTab, setActiveTab] = useState<'PREPARATION' | 'SHIPPED' | 'DELIVERED'>('PREPARATION');
+    const [activeTab, setActiveTab] = useState<'PREPARATION' | 'SHIPPED' | 'DELIVERED' | 'RESOLUTION'>('PREPARATION');
 
-    // Using strictly filtered orders that are in active transit states.
+    // Using strictly filtered orders that are in active transit or resolution states.
     const myStoreId = localStorage.getItem('merchant_store_id') || '';
+    
+    // Status groups for 2026 workflow
+    const prepStatuses = [
+        'PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 
+        'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 
+        'CORRECTION_SUBMITTED', 'DELAYED_PREPARATION'
+    ];
+    const resolutionStatuses = [
+        'DISPUTED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'REFUNDED'
+    ];
+
     const activeOrders = orders.filter(o => 
-        ['PREPARATION', 'SHIPPED', 'DELIVERED'].includes(o.status) &&
+        [...prepStatuses, 'SHIPPED', 'DELIVERED', ...resolutionStatuses].includes(o.status) &&
         myStoreId && o.offers?.some(off => off.storeId === myStoreId && off.status === 'accepted')
     );
-    const preparation = activeOrders.filter(o => o.status === 'PREPARATION');
+
+    const preparation = activeOrders.filter(o => prepStatuses.includes(o.status));
     const shipped = activeOrders.filter(o => o.status === 'SHIPPED');
     const delivered = activeOrders.filter(o => o.status === 'DELIVERED');
+    const resolution = activeOrders.filter(o => resolutionStatuses.includes(o.status));
 
     // Robust field extractor
     const extractOrderInfo = (order: any) => {
@@ -176,6 +189,7 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
         { id: 'PREPARATION', label: t.dashboard.merchant.home.readyShip || (isAr ? 'جاهزة للشحن' : 'Ready for Shipping'), count: preparation.length, color: 'text-blue-400', bg: 'bg-blue-500/10' },
         { id: 'SHIPPED', label: t.dashboard.merchant.home.inTransit || (isAr ? 'جاري التوصيل' : 'In Transit'), count: shipped.length, color: 'text-purple-400', bg: 'bg-purple-500/10' },
         { id: 'DELIVERED', label: t.dashboard.merchant.home.delivered || (isAr ? 'تم التسليم (فترة الضمان)' : 'Delivered (Warranty)'), count: delivered.length, color: 'text-green-400', bg: 'bg-green-500/10' },
+        { id: 'RESOLUTION', label: isAr ? 'المرتجعات والنزاعات' : 'Returns & Disputes', count: resolution.length, color: 'text-orange-400', bg: 'bg-orange-500/10' },
     ];
 
     const renderEmptyState = (tabId: string) => {
@@ -183,6 +197,7 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
         let message = '';
         if (tabId === 'SHIPPED') { Icon = Truck; message = t.dashboard.merchant.shipping.noShipments || (isAr ? 'لا توجد شحنات في الطريق حالياً.' : 'No shipments currently in transit.'); }
         else if (tabId === 'DELIVERED') { Icon = CheckCircle2; message = isAr ? 'لم تقم بتسليم أي طلبات حديثاً.' : 'No items delivered recently.'; }
+        else if (tabId === 'RESOLUTION') { Icon = AlertTriangle; message = isAr ? 'لا توجد نزاعات أو مرتجعات نشطة.' : 'No active disputes or returns.'; }
         else { message = t.dashboard.merchant.shipping.noReady || (isAr ? 'لا توجد طلبات في مرحلة التحضير حالياً.' : 'No orders currently in preparation.'); }
 
         return (
@@ -200,8 +215,17 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
     const StatusIndicator = ({ status }: { status: string }) => {
         const config: any = {
             PREPARATION: { color: 'text-blue-400', bg: 'bg-blue-500/10', label: isAr ? 'قيد التجهيز' : 'In Preparation' },
+            PREPARED: { color: 'text-blue-400', bg: 'bg-blue-500/10', label: isAr ? 'تم التجهيز' : 'Prepared' },
+            VERIFICATION: { color: 'text-yellow-400', bg: 'bg-yellow-500/10', label: isAr ? 'قيد التوثيق' : 'Verification' },
+            VERIFICATION_SUCCESS: { color: 'text-green-400', bg: 'bg-green-500/10', label: isAr ? 'تم التوثيق' : 'Verified' },
+            READY_FOR_SHIPPING: { color: 'text-blue-400', bg: 'bg-blue-500/10', label: isAr ? 'جاهز للشحن' : 'Ready' },
+            NON_MATCHING: { color: 'text-red-400', bg: 'bg-red-500/10', label: isAr ? 'غير مطابق' : 'Non-Matching' },
+            CORRECTION_PERIOD: { color: 'text-orange-400', bg: 'bg-orange-500/10', label: isAr ? 'فترة تصحيح' : 'Correction' },
             SHIPPED: { color: 'text-purple-400', bg: 'bg-purple-500/10', label: isAr ? 'جاري التوصيل' : 'In Transit' },
-            DELIVERED: { color: 'text-green-400', bg: 'bg-green-500/10', label: isAr ? 'تم التسليم' : 'Delivered' }
+            DELIVERED: { color: 'text-green-400', bg: 'bg-green-500/10', label: isAr ? 'تم التسليم' : 'Delivered' },
+            DISPUTED: { color: 'text-red-400', bg: 'bg-red-500/10', label: isAr ? 'نزاع نشط' : 'Disputed' },
+            RETURN_REQUESTED: { color: 'text-orange-400', bg: 'bg-orange-500/10', label: isAr ? 'طلب إرجاع' : 'Return Requested' },
+            RETURN_APPROVED: { color: 'text-green-400', bg: 'bg-green-500/10', label: isAr ? 'مقبول للإرجاع' : 'Return Approved' },
         };
         const c = config[status] || config.PREPARATION;
         return (

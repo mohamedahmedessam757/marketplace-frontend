@@ -7,6 +7,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
 import { ReturnRequestModal } from './ReturnRequestModal';
 import { DisputeModal } from './DisputeModal';
+import { ShippingPaymentCard } from './ShippingPaymentCard';
 
 interface ReturnsExchangePageProps {
     onNavigate: (path: string) => void;
@@ -114,7 +115,7 @@ export const ReturnsExchangePage: React.FC<ReturnsExchangePageProps> = ({ onNavi
                     >
                         {returns.length > 0 ? (
                             returns.map((order) => (
-                                <ReturnCard key={order.id} order={order} type="return" onCancel={cancelReturn} t={t} language={language} ArrowIcon={ArrowIcon} />
+                                <ReturnCard key={order.id} order={order} type="return" onCancel={cancelReturn} t={t} language={language} ArrowIcon={ArrowIcon} onSuccess={fetchReturnsAndDisputes} />
                             ))
                         ) : (
                             <EmptyState
@@ -134,7 +135,7 @@ export const ReturnsExchangePage: React.FC<ReturnsExchangePageProps> = ({ onNavi
                     >
                         {disputes.length > 0 ? (
                             disputes.map((order) => (
-                                <ReturnCard key={order.id} order={order} type="dispute" t={t} language={language} ArrowIcon={ArrowIcon} />
+                                <ReturnCard key={order.id} order={order} type="dispute" t={t} language={language} ArrowIcon={ArrowIcon} onSuccess={fetchReturnsAndDisputes} />
                             ))
                         ) : (
                             <EmptyState
@@ -216,7 +217,7 @@ const EmptyState = ({ icon: Icon, title, desc }: any) => (
     </div>
 );
 
-const ReturnCard = ({ order, type, onCancel, t, language, ArrowIcon }: any) => {
+const ReturnCard = ({ order, type, onCancel, t, language, ArrowIcon, onSuccess }: any) => {
     // Determine status color
     const isDispute = type === 'dispute';
 
@@ -294,6 +295,17 @@ const ReturnCard = ({ order, type, onCancel, t, language, ArrowIcon }: any) => {
                                     </a>
                                 ))}
                             </div>
+                        </div>
+                    )}
+ 
+                    {/* Shipping Payment Section (Phase 4) */}
+                    {order.shippingPaymentStatus && order.shippingRefund && Number(order.shippingRefund) > 0 && (
+                        <div className="pt-4 border-t border-white/5 mt-4">
+                            <ShippingPaymentCard 
+                                caseRecord={order as any} 
+                                role="CUSTOMER" 
+                                onSuccess={() => onSuccess?.()}
+                            />
                         </div>
                     )}
                 </div>

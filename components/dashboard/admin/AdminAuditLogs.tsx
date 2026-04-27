@@ -51,6 +51,7 @@ export const AdminAuditLogs: React.FC = () => {
             case 'AUTO_UNBAN': return 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20 font-black';
             case 'DOC_APPROVED': return 'text-green-400 bg-green-500/10 border-green-500/20';
             case 'DOC_REJECTED': return 'text-red-400 bg-red-500/10 border-red-500/20';
+            case 'LOGIN': return 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20';
             default: return 'text-white/50 bg-white/5 border-white/10';
         }
     };
@@ -62,6 +63,7 @@ export const AdminAuditLogs: React.FC = () => {
         const matchesEntity = filterEntity === 'ALL' || 
                              (filterEntity === 'STORE' && l.entity.startsWith('STORE')) ||
                              (filterEntity === 'ORDER' && l.entity === 'ORDER') ||
+                             (filterEntity === 'SHIPMENT' && l.entity === 'SHIPMENT') ||
                              (filterEntity === 'USER' && l.entity === 'USER') ||
                              (filterEntity === 'SYSTEM' && (l.entity === 'SYSTEM' || l.actorType === 'SYSTEM'));
 
@@ -280,6 +282,7 @@ export const AdminAuditLogs: React.FC = () => {
                             <option value="ALL" className="bg-[#151310]">{t.admin.auditPage.entities.ALL}</option>
                             <option value="STORE" className="bg-[#151310]">{t.admin.auditPage.entities.STORE}</option>
                             <option value="ORDER" className="bg-[#151310]">{t.admin.auditPage.entities.ORDER}</option>
+                            <option value="SHIPMENT" className="bg-[#151310]">{t.admin.auditPage.entities.SHIPMENT}</option>
                             <option value="USER" className="bg-[#151310]">{t.admin.auditPage.entities.USER}</option>
                             <option value="SYSTEM" className="bg-[#151310]">{t.admin.auditPage.entities.SYSTEM}</option>
                         </select>
@@ -294,6 +297,7 @@ export const AdminAuditLogs: React.FC = () => {
                             <option value="UPDATE" className="bg-[#151310]">Update</option>
                             <option value="DELETE" className="bg-[#151310]">Delete</option>
                             <option value="STATUS_CHANGE" className="bg-[#151310]">Status</option>
+                            <option value="LOGIN" className="bg-[#151310]">Login</option>
                             <option value="FINANCIAL" className="bg-[#151310]">Financial</option>
                             <option value="AUTO_UNBAN" className="bg-[#151310]">Auto Unban</option>
                         </select>
@@ -359,7 +363,7 @@ export const AdminAuditLogs: React.FC = () => {
                                             <div className="text-white/20 text-[10px] font-mono mt-1">
                                                 {new Date(log.timestamp).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
                                                     calendar: 'gregory', numberingSystem: 'latn',
-                                                    year: 'numeric', month: '2-digit', day: '2-digit'
+                                                    weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit'
                                                 })}
                                             </div>
                                         </td>
@@ -432,13 +436,20 @@ export const AdminAuditLogs: React.FC = () => {
                                                                 </div>
 
                                                                 {log.metadata && Object.keys(log.metadata).length > 0 && (
-                                                                    <div className="mt-4 p-4 rounded-2xl bg-white/[0.01] border border-white/5">
-                                                                        <h5 className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-3">{t.admin.auditPage.metadata}</h5>
-                                                                        <div className="grid grid-cols-2 gap-4">
+                                                                    <div className={`mt-4 p-5 rounded-3xl border ${log.action === 'LOGIN' ? 'bg-cyan-500/5 border-cyan-500/10' : 'bg-white/[0.01] border-white/5'}`}>
+                                                                        <h5 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                                                            <Shield size={12} className={log.action === 'LOGIN' ? 'text-cyan-400' : 'text-gold-500'} />
+                                                                            {t.admin.auditPage.metadata}
+                                                                        </h5>
+                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                                                             {Object.entries(log.metadata).map(([k, v]: [string, any]) => (
-                                                                                <div key={k} className="flex flex-col">
-                                                                                    <span className="text-[9px] text-white/30 font-bold">{k}</span>
-                                                                                    <span className="text-xs text-white/60 font-mono truncate">{String(v)}</span>
+                                                                                <div key={k} className="flex flex-col p-3 rounded-2xl bg-black/20 border border-white/[0.03]">
+                                                                                    <span className="text-[9px] text-white/20 font-black uppercase tracking-wider mb-1">
+                                                                                        {(t.admin.auditPage.metadataLabels as any)[k] || k}
+                                                                                    </span>
+                                                                                    <span className="text-xs text-white/70 font-mono truncate select-all" title={String(v)}>
+                                                                                        {String(v)}
+                                                                                    </span>
                                                                                 </div>
                                                                             ))}
                                                                         </div>

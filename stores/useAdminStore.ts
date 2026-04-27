@@ -240,6 +240,25 @@ export interface AdminState {
   subscribeToWithdrawals: () => void;
   unsubscribeFromWithdrawals: () => void;
   
+  // Admin Financial Hub
+  adminFinancials: any | null;
+  isLoadingFinancials: boolean;
+  financialFilters: {
+    startDate?: string;
+    endDate?: string;
+    type?: string;
+    role?: string;
+    status?: string;
+    search?: string;
+  };
+  fetchAdminFinancials: (filters?: any) => Promise<void>;
+  exportFinancialCSV: (filters?: any) => Promise<void>;
+  sendManualPayout: (dto: any) => Promise<{ success: boolean; message: string }>;
+  setFinancialFilters: (filters: any) => void;
+  financialSubscription: any;
+  subscribeToFinancials: () => void;
+  unsubscribeFromFinancials: () => void;
+  
   // Backward compatibility / UI state
   loginAdmin: (email: string) => void;
   logoutAdmin: () => void;
@@ -283,6 +302,18 @@ export const useAdminStore = create<AdminState>()(
       activeContract: null,
       isLoadingWithdrawals: false,
       isLoadingStores: false,
+
+      adminFinancials: null,
+      isLoadingFinancials: false,
+      financialFilters: {
+        startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0],
+        type: 'ALL',
+        role: 'ALL',
+        status: 'ALL',
+        search: ''
+      },
+      financialSubscription: null,
 
       systemConfig: {
         general: {
@@ -802,7 +833,7 @@ export const useAdminStore = create<AdminState>()(
         try {
           const token = localStorage.getItem('access_token');
           const res = await fetch(`${API_URL}/payments/admin/withdrawal-settings`, {
-            method: 'POST',
+            method: 'PUT',
             headers: { 
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}` 
@@ -966,6 +997,115 @@ export const useAdminStore = create<AdminState>()(
           supabase.removeChannel(withdrawalSubscription);
           set({ withdrawalSubscription: null });
         }
+      },
+
+      // Admin Financial Hub Methods
+      setFinancialFilters: (filters) => {
+        set({ financialFilters: { ...get().financialFilters, ...filters } });
+        get().fetchAdminFinancials(); // Refresh when filters change
+      },
+
+      fetchAdminFinancials: async (filters) => {
+        set({ isLoadingFinancials: true });
+        try {
+          const token = localStorage.getItem('access_token');
+          const currentFilters = { limit: 500, ...(filters || get().financialFilters) };
+          const queryParams = new URLSearchParams(currentFilters as any).toString();
+          const res = await fetch(`${API_URL}/payments/admin/financials${queryParams ? `?${queryParams}` : ''}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            set({ adminFinancials: data });
+          }
+        } catch (error) {
+          console.error("Failed to fetch admin financials", error);
+        } finally {
+          set({ isLoadingFinancials: false });
+        }
+      },
+
+      exportFinancialCSV: async (filters) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const currentFilters = { ...(filters || get().financialFilters), limit: 100000 };
+          const queryParams = new URLSearchParams(currentFilters as any).toString();
+          const res = await fetch(`${API_URL}/payments/admin/financials/export${queryParams ? `?${queryParams}` : ''}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (!data || data.length === 0) return;
+            const headers = Object.keys(data[0]).join(',');
+            const csvRows = data.map((row: any) => Object.values(row).map(val => `"${val}"`).join(','));
+            const csvString = [headers, ...csvRows].join('\n');
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `financials_export_${new Date().getTime()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+        } catch (error) {
+          console.error("Failed to export financials CSV", error);
+        }
+      },
+
+      sendManualPayout: async (dto) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/payments/admin/manual-payout`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify(dto)
+          });
+          const data = await res.json();
+          if (res.ok) {
+            get().fetchAdminFinancials();
+            return { success: true, message: data.message || 'Payout successful' };
+          }
+          return { success: false, message: data.message || 'Failed to process payout' };
+        } catch (error) {
+          return { success: false, message: 'An unexpected error occurred' };
+        }
+      },
+
+      subscribeToFinancials: () => {
+        const { financialSubscription, fetchAdminFinancials } = get();
+        if (financialSubscription) return;
+
+        const channel = supabase.channel('admin-financials-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'wallet_transactions' },
+            () => fetchAdminFinancials()
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'withdrawal_requests' },
+            () => fetchAdminFinancials()
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'escrow_transactions' },
+            () => fetchAdminFinancials()
+          )
+          .subscribe();
+
+        set({ financialSubscription: channel });
+      },
+
+      unsubscribeFromFinancials: () => {
+        const { financialSubscription } = get();
+        if (financialSubscription) {
+          supabase.removeChannel(financialSubscription);
+          set({ financialSubscription: null });
+        }
       }
     }),
     {
@@ -978,6 +1118,7 @@ export const useAdminStore = create<AdminState>()(
           storeSubscription, 
           storeProfileSubscription, 
           withdrawalSubscription,
+          financialSubscription,
           ...rest 
         } = state;
         return rest;

@@ -11,6 +11,7 @@ import { Badge } from '../../ui/Badge';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
+import { ShippingPaymentCard } from '../resolution/ShippingPaymentCard';
 
 interface MerchantDisputeDetailsProps {
   caseId: string;
@@ -348,6 +349,18 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                           </div>
                        </div>
                     </div>
+ 
+                    {/* Shipping Payment Section (Phase 4) */}
+                    {dispute.shippingPaymentStatus && dispute.shippingRefund && Number(dispute.shippingRefund) > 0 && (
+                       <div className="pt-4 border-t border-white/5">
+                                                     <ShippingPaymentCard 
+                              caseRecord={dispute as any} 
+                              role="MERCHANT" 
+                              onSuccess={() => useResolutionStore.getState().fetchMerchantCases()}
+                           />
+
+                       </div>
+                    )}
                  </div>
               </GlassCard>
            ) : dispute.status !== 'OPEN' && dispute.status !== 'AWAITING_MERCHANT' ? (

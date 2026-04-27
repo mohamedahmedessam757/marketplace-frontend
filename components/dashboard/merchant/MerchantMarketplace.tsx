@@ -46,7 +46,7 @@ export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavi
 
     // Base active requests (excluding terminal states)
     const activeRequests = useMemo(() => {
-        const terminalStates = ['COMPLETED', 'DELIVERED', 'RETURNED', 'REFUNDED', 'DISPUTED', 'CANCELLED', 'RETURN_APPROVED'];
+        const terminalStates = ['COMPLETED', 'RETURNED', 'REFUNDED', 'CANCELLED'];
         return orders.filter(o => !terminalStates.includes(o.status));
     }, [orders]);
 

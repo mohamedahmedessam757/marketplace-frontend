@@ -131,8 +131,21 @@ export interface Return {
   customerId: string;
   reason: string;
   description: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'RESOLVED' | 'RETURN_STARTED';
   evidenceFiles: string[];
+  usageCondition?: string;
+  faultParty?: string;
+  refundAmount?: number;
+  shippingRefund?: number;
+  shippingPayee?: 'MERCHANT' | 'CUSTOMER';
+  shippingPaymentStatus?: 'PENDING' | 'PAID' | 'FAILED';
+  shippingPaymentMethod?: 'STRIPE' | 'WALLET';
+  verdictNotes?: string;
+  verdictIssuedAt?: string;
+  adminApproval?: 'APPROVED' | 'REJECTED';
+  adminApprovalReason?: string;
+  adminSignature?: string;
+  adminName?: string;
   createdAt: string;
   updatedAt: string;
 
@@ -146,8 +159,20 @@ export interface Dispute {
   customerId: string;
   reason: string;
   description: string;
-  status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'CLOSED';
+  status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'CLOSED' | 'ESCALATED' | 'RETURN_STARTED';
   evidenceFiles: string[];
+  faultParty?: string;
+  refundAmount?: number;
+  shippingRefund?: number;
+  shippingPayee?: 'MERCHANT' | 'CUSTOMER';
+  shippingPaymentStatus?: 'PENDING' | 'PAID' | 'FAILED';
+  shippingPaymentMethod?: 'STRIPE' | 'WALLET';
+  verdictNotes?: string;
+  verdictIssuedAt?: string;
+  adminApproval?: 'APPROVED' | 'REJECTED';
+  adminApprovalReason?: string;
+  adminSignature?: string;
+  adminName?: string;
   createdAt: string;
   updatedAt: string;
 

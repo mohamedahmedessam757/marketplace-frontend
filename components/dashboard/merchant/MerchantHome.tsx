@@ -114,13 +114,19 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
     });
 
     // Negotiation: AWAITING_PAYMENT (Client has offer but hasn't paid yet) OR AWAITING_OFFERS (Active bidding phase)
-    const negotiating = myOrders.filter(o => o.status === 'AWAITING_PAYMENT' || o.status === 'AWAITING_OFFERS').length;
+    const negotiating = myOrders.filter(o => ['AWAITING_PAYMENT', 'AWAITING_OFFERS'].includes(o.status)).length;
     
-    // In Progress: PREPARATION or SHIPPED (Client paid, item being prepped or in transit)
-    const inProgress = myOrders.filter(o => o.status === 'PREPARATION' || o.status === 'SHIPPED').length;
+    // In Progress: PREPARATION through SHIPPED, including Resolution phases
+    const inProgressStatuses = [
+        'PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 
+        'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 
+        'CORRECTION_SUBMITTED', 'DELAYED_PREPARATION', 'SHIPPED',
+        'DISPUTED', 'RETURN_REQUESTED', 'RETURN_APPROVED'
+    ];
+    const inProgress = myOrders.filter(o => inProgressStatuses.includes(o.status)).length;
     
-    // Completed: COMPLETED or DELIVERED
-    const completedCount = myOrders.filter(o => o.status === 'COMPLETED' || o.status === 'DELIVERED').length;
+    // Completed: COMPLETED, DELIVERED, RETURNED, or WARRANTY_ACTIVE
+    const completedCount = myOrders.filter(o => ['COMPLETED', 'DELIVERED', 'RETURNED', 'WARRANTY_ACTIVE'].includes(o.status)).length;
     
     // Rejected: Count of orders where ALL of my offers were rejected
     const rejectedCount = orders.filter(o => {

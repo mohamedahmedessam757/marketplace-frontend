@@ -261,8 +261,8 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
         const subtotal = Number(inv.subtotal || acceptedOffer?.unitPrice || 0);
         const shipping = Number(inv.shipping || 0);
         const commission = Number(inv.commission || 0);
-        const merchantPayout = subtotal - commission;
-        const platformRevenue = commission; // Changed: Net profit is now only commission as per user request
+        const merchantPayout = subtotal; // 2026 Standard: Merchant gets the full part price as profit
+        const platformRevenue = commission; // Net profit is the commission added on top
 
         /* ── translation maps ── */
         const conditionMap: Record<string, string> = {
@@ -530,6 +530,10 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                         <div className="flex justify-between text-xs sm:text-sm text-gray-400">
                             <span>{isAr ? 'الشحن والتوصيل' : 'Shipping'}</span>
                             <span className="font-mono text-white">{shipping.toLocaleString()} AED</span>
+                        </div>
+                        <div className="flex justify-between text-xs sm:text-sm text-gray-400">
+                            <span>{isAr ? 'رسوم الخدمة والقيمة المضافة' : 'Service Fees & VAT'}</span>
+                            <span className="font-mono text-white">{commission.toLocaleString()} AED</span>
                         </div>
                         <div className="flex justify-between text-[11px] text-green-500 uppercase font-bold tracking-widest border-t border-white/5 pt-2">
                             <span>{isAr ? 'مستحقات التاجر' : 'Merchant Dues'}</span>
