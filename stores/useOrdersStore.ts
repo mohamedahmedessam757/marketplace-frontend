@@ -69,7 +69,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
                 shippedAt: order.shipped_at,
                 deliveredAt: order.delivered_at,
                 delayedPreparationDeadlineAt: order.delayed_preparation_deadline_at,
-                // ─────────────────────────────
+                // ── Warranty Logic ──
+                warranty_active_at: order.warranty_active_at,
+                warranty_end_at: order.warranty_end_at,
+                // ─────────────────────
                 offersCount: (order.offers || []).filter((off: any) => off.status !== 'rejected').length,
                 // Ensure features are arrays and map offers status
                 offers: (order.offers || []).map((off: any) => ({

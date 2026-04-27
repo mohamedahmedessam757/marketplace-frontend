@@ -25,7 +25,9 @@ const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     DELAYED_PREPARATION: ['PREPARED', 'CANCELLED'],
     SHIPPED: ['DELIVERED', 'RETURNED', 'DISPUTED'],
     DELIVERED: ['COMPLETED', 'RETURNED', 'DISPUTED'],
-    COMPLETED: [],
+    COMPLETED: ['WARRANTY_ACTIVE'],
+    WARRANTY_ACTIVE: ['WARRANTY_EXPIRED', 'RETURN_REQUESTED', 'DISPUTED'],
+    WARRANTY_EXPIRED: [],
     CANCELLED: [],
     RETURNED: ['COMPLETED'],
     DISPUTED: ['COMPLETED', 'RETURNED', 'REFUNDED'],
@@ -33,7 +35,8 @@ const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     RETURN_REQUESTED: ['RETURN_APPROVED', 'DISPUTED'],
     RETURN_APPROVED: ['RETURNED'],
     RESOLVED: ['COMPLETED'],
-    // Shipment Detailed Statuses (Read-only or transition via logistics system)
+    PARTIALLY_PAID: ['PREPARATION', 'CANCELLED'],
+    // Shipment Detailed Statuses (Managed via logistics system)
     RECEIVED_AT_HUB: [],
     QUALITY_CHECK_PASSED: [],
     PACKAGED_FOR_SHIPPING: [],
@@ -47,7 +50,15 @@ const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     DELIVERY_ATTEMPTED: [],
     DELIVERED_TO_CUSTOMER: [],
     RETURN_TO_SENDER_INITIATED: [],
-    RETURNED_TO_SENDER: []
+    RETURNED_TO_SENDER: [],
+    // 2026 Return Journey Statuses
+    RETURN_LABEL_ISSUED: [],
+    RETURN_STARTED: [],
+    RECEIVED_FROM_CUSTOMER: [],
+    DELIVERED_TO_VENDOR: [],
+    EXCHANGE_COMPLETED: [],
+    IN_TRANSIT_TO_CUSTOMER: [],
+    RETURN_COMPLETED_TO_CUSTOMER: []
 };
 
 export const SLA_LIMITS: Partial<Record<StatusType, number>> = {
@@ -57,6 +68,7 @@ export const SLA_LIMITS: Partial<Record<StatusType, number>> = {
     DELAYED_PREPARATION: 24, // 24 extra hours to prepare (Penalty period)
     SHIPPED: 72,          // 3 days to deliver
     DELIVERED: 72,
+    WARRANTY_ACTIVE: 0,   // Dynamic based on warranty_end_at
     DISPUTED: 72
 };
 
@@ -503,8 +515,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 shipments: o.shipments || [],
                 shippingWaybills: o.shippingWaybills || [],
                 invoices: o.invoices || [],
-                warranty_active_at: o.warranty_active_at,
-                warranty_end_at: o.warranty_end_at,
+                warranty_active_at: o.warranty_active_at || o.warrantyActiveAt,
+                warranty_end_at: o.warranty_end_at || o.warrantyEndAt,
             }));
     },
 

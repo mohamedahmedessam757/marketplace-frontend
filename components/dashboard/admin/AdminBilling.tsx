@@ -28,7 +28,10 @@ import {
     ShieldCheck,
     ClipboardCheck,
     ArrowRightLeft,
-    Crown
+    Crown,
+    ChevronDown,
+    Package,
+    User
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { BarChart } from '../../ui/Charts';
@@ -70,7 +73,10 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRANSACTIONS' | 'WITHDRAWALS'>('OVERVIEW');
     const [showPayoutModal, setShowPayoutModal] = useState(false);
     
-    // Modal state is now isolated in ManualPayoutModal
+    const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
+    const [isRoleFilterOpen, setIsRoleFilterOpen] = useState(false);
+    const typeDropdownRef = React.useRef<HTMLDivElement>(null);
+    const roleDropdownRef = React.useRef<HTMLDivElement>(null);
 
     const isSuperAdmin = currentAdmin?.role === 'SUPER_ADMIN';
 
@@ -78,7 +84,20 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
         fetchAdminFinancials();
         fetchWithdrawals();
         subscribeToFinancials();
-        return () => unsubscribeFromFinancials();
+
+        const handleClickOutside = (event: MouseEvent) => {
+            if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target as Node)) {
+                setIsTypeFilterOpen(false);
+            }
+            if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
+                setIsRoleFilterOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            unsubscribeFromFinancials();
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, []);
 
     const kpis = adminFinancials?.kpis || {
@@ -319,72 +338,120 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
                         {/* 3a. Top Spenders & Top Earners Leaderboard (Col 1) */}
-                        <GlassCard className="p-8 bg-[#151310] border-white/5 flex flex-col gap-6">
-                            {/* Top Spenders */}
+                        <GlassCard className="p-8 bg-[#151310] border-white/5 flex flex-col gap-10">
+                            {/* Top Spenders (Blue Theme) */}
                             <div>
-                                <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white/30 mb-5 flex items-center gap-3`}>
-                                    <Users size={16} className="text-blue-400" />
-                                    {isAr ? 'الأعلى إنفاقاً' : 'Top Spenders'}
-                                </h4>
-                                <div className="space-y-3">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white/30 flex items-center gap-3`}>
+                                        <Users size={16} className="text-blue-400" />
+                                        {isAr ? 'الأعلى إنفاقاً' : 'Top Spenders'}
+                                    </h4>
+                                </div>
+                                <div className="space-y-4">
                                     {topSpenders.length === 0 ? (
-                                        <p className="text-white/20 text-[10px] uppercase font-bold text-center py-3">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
-                                    ) : topSpenders.map((item: any, idx: number) => {
-                                        const maxVal = topSpenders[0]?.totalSpent || 1;
-                                        const pct = Math.round((item.totalSpent / maxVal) * 100);
-                                        return (
-                                            <div key={item.id} className="flex items-center gap-3 group">
-                                                <span className="text-[10px] font-black text-white/20 w-4 shrink-0">{idx + 1}</span>
-                                                <div className="w-7 h-7 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                                                    <span className="text-[9px] font-black text-blue-400">{item.name?.charAt(0)?.toUpperCase() || '?'}</span>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <p className="text-[11px] font-black text-white truncate">{item.name}</p>
-                                                        <p className="text-[10px] font-black text-blue-400 font-mono ml-2 shrink-0">{item.totalSpent.toLocaleString()} AED</p>
-                                                    </div>
-                                                    <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
-                                                    </div>
+                                        <div className="py-10 text-center opacity-20">
+                                            <Users size={32} className="mx-auto mb-2" />
+                                            <p className="text-[10px] font-black uppercase">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
+                                        </div>
+                                    ) : topSpenders.map((item: any, idx: number) => (
+                                        <div 
+                                            key={item.id} 
+                                            onClick={() => onNavigate && onNavigate('customer-profile', item.id)}
+                                            className="group relative flex items-center gap-4 p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-blue-500/30 hover:bg-white/5 transition-all cursor-pointer"
+                                        >
+                                            {/* Rank */}
+                                            <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
+                                                idx === 0 ? 'bg-blue-500 text-black shadow-[0_0_15px_rgba(59,130,246,0.4)]' : 'bg-white/10 text-white/40'
+                                            }`}>
+                                                {idx + 1}
+                                            </div>
+
+                                            {/* Avatar */}
+                                            <div className="w-9 h-9 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                                                {item.avatar ? (
+                                                    <img src={item.avatar} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User size={16} className="text-white/20" />
+                                                )}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[13px] font-black text-white truncate group-hover:text-blue-400 transition-colors">{item.name}</p>
+                                                <div className="flex items-center gap-2 text-[9px] text-white/30 font-bold uppercase mt-0.5">
+                                                    <Package size={10} />
+                                                    <span>{item.ordersCount} {isAr ? 'عمليات' : 'Orders'}</span>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+
+                                            <div className="text-right">
+                                                <span className="block text-xs font-black text-white font-mono">{item.totalSpent.toLocaleString()} <span className="text-[9px] text-blue-400">AED</span></span>
+                                                <ArrowUpRight size={12} className="text-white/10 group-hover:text-blue-400 transition-colors inline-block mt-1" />
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 
-                            <div className="border-t border-white/5" />
+                            <div className="h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
 
-                            {/* Top Earners */}
+                            {/* Top Earners (Gold Theme) */}
                             <div>
-                                <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white/30 mb-5 flex items-center gap-3`}>
-                                    <Crown size={16} className="text-gold-400" />
-                                    {isAr ? 'التجار الأعلى أرباحاً' : 'Top Earning Merchants'}
-                                </h4>
-                                <div className="space-y-3">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white/30 flex items-center gap-3`}>
+                                        <Crown size={16} className="text-gold-400" />
+                                        {isAr ? 'التجار الأعلى أرباحاً' : 'Top Earning Merchants'}
+                                    </h4>
+                                </div>
+                                <div className="space-y-4">
                                     {topEarners.length === 0 ? (
-                                        <p className="text-white/20 text-[10px] uppercase font-bold text-center py-3">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
-                                    ) : topEarners.map((item: any, idx: number) => {
-                                        const maxVal = topEarners[0]?.totalEarned || 1;
-                                        const pct = Math.round((item.totalEarned / maxVal) * 100);
-                                        return (
-                                            <div key={item.id} className="flex items-center gap-3 group">
-                                                <span className="text-[10px] font-black text-white/20 w-4 shrink-0">{idx + 1}</span>
-                                                <div className="w-7 h-7 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center shrink-0">
-                                                    <span className="text-[9px] font-black text-gold-400">{item.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                                        <div className="py-10 text-center opacity-20">
+                                            <Crown size={32} className="mx-auto mb-2" />
+                                            <p className="text-[10px] font-black uppercase">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
+                                        </div>
+                                    ) : topEarners.map((item: any, idx: number) => (
+                                        <div 
+                                            key={item.id} 
+                                            onClick={() => onNavigate && onNavigate('store-profile', item.id)}
+                                            className="group relative flex items-center gap-4 p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-gold-500/30 hover:bg-white/5 transition-all cursor-pointer"
+                                        >
+                                            {/* Rank */}
+                                            <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
+                                                idx === 0 ? 'bg-gold-500 text-black shadow-[0_0_15px_rgba(212,175,55,0.4)]' : 'bg-white/10 text-white/40'
+                                            }`}>
+                                                {idx + 1}
+                                            </div>
+
+                                            {/* Logo */}
+                                            <div className="w-9 h-9 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                                                {item.logo ? (
+                                                    <img src={item.logo} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <Crown size={16} className="text-white/20" />
+                                                )}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <span className="text-[13px] font-black text-white truncate group-hover:text-gold-400 transition-colors">{item.name}</span>
+                                                    {item.rating > 0 && (
+                                                        <div className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded-full border border-white/5 shrink-0">
+                                                            <span className="text-[8px] font-black text-gold-400">{item.rating}</span>
+                                                            <TrendingUp size={8} className="text-gold-400" />
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <p className="text-[11px] font-black text-white truncate">{item.name}</p>
-                                                        <p className="text-[10px] font-black text-gold-400 font-mono ml-2 shrink-0">{item.totalEarned.toLocaleString()} AED</p>
-                                                    </div>
-                                                    <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-gradient-to-r from-gold-500 to-yellow-400 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
-                                                    </div>
+                                                <div className="flex items-center gap-2 text-[9px] text-white/30 font-bold uppercase">
+                                                    <Package size={10} />
+                                                    <span>{item.ordersCount} {isAr ? 'طلبات' : 'Orders'}</span>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+
+                                            <div className="text-right">
+                                                <span className="block text-xs font-black text-white font-mono">{item.totalEarned.toLocaleString()} <span className="text-[9px] text-gold-500">AED</span></span>
+                                                <span className="text-[8px] text-green-400 font-black uppercase tracking-tighter">Growth</span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </GlassCard>
@@ -423,42 +490,130 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
 
             {activeTab === 'TRANSACTIONS' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
-                    <div className="flex flex-wrap gap-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl backdrop-blur-md">
-                        <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                            <Filter size={18} className="text-gold-500" />
-                            <select 
-                                value={financialFilters.type || 'ALL'} 
-                                onChange={(e) => setFinancialFilters({ type: e.target.value })}
-                                className="bg-black/40 border border-white/10 rounded-xl px-5 py-3 text-xs text-white uppercase font-black  outline-none focus:border-gold-500/50 flex-1"
+                    <div className="flex flex-col xl:flex-row justify-end items-center gap-4">
+                        <div className="flex flex-wrap items-center justify-end gap-3 w-full">
+                            {/* Search */}
+                            <div className="relative flex-1 md:flex-none group">
+                                <Search size={16} className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'right-4' : 'left-4'} text-white/20 group-focus-within:text-gold-500 transition-colors`} />
+                                <input
+                                    type="text"
+                                    placeholder={isAr ? 'بحث سريع...' : 'Quick search...'}
+                                    className={`w-full md:w-64 bg-[#050505] border border-white/10 rounded-xl ${isAr ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-3 text-xs text-white focus:border-gold-500/50 focus:bg-[#080808] outline-none transition-all placeholder:text-white/10 font-bold shadow-inner`}
+                                    value={financialFilters.search || ''}
+                                    onChange={e => setFinancialFilters({ search: e.target.value })}
+                                />
+                            </div>
+
+                            {/* Type Filter */}
+                            <div className="relative" ref={typeDropdownRef}>
+                                <div 
+                                    onClick={() => setIsTypeFilterOpen(!isTypeFilterOpen)}
+                                    className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all cursor-pointer font-black uppercase tracking-tighter shadow-xl text-xs ${
+                                    isTypeFilterOpen ? 'bg-white/10 border-gold-500 text-gold-500' : 'bg-white/5 border-white/5 text-white hover:bg-white/10'
+                                }`}>
+                                    <Filter size={16} className={isTypeFilterOpen ? 'text-gold-500' : 'text-gold-500/50'} />
+                                    <span className="min-w-[80px]">
+                                        {financialFilters.type === 'ALL' ? t.admin.billing.ledger.filters.directions : 
+                                         financialFilters.type === 'DEBIT' ? t.admin.billing.ledger.filters.debit : t.admin.billing.ledger.filters.credit}
+                                    </span>
+                                    <ChevronDown size={14} className={`transition-transform duration-300 ${isTypeFilterOpen ? 'rotate-180' : ''}`} />
+                                </div>
+
+                                <AnimatePresence>
+                                    {isTypeFilterOpen && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute top-full mt-3 right-0 w-64 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[100]"
+                                        >
+                                            <div className="p-2 space-y-1">
+                                                {[
+                                                    { value: 'ALL', label: t.admin.billing.ledger.filters.directions },
+                                                    { value: 'DEBIT', label: t.admin.billing.ledger.filters.debit },
+                                                    { value: 'CREDIT', label: t.admin.billing.ledger.filters.credit }
+                                                ].map((opt) => (
+                                                    <div
+                                                        key={opt.value}
+                                                        onClick={() => {
+                                                            setFinancialFilters({ type: opt.value });
+                                                            setIsTypeFilterOpen(false);
+                                                        }}
+                                                        className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all cursor-pointer group ${
+                                                            financialFilters.type === opt.value 
+                                                            ? 'bg-gold-500 text-black font-black' 
+                                                            : 'text-white/60 hover:bg-white/5 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <span className="text-xs font-bold uppercase tracking-tight">{opt.label}</span>
+                                                        {financialFilters.type === opt.value && <div className="w-1.5 h-1.5 rounded-full bg-black shadow-sm" />}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+
+                            {/* Role Filter */}
+                            <div className="relative" ref={roleDropdownRef}>
+                                <div 
+                                    onClick={() => setIsRoleFilterOpen(!isRoleFilterOpen)}
+                                    className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all cursor-pointer font-black uppercase tracking-tighter shadow-xl text-xs ${
+                                    isRoleFilterOpen ? 'bg-white/10 border-gold-500 text-gold-500' : 'bg-white/5 border-white/5 text-white hover:bg-white/10'
+                                }`}>
+                                    <Users size={16} className={isRoleFilterOpen ? 'text-gold-500' : 'text-gold-500/50'} />
+                                    <span className="min-w-[80px]">
+                                        {financialFilters.role === 'ALL' ? t.admin.billing.ledger.filters.roles : 
+                                         financialFilters.role === 'VENDOR' ? t.admin.billing.ledger.filters.vendors : t.admin.billing.ledger.filters.customers}
+                                    </span>
+                                    <ChevronDown size={14} className={`transition-transform duration-300 ${isRoleFilterOpen ? 'rotate-180' : ''}`} />
+                                </div>
+
+                                <AnimatePresence>
+                                    {isRoleFilterOpen && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute top-full mt-3 right-0 w-64 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[100]"
+                                        >
+                                            <div className="p-2 space-y-1">
+                                                {[
+                                                    { value: 'ALL', label: t.admin.billing.ledger.filters.roles },
+                                                    { value: 'VENDOR', label: t.admin.billing.ledger.filters.vendors },
+                                                    { value: 'CUSTOMER', label: t.admin.billing.ledger.filters.customers }
+                                                ].map((opt) => (
+                                                    <div
+                                                        key={opt.value}
+                                                        onClick={() => {
+                                                            setFinancialFilters({ role: opt.value });
+                                                            setIsRoleFilterOpen(false);
+                                                        }}
+                                                        className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all cursor-pointer group ${
+                                                            financialFilters.role === opt.value 
+                                                            ? 'bg-gold-500 text-black font-black' 
+                                                            : 'text-white/60 hover:bg-white/5 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <span className="text-xs font-bold uppercase tracking-tight">{opt.label}</span>
+                                                        {financialFilters.role === opt.value && <div className="w-1.5 h-1.5 rounded-full bg-black shadow-sm" />}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+
+                            {/* Export */}
+                            <button 
+                                onClick={() => exportFinancialCSV()}
+                                className="flex items-center gap-2 px-6 py-3 bg-gold-500 hover:bg-gold-600 active:bg-gold-700 text-black font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-2xl shadow-gold-500/20 active:scale-95 group"
                             >
-                                <option value="ALL">{t.admin.billing.ledger.filters.directions}</option>
-                                <option value="DEBIT">{t.admin.billing.ledger.filters.debit}</option>
-                                <option value="CREDIT">{t.admin.billing.ledger.filters.credit}</option>
-                            </select>
-                        </div>
-                        <select 
-                            value={financialFilters.role || 'ALL'} 
-                            onChange={(e) => setFinancialFilters({ role: e.target.value })}
-                            className="bg-black/40 border border-white/10 rounded-xl px-5 py-3 text-xs text-white uppercase font-black  outline-none focus:border-gold-500/50 flex-1 min-w-[150px]"
-                        >
-                            <option value="ALL">{t.admin.billing.ledger.filters.roles}</option>
-                            <option value="VENDOR">{t.admin.billing.ledger.filters.vendors}</option>
-                            <option value="CUSTOMER">{t.admin.billing.ledger.filters.customers}</option>
-                        </select>
-                        <div className="flex items-center gap-2 flex-1 min-w-[300px]">
-                            <input 
-                                type="date"
-                                value={financialFilters.startDate || ''}
-                                onChange={(e) => setFinancialFilters({ startDate: e.target.value })}
-                                className="bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[10px] text-white/70 font-mono font-bold outline-none flex-1"
-                            />
-                            <ArrowRight size={14} className="text-white/20" />
-                            <input 
-                                type="date"
-                                value={financialFilters.endDate || ''}
-                                onChange={(e) => setFinancialFilters({ endDate: e.target.value })}
-                                className="bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[10px] text-white/70 font-mono font-bold outline-none flex-1"
-                            />
+                                <Download size={16} className="group-hover:bounce" />
+                                <span>{isAr ? 'تصدير' : 'Export'}</span>
+                            </button>
                         </div>
                     </div>
 

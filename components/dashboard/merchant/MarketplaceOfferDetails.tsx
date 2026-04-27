@@ -6,7 +6,8 @@ import { useVendorStore } from '../../../stores/useVendorStore';
 import {
     ArrowLeft, ArrowRight, Clock, MapPin, Package, Settings, Monitor, ShieldCheck, FileText, CheckCircle2, ChevronDown, MessageCircle, AlertTriangle, Search, Car, Box, Calendar, Truck, User, DollarSign, Weight, Shield, Edit3, XCircle, Loader2, ExternalLink
 } from 'lucide-react';
-import { CountdownTimer, WarrantyBadge } from '../OrderDetails';
+import { CountdownTimer } from '../OrderDetails';
+import { WarrantyProtectionCard } from '../../ui/WarrantyProtectionCard';
 import { SubmitOfferModal } from './SubmitOfferModal';
 import { GlassCard } from '../../ui/GlassCard';
 import { Badge, StatusType } from '../../ui/Badge';
@@ -465,9 +466,10 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                             </h1>
                             <Badge status={order.status} />
                             {order.warranty_end_at && (
-                                <WarrantyBadge 
-                                    endDate={order.warranty_end_at} 
-                                    status={order.status} 
+                                <WarrantyProtectionCard 
+                                    order={order} 
+                                    variant="compact"
+                                    role="merchant"
                                 />
                             )}
                             {shipment && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
@@ -491,7 +493,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                 {/* Status Badge & Timer */}
                 <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/10 w-full md:w-auto">
                     {(() => {
-                        const progressiveStates = ['AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED'];
+                        const progressiveStates = ['AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
                         const isProgressive = progressiveStates.includes(order.status);
                         
                         // If order is active and time hasn't expired
@@ -572,6 +574,16 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 <div className="flex items-center gap-2 text-green-400 bg-green-500/10 border border-green-500/20 px-4 py-2 rounded-xl">
                                     <CheckCircle2 size={16} />
                                     <span className="font-bold text-sm">{isAr ? 'تمت المطابقة - جاهز للشحن' : 'Verified - Ready to Ship'}</span>
+                                </div>
+                            );
+                        }
+
+                        // WARRANTY_ACTIVE: Show protection status
+                        if (order.status === 'WARRANTY_ACTIVE') {
+                            return (
+                                <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-xl">
+                                    <Shield size={16} className="animate-pulse" />
+                                    <span className="font-bold text-sm">{isAr ? 'حماية الضمان نشطة' : 'Warranty Protection Active'}</span>
                                 </div>
                             );
                         }
@@ -671,6 +683,16 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                     </div>
 
                     <div className={activeTab === 'overview' ? 'space-y-6' : 'hidden'}>
+
+                    {/* Premium Warranty Protection Hub (2026) */}
+                    {order.status === 'WARRANTY_ACTIVE' && order.warranty_end_at && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                        >
+                            <WarrantyProtectionCard order={order} role="merchant" />
+                        </motion.div>
+                    )}
 
                     {/* ★ Order Progress Tracker (Mirror of Customer View) */}
                     <GlassCard className="p-0 overflow-hidden bg-[#1A1814] border-white/5">

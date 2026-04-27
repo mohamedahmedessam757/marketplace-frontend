@@ -42,7 +42,9 @@ export type OrderStatus =
   | 'RETURN_REQUESTED'
   | 'RETURN_APPROVED'
   | 'REFUNDED'
-  | 'RESOLVED';
+  | 'RESOLVED'
+  | 'WARRANTY_ACTIVE'
+  | 'WARRANTY_EXPIRED';
 
 export interface OrderPart {
   id: string;
@@ -87,6 +89,8 @@ export interface Order {
   shippedAt?: string;
   deliveredAt?: string;
   delayedPreparationDeadlineAt?: string;
+  warranty_active_at?: string;
+  warranty_end_at?: string;
   createdAt: string;
   updatedAt: string;
 

@@ -23,6 +23,7 @@ import { OrderWaybillsPanel } from './shared/OrderWaybillsPanel';
 import { useShipmentsStore } from '../../stores/useShipmentsStore';
 import { ShipmentTracker } from './shipments/ShipmentTracker';
 import { OrderCountdown } from '../ui/OrderCountdown';
+import { WarrantyProtectionCard } from '../ui/WarrantyProtectionCard';
 import { useResolutionStore } from '../../stores/useResolutionStore';
 import { ShippingPaymentCard } from './resolution/ShippingPaymentCard';
 
@@ -511,6 +512,24 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 onClose={handleCloseExpiredModal}
             />
 
+            {/* Premium Warranty Protection Hub (2026) */}
+            {order.status === 'WARRANTY_ACTIVE' && order.warranty_end_at && (
+                <motion.div 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-8"
+                >
+                    <WarrantyProtectionCard 
+                        order={order} 
+                        onClaim={(id) => {
+                            setReturnInitialReason('warranty_claim');
+                            // If a specific offer/part ID is passed, we can handle it in the modal or store
+                            setShowReturnModal(true);
+                        }} 
+                    />
+                </motion.div>
+            )}
+
             {/* Lightbox Viewer */}
             <AnimatePresence>
                 {lightboxImage && (
@@ -642,10 +661,10 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </h1>
                                 <Badge status={order.status} />
                                 {order.warranty_end_at && (
-                                    <WarrantyBadge 
-                                        endDate={order.warranty_end_at} 
-                                        status={order.status} 
-                                        onReplace={() => {
+                                    <WarrantyProtectionCard 
+                                        order={order} 
+                                        variant="compact"
+                                        onClaim={(id) => {
                                             setReturnInitialReason('warranty_claim');
                                             setShowReturnModal(true);
                                         }} 
@@ -700,38 +719,21 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
-                            {/* Warranty Badge (New 2026 Logic) */}
-                            {order.warranty_end_at && ['DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && (
-                                <WarrantyBadge 
-                                    endDate={order.warranty_end_at} 
-                                    status={order.status}
-                                    onReplace={() => {
-                                        setReturnInitialReason('replacement');
-                                        setShowReturnModal(true);
-                                    }}
-                                />
-                            )}
+                            {/* Warranty Badge Removed (Replaced by Hub above or Compact Badge in header) */}
 
-                            {/* Review Button */}
-                            {(order.status === 'COMPLETED' || order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
+                            {/* Review Button - Only show if NOT reviewed yet */}
+                            {(order.status === 'COMPLETED' || order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && !order.review && (
                                 <button
-                                    onClick={() => !order.review && setShowReviewModal(true)}
-                                    disabled={!!order.review}
-                                    className={`hidden md:flex items-center gap-2 px-4 py-2 border rounded-lg transition-all font-bold text-sm ${
-                                        order.review 
-                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                                        : 'bg-gold-500/10 hover:bg-gold-500 text-gold-400 hover:text-white border-gold-500/30'
-                                    }`}
+                                    onClick={() => setShowReviewModal(true)}
+                                    className="hidden md:flex items-center gap-2 px-4 py-2 bg-gold-500/10 hover:bg-gold-500 text-gold-400 hover:text-white border border-gold-500/30 rounded-lg transition-all font-bold text-sm"
                                 >
-                                    {order.review ? <CheckCircle2 size={16} /> : <Star size={16} />}
-                                    {order.review 
-                                        ? (language === 'ar' ? 'تم التقييم' : 'Reviewed') 
-                                        : t.dashboard.reviews.writeTitle}
+                                    <Star size={16} />
+                                    {t.dashboard.reviews.writeTitle}
                                 </button>
                             )}
 
-                            {/* Return Button (DELIVERED or WARRANTY_ACTIVE) */}
-                            {(order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
+                            {/* Return Button (ONLY for DELIVERED stage) */}
+                            {order.status === 'DELIVERED' && (
                                 <button
                                     onClick={() => {
                                         setReturnInitialReason(undefined);
@@ -744,8 +746,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
-                            {/* Dispute Button (For DELIVERED or WARRANTY_ACTIVE) */}
-                            {(order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
+                            {/* Dispute Button (ONLY for DELIVERED stage) */}
+                            {order.status === 'DELIVERED' && (
                                 <button
                                     onClick={() => setShowDisputeModal(true)}
                                     className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 rounded-lg transition-all font-bold text-sm"

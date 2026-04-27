@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, ShieldCheck, Lock } from 'lucide-react';
+import { EntitySearchInput } from '../../ui/EntitySearchInput';
 
 interface ManualPayoutModalProps {
     show: boolean;
@@ -20,46 +21,11 @@ export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onCl
         adminSignature: ''
     });
 
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
-    const [showDropdown, setShowDropdown] = useState(false);
-
     useEffect(() => {
         if (!show) {
-            setSearchQuery('');
             setPayoutForm({ userId: '', amount: '', method: 'STRIPE_CONNECT', note: '', adminSignature: '' });
-            setShowDropdown(false);
-            setSearchResults([]);
         }
     }, [show]);
-
-    useEffect(() => {
-        if (searchQuery.length < 2) {
-            setSearchResults([]);
-            return;
-        }
-        const delayDebounceFn = setTimeout(async () => {
-            setIsSearching(true);
-            try {
-                const token = localStorage.getItem('access_token') || sessionStorage.getItem('token');
-                const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-                const res = await fetch(`${url}/users/admin/search?q=${searchQuery}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setSearchResults(data);
-                    setShowDropdown(true);
-                }
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setIsSearching(false);
-            }
-        }, 500);
-        return () => clearTimeout(delayDebounceFn);
-    }, [searchQuery]);
 
     const submitManualPayout = async () => {
         if (!payoutForm.userId || !payoutForm.amount || !payoutForm.adminSignature) {
@@ -109,42 +75,12 @@ export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onCl
                         
                         <div className="p-10 space-y-8">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <div className="space-y-2 relative">
+                                <div className="space-y-2">
                                     <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.targetNode}</label>
-                                    <input 
-                                        type="text" 
-                                        value={searchQuery || payoutForm.userId} 
-                                        onChange={e => {
-                                            setSearchQuery(e.target.value);
-                                            setPayoutForm({...payoutForm, userId: e.target.value});
-                                        }} 
-                                        onFocus={() => { if(searchResults.length > 0) setShowDropdown(true); }}
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-white font-mono font-bold outline-none focus:border-gold-500/50 transition-all relative z-10" 
-                                        placeholder="XXXX-XXXX-XXXX" 
+                                    <EntitySearchInput 
+                                        onSelect={(res) => setPayoutForm({ ...payoutForm, userId: res?.id || '' })}
+                                        placeholder="XXXX-XXXX-XXXX"
                                     />
-                                    {showDropdown && searchResults.length > 0 && (
-                                        <div className="absolute top-[80%] left-0 right-0 pt-6 pb-2 bg-[#1A1814] border border-white/10 rounded-b-2xl shadow-xl z-0 max-h-60 overflow-y-auto">
-                                            {searchResults.map((res: any) => (
-                                                <div 
-                                                    key={res.id} 
-                                                    onClick={() => {
-                                                        setPayoutForm({...payoutForm, userId: res.id});
-                                                        setSearchQuery(res.id);
-                                                        setShowDropdown(false);
-                                                    }}
-                                                    className="p-4 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 flex justify-between items-center transition-colors"
-                                                >
-                                                    <div>
-                                                        <p className="text-white font-bold text-sm">{res.name}</p>
-                                                        <p className="text-white/40 text-xs font-mono">{res.id}</p>
-                                                    </div>
-                                                    <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${res.type === 'CUSTOMER' ? 'bg-blue-500/20 text-blue-400' : 'bg-gold-500/20 text-gold-400'}`}>
-                                                        {res.type}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.volume}</label>

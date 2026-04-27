@@ -4,6 +4,7 @@ import { useViolationStore, Violation, ViolationType, PenaltyThreshold, Violatio
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useCustomerStore } from '../../../stores/useCustomerStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { EntitySearchInput } from '../../ui/EntitySearchInput';
 import { 
   ShieldAlert, 
   Search, 
@@ -94,41 +95,13 @@ export const AdminViolations: React.FC = () => {
 
     const { stores, fetchAllStores } = useAdminStore();
     const { customers, fetchCustomers: fetchAllCustomers } = useCustomerStore();
-    const [userSearch, setUserSearch] = useState('');
-    const [showUserResults, setShowUserResults] = useState(false);
 
     useEffect(() => {
-        fetchAllStores();
-        fetchAllCustomers();
+        // We no longer need to fetch all stores/customers locally for search
+        // as we use the real-time EntitySearchInput component.
     }, []);
 
-    // Filtered users for the selection
-    const availableUsers = useMemo(() => {
-        if (formData.targetType === 'MERCHANT') {
-            return stores.map(s => ({ 
-                id: s.id, 
-                name: s.name, 
-                storeName: s.name, 
-                email: s.owner?.email || '',
-                type: 'MERCHANT' 
-            })).filter(u => 
-                u.name.toLowerCase().includes(userSearch.toLowerCase()) || 
-                u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-                u.id.toLowerCase().includes(userSearch.toLowerCase())
-            );
-        } else {
-            return customers.map(c => ({ 
-                id: c.id, 
-                name: c.name, 
-                email: c.email, 
-                type: 'CUSTOMER' 
-            })).filter(u => 
-                u.name.toLowerCase().includes(userSearch.toLowerCase()) || 
-                u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-                u.id.toLowerCase().includes(userSearch.toLowerCase())
-            );
-        }
-    }, [formData.targetType, userSearch, stores, customers]);
+    // Local user filtering removed in favor of real-time server-side search
 
     // --- DYNAMIC FILTERING LOGIC ---
     
@@ -223,7 +196,6 @@ export const AdminViolations: React.FC = () => {
             if (res.success) {
                 setIsIssueModalOpen(false);
                 setFormData({ targetUserId: '', targetType: 'MERCHANT', typeId: '', reason: '', evidenceUrl: '' });
-                setUserSearch('');
             } else {
                 alert(res.message);
             }
@@ -772,69 +744,22 @@ export const AdminViolations: React.FC = () => {
                                         value={formData.targetType}
                                         onChange={e => {
                                             setFormData({...formData, targetType: e.target.value as any, targetUserId: ''});
-                                            setUserSearch('');
-                                            setShowUserResults(false);
                                         }}
                                     >
                                         <option value="MERCHANT" className="bg-[#151310] text-white">MERCHANT</option>
                                         <option value="CUSTOMER" className="bg-[#151310] text-white">CUSTOMER</option>
                                     </select>
                                 </div>
-                                <div className="space-y-2 relative">
+                                <div className="space-y-2">
                                     <label className="text-[10px] text-white/40 font-black uppercase tracking-widest">{vt.forms.targetUser}</label>
-                                    <div className="relative">
-                                        <input 
-                                            type="text"
-                                            placeholder={isAr ? "بحث بالاسم أو البريد..." : "Search name or email..."}
-                                            className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-red-500/50 transition-all"
-                                            value={userSearch}
-                                            onChange={(e) => {
-                                                setUserSearch(e.target.value);
-                                                setShowUserResults(true);
-                                                if (!e.target.value) setFormData({...formData, targetUserId: ''});
-                                            }}
-                                            onFocus={() => setShowUserResults(true)}
-                                            required={!formData.targetUserId}
-                                        />
-                                        <AnimatePresence>
-                                            {showUserResults && userSearch && (
-                                                <motion.div 
-                                                    initial={{ opacity: 0, y: 5 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    exit={{ opacity: 0, y: 5 }}
-                                                    className="absolute top-full left-0 w-full mt-2 bg-[#1A1A1A] border border-white/10 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto backdrop-blur-xl"
-                                                >
-                                                    {availableUsers.length > 0 ? availableUsers.map(u => (
-                                                        <button
-                                                            key={u.id}
-                                                            type="button"
-                                                            className="w-full text-left p-3 hover:bg-white/10 border-b border-white/5 last:border-0 transition-colors flex flex-col group"
-                                                            onClick={() => {
-                                                                setFormData({...formData, targetUserId: u.id});
-                                                                setUserSearch(u.name);
-                                                                setShowUserResults(false);
-                                                            }}
-                                                        >
-                                                            <span className="text-xs font-bold text-white group-hover:text-gold-500">{u.name}</span>
-                                                            <span className="text-[9px] text-white/30 font-mono">{u.email || u.id}</span>
-                                                        </button>
-                                                    )) : (
-                                                        <div className="p-4 text-center text-white/30 text-[10px] italic">
-                                                            {isAr ? 'لا توجد نتائج مطابقة' : 'No matching results found'}
-                                                        </div>
-                                                    )}
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-                                    {formData.targetUserId && (
-                                        <div className="text-[8px] text-green-500/40 font-mono mt-1 flex items-center gap-1 uppercase tracking-widest">
-                                            <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
-                                            Selected ID: {formData.targetUserId}
-                                        </div>
-                                    )}
+                                    <EntitySearchInput 
+                                        onSelect={(res) => setFormData({...formData, targetUserId: res?.id || ''})}
+                                        placeholder={isAr ? "بحث بالاسم أو البريد..." : "Search name or email..."}
+                                        className="mt-0"
+                                    />
                                 </div>
                             </div>
+
 
                             <div className="space-y-2">
                                 <label className="text-[10px] text-white/40 font-black uppercase tracking-widest">{vt.forms.violationType}</label>

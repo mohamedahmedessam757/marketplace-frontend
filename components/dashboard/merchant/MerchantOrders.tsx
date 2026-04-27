@@ -7,6 +7,7 @@ import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { GlassCard } from '../../ui/GlassCard';
 import { Badge, StatusType } from '../../ui/Badge';
 import { OrderCountdown } from '../../ui/OrderCountdown';
+import { WarrantyProtectionCard } from '../../ui/WarrantyProtectionCard';
 
 const CarIcon = (props: any) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>
@@ -157,17 +158,17 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
         'CORRECTION_SUBMITTED', 'DELAYED_PREPARATION'
     ];
     const resolutionStatuses = [
-        'DISPUTED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'REFUNDED'
+        'DISPUTED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'REFUNDED', 'WARRANTY_DISPUTED'
     ];
 
     const activeOrders = orders.filter(o => 
-        [...prepStatuses, 'SHIPPED', 'DELIVERED', ...resolutionStatuses].includes(o.status) &&
+        [...prepStatuses, 'SHIPPED', 'DELIVERED', 'WARRANTY_ACTIVE', 'COMPLETED', ...resolutionStatuses].includes(o.status) &&
         myStoreId && o.offers?.some(off => off.storeId === myStoreId && off.status === 'accepted')
     );
 
     const preparation = activeOrders.filter(o => prepStatuses.includes(o.status));
     const shipped = activeOrders.filter(o => o.status === 'SHIPPED');
-    const delivered = activeOrders.filter(o => o.status === 'DELIVERED');
+    const delivered = activeOrders.filter(o => ['DELIVERED', 'WARRANTY_ACTIVE', 'COMPLETED'].includes(o.status));
     const resolution = activeOrders.filter(o => resolutionStatuses.includes(o.status));
 
     // Robust field extractor
@@ -224,6 +225,9 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
             SHIPPED: { color: 'text-purple-400', bg: 'bg-purple-500/10', label: isAr ? 'جاري التوصيل' : 'In Transit' },
             DELIVERED: { color: 'text-green-400', bg: 'bg-green-500/10', label: isAr ? 'تم التسليم' : 'Delivered' },
             DISPUTED: { color: 'text-red-400', bg: 'bg-red-500/10', label: isAr ? 'نزاع نشط' : 'Disputed' },
+            WARRANTY_DISPUTED: { color: 'text-red-400', bg: 'bg-red-500/10', label: isAr ? 'نزاع ضمان' : 'Warranty Dispute' },
+            WARRANTY_ACTIVE: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', label: isAr ? 'حماية الضمان' : 'Warranty Active' },
+            COMPLETED: { color: 'text-green-400', bg: 'bg-green-500/10', label: isAr ? 'مكتمل' : 'Completed' },
             RETURN_REQUESTED: { color: 'text-orange-400', bg: 'bg-orange-500/10', label: isAr ? 'طلب إرجاع' : 'Return Requested' },
             RETURN_APPROVED: { color: 'text-green-400', bg: 'bg-green-500/10', label: isAr ? 'مقبول للإرجاع' : 'Return Approved' },
         };
@@ -313,8 +317,14 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                                     <div className="mx-2">•</div>
                                     <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} />
                                 </div>
-                                {order.acceptedOffer?.warranty && order.acceptedOffer.warranty !== 'none' ? (
-                                    <WarrantyProgress deliveredAt={order.deliveredAt || order.updatedAt} durationStr={order.acceptedOffer.warranty} isAr={isAr} />
+                                {order.warranty_end_at ? (
+                                    <div className="flex justify-center mt-2">
+                                        <WarrantyProtectionCard 
+                                            order={order} 
+                                            variant="compact"
+                                            role="merchant"
+                                        />
+                                    </div>
                                 ) : (
                                     <div className="text-[10px] text-white/20 text-center bg-white/2 py-2 rounded-lg border border-dashed border-white/5 italic">
                                         {isAr ? 'بدون ضمان' : 'No Warranty'}
@@ -411,13 +421,15 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                 >
                     {((activeTab === 'PREPARATION' && preparation.length === 0) || 
                       (activeTab === 'SHIPPED' && shipped.length === 0) || 
-                      (activeTab === 'DELIVERED' && delivered.length === 0)) ? (
+                      (activeTab === 'DELIVERED' && delivered.length === 0) ||
+                      (activeTab === 'RESOLUTION' && resolution.length === 0)) ? (
                         renderEmptyState(activeTab)
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-fr">
                             {activeTab === 'PREPARATION' && preparation.map(o => renderCard(o, 'PREPARATION'))}
                             {activeTab === 'SHIPPED' && shipped.map(o => renderCard(o, 'SHIPPED'))}
                             {activeTab === 'DELIVERED' && delivered.map(o => renderCard(o, 'DELIVERED'))}
+                            {activeTab === 'RESOLUTION' && resolution.map(o => renderCard(o, 'RESOLUTION'))}
                         </div>
                     )}
                 </motion.div>

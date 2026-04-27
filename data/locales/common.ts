@@ -55,6 +55,7 @@ export const common = {
       DELIVERED: 'تم التوصيل',
       COMPLETED: 'مكتمل',
       CANCELLED: 'منتهي',
+      PARTIALLY_PAID: 'دفع جزئي',
       RETURNED: 'مرتجع',
       DISPUTED: 'نزاع',
       REFUNDED: 'تم الاسترداد',
@@ -62,6 +63,8 @@ export const common = {
       RETURN_APPROVED: 'موافقة على الإرجاع',
       RESOLVED: 'تم الحل',
       CLOSED: 'قضية مغلقة',
+      WARRANTY_ACTIVE: 'الضمان نشط 🛡️',
+      WARRANTY_EXPIRED: 'الضمان منتهي',
       // Shipment Detailed Statuses
       RECEIVED_AT_HUB: 'تم الاستلام في المركز',
       QUALITY_CHECK_PASSED: 'اجتاز فحص الجودة',
@@ -135,6 +138,14 @@ export const common = {
       capital: 'رأس المال المدفوع: 386,000,000.00 درهم اماراتي',
       copyright: '© جميع الحقوق محفوظة لشركة إليب 2026'
     },
+    warranty: {
+      title: 'حماية الضمان 2026',
+      endsIn: 'ينتهي خلال:',
+      expired: 'الضمان منتهي',
+      claim: 'استبدال القطعة',
+      days: 'يوم',
+      hours: 'س'
+    }
   },
   en: {
     sar: 'SAR',
@@ -193,6 +204,7 @@ export const common = {
       DELIVERED: 'Delivered',
       COMPLETED: 'Completed',
       CANCELLED: 'Expired',
+      PARTIALLY_PAID: 'Partially Paid',
       RETURNED: 'Returned',
       DISPUTED: 'Disputed',
       REFUNDED: 'Refunded',
@@ -200,6 +212,8 @@ export const common = {
       RETURN_APPROVED: 'Return Approved',
       RESOLVED: 'Resolved',
       CLOSED: 'Case Closed',
+      WARRANTY_ACTIVE: 'Warranty Active 🛡️',
+      WARRANTY_EXPIRED: 'Warranty Expired',
       // Shipment Detailed Statuses
       RECEIVED_AT_HUB: 'Received at Hub',
       QUALITY_CHECK_PASSED: 'Quality Check Passed',
@@ -287,6 +301,14 @@ export const common = {
       businessCenter: 'Compass Business Center',
       capital: 'Paid Capital: 386,000,000.00 AED',
       copyright: '© All rights reserved to Elip 2026'
+    },
+    warranty: {
+      title: '2026 Warranty Protection',
+      endsIn: 'Ends in:',
+      expired: 'Warranty Expired',
+      claim: 'REPLACE PART',
+      days: 'd',
+      hours: 'h'
     }
   }
 };

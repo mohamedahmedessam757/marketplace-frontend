@@ -5,7 +5,8 @@ import { Badge, StatusType } from '../../ui/Badge';
 import { StatusTimeline } from '../../ui/StatusTimeline';
 import { OfferCard } from '../OfferCard';
 import { PartOffersDrawer } from '../PartOffersDrawer';
-import { CountdownTimer, WarrantyBadge } from '../OrderDetails';
+import { CountdownTimer } from '../OrderDetails';
+import { WarrantyProtectionCard } from '../../ui/WarrantyProtectionCard';
 import { ShipmentTracker } from '../shipments/ShipmentTracker';
 import { OrderCountdown } from '../../ui/OrderCountdown';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -410,9 +411,10 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                 </h1>
                                 <Badge status={order.status} />
                                 {order.warranty_end_at && (
-                                    <WarrantyBadge 
-                                        endDate={order.warranty_end_at} 
-                                        status={order.status} 
+                                    <WarrantyProtectionCard 
+                                        order={order} 
+                                        variant="compact"
+                                        role="admin"
                                     />
                                 )}
                                 {order.shipments && order.shipments.length > 0 && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
@@ -453,6 +455,13 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                         <div className="bg-white/5 px-6 py-3 border-b border-white/5 flex justify-between items-center text-sm">
                             <div className="text-white/50">{t.admin.orderDetails.currentStatus}: <span className="text-white font-bold ml-1">{t.common.status[order.status]}</span></div>
                             <div className="min-w-[200px]"><RiskTimer updatedAt={order.updatedAt} limitHours={slaLimit} /></div>
+                        </div>
+                    )}
+
+                    {/* Premium Warranty Protection Hub for Admin */}
+                    {order.status === 'WARRANTY_ACTIVE' && order.warranty_end_at && (
+                        <div className="px-6 py-4 border-b border-white/5 bg-emerald-500/5">
+                            <WarrantyProtectionCard order={order} role="admin" />
                         </div>
                     )}
 
