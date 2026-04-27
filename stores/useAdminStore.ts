@@ -251,7 +251,7 @@ export interface AdminState {
     status?: string;
     search?: string;
   };
-  fetchAdminFinancials: (filters?: any) => Promise<void>;
+  fetchAdminFinancials: (filters?: any, silent?: boolean) => Promise<void>;
   exportFinancialCSV: (filters?: any) => Promise<void>;
   sendManualPayout: (dto: any) => Promise<{ success: boolean; message: string }>;
   setFinancialFilters: (filters: any) => void;
@@ -1002,11 +1002,13 @@ export const useAdminStore = create<AdminState>()(
       // Admin Financial Hub Methods
       setFinancialFilters: (filters) => {
         set({ financialFilters: { ...get().financialFilters, ...filters } });
-        get().fetchAdminFinancials(); // Refresh when filters change
+        get().fetchAdminFinancials(undefined, false); // Explicit user filter change = show loading
       },
 
-      fetchAdminFinancials: async (filters) => {
-        set({ isLoadingFinancials: true });
+      // silent=true: update data in background without showing loading skeleton (prevents flicker on realtime updates)
+      // silent=false (default): show full loading state (used on initial mount or manual filter changes)
+      fetchAdminFinancials: async (filters?: any, silent: boolean = false) => {
+        if (!silent) set({ isLoadingFinancials: true });
         try {
           const token = localStorage.getItem('access_token');
           const currentFilters = { limit: 500, ...(filters || get().financialFilters) };
@@ -1019,9 +1021,9 @@ export const useAdminStore = create<AdminState>()(
             set({ adminFinancials: data });
           }
         } catch (error) {
-          console.error("Failed to fetch admin financials", error);
+          console.error('Failed to fetch admin financials', error);
         } finally {
-          set({ isLoadingFinancials: false });
+          if (!silent) set({ isLoadingFinancials: false });
         }
       },
 
@@ -1066,7 +1068,8 @@ export const useAdminStore = create<AdminState>()(
           });
           const data = await res.json();
           if (res.ok) {
-            get().fetchAdminFinancials();
+            // Silent refresh after payout - no flicker needed
+            get().fetchAdminFinancials(undefined, true);
             return { success: true, message: data.message || 'Payout successful' };
           }
           return { success: false, message: data.message || 'Failed to process payout' };
@@ -1076,24 +1079,25 @@ export const useAdminStore = create<AdminState>()(
       },
 
       subscribeToFinancials: () => {
-        const { financialSubscription, fetchAdminFinancials } = get();
+        const { financialSubscription } = get();
         if (financialSubscription) return;
 
         const channel = supabase.channel('admin-financials-realtime')
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'wallet_transactions' },
-            () => fetchAdminFinancials()
+            // silent=true: update numbers smoothly in background without any loading flicker
+            () => get().fetchAdminFinancials(undefined, true)
           )
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'withdrawal_requests' },
-            () => fetchAdminFinancials()
+            () => get().fetchAdminFinancials(undefined, true)
           )
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'escrow_transactions' },
-            () => fetchAdminFinancials()
+            () => get().fetchAdminFinancials(undefined, true)
           )
           .subscribe();
 

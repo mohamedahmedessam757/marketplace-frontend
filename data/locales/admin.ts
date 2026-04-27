@@ -614,7 +614,7 @@ export const admin = {
       }
     },
     billing: {
-      title: 'إدارة الذكاء المالي',
+      title: 'مركز المالية',
       subtitle: 'التحكم المالي والسيولة — رؤية 2026',
       totalRevenue: 'إجمالي الدخل',
       pendingPayouts: 'تحويلات معلقة',
@@ -692,16 +692,16 @@ export const admin = {
         }
       },
       manualPayout: {
-        title: 'بروتوكول تحويل مالي يدوي',
+        title: 'تحويل مالي يدوي',
         subtitle: 'إجراء إداري مصرح به فقط',
-        targetNode: 'العقدة المستهدفة (ID)',
-        volume: 'حجم السيولة (AED)',
-        protocol: 'بروتوكول التوجيه',
-        note: 'ملاحظة مرجعية داخلية',
-        cryptoSignature: 'توقيع الهوية التشفيري',
+        targetNode: 'معرف المستخدم أو التاجر (ID)',
+        volume: 'المبلغ المراد سحبه (AED)',
+        protocol: 'بوابة أو طريقة الدفع',
+        note: 'سبب السحب (ملاحظة داخلية)',
+        cryptoSignature: 'التوقيع الإلكتروني (اسمك الكامل)',
         signPrompt: 'أدخل الاسم الكامل للتوقيع',
         auditCommit: 'التوقيع على هذا المستند يثبت المعاملة في سجل التدقيق غير القابل للتعديل.',
-        execute: 'تنفيذ الأمر'
+        execute: 'إصدار سحب مالي'
       },
       types: {
         CUSTOMER_INVOICE: 'فاتورة مبيعات',
@@ -1370,8 +1370,8 @@ export const admin = {
       }
     },
     billing: {
-      title: 'Financial Intelligence Hub',
-      subtitle: 'Financial Governance & Liquidity — Vision 2026',
+      title: 'Financial Center',
+      subtitle: 'Financial Control & Liquidity — 2026 Vision',
       totalRevenue: 'Total Revenue',
       pendingPayouts: 'Pending Payouts',
       netIncome: 'Net Income',
@@ -1450,14 +1450,14 @@ export const admin = {
       manualPayout: {
         title: 'Manual Payout Execution',
         subtitle: 'Authorized Administrative Action Only',
-        targetNode: 'Target Node (User ID)',
-        volume: 'Liquidity Volume (AED)',
-        protocol: 'Routing Protocol',
-        note: 'Internal Reference Note',
-        cryptoSignature: 'Cryptographic Identity Signature',
+        targetNode: 'Target User / Merchant (ID)',
+        volume: 'Payout Amount (AED)',
+        protocol: 'Payment Gateway / Method',
+        note: 'Payout Reason (Internal Note)',
+        cryptoSignature: 'Electronic Signature (Full Name)',
         signPrompt: 'Enter Full Name to Sign',
         auditCommit: 'Signing this document commits the transaction to the immutable audit log.',
-        execute: 'Execute Order'
+        execute: 'Issue Payout'
       },
       types: {
         CUSTOMER_INVOICE: 'Sales Invoice',

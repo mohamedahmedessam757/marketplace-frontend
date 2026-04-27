@@ -32,8 +32,10 @@ import {
     Crown
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
+import { BarChart } from '../../ui/Charts';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { ManualPayoutModal } from './ManualPayoutModal';
 
 interface AdminBillingProps {
     onNavigate?: (path: string, id: any) => void;
@@ -57,14 +59,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRANSACTIONS' | 'WITHDRAWALS'>('OVERVIEW');
     const [showPayoutModal, setShowPayoutModal] = useState(false);
     
-    // Payout modal state
-    const [payoutForm, setPayoutForm] = useState({
-        userId: '',
-        amount: '',
-        method: 'STRIPE_CONNECT',
-        note: '',
-        adminSignature: ''
-    });
+    // Modal state is now isolated in ManualPayoutModal
 
     const isSuperAdmin = currentAdmin?.role === 'SUPER_ADMIN';
 
@@ -78,7 +73,8 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const kpis = adminFinancials?.kpis || {
         totalSales: 0, netCommission: 0, shippingProfit: 0, referralEarnings: 0,
         referralCount: 0, pendingWithdrawals: 0, pendingWithdrawalsCount: 0,
-        frozenFunds: 0, todayTransactionsCount: 0
+        frozenFunds: 0, todayTransactionsCount: 0, overallLiquidity: 0,
+        totalRefunds: 0, gatewayFees: 0, pendingLiabilities: 0
     };
 
     const transactions = adminFinancials?.transactions || [];
@@ -105,6 +101,21 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
         ].filter(x => x.value > 0);
     }, [transactions, t]);
 
+    const salesTrendData = useMemo(() => {
+        const grouped = transactions.reduce((acc: Record<string, number>, tx: any) => {
+            const dateStr = new Date(tx.date).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
+            if (!acc[dateStr]) acc[dateStr] = 0;
+            acc[dateStr] += tx.amount;
+            return acc;
+        }, {});
+
+        const labels = Object.keys(grouped).reverse();
+        return labels.map(label => ({
+            label,
+            value: grouped[label]
+        })).slice(-14);
+    }, [transactions, isAr]);
+
     const handleSaveCommission = () => {
         setCommissionRate(tempRate);
         alert(t.admin.billing.alerts.commissionSuccess);
@@ -115,27 +126,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
         if (success) alert(t.admin.billing.alerts.limitsSuccess);
     };
 
-    const submitManualPayout = async () => {
-        if (!payoutForm.userId || !payoutForm.amount || !payoutForm.adminSignature) {
-            alert(t.admin.billing.alerts.fillRequired);
-            return;
-        }
-        const dto = {
-            userId: payoutForm.userId,
-            amount: Number(payoutForm.amount),
-            method: payoutForm.method,
-            note: payoutForm.note,
-            adminName: currentAdmin?.name || 'Admin',
-            adminEmail: currentAdmin?.email || 'admin@etashleh.com',
-            adminSignature: payoutForm.adminSignature
-        };
-        const res = await sendManualPayout(dto);
-        if (res.success) {
-            setShowPayoutModal(false);
-            setPayoutForm({ userId: '', amount: '', method: 'STRIPE_CONNECT', note: '', adminSignature: '' });
-        }
-        alert(res.message);
-    };
+
 
     // Helper for Premium Stat Card
     const StatCard = ({ label, value, subValue, icon: Icon, color, trend }: any) => (
@@ -182,14 +173,26 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 <h1 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tight">
                                     {t.admin.billing.title}
                                 </h1>
-                                <p className="text-white/40 text-[10px] sm:text-xs font-bold uppercase tracking-[0.3em] mt-1">
-                                    {t.admin.billing.subtitle}
-                                </p>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex flex-wrap gap-3 w-full lg:w-auto">
+                        <div className="flex items-center gap-2 bg-white/5 p-2 rounded-2xl border border-white/10">
+                            <input 
+                                type="date" 
+                                value={financialFilters.startDate || ''}
+                                onChange={(e) => setFinancialFilters({ startDate: e.target.value })}
+                                className="bg-transparent border-none text-[10px] text-white font-mono focus:ring-0 cursor-pointer outline-none"
+                            />
+                            <span className="text-white/20 text-xs">→</span>
+                            <input 
+                                type="date" 
+                                value={financialFilters.endDate || ''}
+                                onChange={(e) => setFinancialFilters({ endDate: e.target.value })}
+                                className="bg-transparent border-none text-[10px] text-white font-mono focus:ring-0 cursor-pointer outline-none"
+                            />
+                        </div>
                         <div className="relative flex-1 lg:flex-none">
                             <Search size={16} className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'right-4' : 'left-4'} text-white/20`} />
                             <input
@@ -250,48 +253,41 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                         <StatCard 
                             label={t.admin.billing.kpis.totalSales}
-                            value={`${kpis.totalSales.toLocaleString()} AED`}
+                            value={`${(kpis.totalSales || 0).toLocaleString()} AED`}
                             icon={TrendingUp}
                             color="#3b82f6"
                         />
                         <StatCard 
-                            label={t.admin.billing.kpis.netProfit}
-                            value={`${kpis.netCommission.toLocaleString()} AED`}
+                            label={isAr ? 'الربح الصافي الحقيقي' : 'True Net Profit'}
+                            value={`${(kpis.netCommission || 0).toLocaleString()} AED`}
                             icon={DollarSign}
                             color="#d4af37"
                         />
                         <StatCard 
                             label={t.admin.billing.kpis.logisticsRevenue}
-                            value={`${kpis.shippingProfit.toLocaleString()} AED`}
+                            value={`${(kpis.shippingProfit || 0).toLocaleString()} AED`}
                             icon={Activity}
                             color="#10b981"
                         />
                         <StatCard 
                             label={t.admin.billing.kpis.referralEcosystem}
-                            value={`${kpis.referralEarnings.toLocaleString()} AED`}
-                            subValue={`${kpis.referralCount} ${t.admin.billing.kpis.activeReferrals}`}
+                            value={`${(kpis.referralEarnings || 0).toLocaleString()} AED`}
+                            subValue={`${kpis.referralCount || 0} ${t.admin.billing.kpis.activeReferrals}`}
                             icon={Users}
                             color="#8b5cf6"
                         />
                         <StatCard 
                             label={t.admin.billing.kpis.withdrawalQueue}
-                            value={`${kpis.pendingWithdrawals.toLocaleString()} AED`}
-                            subValue={`${kpis.pendingWithdrawalsCount} ${t.admin.billing.kpis.pendingRequests}`}
+                            value={`${(kpis.pendingWithdrawals || 0).toLocaleString()} AED`}
+                            subValue={`${kpis.pendingWithdrawalsCount || 0} ${t.admin.billing.kpis.pendingRequests}`}
                             icon={RefreshCw}
                             color="#f59e0b"
                         />
                         <StatCard 
                             label={t.admin.billing.kpis.escrowLocked}
-                            value={`${kpis.frozenFunds.toLocaleString()} AED`}
+                            value={`${(kpis.frozenFunds || 0).toLocaleString()} AED`}
                             icon={Lock}
                             color="#ef4444"
-                        />
-                        <StatCard 
-                            label={t.admin.billing.kpis.activityLoad}
-                            value={kpis.todayTransactionsCount.toString()}
-                            subValue={t.admin.billing.kpis.realtimeOps}
-                            icon={RefreshCw}
-                            color="#ffffff"
                         />
                         <StatCard 
                             label={t.admin.billing.kpis.overallLiquidity || 'Overall Liquidity'}
@@ -300,51 +296,40 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             icon={Wallet}
                             color="#22d3ee"
                         />
+                        <StatCard 
+                            label={isAr ? 'الالتزامات المعلقة' : 'Pending Liabilities'}
+                            value={`${(kpis.pendingLiabilities || 0).toLocaleString()} AED`}
+                            subValue={isAr ? 'نقاط الولاء وأرباح المستخدمين غير المسحوبة' : 'Unwithdrawn loyalty & referral points'}
+                            icon={AlertOctagon}
+                            color="#eab308"
+                        />
+                        <StatCard 
+                            label={isAr ? 'التكاليف التشغيلية (البوابات)' : 'Gateway Fees'}
+                            value={`${(kpis.gatewayFees || 0).toLocaleString()} AED`}
+                            icon={CreditCard}
+                            color="#94a3b8"
+                        />
+                        <StatCard 
+                            label={isAr ? 'إجمالي المبالغ المستردة' : 'Total Refunds'}
+                            value={`${(kpis.totalRefunds || 0).toLocaleString()} AED`}
+                            icon={ArrowDownLeft}
+                            color="#f87171"
+                        />
+                        <StatCard 
+                            label={t.admin.billing.kpis.activityLoad}
+                            value={kpis.todayTransactionsCount.toString()}
+                            subValue={t.admin.billing.kpis.realtimeOps}
+                            icon={RefreshCw}
+                            color="#ffffff"
+                        />
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-                        
-                        {/* 3a. Top Earners Intelligence */}
-                        <GlassCard className="p-8 bg-[#151310] border-white/5 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-8 opacity-[0.02] text-gold-500">
-                                <Crown size={120} />
-                            </div>
-                            <div className="relative z-10">
-                                <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-8 flex items-center gap-3">
-                                    <Crown size={18} className="text-gold-500" />
-                                    {t.admin.billing.panels.elitePerformance}
-                                </h4>
-                                <div className="space-y-6">
-                                    {topEarners.length > 0 ? topEarners.map((store: any, idx: number) => (
-                                        <div key={store.storeId} className="flex justify-between items-center group cursor-pointer hover:bg-white/[0.02] p-2 rounded-xl transition-all">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-gold-500/10 text-gold-500 flex items-center justify-center font-black text-xs border border-gold-500/20">
-                                                    {idx + 1}
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-white font-black group-hover:text-gold-400 transition-colors">{store.name}</p>
-                                                    <p className="text-[10px] text-white/30 font-bold  mt-0.5">{store.ordersCount} {t.admin.billing.panels.succeededOps}</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="text-sm font-black text-white font-mono">{store.revenue?.toLocaleString()}</span>
-                                                <p className="text-[9px] text-white/20 font-bold uppercase">AED</p>
-                                            </div>
-                                        </div>
-                                    )) : (
-                                        <div className="p-12 text-center text-white/10 italic text-xs uppercase ">
-                                            {t.admin.billing.ledger.table.scanning}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </GlassCard>
-
-                        {/* 3b. Liquidity Composition Chart */}
+                        {/* 3a. Transaction Breakdown Donut (Col 1) */}
                         <GlassCard className="p-8 bg-[#151310] border-white/5 flex flex-col items-center">
                             <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-10 self-start flex items-center gap-3">
                                 <PieChart size={18} className="text-blue-500" />
-                                {t.admin.billing.panels.liquidityComposition}
+                                {isAr ? 'توزيع أنواع المعاملات' : 'Transaction Breakdown'}
                             </h4>
                             <div className="w-48 h-48 rounded-full relative mb-10 shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-white/5" style={{
                                 background: `conic-gradient(${txBreakdown.map((item, i, arr) => {
@@ -354,7 +339,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             }}>
                                 <div className="absolute inset-6 bg-[#151310] rounded-full flex flex-col items-center justify-center shadow-inner border border-white/5">
                                     <span className="text-white font-black font-mono text-3xl leading-none">{transactions.length}</span>
-                                    <span className="text-[9px] text-white/30 font-bold  mt-2 uppercase">{t.admin.billing.panels.totalOps}</span>
+                                    <span className="text-[9px] text-white/30 font-bold mt-2 uppercase">{t.admin.billing.panels.totalOps}</span>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-x-8 gap-y-4 w-full px-4">
@@ -370,43 +355,30 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             </div>
                         </GlassCard>
 
-                        {/* 3c. Payout Pipeline Timeline */}
-                        <GlassCard className="p-8 bg-[#151310] border-white/5">
-                            <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-8 flex items-center gap-3">
-                                <Activity size={18} className="text-emerald-500" />
-                                {t.admin.billing.panels.payoutPipeline}
-                            </h4>
-                            <div className="space-y-8 relative before:absolute before:top-2 before:bottom-0 before:left-[11px] before:w-[2px] before:bg-white/[0.03]">
-                                {pendingWithdrawals.slice(0, 5).map((w: any) => (
-                                    <div key={w.id} className="flex items-start gap-5 relative z-10">
-                                        <div className={`w-[24px] h-[24px] rounded-full flex items-center justify-center border-2 border-[#151310] shadow-xl shrink-0 ${
-                                            w.status === 'COMPLETED' ? 'bg-emerald-500' : 
-                                            w.status === 'PENDING' ? 'bg-amber-500 animate-pulse' : 
-                                            'bg-red-500'
-                                        }`} />
-                                        <div className="flex-1 bg-white/[0.02] p-4 rounded-[1.25rem] border border-white/5 hover:border-white/10 transition-colors">
-                                            <div className="flex justify-between items-start mb-1">
-                                                <p className="text-sm text-white font-black truncate max-w-[120px]">{w.store?.name || w.user?.name}</p>
-                                                <span className="text-xs font-black text-white font-mono">{Number(w.amount).toLocaleString()} <span className="text-[9px] opacity-30">AED</span></span>
-                                            </div>
-                                            <div className="flex justify-between items-center mt-2">
-                                                <p className="text-[9px] text-white/20 font-black uppercase ">{new Date(w.createdAt).toLocaleDateString()}</p>
-                                                <div className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                                    w.status === 'COMPLETED' ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10' : 
-                                                    w.status === 'PENDING' ? 'text-amber-400 border-amber-500/20 bg-amber-500/10' : 
-                                                    'text-red-400 border-red-500/20 bg-red-500/10'
-                                                }`}>
-                                                    {w.status}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {pendingWithdrawals.length === 0 && (
-                                    <div className="p-12 text-center text-white/10 italic text-xs uppercase ">
-                                        {t.admin.billing.panels.pipelineClear}
-                                    </div>
-                                )}
+                        {/* 3b. Sales Trend Chart (Col 2 & 3) */}
+                        <GlassCard className="p-8 bg-[#151310] border-white/5 lg:col-span-2 flex flex-col">
+                            <div className="flex justify-between items-start mb-8">
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white flex items-center gap-3">
+                                        <TrendingUp size={18} className="text-gold-500" />
+                                        {isAr ? 'اتجاه المبيعات (نظرة لحظية)' : 'Sales Trend (Realtime)'}
+                                    </h4>
+                                    <p className="text-[10px] text-white/30 uppercase mt-2">
+                                        {isAr ? 'نظرة شاملة على أداء المنصة المالي' : 'Overview of platform financial performance'}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="block text-2xl font-bold text-gold-400 font-mono">{kpis.totalSales.toLocaleString()} AED</span>
+                                    <span className="block text-[10px] text-white/30 mt-1 uppercase">{t.admin.billing.kpis.totalSales}</span>
+                                </div>
+                            </div>
+                            
+                            <div className="flex-1 min-h-[250px] w-full">
+                                <BarChart
+                                    data={salesTrendData}
+                                    height={250}
+                                    color="#A88B3E"
+                                />
                             </div>
                         </GlassCard>
                     </div>
@@ -628,117 +600,14 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
             )}
 
             {/* 5. Manual Payout Modal (2026 Style Overlay) */}
-            <AnimatePresence>
-                {showPayoutModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-                        <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }} 
-                            animate={{ opacity: 1, scale: 1, y: 0 }} 
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-                            className="relative bg-[#1A1814] border border-gold-500/20 rounded-[3rem] w-full max-w-xl shadow-[0_0_100px_rgba(212,175,55,0.15)] overflow-hidden max-h-[90vh] flex flex-col"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="overflow-y-auto no-scrollbar">
-                            {/* Modal Header */}
-                            <div className="p-10 border-b border-white/5 bg-gradient-to-r from-gold-500/[0.05] to-transparent">
-                                <div className="flex items-center gap-6">
-                                    <div className="w-16 h-16 bg-gold-500 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-gold-500/30">
-                                        <Send className="text-black" size={28} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">{t.admin.billing.manualPayout.title}</h3>
-                                        <p className="text-white/40 text-[10px] font-bold uppercase  mt-1">{t.admin.billing.manualPayout.subtitle}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="p-10 space-y-8">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.targetNode}</label>
-                                        <input 
-                                            type="text" 
-                                            value={payoutForm.userId} 
-                                            onChange={e => setPayoutForm({...payoutForm, userId: e.target.value})} 
-                                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-white font-mono font-bold outline-none focus:border-gold-500/50 transition-all" 
-                                            placeholder="XXXX-XXXX-XXXX" 
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.volume}</label>
-                                        <input 
-                                            type="number" 
-                                            value={payoutForm.amount} 
-                                            onChange={e => setPayoutForm({...payoutForm, amount: e.target.value})} 
-                                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-lg text-white font-mono font-black outline-none focus:border-gold-500/50 transition-all" 
-                                            placeholder="0.00" 
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.protocol}</label>
-                                    <select 
-                                        value={payoutForm.method} 
-                                        onChange={e => setPayoutForm({...payoutForm, method: e.target.value})} 
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-white font-black uppercase  outline-none focus:border-gold-500/50 transition-all"
-                                    >
-                                        <option value="STRIPE_CONNECT">Automated Gateway (Stripe Connect)</option>
-                                        <option value="MANUAL">Offline Settlement (Manual Bank)</option>
-                                    </select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.note}</label>
-                                    <input 
-                                        type="text" 
-                                        value={payoutForm.note} 
-                                        onChange={e => setPayoutForm({...payoutForm, note: e.target.value})} 
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-white outline-none focus:border-gold-500/50 transition-all font-medium" 
-                                        placeholder="Enter reason for manual adjustment..." 
-                                    />
-                                </div>
-
-                                <div className="p-8 bg-rose-500/[0.03] border border-rose-500/20 rounded-[2rem] relative overflow-hidden group">
-                                    <div className="absolute top-0 right-0 p-4 opacity-[0.05] group-hover:opacity-10 transition-opacity">
-                                        <ShieldCheck size={60} className="text-rose-500" />
-                                    </div>
-                                    <label className="text-[10px] font-black text-rose-500 uppercase  mb-4 block flex items-center gap-2">
-                                        <Lock size={14}/> {t.admin.billing.manualPayout.cryptoSignature}
-                                    </label>
-                                    <input 
-                                        type="password" 
-                                        value={payoutForm.adminSignature} 
-                                        onChange={e => setPayoutForm({...payoutForm, adminSignature: e.target.value})} 
-                                        className="w-full bg-black/60 border border-rose-500/30 rounded-xl p-5 text-sm text-white font-mono font-black outline-none focus:border-rose-500 transition-all text-center " 
-                                        placeholder={t.admin.billing.manualPayout.signPrompt} 
-                                    />
-                                    <p className="text-[9px] text-rose-500/40 font-bold mt-4 text-center uppercase  leading-relaxed">
-                                        {t.admin.billing.manualPayout.auditCommit}
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <div className="p-10 border-t border-white/5 bg-black/20 flex gap-4">
-                                <button 
-                                    onClick={() => setShowPayoutModal(false)} 
-                                    className="flex-1 py-5 bg-white/5 hover:bg-white/10 text-white font-black uppercase  rounded-2xl transition-all text-[10px] border border-white/5"
-                                >
-                                    {t.common.cancel}
-                                </button>
-                                <button 
-                                    onClick={submitManualPayout} 
-                                    className="flex-1 py-5 bg-gold-500 hover:bg-gold-400 text-black font-black uppercase  rounded-2xl shadow-2xl shadow-gold-500/20 transition-all flex items-center justify-center gap-3 text-[10px]"
-                                >
-                                    <Send size={18} /> 
-                                    {t.admin.billing.manualPayout.execute}
-                                </button>
-                            </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+            <ManualPayoutModal
+                show={showPayoutModal}
+                onClose={() => setShowPayoutModal(false)}
+                currentAdmin={currentAdmin}
+                t={t}
+                isAr={isAr}
+                sendManualPayout={sendManualPayout}
+            />
         </div>
     );
 };
