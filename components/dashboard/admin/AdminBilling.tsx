@@ -23,7 +23,6 @@ import {
     Calendar,
     ChevronRight,
     ExternalLink,
-    PieChart,
     Users,
     ArrowRight,
     ShieldCheck,
@@ -45,14 +44,26 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
 
-    const { 
-        currentAdmin,
-        commissionRate, setCommissionRate,
-        adminFinancials, isLoadingFinancials, financialFilters, 
-        fetchAdminFinancials, exportFinancialCSV, sendManualPayout, 
-        setFinancialFilters, subscribeToFinancials, unsubscribeFromFinancials,
-        withdrawalLimits, updateWithdrawalLimits, pendingWithdrawals, processWithdrawal, fetchWithdrawals, isLoadingWithdrawals
-    } = useAdminStore();
+    // --- Selective store subscriptions to prevent flicker/re-renders ---
+    const currentAdmin = useAdminStore(s => s.currentAdmin);
+    const commissionRate = useAdminStore(s => s.commissionRate);
+    const setCommissionRate = useAdminStore(s => s.setCommissionRate);
+    // Use a stable reference: only re-render when the kpis object actually changes
+    const adminFinancials = useAdminStore(s => s.adminFinancials);
+    const isLoadingFinancials = useAdminStore(s => s.isLoadingFinancials);
+    const financialFilters = useAdminStore(s => s.financialFilters);
+    const fetchAdminFinancials = useAdminStore(s => s.fetchAdminFinancials);
+    const exportFinancialCSV = useAdminStore(s => s.exportFinancialCSV);
+    const sendManualPayout = useAdminStore(s => s.sendManualPayout);
+    const setFinancialFilters = useAdminStore(s => s.setFinancialFilters);
+    const subscribeToFinancials = useAdminStore(s => s.subscribeToFinancials);
+    const unsubscribeFromFinancials = useAdminStore(s => s.unsubscribeFromFinancials);
+    const withdrawalLimits = useAdminStore(s => s.withdrawalLimits);
+    const updateWithdrawalLimits = useAdminStore(s => s.updateWithdrawalLimits);
+    const pendingWithdrawals = useAdminStore(s => s.pendingWithdrawals);
+    const processWithdrawal = useAdminStore(s => s.processWithdrawal);
+    const fetchWithdrawals = useAdminStore(s => s.fetchWithdrawals);
+    const isLoadingWithdrawals = useAdminStore(s => s.isLoadingWithdrawals);
 
     const [tempRate, setTempRate] = useState(commissionRate);
     const [limits, setLimits] = useState(withdrawalLimits);
@@ -78,29 +89,10 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     };
 
     const transactions = adminFinancials?.transactions || [];
+    const topSpenders: any[] = adminFinancials?.topSpenders || [];
+    const topEarners: any[] = adminFinancials?.topEarners || [];
 
     // Widgets Data
-    const topEarners = useAdminStore.getState().dashboardStats?.topStores?.slice(0, 5) || [];
-    
-    const txBreakdown = useMemo(() => {
-        const counts = { payment: 0, commission: 0, withdrawal: 0, refund: 0, other: 0 };
-        transactions.forEach((tx: any) => {
-            const type = tx.transactionType?.toLowerCase();
-            if (counts[type as keyof typeof counts] !== undefined) {
-                counts[type as keyof typeof counts]++;
-            } else {
-                counts.other++;
-            }
-        });
-        const total = transactions.length || 1;
-        return [
-            { label: t.admin.billing.types.CUSTOMER_INVOICE, value: counts.payment, color: '#3b82f6', percent: (counts.payment/total)*100 },
-            { label: t.admin.billing.types.COMMISSION_INVOICE, value: counts.commission, color: '#d4af37', percent: (counts.commission/total)*100 },
-            { label: t.admin.billing.types.PAYOUT_INVOICE, value: counts.withdrawal, color: '#10b981', percent: (counts.withdrawal/total)*100 },
-            { label: t.admin.billing.statusTypes.REFUNDED, value: counts.refund, color: '#ef4444', percent: (counts.refund/total)*100 }
-        ].filter(x => x.value > 0);
-    }, [transactions, t]);
-
     const salesTrendData = useMemo(() => {
         const grouped = transactions.reduce((acc: Record<string, number>, tx: any) => {
             const dateStr = new Date(tx.date).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
@@ -128,8 +120,8 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
 
 
 
-    // Helper for Premium Stat Card
-    const StatCard = ({ label, value, subValue, icon: Icon, color, trend }: any) => (
+    // Helper for Premium Stat Card — React.memo used inside here to prevent flicker
+    const StatCard = React.memo(({ label, value, subValue, icon: Icon, color, trend }: any) => (
         <GlassCard className="p-6 relative overflow-hidden group hover:scale-[1.02] transition-all duration-500 bg-gradient-to-br from-white/[0.04] to-transparent border-white/5">
             <div className={`absolute top-0 right-0 w-24 h-24 blur-3xl opacity-10 rounded-full -mr-12 -mt-12 group-hover:opacity-20 transition-opacity duration-700`} style={{ backgroundColor: color }} />
             <div className="relative z-10 flex flex-col justify-between h-full">
@@ -153,7 +145,8 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                 </div>
             </div>
         </GlassCard>
-    );
+    ));
+    StatCard.displayName = 'StatCard';
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20" dir={isAr ? 'rtl' : 'ltr'}>
@@ -290,9 +283,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             color="#ef4444"
                         />
                         <StatCard 
-                            label={t.admin.billing.kpis.overallLiquidity || 'Overall Liquidity'}
+                            label={isAr ? 'السيولة الكلية' : (t.admin.billing.kpis.overallLiquidity || 'Overall Liquidity')}
                             value={`${kpis.overallLiquidity?.toLocaleString() || 0} AED`}
-                            subValue={t.admin.billing.kpis.platformReserves || 'Platform Reserves'}
+                            subValue={isAr ? 'احتياطيات المنصة' : (t.admin.billing.kpis.platformReserves || 'Platform Reserves')}
                             icon={Wallet}
                             color="#22d3ee"
                         />
@@ -325,33 +318,74 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-                        {/* 3a. Transaction Breakdown Donut (Col 1) */}
-                        <GlassCard className="p-8 bg-[#151310] border-white/5 flex flex-col items-center">
-                            <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-10 self-start flex items-center gap-3">
-                                <PieChart size={18} className="text-blue-500" />
-                                {isAr ? 'توزيع أنواع المعاملات' : 'Transaction Breakdown'}
-                            </h4>
-                            <div className="w-48 h-48 rounded-full relative mb-10 shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-white/5" style={{
-                                background: `conic-gradient(${txBreakdown.map((item, i, arr) => {
-                                    const prev = arr.slice(0, i).reduce((a, b) => a + b.percent, 0);
-                                    return `${item.color} ${prev}% ${prev + item.percent}%`;
-                                }).join(', ')})`
-                            }}>
-                                <div className="absolute inset-6 bg-[#151310] rounded-full flex flex-col items-center justify-center shadow-inner border border-white/5">
-                                    <span className="text-white font-black font-mono text-3xl leading-none">{transactions.length}</span>
-                                    <span className="text-[9px] text-white/30 font-bold mt-2 uppercase">{t.admin.billing.panels.totalOps}</span>
+                        {/* 3a. Top Spenders & Top Earners Leaderboard (Col 1) */}
+                        <GlassCard className="p-8 bg-[#151310] border-white/5 flex flex-col gap-6">
+                            {/* Top Spenders */}
+                            <div>
+                                <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white/30 mb-5 flex items-center gap-3`}>
+                                    <Users size={16} className="text-blue-400" />
+                                    {isAr ? 'الأعلى إنفاقاً' : 'Top Spenders'}
+                                </h4>
+                                <div className="space-y-3">
+                                    {topSpenders.length === 0 ? (
+                                        <p className="text-white/20 text-[10px] uppercase font-bold text-center py-3">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
+                                    ) : topSpenders.map((item: any, idx: number) => {
+                                        const maxVal = topSpenders[0]?.totalSpent || 1;
+                                        const pct = Math.round((item.totalSpent / maxVal) * 100);
+                                        return (
+                                            <div key={item.id} className="flex items-center gap-3 group">
+                                                <span className="text-[10px] font-black text-white/20 w-4 shrink-0">{idx + 1}</span>
+                                                <div className="w-7 h-7 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                                                    <span className="text-[9px] font-black text-blue-400">{item.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <p className="text-[11px] font-black text-white truncate">{item.name}</p>
+                                                        <p className="text-[10px] font-black text-blue-400 font-mono ml-2 shrink-0">{item.totalSpent.toLocaleString()} AED</p>
+                                                    </div>
+                                                    <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-x-8 gap-y-4 w-full px-4">
-                                {txBreakdown.map(tx => (
-                                    <div key={tx.label} className="flex items-center gap-3">
-                                        <div className="w-2.5 h-2.5 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: tx.color, color: tx.color }}></div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-white font-black uppercase tracking-wider">{tx.label}</span>
-                                            <span className="text-[9px] text-white/30 font-bold">{Math.round(tx.percent)}%</span>
-                                        </div>
-                                    </div>
-                                ))}
+
+                            <div className="border-t border-white/5" />
+
+                            {/* Top Earners */}
+                            <div>
+                                <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white/30 mb-5 flex items-center gap-3`}>
+                                    <Crown size={16} className="text-gold-400" />
+                                    {isAr ? 'التجار الأعلى أرباحاً' : 'Top Earning Merchants'}
+                                </h4>
+                                <div className="space-y-3">
+                                    {topEarners.length === 0 ? (
+                                        <p className="text-white/20 text-[10px] uppercase font-bold text-center py-3">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
+                                    ) : topEarners.map((item: any, idx: number) => {
+                                        const maxVal = topEarners[0]?.totalEarned || 1;
+                                        const pct = Math.round((item.totalEarned / maxVal) * 100);
+                                        return (
+                                            <div key={item.id} className="flex items-center gap-3 group">
+                                                <span className="text-[10px] font-black text-white/20 w-4 shrink-0">{idx + 1}</span>
+                                                <div className="w-7 h-7 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center shrink-0">
+                                                    <span className="text-[9px] font-black text-gold-400">{item.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <p className="text-[11px] font-black text-white truncate">{item.name}</p>
+                                                        <p className="text-[10px] font-black text-gold-400 font-mono ml-2 shrink-0">{item.totalEarned.toLocaleString()} AED</p>
+                                                    </div>
+                                                    <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-gradient-to-r from-gold-500 to-yellow-400 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </GlassCard>
 
@@ -359,7 +393,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                         <GlassCard className="p-8 bg-[#151310] border-white/5 lg:col-span-2 flex flex-col">
                             <div className="flex justify-between items-start mb-8">
                                 <div>
-                                    <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white flex items-center gap-3">
+                                    <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white flex items-center gap-3`}>
                                         <TrendingUp size={18} className="text-gold-500" />
                                         {isAr ? 'اتجاه المبيعات (نظرة لحظية)' : 'Sales Trend (Realtime)'}
                                     </h4>
