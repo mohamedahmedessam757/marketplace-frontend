@@ -32,7 +32,9 @@ import {
     ChevronDown,
     Package,
     User,
-    X
+    X,
+    RotateCcw,
+    AlertTriangle
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { BarChart } from '../../ui/Charts';
@@ -40,7 +42,10 @@ import { useAdminStore } from '../../../stores/useAdminStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { ManualPayoutModal } from './ManualPayoutModal';
 import { RejectWithdrawalModal } from './RejectWithdrawalModal';
-import { Landmark } from 'lucide-react';
+import { Landmark, History, Eye } from 'lucide-react';
+import { OrderFinancialDrawer } from './OrderFinancialDrawer';
+import { FinancialToast } from '../../ui/FinancialToast';
+import TransactionTypeFilter from './TransactionTypeFilter';
 
 interface AdminBillingProps {
     onNavigate?: (path: string, id: any) => void;
@@ -54,16 +59,31 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const currentAdmin = useAdminStore(s => s.currentAdmin);
     const commissionRate = useAdminStore(s => s.commissionRate);
     const setCommissionRate = useAdminStore(s => s.setCommissionRate);
-    // Use a stable reference: only re-render when the kpis object actually changes
+    
+    // Legacy Stats (Overview Tab)
     const adminFinancials = useAdminStore(s => s.adminFinancials);
     const isLoadingFinancials = useAdminStore(s => s.isLoadingFinancials);
     const financialFilters = useAdminStore(s => s.financialFilters);
-    const fetchAdminFinancials = useAdminStore(s => s.fetchAdminFinancials);
-    const exportFinancialCSV = useAdminStore(s => s.exportFinancialCSV);
-    const sendManualPayout = useAdminStore(s => s.sendManualPayout);
     const setFinancialFilters = useAdminStore(s => s.setFinancialFilters);
+    const fetchAdminFinancials = useAdminStore(s => s.fetchAdminFinancials);
     const subscribeToFinancials = useAdminStore(s => s.subscribeToFinancials);
     const unsubscribeFromFinancials = useAdminStore(s => s.unsubscribeFromFinancials);
+    
+    // Unified Financial Feed (Transactions Tab)
+    const financialFeed = useAdminStore(s => s.financialFeed);
+    const isFeedLoading = useAdminStore(s => s.isFeedLoading);
+    const feedHasMore = useAdminStore(s => s.feedHasMore);
+    const feedFilters = useAdminStore(s => s.feedFilters);
+    const fetchFinancialFeed = useAdminStore(s => s.fetchFinancialFeed);
+    const setFeedFilters = useAdminStore(s => s.setFeedFilters);
+    const markFeedItemAsSeen = useAdminStore(s => s.markFeedItemAsSeen);
+    const subscribeToFinancialFeed = useAdminStore(s => s.subscribeToFinancialFeed);
+    const unsubscribeFromFinancialFeed = useAdminStore(s => s.unsubscribeFromFinancialFeed);
+    const newEventsCount = useAdminStore(s => s.newEventsCount);
+    const clearNewEventsCount = useAdminStore(s => s.clearNewEventsCount);
+
+    const exportFinancialCSV = useAdminStore(s => s.exportFinancialCSV);
+    const sendManualPayout = useAdminStore(s => s.sendManualPayout);
     const withdrawalLimits = useAdminStore(s => s.withdrawalLimits);
     const updateWithdrawalLimits = useAdminStore(s => s.updateWithdrawalLimits);
     const pendingWithdrawals = useAdminStore(s => s.pendingWithdrawals);
@@ -75,11 +95,32 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const [tempRate, setTempRate] = useState(commissionRate);
     const [limits, setLimits] = useState(withdrawalLimits);
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRANSACTIONS' | 'WITHDRAWALS'>('OVERVIEW');
+    const [selectedOrderIdForTimeline, setSelectedOrderIdForTimeline] = useState<string | null>(null);
     const [showPayoutModal, setShowPayoutModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [showBankModal, setShowBankModal] = useState(false);
     const [selectedWithdrawalReq, setSelectedWithdrawalReq] = useState<any>(null);
     const [processingRejectId, setProcessingRejectId] = useState<string | null>(null);
+    const [isVerifyingBank, setIsVerifyingBank] = useState(false);
+    
+    const observerTarget = React.useRef(null);
+
+    React.useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && feedHasMore && !isFeedLoading && activeTab === 'TRANSACTIONS') {
+                    fetchFinancialFeed();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => observer.disconnect();
+    }, [feedHasMore, isFeedLoading, activeTab]);
     
     const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
     const [isRoleFilterOpen, setIsRoleFilterOpen] = useState(false);
@@ -89,9 +130,32 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const isSuperAdmin = currentAdmin?.role === 'SUPER_ADMIN';
 
     useEffect(() => {
-        fetchAdminFinancials();
-        fetchWithdrawals();
+        // OVERVIEW Stats
+        if (adminFinancials === null) {
+            fetchAdminFinancials();
+        } else {
+            // Silent refresh of stats in background
+            useAdminStore.getState().fetchAdminFinancials(); 
+        }
+
+        // WITHDRAWALS Tab
+        if (pendingWithdrawals.length === 0) {
+            fetchWithdrawals();
+        } else {
+            fetchWithdrawals(true); // Silent refresh
+        }
+        
         subscribeToFinancials();
+        
+        // TRANSACTIONS Tab logic
+        if (activeTab === 'TRANSACTIONS') {
+            if (financialFeed.length === 0) {
+                fetchFinancialFeed(true); // Full initial fetch
+            } else {
+                fetchFinancialFeed(true, true); // Silent refresh of first page
+            }
+            subscribeToFinancialFeed();
+        }
 
         const handleClickOutside = (event: MouseEvent) => {
             if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target as Node)) {
@@ -104,9 +168,10 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
             unsubscribeFromFinancials();
+            unsubscribeFromFinancialFeed();
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, []);
+    }, [activeTab]);
 
     const kpis = adminFinancials?.kpis || {
         totalSales: 0, netCommission: 0, shippingProfit: 0, referralEarnings: 0,
@@ -498,8 +563,11 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
 
             {activeTab === 'TRANSACTIONS' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
-                    <div className="flex flex-col xl:flex-row justify-end items-center gap-4">
-                        <div className="flex flex-wrap items-center justify-end gap-3 w-full">
+                    <div className="flex flex-col xl:flex-row justify-between items-center gap-4">
+                        {/* Transaction Type Filter (2026 Enhanced) */}
+                        <TransactionTypeFilter />
+
+                        <div className="flex flex-wrap items-center justify-end gap-3 w-full xl:w-auto">
                             {/* Search */}
                             <div className="relative flex-1 md:flex-none group">
                                 <Search size={16} className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'right-4' : 'left-4'} text-white/20 group-focus-within:text-gold-500 transition-colors`} />
@@ -507,111 +575,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                     type="text"
                                     placeholder={isAr ? 'بحث سريع...' : 'Quick search...'}
                                     className={`w-full md:w-64 bg-[#050505] border border-white/10 rounded-xl ${isAr ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-3 text-xs text-white focus:border-gold-500/50 focus:bg-[#080808] outline-none transition-all placeholder:text-white/10 font-bold shadow-inner`}
-                                    value={financialFilters.search || ''}
-                                    onChange={e => setFinancialFilters({ search: e.target.value })}
+                                    value={feedFilters.search || ''}
+                                    onChange={e => setFeedFilters({ search: e.target.value })}
                                 />
-                            </div>
-
-                            {/* Type Filter */}
-                            <div className="relative" ref={typeDropdownRef}>
-                                <div 
-                                    onClick={() => setIsTypeFilterOpen(!isTypeFilterOpen)}
-                                    className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all cursor-pointer font-black uppercase tracking-tighter shadow-xl text-xs ${
-                                    isTypeFilterOpen ? 'bg-white/10 border-gold-500 text-gold-500' : 'bg-white/5 border-white/5 text-white hover:bg-white/10'
-                                }`}>
-                                    <Filter size={16} className={isTypeFilterOpen ? 'text-gold-500' : 'text-gold-500/50'} />
-                                    <span className="min-w-[80px]">
-                                        {financialFilters.type === 'ALL' ? t.admin.billing.ledger.filters.directions : 
-                                         financialFilters.type === 'DEBIT' ? t.admin.billing.ledger.filters.debit : t.admin.billing.ledger.filters.credit}
-                                    </span>
-                                    <ChevronDown size={14} className={`transition-transform duration-300 ${isTypeFilterOpen ? 'rotate-180' : ''}`} />
-                                </div>
-
-                                <AnimatePresence>
-                                    {isTypeFilterOpen && (
-                                        <motion.div 
-                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            className="absolute top-full mt-3 right-0 w-64 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[100]"
-                                        >
-                                            <div className="p-2 space-y-1">
-                                                {[
-                                                    { value: 'ALL', label: t.admin.billing.ledger.filters.directions },
-                                                    { value: 'DEBIT', label: t.admin.billing.ledger.filters.debit },
-                                                    { value: 'CREDIT', label: t.admin.billing.ledger.filters.credit }
-                                                ].map((opt) => (
-                                                    <div
-                                                        key={opt.value}
-                                                        onClick={() => {
-                                                            setFinancialFilters({ type: opt.value });
-                                                            setIsTypeFilterOpen(false);
-                                                        }}
-                                                        className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all cursor-pointer group ${
-                                                            financialFilters.type === opt.value 
-                                                            ? 'bg-gold-500 text-black font-black' 
-                                                            : 'text-white/60 hover:bg-white/5 hover:text-white'
-                                                        }`}
-                                                    >
-                                                        <span className="text-xs font-bold uppercase tracking-tight">{opt.label}</span>
-                                                        {financialFilters.type === opt.value && <div className="w-1.5 h-1.5 rounded-full bg-black shadow-sm" />}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
-
-                            {/* Role Filter */}
-                            <div className="relative" ref={roleDropdownRef}>
-                                <div 
-                                    onClick={() => setIsRoleFilterOpen(!isRoleFilterOpen)}
-                                    className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all cursor-pointer font-black uppercase tracking-tighter shadow-xl text-xs ${
-                                    isRoleFilterOpen ? 'bg-white/10 border-gold-500 text-gold-500' : 'bg-white/5 border-white/5 text-white hover:bg-white/10'
-                                }`}>
-                                    <Users size={16} className={isRoleFilterOpen ? 'text-gold-500' : 'text-gold-500/50'} />
-                                    <span className="min-w-[80px]">
-                                        {financialFilters.role === 'ALL' ? t.admin.billing.ledger.filters.roles : 
-                                         financialFilters.role === 'VENDOR' ? t.admin.billing.ledger.filters.vendors : t.admin.billing.ledger.filters.customers}
-                                    </span>
-                                    <ChevronDown size={14} className={`transition-transform duration-300 ${isRoleFilterOpen ? 'rotate-180' : ''}`} />
-                                </div>
-
-                                <AnimatePresence>
-                                    {isRoleFilterOpen && (
-                                        <motion.div 
-                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            className="absolute top-full mt-3 right-0 w-64 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[100]"
-                                        >
-                                            <div className="p-2 space-y-1">
-                                                {[
-                                                    { value: 'ALL', label: t.admin.billing.ledger.filters.roles },
-                                                    { value: 'VENDOR', label: t.admin.billing.ledger.filters.vendors },
-                                                    { value: 'CUSTOMER', label: t.admin.billing.ledger.filters.customers }
-                                                ].map((opt) => (
-                                                    <div
-                                                        key={opt.value}
-                                                        onClick={() => {
-                                                            setFinancialFilters({ role: opt.value });
-                                                            setIsRoleFilterOpen(false);
-                                                        }}
-                                                        className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all cursor-pointer group ${
-                                                            financialFilters.role === opt.value 
-                                                            ? 'bg-gold-500 text-black font-black' 
-                                                            : 'text-white/60 hover:bg-white/5 hover:text-white'
-                                                        }`}
-                                                    >
-                                                        <span className="text-xs font-bold uppercase tracking-tight">{opt.label}</span>
-                                                        {financialFilters.role === opt.value && <div className="w-1.5 h-1.5 rounded-full bg-black shadow-sm" />}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
                             </div>
 
                             {/* Export */}
@@ -625,72 +591,152 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                         </div>
                     </div>
 
-                    <GlassCard className="p-0 overflow-hidden bg-black/20 border-white/5 shadow-2xl">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left whitespace-nowrap">
-                                <thead className="bg-white/[0.03] text-[10px] text-white/30 uppercase  font-black">
-                                    <tr>
-                                        <th className="px-8 py-6">{t.admin.billing.ledger.table.node}</th>
-                                        <th className="px-8 py-6">{t.admin.billing.ledger.table.operation}</th>
-                                        <th className="px-8 py-6">{t.admin.billing.ledger.table.netImpact}</th>
-                                        <th className="px-8 py-6">{t.admin.billing.ledger.table.timestamp}</th>
-                                        <th className="px-8 py-6">{t.admin.billing.ledger.table.status}</th>
+                    <div className="relative">
+                        {/* New Events Floating Banner */}
+                        <AnimatePresence>
+                            {newEventsCount > 0 && (
+                                <motion.div 
+                                    initial={{ opacity: 0, y: -20, x: '-50%' }}
+                                    animate={{ opacity: 1, y: 0, x: '-50%' }}
+                                    exit={{ opacity: 0, y: -20, x: '-50%' }}
+                                    className="absolute -top-4 left-1/2 z-20"
+                                >
+                                    <button 
+                                        onClick={() => {
+                                            fetchFinancialFeed(true);
+                                            clearNewEventsCount();
+                                            window.scrollTo({ top: 400, behavior: 'smooth' });
+                                        }}
+                                        className="px-6 py-2 bg-gold-500 text-black text-[10px] font-black uppercase tracking-widest rounded-full shadow-[0_10px_30px_rgba(212,175,55,0.4)] flex items-center gap-2 border-2 border-[#0A0908] hover:scale-105 active:scale-95 transition-all"
+                                    >
+                                        <RefreshCw size={12} className="animate-spin-slow" />
+                                        {newEventsCount} {t.admin.billing.ledger.banner.newEvents}
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <GlassCard className="p-0 overflow-hidden bg-black/20 border-white/5 shadow-2xl">
+                        <div className="overflow-x-auto text-white">
+                            <table className="w-full text-left whitespace-nowrap border-collapse">
+                                <thead className="bg-white/[0.03] text-[10px] text-white/30 uppercase font-black sticky top-0 z-10 backdrop-blur-md">
+                                    <tr className="border-b border-white/5">
+                                        <th className="px-8 py-6 text-right w-[35%]">{t.admin.billing.ledger.table.transaction}</th>
+                                        <th className="px-8 py-6 text-right w-[25%]">{t.admin.billing.ledger.table.details}</th>
+                                        <th className="px-8 py-6 text-center w-[15%]">{t.admin.billing.ledger.table.amount}</th>
+                                        <th className="px-8 py-6 text-center w-[15%]">{t.admin.billing.ledger.table.timestamp}</th>
+                                        <th className="px-8 py-6 text-center w-[10%]">{t.admin.billing.ledger.table.status_header}</th>
+                                        <th className="px-8 py-6"></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
-                                    {isLoadingFinancials ? (
-                                        <tr><td colSpan={5} className="px-8 py-20 text-center text-white/20 font-black  text-xs uppercase animate-pulse">{t.admin.billing.ledger.table.scanning}</td></tr>
-                                    ) : transactions.length === 0 ? (
+                                    {isFeedLoading && financialFeed.length === 0 ? (
+                                        <tr><td colSpan={5} className="px-8 py-20 text-center text-white/20 font-black text-xs uppercase animate-pulse">{t.admin.billing.ledger.table.scanning}</td></tr>
+                                    ) : financialFeed.length === 0 ? (
                                         <tr><td colSpan={5} className="px-8 py-20 text-center text-white/10 font-bold text-xs uppercase ">{t.admin.billing.ledger.table.noRecords}</td></tr>
-                                    ) : transactions.map((tx: any) => {
-                                        const isRisk = Number(tx.amount) > 5000;
+                                    ) : financialFeed.map((item) => {
+                                        const isCredit = item.direction === 'CREDIT' || item.direction === 'RELEASE';
+                                        const isDebit = item.direction === 'DEBIT';
+                                        const isEscrow = item.source === 'ESCROW';
+                                        
                                         return (
-                                            <tr key={tx.id} className={`hover:bg-white/[0.02] transition-colors group ${isRisk ? 'bg-orange-500/[0.03]' : ''}`}>
+                                            <tr 
+                                                key={item.id} 
+                                                onClick={() => {
+                                                    markFeedItemAsSeen(item.id);
+                                                    if (item.orderId) setSelectedOrderIdForTimeline(item.orderId);
+                                                }}
+                                                className={`
+                                                    hover:bg-white/[0.04] transition-all cursor-pointer group 
+                                                    ${item.isNew ? 'financial-row-new animate-gold-pulse' : ''}
+                                                `}
+                                            >
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center font-mono text-[10px] font-black text-gold-500 border border-white/10">
-                                                            {tx.id.slice(0, 2)}
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-500 ${
+                                                            item.isNew ? 'bg-gold-500/20 border-gold-500/30 shadow-[0_0_15px_rgba(212,175,55,0.2)] scale-110' : 'bg-white/5 border-white/10 group-hover:border-white/20'
+                                                        }`}>
+                                                            {item.eventType.includes('PAYMENT') && <ArrowDownLeft size={18} className="text-emerald-400" />}
+                                                            {item.eventType.includes('WITHDRAWAL') && <ArrowUpRight size={18} className="text-rose-400" />}
+                                                            {item.eventType.includes('COMMISSION') && <Percent size={18} className="text-gold-400" />}
+                                                            {item.eventType.includes('REFUND') && <RotateCcw size={18} className="text-amber-400" />}
+                                                            {item.eventType.includes('PENALTY') && <AlertTriangle size={18} className="text-rose-500" />}
+                                                            {item.eventType.includes('ESCROW') && <ShieldCheck size={18} className="text-blue-400" />}
+                                                            {item.eventType.includes('PROFIT') && <TrendingUp size={18} className="text-emerald-500" />}
+                                                            {(!item.eventType.match(/PAYMENT|WITHDRAWAL|COMMISSION|REFUND|PENALTY|ESCROW|PROFIT/)) && (
+                                                                item.source === 'WALLET' ? <Wallet size={18} className="text-white/40" /> : <Activity size={18} className="text-white/40" />
+                                                            )}
                                                         </div>
                                                         <div>
-                                                            <div className="font-mono text-white font-bold text-sm">#{tx.id.slice(0, 12)}</div>
-                                                            <div className="text-[9px] text-white/30 font-black uppercase mt-0.5 flex items-center gap-1.5">
-                                                                {tx.userName} • {tx.userRole}
-                                                                {onNavigate && (
-                                                                    <button 
-                                                                        onClick={() => onNavigate(tx.userRole === 'VENDOR' ? 'store-profile' : 'customer-profile', tx.userId)}
-                                                                        className="hover:text-gold-400 transition-colors"
-                                                                    >
-                                                                        <ExternalLink size={10} />
-                                                                    </button>
-                                                                )}
+                                                            <div className="font-mono text-white font-bold text-sm">
+                                                                {isAr ? item.eventTypeAr : item.eventTypeEn}
+                                                            </div>
+                                                            <div className="text-[10px] text-white/30 font-black uppercase mt-1">
+                                                                {item.source} • #{item.id.slice(-8).toUpperCase()}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <span className={`text-[9px] px-3 py-1.5 rounded-lg font-black uppercase  border ${
-                                                        tx.type === 'CREDIT' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                                    }`}>
-                                                        {tx.transactionType}
-                                                    </span>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <div className={`font-mono text-lg font-black flex items-center gap-2 ${isRisk ? 'text-orange-400' : tx.type === 'DEBIT' ? 'text-white' : 'text-emerald-400'}`}>
-                                                        {tx.type === 'DEBIT' ? '-' : '+'}{Number(tx.amount).toLocaleString()}
-                                                        <span className="text-[10px] opacity-30 font-bold uppercase">AED</span>
-                                                        {isRisk && <AlertOctagon size={14} className="text-orange-400 animate-pulse" />}
+                                                    <div className="flex flex-col gap-1">
+                                                        {item.orderNumber && (
+                                                            <div className="text-xs font-black text-white/80 flex items-center gap-2">
+                                                                <span className="text-[9px] text-white/20">ORD</span>
+                                                                {item.orderNumber}
+                                                            </div>
+                                                        )}
+                                                        <div className="text-[10px] text-white/40 font-bold flex items-center gap-2">
+                                                            {item.customerName && (
+                                                                <span className="flex items-center gap-1">
+                                                                    <User size={10} />
+                                                                    {item.customerName}
+                                                                </span>
+                                                            )}
+                                                            {item.storeName && (
+                                                                <span className="flex items-center gap-1 text-gold-500/50">
+                                                                    <Crown size={10} />
+                                                                    {item.storeName}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 font-mono text-xs text-white/40">
-                                                    {new Date(tx.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                                <td className="px-8 py-6 text-center">
+                                                    <div className={`font-mono text-lg font-black flex items-center justify-center gap-2 ${
+                                                        isCredit ? 'text-emerald-400' : isDebit ? 'text-rose-400' : 'text-white/60'
+                                                    }`}>
+                                                        {isDebit ? '-' : '+'}{Number(item.amount).toLocaleString()}
+                                                        <span className="text-[10px] opacity-30 font-bold uppercase">{item.currency}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6 font-mono text-xs text-white/40 text-center">
+                                                    {new Date(item.createdAt).toLocaleString(isAr ? 'ar-EG' : 'en-US', { 
+                                                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                                                    })}
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                                                        <span className="text-[10px] text-white/60 font-black uppercase ">
-                                                            {tx.status}
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <div className={`w-2 h-2 rounded-full ${
+                                                            item.status === 'COMPLETED' || item.status === 'SUCCESS' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                                                            item.status === 'PENDING' ? 'bg-amber-500 animate-pulse' : 'bg-white/20'
+                                                        }`} />
+                                                        <span className="text-[10px] text-white/60 font-black uppercase">
+                                                            {item.status}
                                                         </span>
                                                     </div>
+                                                </td>
+                                                <td className="px-8 py-6 text-left">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (item.orderId) setSelectedOrderIdForTimeline(item.orderId);
+                                                        }}
+                                                        disabled={!item.orderId}
+                                                        className="p-2 rounded-xl bg-white/5 hover:bg-gold-500 hover:text-black transition-all disabled:opacity-20 disabled:cursor-not-allowed group/btn shadow-lg border border-white/5"
+                                                        title={isAr ? 'عرض سجل التدقيق المالي' : 'View Financial Audit Trail'}
+                                                    >
+                                                        <History size={16} className="group-hover/btn:rotate-[360deg] transition-all duration-700" />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         );
@@ -698,9 +744,25 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Infinite Scroll Target */}
+                        <div ref={observerTarget} className="h-20 flex items-center justify-center">
+                            {isFeedLoading && (
+                                <div className="flex items-center gap-3 text-gold-500/50 font-black text-[10px] uppercase tracking-tighter animate-pulse">
+                                    <RefreshCw size={14} className="animate-spin" />
+                                    Scanning blockchain ledger...
+                                </div>
+                            )}
+                            {!feedHasMore && financialFeed.length > 0 && (
+                                <div className="text-white/10 font-black text-[10px] uppercase tracking-tighter">
+                                    End of financial trail reached
+                                </div>
+                            )}
+                        </div>
                     </GlassCard>
                 </div>
-            )}
+            </div>
+        )}
 
             {activeTab === 'WITHDRAWALS' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
@@ -861,7 +923,10 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                         </div>
                         <div className="p-6 space-y-4">
                             {(() => {
-                                const entity = selectedWithdrawalReq.role === 'CUSTOMER' ? selectedWithdrawalReq.user : selectedWithdrawalReq.store;
+                                // Find the latest data from the store to ensure immediate UI update
+                                const freshReq = pendingWithdrawals.find(w => w.id === selectedWithdrawalReq.id) || selectedWithdrawalReq;
+                                const entity = freshReq.role === 'CUSTOMER' ? freshReq.user : freshReq.store;
+                                
                                 if (!entity?.bankIban && !entity?.bankName) {
                                     return (
                                         <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-500">
@@ -905,18 +970,23 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                             {!entity.bankDetailsVerified && (
                                                 <div className="pt-4 mt-2 border-t border-white/5">
                                                     <button
+                                                        disabled={isVerifyingBank}
                                                         onClick={async () => {
-                                                            const res = await verifyBankDetails(entity.id, selectedWithdrawalReq.role);
-                                                            if (res.success) {
-                                                                alert(isAr ? 'تم التوثيق بنجاح' : 'Verified successfully');
-                                                            } else {
+                                                            setIsVerifyingBank(true);
+                                                            const res = await verifyBankDetails(entity.id || entity.ownerId, freshReq.role);
+                                                            setIsVerifyingBank(false);
+                                                            if (!res.success) {
                                                                 alert(isAr ? 'فشل التوثيق' : 'Verification failed');
                                                             }
                                                         }}
-                                                        className="w-full py-3 px-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 text-emerald-500 hover:text-white transition-all text-sm font-black tracking-wider uppercase flex items-center justify-center gap-2 group/verifybtn"
+                                                        className="w-full py-3 px-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 text-emerald-500 hover:text-white transition-all text-sm font-black tracking-wider uppercase flex items-center justify-center gap-2 group/verifybtn disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
-                                                        <ShieldCheck size={18} className="group-hover/verifybtn:scale-110 transition-transform" />
-                                                        {isAr ? 'توثيق البيانات البنكية للعميل' : 'Verify Bank Details'}
+                                                        {isVerifyingBank ? (
+                                                            <RefreshCw size={18} className="animate-spin" />
+                                                        ) : (
+                                                            <ShieldCheck size={18} className="group-hover/verifybtn:scale-110 transition-transform" />
+                                                        )}
+                                                        {isAr ? (isVerifyingBank ? 'جاري التوثيق...' : 'توثيق البيانات البنكية للعميل') : (isVerifyingBank ? 'Verifying...' : 'Verify Bank Details')}
                                                     </button>
                                                 </div>
                                             )}
@@ -928,6 +998,14 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                     </div>
                 </div>
             )}
+            {/* Phase 4: Financial Audit Drawer */}
+            <OrderFinancialDrawer 
+                orderId={selectedOrderIdForTimeline} 
+                onClose={() => setSelectedOrderIdForTimeline(null)} 
+            />
+
+            {/* Phase 5: Real-time Notifications */}
+            <FinancialToast />
         </div>
     );
 };

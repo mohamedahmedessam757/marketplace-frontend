@@ -671,8 +671,26 @@ export const admin = {
           netImpact: 'الأثر المالي',
           timestamp: 'الطابع الزمني',
           status: 'حالة الحوكمة',
+          transaction: 'العملية / المصدر',
+          details: 'التفاصيل والارتباطات',
+          amount: 'القيمة (AED)',
+          status_header: 'الحالة',
           scanning: 'جاري فحص السجل الآمن...',
           noRecords: 'لم يتم رصد سجلات مطابقة'
+        },
+        loadMore: 'تحميل المزيد من العمليات الموحدة',
+        auditDrawer: {
+          title: 'تدقيق مالي للطلب',
+          totalPaid: 'إجمالي المدفوع',
+          platformFee: 'عمولة المنصة',
+          timeline: 'الجدول الزمني المالي',
+          analyzing: 'جاري تحليل السجل المالي...',
+          noRecords: 'لم يتم العثور على سجلات',
+          close: 'إغلاق السجل',
+          alert: 'تنبيه استثنائي'
+        },
+        banner: {
+          newEvents: 'عمليات جديدة - انقر للتحديث'
         }
       },
       withdrawals: {
@@ -1427,8 +1445,26 @@ export const admin = {
           netImpact: 'Net Impact',
           timestamp: 'Timestamp',
           status: 'Governance Status',
+          transaction: 'Transaction / Source',
+          details: 'Details & Relations',
+          amount: 'Amount (AED)',
+          status_header: 'Status',
           scanning: 'Scanning Secure Ledger...',
           noRecords: 'No matching records detected'
+        },
+        loadMore: 'Load More Unified Transactions',
+        auditDrawer: {
+          title: 'Order Financial Audit',
+          totalPaid: 'Total Paid',
+          platformFee: 'Platform Fee',
+          timeline: 'Financial Timeline',
+          analyzing: 'Analyzing Financial Ledger...',
+          noRecords: 'No records found',
+          close: 'Close Audit',
+          alert: 'Exceptional Alert'
+        },
+        banner: {
+          newEvents: 'New Events - Click to Refresh'
         }
       },
       withdrawals: {

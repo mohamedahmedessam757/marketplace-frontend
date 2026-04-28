@@ -179,6 +179,33 @@ export interface WithdrawalLimits {
   max: number;
 }
 
+export interface UnifiedFinancialEvent {
+  id: string;
+  source: 'PAYMENT' | 'WALLET' | 'ESCROW' | 'WITHDRAWAL';
+  orderId?: string;
+  orderNumber?: string;
+  customerId?: string;
+  customerName?: string;
+  customerCode?: string;
+  customerAvatar?: string;
+  storeId?: string;
+  storeName?: string;
+  storeLogo?: string;
+  storeCode?: string;
+  amount: number;
+  currency: string;
+  direction: 'CREDIT' | 'DEBIT' | 'HOLD' | 'RELEASE' | 'FREEZE';
+  eventType: string;
+  eventTypeAr: string;
+  eventTypeEn: string;
+  status: string;
+  description?: string;
+  metadata?: any;
+  createdAt: string;
+  updatedAt?: string;
+  isNew?: boolean; // For glow effect
+}
+
 export interface AdminState {
   currentAdmin: AdminUser | null;
   commissionRate: number;
@@ -203,6 +230,26 @@ export interface AdminState {
   withdrawalLimits: WithdrawalLimits;
   isLoadingWithdrawals: boolean;
 
+  // Unified Financial Feed (2026)
+  financialFeed: UnifiedFinancialEvent[];
+  isFeedLoading: boolean;
+  feedHasMore: boolean;
+  feedPage: number;
+  feedFilters: { type: string; search: string; startDate?: string; endDate?: string };
+  fetchFinancialFeed: (reset?: boolean, silent?: boolean) => Promise<void>;
+  setFeedFilters: (filters: Partial<AdminState['feedFilters']>) => void;
+  markFeedItemAsSeen: (id: string) => void;
+  subscribeToFinancialFeed: () => void;
+  unsubscribeFromFinancialFeed: () => void;
+  financialFeedSubscription: any;
+  newEventsCount: number;
+  clearNewEventsCount: () => void;
+  
+  // Real-time Toasts (2026)
+  financialToasts: any[];
+  addFinancialToast: (toast: any) => void;
+  removeFinancialToast: (id: string) => void;
+
   fetchStoreProfile: (id: string) => Promise<void>;
   silentFetchStoreProfile: (id: string) => Promise<void>;
   clearStoreProfile: () => void;
@@ -212,7 +259,7 @@ export interface AdminState {
   updateStoreNotes: (id: string, notes: string) => Promise<boolean>;
   
   // Withdrawal Management
-  fetchWithdrawals: () => Promise<void>;
+  fetchWithdrawals: (silent?: boolean) => Promise<void>;
   processWithdrawal: (id: string, action: 'approve' | 'reject', notes?: string, method?: string, signature?: string, adminName?: string, adminEmail?: string) => Promise<{ success: boolean; message: string }>;
   verifyBankDetails: (targetId: string, role: 'CUSTOMER' | 'VENDOR') => Promise<{ success: boolean }>;
   fetchWithdrawalLimits: () => Promise<void>;
@@ -281,6 +328,12 @@ export interface AdminState {
   updateSystemConfig: (section: keyof SystemConfig, data: any) => void;
   fetchAllStores: () => Promise<void>;
   silentFetchStores: () => Promise<void>;
+
+  // Phase 4: Order Financial Timeline (2026)
+  orderTimeline: any | null;
+  orderTimelineLoading: boolean;
+  fetchOrderTimeline: (orderId: string) => Promise<void>;
+  clearOrderTimeline: () => void;
 }
 
 const DEFAULT_STATUS: SystemStatus = {
@@ -318,6 +371,15 @@ export const useAdminStore = create<AdminState>()(
 
       adminFinancials: null,
       isLoadingFinancials: false,
+
+      // Unified Financial Feed Initial State
+      financialFeed: [],
+      isFeedLoading: false,
+      feedHasMore: true,
+      feedPage: 1,
+      feedFilters: { type: 'ALL', search: '' },
+      newEventsCount: 0,
+      financialToasts: [],
       financialFilters: {
         startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0],
@@ -327,6 +389,10 @@ export const useAdminStore = create<AdminState>()(
         search: ''
       },
       financialSubscription: null,
+
+      // Phase 4: Order Financial Timeline
+      orderTimeline: null,
+      orderTimelineLoading: false,
 
       systemConfig: {
         general: {
@@ -789,8 +855,8 @@ export const useAdminStore = create<AdminState>()(
         }
       },
 
-      fetchWithdrawals: async () => {
-        set({ isLoadingWithdrawals: true });
+      fetchWithdrawals: async (silent = false) => {
+        if (!silent) set({ isLoadingWithdrawals: true });
         try {
           const token = localStorage.getItem('access_token');
           const res = await fetch(`${API_URL}/payments/withdrawals`, {
@@ -803,7 +869,7 @@ export const useAdminStore = create<AdminState>()(
         } catch (error) {
           console.error('Failed to fetch withdrawals:', error);
         } finally {
-          set({ isLoadingWithdrawals: false });
+          if (!silent) set({ isLoadingWithdrawals: false });
         }
       },
 
@@ -839,7 +905,7 @@ export const useAdminStore = create<AdminState>()(
 
       verifyBankDetails: async (targetId, role) => {
         try {
-          const token = localStorage.getItem('token');
+          const token = localStorage.getItem('access_token');
           const res = await fetch(`${API_URL}/payments/admin/verify-bank-details`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -1055,6 +1121,176 @@ export const useAdminStore = create<AdminState>()(
         get().fetchAdminFinancials(undefined, false); // Explicit user filter change = show loading
       },
 
+      financialFeedSubscription: null,
+
+      subscribeToFinancialFeed: () => {
+        if (get().financialFeedSubscription) return;
+
+        const channel = supabase.channel('admin-financial-feed')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'payment_transactions' }, (payload) => {
+            get().fetchFinancialFeed(true, true); // Silent refresh
+            set({ newEventsCount: get().newEventsCount + 1 });
+            get().addFinancialToast({ id: Date.now().toString(), type: 'PAYMENT', amount: (payload.new as any).total_amount, status: (payload.new as any).status });
+          })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'payment_transactions' }, (payload) => {
+            if ((payload.new as any).status === 'SUCCESS' && (payload.old as any).status !== 'SUCCESS') {
+              get().fetchFinancialFeed(true, true); // Silent refresh
+              set({ newEventsCount: get().newEventsCount + 1 });
+              get().addFinancialToast({ id: Date.now().toString(), type: 'PAYMENT_SUCCESS', amount: (payload.new as any).total_amount });
+            }
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_transactions' }, (payload) => {
+            get().fetchFinancialFeed(true, true); // Silent refresh
+            if (payload.eventType === 'INSERT') {
+              set({ newEventsCount: get().newEventsCount + 1 });
+              get().addFinancialToast({ id: Date.now().toString(), type: 'WALLET', amount: (payload.new as any).amount, txnType: (payload.new as any).transactionType });
+            }
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'escrow_transactions' }, (payload) => {
+            get().fetchFinancialFeed(true, true); // Silent refresh
+            if (payload.eventType === 'INSERT' || ((payload.new as any).status !== (payload.old as any).status)) {
+              set({ newEventsCount: get().newEventsCount + 1 });
+              get().addFinancialToast({ id: Date.now().toString(), type: 'ESCROW', amount: (payload.new as any).merchantAmount, status: (payload.new as any).status });
+            }
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, (payload) => {
+            get().fetchFinancialFeed(true, true); // Silent refresh
+            if (payload.eventType === 'INSERT') {
+              set({ newEventsCount: get().newEventsCount + 1 });
+              get().addFinancialToast({ id: Date.now().toString(), type: 'WITHDRAWAL', amount: (payload.new as any).amount, status: (payload.new as any).status });
+            }
+          })
+          .subscribe();
+
+        set({ financialFeedSubscription: channel });
+      },
+
+      unsubscribeFromFinancialFeed: () => {
+        const { financialFeedSubscription } = get();
+        if (financialFeedSubscription) {
+          supabase.removeChannel(financialFeedSubscription);
+          set({ financialFeedSubscription: null, newEventsCount: 0 });
+        }
+      },
+
+      clearNewEventsCount: () => set({ newEventsCount: 0 }),
+
+      addFinancialToast: (toast) => {
+        const current = get().financialToasts;
+        set({ financialToasts: [toast, ...current].slice(0, 5) }); // Keep last 5
+        
+        // Play notification sound
+        try {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+          audio.volume = 0.2;
+          audio.play();
+        } catch (e) {}
+
+        // Auto remove after 5s
+        setTimeout(() => get().removeFinancialToast(toast.id), 5000);
+      },
+
+      removeFinancialToast: (id) => {
+        set({ financialToasts: get().financialToasts.filter(t => t.id !== id) });
+      },
+
+      setFeedFilters: (filters) => {
+        set({ feedFilters: { ...get().feedFilters, ...filters }, feedPage: 1 });
+        get().fetchFinancialFeed(true);
+      },
+
+      fetchFinancialFeed: async (reset = false, silent = false) => {
+        const { feedPage, feedFilters, financialFeed } = get();
+        const page = reset ? 1 : feedPage;
+        
+        if (!silent) {
+          if (!reset) set({ isFeedLoading: true });
+          else set({ isFeedLoading: true, financialFeed: [] });
+        }
+
+        try {
+          const token = localStorage.getItem('access_token');
+          const queryParams = new URLSearchParams({
+            page: page.toString(),
+            limit: '15', // 2026 Performance Standard: Small chunks for instant loading
+            ...feedFilters,
+            ...(feedFilters.startDate ? { startDate: feedFilters.startDate } : {}),
+            ...(feedFilters.endDate ? { endDate: feedFilters.endDate } : {})
+          } as any).toString();
+
+          const res = await fetch(`${API_URL}/payments/admin/financial-feed?${queryParams}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (res.ok) {
+            const { data, hasMore } = await res.json();
+            
+            // Handle Seen/Unseen logic for Glow Effect
+            const seenIds = JSON.parse(sessionStorage.getItem('seen_financial_ids') || '[]');
+            const enrichedData = data.map((item: any) => ({
+              ...item,
+              isNew: !seenIds.includes(item.id)
+            }));
+
+            // Smart Update: Prepend if silent refresh of page 1, otherwise append
+            let newFeed = financialFeed;
+            if (reset) {
+              newFeed = enrichedData;
+            } else {
+              // Append next page
+              newFeed = [...financialFeed, ...enrichedData];
+            }
+
+            set({
+              financialFeed: newFeed,
+              feedHasMore: hasMore,
+              feedPage: page + 1,
+              isFeedLoading: false
+            });
+          }
+        } catch (error) {
+          console.error('Failed to fetch financial feed', error);
+          set({ isFeedLoading: false });
+        }
+      },
+
+      markFeedItemAsSeen: (id: string) => {
+        const seenIds = JSON.parse(sessionStorage.getItem('seen_financial_ids') || '[]');
+        if (!seenIds.includes(id)) {
+          seenIds.push(id);
+          // Keep only last 200 IDs to save storage
+          if (seenIds.length > 200) seenIds.shift();
+          sessionStorage.setItem('seen_financial_ids', JSON.stringify(seenIds));
+        }
+
+        set({
+          financialFeed: get().financialFeed.map(item => 
+            item.id === id ? { ...item, isNew: false } : item
+          )
+        });
+      },
+
+      fetchOrderTimeline: async (orderId: string) => {
+        set({ orderTimelineLoading: true, orderTimeline: null });
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/payments/admin/order-financial-timeline/${orderId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            set({ orderTimeline: data, orderTimelineLoading: false });
+          } else {
+            set({ orderTimelineLoading: false });
+          }
+        } catch (error) {
+          console.error('Failed to fetch order financial timeline', error);
+          set({ orderTimelineLoading: false });
+        }
+      },
+
+      clearOrderTimeline: () => set({ orderTimeline: null, orderTimelineLoading: false }),
+
       // silent=true: update data in background without showing loading skeleton (prevents flicker on realtime updates)
       // silent=false (default): show full loading state (used on initial mount or manual filter changes)
       fetchAdminFinancials: async (filters?: any, silent: boolean = false) => {
@@ -1173,6 +1409,9 @@ export const useAdminStore = create<AdminState>()(
           storeProfileSubscription, 
           withdrawalSubscription,
           financialSubscription,
+          financialFeedSubscription,
+          orderTimeline,
+          financialToasts,
           ...rest 
         } = state;
         return rest;

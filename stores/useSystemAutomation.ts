@@ -49,7 +49,7 @@ export const useSystemAutomation = create<AutomationState>((set, get) => ({
 
         const { orders, transitionOrder } = useOrderStore.getState();
         const { documents, vendorStatus, setVendorStatus } = useVendorStore.getState();
-        const { cases, createCase } = useResolutionStore.getState();
+        const { cases } = useResolutionStore.getState();
         const { addNotification } = useNotificationStore.getState();
         const { logAction } = useAuditStore.getState();
 

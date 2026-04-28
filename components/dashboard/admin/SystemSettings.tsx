@@ -24,10 +24,10 @@ export const SystemSettings: React.FC = () => {
                 </div>
                 <button 
                     onClick={toggleSystemStatus}
-                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${systemStatus === 'active' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
+                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${!systemStatus.maintenanceMode ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
                 >
                     <Power size={16} />
-                    {systemStatus === 'active' ? 'Active' : 'Maintenance'}
+                    {!systemStatus.maintenanceMode ? 'Active' : 'Maintenance'}
                 </button>
             </div>
         </GlassCard>
