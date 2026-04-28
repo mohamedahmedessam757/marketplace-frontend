@@ -65,6 +65,9 @@ export const AdminAuditLogs: React.FC = () => {
                              (filterEntity === 'ORDER' && l.entity === 'ORDER') ||
                              (filterEntity === 'SHIPMENT' && l.entity === 'SHIPMENT') ||
                              (filterEntity === 'USER' && l.entity === 'USER') ||
+                             (filterEntity === 'VIOLATION' && l.entity.startsWith('VIOLATION')) ||
+                             (filterEntity === 'RECOVERY' && l.entity === 'AccountRecoveryRequest') ||
+                             (filterEntity === 'CHAT' && l.entity === 'OrderChat') ||
                              (filterEntity === 'SYSTEM' && (l.entity === 'SYSTEM' || l.actorType === 'SYSTEM'));
 
         const searchLower = search.toLowerCase();
@@ -284,6 +287,9 @@ export const AdminAuditLogs: React.FC = () => {
                             <option value="ORDER" className="bg-[#151310]">{t.admin.auditPage.entities.ORDER}</option>
                             <option value="SHIPMENT" className="bg-[#151310]">{t.admin.auditPage.entities.SHIPMENT}</option>
                             <option value="USER" className="bg-[#151310]">{t.admin.auditPage.entities.USER}</option>
+                            <option value="VIOLATION" className="bg-[#151310]">{t.admin.auditPage.entities.VIOLATION}</option>
+                            <option value="RECOVERY" className="bg-[#151310]">{t.admin.auditPage.entities.AccountRecoveryRequest}</option>
+                            <option value="CHAT" className="bg-[#151310]">{t.admin.auditPage.entities.OrderChat}</option>
                             <option value="SYSTEM" className="bg-[#151310]">{t.admin.auditPage.entities.SYSTEM}</option>
                         </select>
 
@@ -447,8 +453,17 @@ export const AdminAuditLogs: React.FC = () => {
                                                                                     <span className="text-[9px] text-white/20 font-black uppercase tracking-wider mb-1">
                                                                                         {(t.admin.auditPage.metadataLabels as any)[k] || k}
                                                                                     </span>
-                                                                                    <span className="text-xs text-white/70 font-mono truncate select-all" title={String(v)}>
+                                                                                    <span className="text-xs text-white/70 font-mono truncate select-all flex items-center justify-between group/meta" title={String(v)}>
                                                                                         {String(v)}
+                                                                                        <button 
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                navigator.clipboard.writeText(String(v));
+                                                                                            }}
+                                                                                            className="opacity-0 group-hover/meta:opacity-100 p-1 hover:bg-white/10 rounded transition-all"
+                                                                                        >
+                                                                                            <Download size={10} className="text-gold-500 rotate-90" />
+                                                                                        </button>
                                                                                     </span>
                                                                                 </div>
                                                                             ))}

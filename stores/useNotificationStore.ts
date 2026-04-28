@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
+import { io, Socket } from 'socket.io-client';
+
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+let socket: Socket | null = null;
 
 export type NotificationType = 'ORDER' | 'SYSTEM' | 'OFFER' | 'PAYMENT' | 'SHIPPING' | 'DELIVERED' | 'CANCELED' | 'RATE' | 'DISPUTE' | 'DOC_EXPIRY' | 'SECURITY';
 
@@ -30,6 +34,7 @@ interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
   isLoading: boolean;
+  isConnected: boolean;
 
   fetchNotifications: (userId: string, role: string) => Promise<void>;
   markAsRead: (id: string, userId: string) => Promise<void>;
@@ -44,6 +49,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
   isLoading: false,
+  isConnected: false,
 
   clearNotifications: () => set({
     notifications: [],
@@ -187,56 +193,93 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   subscribeToNotifications: (userId: string, role: string) => {
-    // Unsubscribe existing if any (handled by component unmount usually, but safety check)
-    // We can store subscription in a variable outside or in store? Store is better but simple var here works if singleton.
-    // Using supabase.channel returns a subscription.
-
-    const channel = supabase.channel(`public:notifications:${userId}:${role}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `recipient_id=eq.${userId}` // Supabase realtime filter only allows 1 equality filter currently, so we filter by role locally in the callback
-        },
-        (payload) => {
-          const newNotif = payload.new as any;
-          if (newNotif.recipient_role !== role.toUpperCase()) return; // Isolate roles
-
-          const mapped: Notification = {
-            id: newNotif.id,
-            recipientId: newNotif.recipient_id,
-            recipientRole: newNotif.recipient_role,
-            titleAr: newNotif.title_ar,
-            titleEn: newNotif.title_en,
-            messageAr: newNotif.message_ar,
-            messageEn: newNotif.message_en,
-            type: newNotif.type,
-            isRead: newNotif.is_read,
-            link: newNotif.link,
-            metadata: newNotif.metadata,
-            createdAt: newNotif.created_at
-          };
-
-          set(state => ({
-            notifications: [mapped, ...state.notifications],
-            unreadCount: state.unreadCount + 1
-          }));
-
-          // Optional: Play sound?
-        }
-      )
-      .subscribe();
-
-    // We should store 'max 1 channel' logic if called multiple times
-  },
-
-  unsubscribeFromNotifications: () => {
+    // 1. Clean up legacy Supabase channels just in case
     supabase.getChannels().forEach(ch => {
-      if (ch.topic.startsWith('realtime:public:notifications')) {
+      if (ch.topic.startsWith('public:notifications')) {
         supabase.removeChannel(ch);
       }
     });
+
+    // 2. Disconnect existing socket if any
+    if (socket) {
+      socket.disconnect();
+    }
+
+    // 3. Connect to the NestJS WebSockets Gateway (Phase 1 Infrastructure)
+    console.log(`[Notifications] Connecting to ${BACKEND_URL}/notifications for user ${userId}...`);
+    socket = io(`${BACKEND_URL}/notifications`, {
+      query: { userId, role: role.toUpperCase() },
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+    });
+
+    socket.on('connect', () => {
+      console.log(`[Notifications] ✅ Connected to WebSocket Gateway! Socket ID: ${socket?.id}`);
+      set({ isConnected: true });
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn(`[Notifications] ❌ Disconnected from WebSocket: ${reason}`);
+      set({ isConnected: false });
+    });
+
+    // 3.1 Common Handler
+    const handleNewNotification = (payload: any) => {
+      console.log('[Notifications] Received real-time event:', payload);
+
+      const mapped: Notification = {
+        id: payload.id || Math.random().toString(),
+        recipientId: payload.recipientId,
+        recipientRole: payload.recipientRole,
+        titleAr: payload.titleAr,
+        titleEn: payload.titleEn,
+        messageAr: payload.messageAr,
+        messageEn: payload.messageEn,
+        type: payload.type,
+        isRead: payload.isRead || false,
+        link: payload.link,
+        metadata: payload.metadata,
+        createdAt: payload.createdAt || new Date().toISOString()
+      };
+
+      set(state => {
+        // Prevent duplicate if already fetched or optimistically added
+        if (state.notifications.some(n => n.id === mapped.id)) return state;
+        
+        return {
+          notifications: [mapped, ...state.notifications],
+          unreadCount: state.unreadCount + 1
+        };
+      });
+    };
+
+    // Listen for standard notifications
+    socket.on('new_notification', handleNewNotification);
+
+    // Listen for administrative alerts if applicable
+    socket.on('admin_alert', handleNewNotification);
+
+    socket.on('connect_error', (err) => {
+      console.error('[Notifications] Connection error:', err.message);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[Notifications] Disconnected from Gateway');
+    });
+  },
+
+  unsubscribeFromNotifications: () => {
+    // Clean up legacy Supabase just in case
+    supabase.getChannels().forEach(ch => {
+      if (ch.topic.startsWith('public:notifications')) {
+        supabase.removeChannel(ch);
+      }
+    });
+
+    // Disconnect the WebSocket
+    if (socket) {
+      socket.disconnect();
+      socket = null;
+    }
   }
 }));
