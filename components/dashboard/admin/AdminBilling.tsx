@@ -31,13 +31,16 @@ import {
     Crown,
     ChevronDown,
     Package,
-    User
+    User,
+    X
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { BarChart } from '../../ui/Charts';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { ManualPayoutModal } from './ManualPayoutModal';
+import { RejectWithdrawalModal } from './RejectWithdrawalModal';
+import { Landmark } from 'lucide-react';
 
 interface AdminBillingProps {
     onNavigate?: (path: string, id: any) => void;
@@ -67,11 +70,16 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const processWithdrawal = useAdminStore(s => s.processWithdrawal);
     const fetchWithdrawals = useAdminStore(s => s.fetchWithdrawals);
     const isLoadingWithdrawals = useAdminStore(s => s.isLoadingWithdrawals);
+    const verifyBankDetails = useAdminStore(s => s.verifyBankDetails);
 
     const [tempRate, setTempRate] = useState(commissionRate);
     const [limits, setLimits] = useState(withdrawalLimits);
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRANSACTIONS' | 'WITHDRAWALS'>('OVERVIEW');
     const [showPayoutModal, setShowPayoutModal] = useState(false);
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [showBankModal, setShowBankModal] = useState(false);
+    const [selectedWithdrawalReq, setSelectedWithdrawalReq] = useState<any>(null);
+    const [processingRejectId, setProcessingRejectId] = useState<string | null>(null);
     
     const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
     const [isRoleFilterOpen, setIsRoleFilterOpen] = useState(false);
@@ -752,18 +760,36 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                             </td>
                                             <td className="px-8 py-6">
                                                 <div className="flex gap-2 justify-end">
+                                                    {/* Bank Details Button — always visible for any withdrawal */}
+                                                    <button 
+                                                        onClick={() => {
+                                                            setSelectedWithdrawalReq(req);
+                                                            setShowBankModal(true);
+                                                        }} 
+                                                        className="w-11 h-11 bg-blue-500/10 hover:bg-blue-500 text-blue-500 hover:text-white rounded-xl transition-all border border-blue-500/20 flex items-center justify-center group/btn"
+                                                        title={isAr ? 'عرض البيانات البنكية' : 'View Bank Details'}
+                                                    >
+                                                        <Landmark size={20} className="group-hover/btn:scale-110 transition-transform" />
+                                                    </button>
+
                                                     {req.status === 'PENDING' && isSuperAdmin && (
                                                         <>
                                                             <button 
-                                                                onClick={() => processWithdrawal(req.id, 'approve')} 
+                                                                onClick={() => {
+                                                                    setSelectedWithdrawalReq(req);
+                                                                    setShowPayoutModal(true);
+                                                                }} 
                                                                 className="w-11 h-11 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-black rounded-xl transition-all border border-emerald-500/20 flex items-center justify-center group/btn"
                                                                 title={t.admin.billing.withdrawals.actions.execute}
                                                             >
                                                                 <CheckCircle2 size={20} className="group-hover/btn:scale-110 transition-transform" />
                                                             </button>
                                                             <button 
-                                                                onClick={() => processWithdrawal(req.id, 'reject', prompt(t.admin.billing.withdrawals.actions.rejectPrompt)||undefined)} 
-                                                                className="w-11 h-11 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl transition-all border border-rose-500/20 flex items-center justify-center group/btn"
+                                                                onClick={() => {
+                                                                    setSelectedWithdrawalReq(req);
+                                                                    setShowRejectModal(true);
+                                                                }} 
+                                                                className="w-11 h-11 rounded-xl transition-all border flex items-center justify-center group/btn bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20"
                                                                 title={t.admin.billing.withdrawals.actions.invalidate}
                                                             >
                                                                 <AlertOctagon size={20} className="group-hover/btn:scale-110 transition-transform" />
@@ -791,12 +817,117 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
             {/* 5. Manual Payout Modal (2026 Style Overlay) */}
             <ManualPayoutModal
                 show={showPayoutModal}
-                onClose={() => setShowPayoutModal(false)}
+                onClose={() => {
+                    setShowPayoutModal(false);
+                    setSelectedWithdrawalReq(null);
+                }}
                 currentAdmin={currentAdmin}
                 t={t}
                 isAr={isAr}
                 sendManualPayout={sendManualPayout}
+                processWithdrawal={processWithdrawal}
+                selectedRequest={selectedWithdrawalReq}
             />
+
+            {/* 6. Reject Withdrawal Modal */}
+            <RejectWithdrawalModal 
+                isOpen={showRejectModal}
+                onClose={() => {
+                    setShowRejectModal(false);
+                    setSelectedWithdrawalReq(null);
+                }}
+                request={selectedWithdrawalReq}
+            />
+
+            {/* 7. Bank Details Modal */}
+            {showBankModal && selectedWithdrawalReq && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBankModal(false)} />
+                    <div className="relative w-full max-w-md bg-[#0F1014] rounded-2xl border border-blue-500/20 shadow-2xl overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-blue-500/10 bg-blue-500/5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                                    <Landmark size={20} className="text-blue-500" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-black text-blue-500 tracking-wider">
+                                        {isAr ? 'البيانات البنكية' : 'Bank Details'}
+                                    </h2>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowBankModal(false)} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+                                <X size={20} className="text-white/40 hover:text-white" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {(() => {
+                                const entity = selectedWithdrawalReq.role === 'CUSTOMER' ? selectedWithdrawalReq.user : selectedWithdrawalReq.store;
+                                if (!entity?.bankIban && !entity?.bankName) {
+                                    return (
+                                        <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-500">
+                                            <AlertOctagon size={24} />
+                                            <span className="text-sm font-bold">{isAr ? 'لم يقم المستخدم بإضافة بيانات بنكية بعد.' : 'User has not added bank details yet.'}</span>
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <div className="space-y-4">
+                                        <div className="bg-[#14151A] p-4 rounded-xl border border-white/5 space-y-3">
+                                            <div className="flex justify-between items-center pb-3 border-b border-white/5">
+                                                <span className="text-xs text-white/40 uppercase">{isAr ? 'حالة التوثيق' : 'Verification Status'}</span>
+                                                {entity.bankDetailsVerified ? (
+                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md">
+                                                        <CheckCircle2 size={12} /> {isAr ? 'موثق' : 'Verified'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md">
+                                                        <AlertOctagon size={12} /> {isAr ? 'غير موثق' : 'Unverified'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[10px] text-white/40 uppercase">{isAr ? 'اسم البنك' : 'Bank Name'}</span>
+                                                <span className="text-sm font-bold text-white">{entity.bankName || '---'}</span>
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[10px] text-white/40 uppercase">{isAr ? 'اسم صاحب الحساب' : 'Account Holder'}</span>
+                                                <span className="text-sm font-bold text-white">{entity.bankAccountHolder || '---'}</span>
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[10px] text-white/40 uppercase">IBAN</span>
+                                                <span className="text-sm font-mono font-bold text-gold-500 break-all">{entity.bankIban || '---'}</span>
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[10px] text-white/40 uppercase">SWIFT Code</span>
+                                                <span className="text-sm font-mono font-bold text-white break-all">{entity.bankSwift || '---'}</span>
+                                            </div>
+
+                                            {!entity.bankDetailsVerified && (
+                                                <div className="pt-4 mt-2 border-t border-white/5">
+                                                    <button
+                                                        onClick={async () => {
+                                                            const res = await verifyBankDetails(entity.id, selectedWithdrawalReq.role);
+                                                            if (res.success) {
+                                                                alert(isAr ? 'تم التوثيق بنجاح' : 'Verified successfully');
+                                                            } else {
+                                                                alert(isAr ? 'فشل التوثيق' : 'Verification failed');
+                                                            }
+                                                        }}
+                                                        className="w-full py-3 px-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 text-emerald-500 hover:text-white transition-all text-sm font-black tracking-wider uppercase flex items-center justify-center gap-2 group/verifybtn"
+                                                    >
+                                                        <ShieldCheck size={18} className="group-hover/verifybtn:scale-110 transition-transform" />
+                                                        {isAr ? 'توثيق البيانات البنكية للعميل' : 'Verify Bank Details'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

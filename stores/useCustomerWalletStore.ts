@@ -69,6 +69,7 @@ interface CustomerWalletState {
   saveBankDetails: (details: { bankName: string; accountHolder: string; iban: string; swift?: string }) => Promise<{ success: boolean; message: string }>;
   requestWithdrawal: (amount: number, payoutMethod?: string) => Promise<{ success: boolean; message: string }>;
   getStripeOnboardingUrl: () => Promise<string>;
+  refreshStripeStatus: () => Promise<{ success: boolean; onboarded: boolean }>;
   updateStatsLocally: (updates: Partial<WalletStats>) => void;
   addTransactionLocally: (tx: WalletTransaction) => void;
   updateWithdrawalLocally: (request: WithdrawalRequest) => void;
@@ -152,11 +153,32 @@ export const useCustomerWalletStore = create<CustomerWalletState>((set, get) => 
   getStripeOnboardingUrl: async () => {
     try {
         const { client } = await import('../services/api/client');
-        const response = await client.get('/payments/customer/stripe-onboarding');
-        return response.data;
+        const response = await client.post('/stripe/onboarding-link');
+        return response.data.url;
     } catch (error: any) {
         console.error('Failed to get onboarding URL', error);
         throw error;
+    }
+  },
+
+  refreshStripeStatus: async () => {
+    try {
+        const { client } = await import('../services/api/client');
+        const response = await client.get('/stripe/status');
+        const onboarded = response.data.stripeOnboarded;
+        
+        if (onboarded) {
+          // Force refetch to sync all metadata
+          await Promise.all([
+            get().fetchWalletData(true),
+            get().fetchBankDetails()
+          ]);
+        }
+        
+        return { success: true, onboarded };
+    } catch (error) {
+        console.error('Failed to refresh stripe status', error);
+        return { success: false, onboarded: false };
     }
   },
 

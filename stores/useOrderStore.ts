@@ -655,7 +655,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
     adminUpdateOffer: async (offerId, updateDto) => {
         const token = localStorage.getItem('access_token');
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         const response = await fetch(`${API_URL}/offers/admin/${offerId}`, {
             method: 'PATCH',
             headers: {
@@ -673,7 +673,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
     adminDeleteOffer: async (offerId) => {
         const token = localStorage.getItem('access_token');
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         const response = await fetch(`${API_URL}/offers/admin/${offerId}`, {
             method: 'DELETE',
             headers: {
@@ -694,7 +694,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         }));
 
         const token = localStorage.getItem('access_token');
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         const response = await fetch(`${API_URL}/orders/admin/${orderId}/notes`, {
             method: 'PATCH',
             headers: {

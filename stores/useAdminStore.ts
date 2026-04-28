@@ -153,12 +153,24 @@ export interface WithdrawalRequest {
   store?: {
     id: string;
     name: string;
+    balance?: number;
     owner?: { name: string; email: string };
+    bankName?: string;
+    bankIban?: string;
+    bankAccountHolder?: string;
+    bankSwift?: string;
+    bankDetailsVerified?: boolean;
   };
   user?: {
     id: string;
     name: string;
     email: string;
+    customerBalance?: number;
+    bankName?: string;
+    bankIban?: string;
+    bankAccountHolder?: string;
+    bankSwift?: string;
+    bankDetailsVerified?: boolean;
   };
 }
 
@@ -201,7 +213,8 @@ export interface AdminState {
   
   // Withdrawal Management
   fetchWithdrawals: () => Promise<void>;
-  processWithdrawal: (id: string, action: 'approve' | 'reject', notes?: string) => Promise<{ success: boolean; message: string }>;
+  processWithdrawal: (id: string, action: 'approve' | 'reject', notes?: string, method?: string, signature?: string, adminName?: string, adminEmail?: string) => Promise<{ success: boolean; message: string }>;
+  verifyBankDetails: (targetId: string, role: 'CUSTOMER' | 'VENDOR') => Promise<{ success: boolean }>;
   fetchWithdrawalLimits: () => Promise<void>;
   updateWithdrawalLimits: (limits: WithdrawalLimits) => Promise<boolean>;
 
@@ -780,7 +793,7 @@ export const useAdminStore = create<AdminState>()(
         set({ isLoadingWithdrawals: true });
         try {
           const token = localStorage.getItem('access_token');
-          const res = await fetch(`${API_URL}/payments/admin/withdrawals`, {
+          const res = await fetch(`${API_URL}/payments/withdrawals`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok) {
@@ -794,7 +807,7 @@ export const useAdminStore = create<AdminState>()(
         }
       },
 
-      processWithdrawal: async (id, action, notes) => {
+      processWithdrawal: async (id, action, notes, method, signature, adminName, adminEmail) => {
         try {
           const token = localStorage.getItem('access_token');
           const res = await fetch(`${API_URL}/payments/admin/withdrawals/${id}/process`, {
@@ -803,17 +816,54 @@ export const useAdminStore = create<AdminState>()(
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}` 
             },
-            body: JSON.stringify({ action: action.toUpperCase(), notes })
+            body: JSON.stringify({ 
+              action: action.toUpperCase(), 
+              notes,
+              method,
+              adminSignature: signature,
+              adminName,
+              adminEmail
+            })
           });
           
           const result = await res.json();
           if (res.ok) {
             get().fetchWithdrawals();
-            return { success: true, message: result.message };
+            return { success: true, message: result.message || 'Processed successfully' };
           }
-          return { success: false, message: result.message };
+          return { success: false, message: result.message || 'Processing failed' };
         } catch (error) {
-          return { success: false, message: 'Processing failed' };
+          return { success: false, message: 'An unexpected error occurred' };
+        }
+      },
+
+      verifyBankDetails: async (targetId, role) => {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch(`${API_URL}/payments/admin/verify-bank-details`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ targetId, role })
+          });
+          const result = await res.json();
+          if (res.ok) {
+            // Update local state so the UI reflects immediately without re-fetch
+            set(state => ({
+              pendingWithdrawals: state.pendingWithdrawals.map(w => {
+                if (role === 'CUSTOMER' && w.user?.id === targetId) {
+                  return { ...w, user: { ...w.user, bankDetailsVerified: true } };
+                }
+                if (role === 'VENDOR' && w.store?.id === targetId) {
+                  return { ...w, store: { ...w.store, bankDetailsVerified: true } };
+                }
+                return w;
+              })
+            }));
+            return { success: true };
+          }
+          return { success: false };
+        } catch {
+          return { success: false };
         }
       },
 

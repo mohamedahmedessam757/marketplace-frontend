@@ -10,9 +10,12 @@ interface ManualPayoutModalProps {
     t: any;
     isAr: boolean;
     sendManualPayout: (dto: any) => Promise<{ success: boolean; message: string }>;
+    processWithdrawal?: (id: string, action: 'approve' | 'reject', notes?: string, method?: string, signature?: string, adminName?: string, adminEmail?: string) => Promise<{ success: boolean; message: string }>;
+    selectedRequest?: any;
 }
 
-export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onClose, currentAdmin, t, isAr, sendManualPayout }) => {
+export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onClose, currentAdmin, t, isAr, sendManualPayout, processWithdrawal, selectedRequest }) => {
+    const [isProcessing, setIsProcessing] = useState(false);
     const [payoutForm, setPayoutForm] = useState({
         userId: '',
         amount: '',
@@ -21,27 +24,69 @@ export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onCl
         adminSignature: ''
     });
 
+    const [balances, setBalances] = useState({ available: 0, requested: 0, remaining: 0 });
+
     useEffect(() => {
         if (!show) {
             setPayoutForm({ userId: '', amount: '', method: 'STRIPE_CONNECT', note: '', adminSignature: '' });
+            setBalances({ available: 0, requested: 0, remaining: 0 });
+        } else if (selectedRequest) {
+            const available = selectedRequest.role === 'CUSTOMER' 
+                ? Number(selectedRequest.user?.customerBalance || 0) 
+                : Number(selectedRequest.store?.balance || 0);
+            const requested = Number(selectedRequest.amount || 0);
+            
+            setPayoutForm({
+                userId: selectedRequest.role === 'CUSTOMER' ? selectedRequest.userId : selectedRequest.storeId,
+                amount: String(requested),
+                method: selectedRequest.payoutMethod === 'STRIPE' ? 'STRIPE_CONNECT' : 'MANUAL',
+                note: selectedRequest.adminNotes || '',
+                adminSignature: ''
+            });
+
+            setBalances({
+                available,
+                requested,
+                remaining: available - requested
+            });
         }
-    }, [show]);
+    }, [show, selectedRequest]);
 
     const submitManualPayout = async () => {
         if (!payoutForm.userId || !payoutForm.amount || !payoutForm.adminSignature) {
             alert(t.admin.billing.alerts.fillRequired);
             return;
         }
-        const dto = {
-            userId: payoutForm.userId,
-            amount: Number(payoutForm.amount),
-            method: payoutForm.method,
-            note: payoutForm.note,
-            adminName: currentAdmin?.name || 'Admin',
-            adminEmail: currentAdmin?.email || 'admin@etashleh.com',
-            adminSignature: payoutForm.adminSignature
-        };
-        const res = await sendManualPayout(dto);
+        setIsProcessing(true);
+        let res;
+        
+        if (selectedRequest && processWithdrawal) {
+            // Approval flow for existing request
+            const backendMethod = payoutForm.method === 'STRIPE_CONNECT' ? 'STRIPE' : 'BANK_TRANSFER';
+            res = await processWithdrawal(
+                selectedRequest.id,
+                'approve',
+                payoutForm.note,
+                backendMethod,
+                payoutForm.adminSignature,
+                currentAdmin?.name || 'Admin',
+                currentAdmin?.email || 'admin@etashleh.com'
+            );
+        } else {
+            // Manual payout flow
+            const dto = {
+                userId: payoutForm.userId,
+                amount: Number(payoutForm.amount),
+                method: payoutForm.method,
+                note: payoutForm.note,
+                adminName: currentAdmin?.name || 'Admin',
+                adminEmail: currentAdmin?.email || 'admin@etashleh.com',
+                adminSignature: payoutForm.adminSignature
+            };
+            res = await sendManualPayout(dto);
+        }
+
+        setIsProcessing(false);
         if (res.success) {
             onClose();
         }
@@ -77,10 +122,16 @@ export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onCl
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.targetNode}</label>
-                                    <EntitySearchInput 
-                                        onSelect={(res) => setPayoutForm({ ...payoutForm, userId: res?.id || '' })}
-                                        placeholder="XXXX-XXXX-XXXX"
-                                    />
+                                    {selectedRequest ? (
+                                        <div className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-white font-mono font-bold opacity-80 cursor-not-allowed">
+                                            {selectedRequest.store?.name || selectedRequest.user?.name || payoutForm.userId}
+                                        </div>
+                                    ) : (
+                                        <EntitySearchInput 
+                                            onSelect={(res) => setPayoutForm({ ...payoutForm, userId: res?.id || '' })}
+                                            placeholder="XXXX-XXXX-XXXX"
+                                        />
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.volume}</label>
@@ -90,9 +141,29 @@ export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onCl
                                         onChange={e => setPayoutForm({...payoutForm, amount: e.target.value})} 
                                         className="w-full bg-black/40 border border-white/10 rounded-2xl p-5 text-lg text-white font-mono font-black outline-none focus:border-gold-500/50 transition-all" 
                                         placeholder="0.00" 
+                                        disabled={!!selectedRequest}
                                     />
                                 </div>
                             </div>
+
+                            {selectedRequest && (
+                                <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
+                                    <div className="flex-1">
+                                        <div className="text-[10px] font-black text-white/30 uppercase mb-1">{isAr ? 'الرصيد المتاح' : 'Available Balance'}</div>
+                                        <div className="text-xl font-mono font-black text-emerald-400">{balances.available.toLocaleString()} <span className="text-[10px] text-emerald-400/50">AED</span></div>
+                                    </div>
+                                    <div className="text-white/20 font-black text-2xl">-</div>
+                                    <div className="flex-1">
+                                        <div className="text-[10px] font-black text-white/30 uppercase mb-1">{isAr ? 'المراد سحبه' : 'Requested'}</div>
+                                        <div className="text-xl font-mono font-black text-rose-400">{balances.requested.toLocaleString()} <span className="text-[10px] text-rose-400/50">AED</span></div>
+                                    </div>
+                                    <div className="text-white/20 font-black text-2xl">=</div>
+                                    <div className="flex-1">
+                                        <div className="text-[10px] font-black text-white/30 uppercase mb-1">{isAr ? 'الرصيد المتبقي' : 'Remaining'}</div>
+                                        <div className={`text-2xl font-mono font-black ${balances.remaining < 0 ? 'text-rose-500' : 'text-white'}`}>{balances.remaining.toLocaleString()} <span className="text-[10px] text-white/20">AED</span></div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.protocol}</label>
@@ -107,7 +178,9 @@ export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onCl
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-white/30 uppercase  ml-1">{t.admin.billing.manualPayout.note}</label>
+                                <label className="text-[10px] font-black text-white/30 uppercase  ml-1">
+                                    {isAr ? 'سبب السحب (ملاحظة داخلية + ستُرسل للمستفيد)' : 'Payout Reason (Internal Note + Sent to Beneficiary)'}
+                                </label>
                                 <textarea 
                                     value={payoutForm.note} 
                                     onChange={e => setPayoutForm({...payoutForm, note: e.target.value})} 
@@ -124,11 +197,12 @@ export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onCl
                                     <Lock size={14}/> {t.admin.billing.manualPayout.cryptoSignature}
                                 </label>
                                 <input 
-                                    type="password" 
+                                    type="text" 
                                     value={payoutForm.adminSignature} 
                                     onChange={e => setPayoutForm({...payoutForm, adminSignature: e.target.value})} 
                                     className="w-full bg-black/60 border border-rose-500/30 rounded-xl p-5 text-sm text-white font-mono font-black outline-none focus:border-rose-500 transition-all text-center " 
                                     placeholder={t.admin.billing.manualPayout.signPrompt} 
+                                    autoComplete="off"
                                 />
                                 <p className="text-[9px] text-rose-500/40 font-bold mt-4 text-center uppercase  leading-relaxed">
                                     {t.admin.billing.manualPayout.auditCommit}
@@ -144,11 +218,23 @@ export const ManualPayoutModal: React.FC<ManualPayoutModalProps> = ({ show, onCl
                                 {t.common.cancel}
                             </button>
                             <button 
+                                disabled={isProcessing}
                                 onClick={submitManualPayout} 
-                                className="flex-1 py-5 bg-gold-500 hover:bg-gold-400 text-black font-black uppercase  rounded-2xl shadow-2xl shadow-gold-500/20 transition-all flex items-center justify-center gap-3 text-[10px]"
+                                className={`flex-1 py-5 rounded-2xl shadow-2xl transition-all flex items-center justify-center gap-3 text-[10px] font-black uppercase ${
+                                    isProcessing ? 'bg-gold-500/50 text-black/50 cursor-not-allowed shadow-none' : 'bg-gold-500 hover:bg-gold-400 text-black shadow-gold-500/20'
+                                }`}
                             >
-                                <Send size={18} /> 
-                                {t.admin.billing.manualPayout.execute}
+                                {isProcessing ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                        {isAr ? 'جاري المعالجة...' : 'PROCESSING...'}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send size={18} /> 
+                                        {t.admin.billing.manualPayout.execute}
+                                    </>
+                                )}
                             </button>
                         </div>
                         </div>

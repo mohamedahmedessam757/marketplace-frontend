@@ -71,9 +71,10 @@ interface MerchantWalletState {
   saveBankDetails: (details: { bankName: string; accountHolder: string; iban: string; swift?: string }) => Promise<{ success: boolean; message: string }>;
   requestWithdrawal: (amount: number, payoutMethod?: string) => Promise<{ success: boolean; message: string }>;
   getStripeOnboardingUrl: () => Promise<string>;
+  refreshStripeStatus: () => Promise<{ success: boolean; onboarded: boolean }>;
 }
 
-export const useMerchantWalletStore = create<MerchantWalletState>((set) => ({
+export const useMerchantWalletStore = create<MerchantWalletState>((set, get) => ({
   stats: {
     available: 0,
     pending: 0,
@@ -182,11 +183,40 @@ export const useMerchantWalletStore = create<MerchantWalletState>((set) => ({
   getStripeOnboardingUrl: async () => {
     try {
         const { client } = await import('../services/api/client');
-        const response = await client.get('/payments/merchant/stripe-onboarding');
-        return response.data;
+        const response = await client.post('/stripe/onboarding-link');
+        return response.data.url;
     } catch (error: any) {
         console.error('Failed to get onboarding URL', error);
         throw error;
+    }
+  },
+
+  refreshStripeStatus: async () => {
+    try {
+        const { client } = await import('../services/api/client');
+        const response = await client.get('/stripe/status');
+        const onboarded = response.data.stripeOnboarded;
+        
+        if (onboarded) {
+          const currentStats = get().stats;
+          set({ stats: { ...currentStats, stripeOnboarded: true } });
+          
+          const currentBank = get().bankDetails;
+          if (currentBank) {
+            set({ bankDetails: { ...currentBank, stripeOnboarded: true } });
+          }
+
+          // Refetch in background without blocking the success response
+          Promise.all([
+            get().fetchWallet(),
+            get().fetchBankDetails()
+          ]).catch(err => console.error('Background refetch failed', err));
+        }
+        
+        return { success: true, onboarded };
+    } catch (error) {
+        console.error('Failed to refresh stripe status', error);
+        return { success: false, onboarded: false };
     }
   }
 }));

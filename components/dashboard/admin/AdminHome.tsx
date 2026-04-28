@@ -1,5 +1,6 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '../../ui/GlassCard';
 import { Users, Store, Activity, DollarSign, Package, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight, MoreHorizontal, ShieldCheck, CheckCircle2, Download, Filter, Search, Plus, Trash2, Edit, Car, User } from 'lucide-react';
 import { Badge } from '../../ui/Badge';
@@ -86,31 +87,67 @@ const AdminHomeSkeleton = () => (
     </div>
 );
 
-// --- KPI CARD COMPONENT ---
-const KPICard = ({ label, value, icon: Icon, color, trend, children }: any) => (
-    <GlassCard className="relative overflow-hidden group p-5 border-white/5 hover:border-gold-500/30 transition-all duration-500">
-        <div className={`absolute top-0 right-0 p-20 rounded-full blur-3xl opacity-10 bg-${color.split('-')[1]}-500 group-hover:opacity-20 transition-opacity`} />
+// --- KPI CARD COMPONENT (MEMOIZED & ANIMATED) ---
+const KPICard = React.memo(({ label, value, icon: Icon, color, trend, loading, children }: any) => {
+    const [displayValue, setDisplayValue] = useState(0);
+    const targetValue = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.]/g, '')) : value;
+    const unit = typeof value === 'string' ? value.replace(/[0-9.,\s]/g, '') : '';
 
-        <div className="relative z-10 flex justify-between items-start">
-            <div>
-                <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">{label}</p>
-                <h3 className="text-2xl lg:text-3xl font-bold text-white font-mono tracking-tight">{value}</h3>
-                {children}
-            </div>
-            <div className={`p-3 rounded-xl bg-white/5 border border-white/5 ${color} shadow-lg`}>
-                <Icon size={20} />
-            </div>
-        </div>
+    useEffect(() => {
+        if (loading) return;
+        let start = displayValue;
+        const end = targetValue;
+        const duration = 800; // 0.8s for smooth count
+        const startTime = performance.now();
 
-        <div className="relative z-10 mt-4 flex items-center gap-2">
-            <span className={`text-xs font-bold flex items-center gap-1 ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {trend > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                {Math.abs(trend)}%
-            </span>
-            <span className="text-[10px] text-white/30">vs last period</span>
-        </div>
-    </GlassCard>
-);
+        const animate = (currentTime: number) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const easeOutQuad = (t: number) => t * (2 - t);
+            const current = Math.floor(start + (end - start) * easeOutQuad(progress));
+            
+            setDisplayValue(current);
+            if (progress < 1) requestAnimationFrame(animate);
+        };
+
+        requestAnimationFrame(animate);
+    }, [targetValue, loading]);
+
+    return (
+        <GlassCard className="relative overflow-hidden group p-5 border-white/5 hover:border-gold-500/30 transition-all duration-500 min-h-[140px]">
+            {loading ? (
+                <div className="space-y-4">
+                    <div className="w-16 h-3 bg-white/10 rounded-full animate-pulse" />
+                    <div className="w-24 h-8 bg-white/10 rounded-xl animate-pulse" />
+                    <div className="w-20 h-3 bg-white/5 rounded-full animate-pulse" />
+                </div>
+            ) : (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+                    <div className={`absolute top-0 right-0 p-20 rounded-full blur-3xl opacity-10 bg-${color.split('-')[1]}-500 group-hover:opacity-20 transition-opacity`} />
+                    <div className="relative z-10 flex justify-between items-start">
+                        <div>
+                            <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">{label}</p>
+                            <h3 className="text-2xl lg:text-3xl font-bold text-white font-mono tracking-tight">
+                                {displayValue.toLocaleString()} <span className="text-xs text-white/40">{unit}</span>
+                            </h3>
+                            {children}
+                        </div>
+                        <div className={`p-3 rounded-xl bg-white/5 border border-white/5 ${color} shadow-lg`}>
+                            <Icon size={20} />
+                        </div>
+                    </div>
+                    <div className="relative z-10 mt-4 flex items-center gap-2">
+                        <span className={`text-xs font-bold flex items-center gap-1 ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {trend > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                            {Math.abs(trend)}%
+                        </span>
+                        <span className="text-[10px] text-white/30">vs last period</span>
+                    </div>
+                </motion.div>
+            )}
+        </GlassCard>
+    );
+});
 
 export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     const { t, language } = useLanguage();
@@ -120,21 +157,32 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
 
     const isAr = language === 'ar';
 
-    // Date Filters State (Default last 30 days)
-    const [dateRange, setDateRange] = useState({
+    // Date Filters Local State (for smooth input interaction)
+    const [localDateRange, setLocalDateRange] = useState({
         startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0]
     });
 
-    // Fetch Real-time Stats on Mount & on Filter Change
+    // Debounced Date Range (for actual fetching)
+    const [debouncedRange, setDebouncedRange] = useState(localDateRange);
+
+    // Sync local range to debounced range with a delay
     React.useEffect(() => {
-        fetchDashboardStats(dateRange);
+        const timer = setTimeout(() => {
+            setDebouncedRange(localDateRange);
+        }, 300); // Reduced to 300ms for snappier feel
+        return () => clearTimeout(timer);
+    }, [localDateRange]);
+
+    // Fetch Real-time Stats on Mount & on Debounced Filter Change
+    React.useEffect(() => {
+        fetchDashboardStats(debouncedRange);
         subscribeToStats();
         
         // Start Global Shipment Sync
         useShipmentStore.getState().startRealtime();
 
-        // Listen for internal navigation events (fixes profile button issue)
+        // Listen for internal navigation events
         const handleInternalNav = (e: any) => {
             const { path, id } = e.detail;
             navigate(path, id);
@@ -146,7 +194,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
             useShipmentStore.getState().stopRealtime();
             window.removeEventListener('admin-nav', handleInternalNav);
         };
-    }, [dateRange]);
+    }, [debouncedRange, fetchDashboardStats, subscribeToStats, unsubscribeFromStats]);
 
     // Helper for internal nav bubbling
     const navigate = (path: string, id?: any) => {
@@ -225,7 +273,12 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
             value: s.ordersCount
         }));
 
-        return { salesTrend, salesLabels, donutData, barData };
+        const salesTrendData = dashboardStats.salesTrend.map((d, i) => ({
+            label: salesLabels[i] || '',
+            value: d.value
+        }));
+
+        return { salesTrend, salesLabels, donutData, barData, salesTrendData };
     }, [dashboardStats, language, t]);
 
     if (subPath === 'billing' || subPath === 'financials') return <AdminBilling onNavigate={navigate} />;
@@ -246,7 +299,8 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
     if (subPath === 'security-audit') return <SecurityAudit />;
     if (subPath === 'violations') return <AdminViolations />;
 
-    if (!dashboardStats || isLoadingStats) {
+    // Simplified: No global skeleton to prevent flickering
+    if (!dashboardStats && isLoadingStats) {
         return <AdminHomeSkeleton />;
     }
 
@@ -283,8 +337,8 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
                         {t.admin.security.title}
                     </button>
                     <button 
-                        onClick={() => fetchDashboardStats(dateRange)}
-                        className="px-4 py-2 bg-gold-500 hover:bg-gold-600 text-black rounded-xl text-xs font-bold shadow-lg shadow-gold-500/20 transition-all"
+                        onClick={() => fetchDashboardStats(localDateRange)}
+                        className="px-4 py-2 bg-gold-500 hover:bg-gold-600 text-black rounded-xl text-xs font-bold shadow-lg shadow-gold-500/20 transition-all active:scale-95"
                     >
                         {t.admin.actions.refresh}
                     </button>
@@ -293,20 +347,21 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
 
             {/* KPI GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                <KPICard label={t.admin.kpi.totalSales} value={`${stats.totalSales.toLocaleString()} AED`} icon={DollarSign} color="text-gold-400" trend={stats.totalSalesTrend} />
+                <KPICard label={t.admin.kpi.totalSales} value={`${stats.totalSales.toLocaleString()} AED`} icon={DollarSign} color="text-gold-400" trend={stats.totalSalesTrend} loading={isLoadingStats} />
                 <KPICard 
                     label={t.admin.kpi.commission} 
                     value={`${stats.totalCommission.toLocaleString()} AED`} 
                     icon={TrendingUp} 
                     color="text-green-400" 
                     trend={8.2} 
+                    loading={isLoadingStats}
                 >
                     <p className="text-[10px] text-white/40 mt-1">{t.admin.kpi.profitSub}</p>
                 </KPICard>
-                <KPICard label={t.admin.kpi.orders} value={stats.totalOrders} icon={Package} color="text-blue-400" trend={-2.1} />
-                <KPICard label={t.admin.kpi.customers} value={stats.activeCustomers.toLocaleString()} icon={Users} color="text-purple-400" trend={5.4} />
-                <KPICard label={t.admin.kpi.stores} value={stats.activeVendors} icon={Store} color="text-pink-400" trend={0} />
-                <KPICard label={t.admin.kpi.disputes} value={stats.openDisputes} icon={AlertTriangle} color="text-red-400" trend={15} />
+                <KPICard label={t.admin.kpi.orders} value={stats.totalOrders} icon={Package} color="text-blue-400" trend={-2.1} loading={isLoadingStats} />
+                <KPICard label={t.admin.kpi.customers} value={stats.activeCustomers.toLocaleString()} icon={Users} color="text-purple-400" trend={5.4} loading={isLoadingStats} />
+                <KPICard label={t.admin.kpi.stores} value={stats.activeVendors} icon={Store} color="text-pink-400" trend={0} loading={isLoadingStats} />
+                <KPICard label={t.admin.kpi.disputes} value={stats.openDisputes} icon={AlertTriangle} color="text-red-400" trend={15} loading={isLoadingStats} />
             </div>
 
             {/* MAIN ANALYTICS SECTION */}
@@ -316,7 +371,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                         <div>
                             <h3 className="text-lg font-bold text-white mb-1">
-                                {t.admin.charts.salesTrend} ({Math.ceil((new Date(dateRange.endDate).getTime() - new Date(dateRange.startDate).getTime()) / (1000 * 3600 * 24))} {isAr ? 'يوم' : 'Days'})
+                                {t.admin.charts.salesTrend} ({Math.ceil((new Date(localDateRange.endDate).getTime() - new Date(localDateRange.startDate).getTime()) / (1000 * 3600 * 24))} {isAr ? 'يوم' : 'Days'})
                             </h3>
                             <p className="text-xs text-white/40">{isAr ? 'نظرة شاملة على أداء المنصة المالي' : 'Overview of platform financial performance'}</p>
                         </div>
@@ -325,15 +380,15 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
                         <div className="flex items-center gap-2 bg-white/5 p-2 rounded-2xl border border-white/10">
                             <input 
                                 type="date" 
-                                value={dateRange.startDate}
-                                onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                                value={localDateRange.startDate}
+                                onChange={(e) => setLocalDateRange(prev => ({ ...prev, startDate: e.target.value }))}
                                 className="bg-transparent border-none text-[10px] text-white font-mono focus:ring-0 cursor-pointer"
                             />
                             <span className="text-white/20 text-xs">→</span>
                             <input 
                                 type="date" 
-                                value={dateRange.endDate}
-                                onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                                value={localDateRange.endDate}
+                                onChange={(e) => setLocalDateRange(prev => ({ ...prev, endDate: e.target.value }))}
                                 className="bg-transparent border-none text-[10px] text-white font-mono focus:ring-0 cursor-pointer"
                             />
                         </div>
@@ -344,13 +399,15 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
                         </div>
                     </div>
 
-                    <div className="flex-1 w-full min-h-[300px]">
-                        <div className="w-full h-[300px]">
+                    <div className="flex-1 w-full min-h-[300px] relative">
+                        {isLoadingStats && (
+                            <div className="absolute inset-0 z-20 bg-black/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                                <div className="w-12 h-12 border-4 border-gold-500/30 border-t-gold-500 rounded-full animate-spin" />
+                            </div>
+                        )}
+                        <div className={`w-full h-[300px] transition-all duration-700 ${isLoadingStats ? 'opacity-30 scale-[0.98] blur-[2px]' : 'opacity-100 scale-100 blur-0'}`}>
                             <BarChart
-                                data={chartsData.salesTrend.map((val, i) => ({
-                                    label: chartsData.salesLabels[i] || '',
-                                    value: val
-                                }))}
+                                data={chartsData.salesTrendData}
                                 height={300}
                                 color="#A88B3E" // Gold
                             />

@@ -215,6 +215,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
         saveBankDetails,
         requestWithdrawal,
         getStripeOnboardingUrl,
+        refreshStripeStatus,
         isLoading 
     } = useMerchantWalletStore();
     const [searchQuery, setSearchQuery] = useState('');
@@ -235,6 +236,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
     const [bankForm, setBankForm] = useState({ bankName: '', accountHolder: '', iban: '', swift: '' });
     const [isSavingBank, setIsSavingBank] = useState(false);
     const [showBankForm, setShowBankForm] = useState(false);
+    const [stripeSuccess, setStripeSuccess] = useState(false);
     
     const isAr = language === 'ar';
     const currentUser = getCurrentUser();
@@ -255,6 +257,52 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
             };
         }
     }, [fetchWallet, fetchWithdrawalData, currentUser?.id, dateRange.start, dateRange.end, stats.storeId]);
+
+    // --- STRIPE CONNECT RETURN HANDLER ---
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const stripeStatus = params.get('stripe_status');
+
+        if (stripeStatus === 'return') {
+            const handleReturn = async () => {
+                // Show modal immediately for instant feedback
+                setStripeSuccess(true);
+                setIsOnboarding(true);
+                try {
+                    const { success, onboarded } = await useMerchantWalletStore.getState().refreshStripeStatus();
+                    if (!success || !onboarded) {
+                        // If verification fails, hide modal and show error
+                        setStripeSuccess(false);
+                        alert(
+                            isAr
+                            ? '⚠️ يبدو أن عملية الربط لم تكتمل في Stripe. يرجى التأكد من إدخال كافة البيانات.'
+                            : '⚠️ Onboarding seems incomplete. Please ensure all data is entered in Stripe.'
+                        );
+                    }
+                } catch (error) {
+                    console.error('Error refreshing stripe status:', error);
+                    setStripeSuccess(false);
+                } finally {
+                    setIsOnboarding(false);
+                    // Clean URL
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('stripe_status');
+                    window.history.replaceState({}, '', url.pathname + url.search);
+                }
+            };
+            handleReturn();
+        } else if (stripeStatus === 'refresh') {
+            alert(
+                isAr
+                ? 'تم تحديث صفحة الربط. يرجى المتابعة.'
+                : 'Onboarding session refreshed. Please continue.'
+            );
+            // Clean URL
+            const url = new URL(window.location.href);
+            url.searchParams.delete('stripe_status');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }, [isAr, fetchBankDetails]);
 
     const handleCopyReferral = () => {
         if (!stats?.referralCode) {
@@ -299,18 +347,22 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
         setIsOnboarding(true);
         try {
             const url = await getStripeOnboardingUrl();
-            window.open(url, '_blank', 'noopener,noreferrer');
+            if (!url) throw new Error(isAr ? 'لم يتم استلام رابط الربط من الخادم' : 'No onboarding URL received from server');
+            // Use same window to maintain session stability in localhost/popups environments
+            window.location.href = url;
         } catch (error: any) {
+            console.error('Stripe Connect Error:', error);
             const msg = error.response?.data?.message || error.message || '';
+            
             if (msg.includes('Stripe Connect is not enabled') || msg.includes('signed up for Connect')) {
                 alert(isAr 
-                    ? 'خدمة Stripe Connect غير مفعلة حالياً. يرجى استخدام التحويل البنكي لسحب الأرباح.'
-                    : 'Stripe Connect is not enabled on this platform. Please use Bank Transfer for withdrawals.');
-                setPayoutMethod('BANK_TRANSFER');
+                    ? 'خدمة Stripe Connect غير مفعلة حالياً. يرجى التواصل مع الإدارة.'
+                    : 'Stripe Connect is not enabled on this platform. Please contact support.');
             } else {
-                alert(isAr ? 'فشل بدء عملية الربط، يرجى المحاولة لاحقاً.' : 'Failed to start onboarding, please try again.');
+                alert(isAr 
+                    ? `فشل بدء عملية الربط: ${msg}` 
+                    : `Failed to start onboarding: ${msg}`);
             }
-        } finally {
             setIsOnboarding(false);
         }
     };
@@ -1216,6 +1268,53 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                         onSave={handleSaveBankDetails}
                         isLoading={isSavingBank}
                     />
+                )}
+            </AnimatePresence>
+            
+            {/* Stripe Success Celebration Modal */}
+            <AnimatePresence>
+                {stripeSuccess && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setStripeSuccess(false)}
+                            className="absolute inset-0 bg-black/90 backdrop-blur-md"
+                        />
+                        <motion.div
+                            initial={{ scale: 0.5, opacity: 0, y: 100 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.5, opacity: 0, y: 100 }}
+                            className="bg-[#1A1814] border border-gold-500/30 rounded-[3rem] p-12 max-w-md w-full text-center relative z-10 shadow-[0_0_100px_rgba(212,175,55,0.2)]"
+                        >
+                            <div className="w-24 h-24 bg-gold-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-gold-500/20">
+                                <motion.div
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ delay: 0.3, type: 'spring' }}
+                                >
+                                    <ShieldCheck className="text-black" size={48} />
+                                </motion.div>
+                            </div>
+                            
+                            <h2 className="text-3xl font-black text-white mb-4 leading-tight">
+                                {isAr ? 'تهانينا! تم الربط بنجاح' : 'Congratulations! Connected Successfully'}
+                            </h2>
+                            <p className="text-white/50 mb-10 leading-relaxed font-bold">
+                                {isAr 
+                                    ? 'تم تفعيل مدفوعات Stripe الفورية لمتجرك. يمكنك الآن استلام أرباحك مباشرة وبكل سهولة.' 
+                                    : 'Stripe instant payouts are now enabled for your store. You can now receive your earnings directly and easily.'}
+                            </p>
+                            
+                            <button
+                                onClick={() => setStripeSuccess(false)}
+                                className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-black font-black uppercase tracking-[3px] rounded-2xl transition-all shadow-xl shadow-gold-500/20"
+                            >
+                                {isAr ? 'ابدأ الاستخدام' : 'Get Started'}
+                            </button>
+                        </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </div>

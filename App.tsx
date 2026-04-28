@@ -170,10 +170,18 @@ function AppContent() {
     // 2. Sync URL State Immediately (Prevents delay in route calculation)
     const initialState = parseUrlToState();
     if (initialState.view === 'dashboard') {
+      const isStripeReturn = window.location.search.includes('stripe_status=');
       if (user) {
         setCurrentView('dashboard');
         setDashboardPath(initialState.dashboardPath || 'home');
         setViewId(initialState.viewId);
+      } else if (isStripeReturn) {
+        // Session lost during Stripe onboarding (e.g. timeout)
+        // Redirect to login but keep the stripe_status in the pending redirect
+        const returnPath = `${initialState.dashboardPath || 'home'}?${window.location.search.substring(1)}`;
+        setPendingRedirect({ path: returnPath, id: initialState.viewId });
+        setCurrentView('role-selection');
+        replaceView('role-selection');
       } else {
         // Not logged in but trying to access dashboard
         setPendingRedirect({ path: initialState.dashboardPath || 'home', id: initialState.viewId });
@@ -255,6 +263,7 @@ function AppContent() {
     // Safety: ensure final state is synced
     const initialState = parseUrlToState();
     const user = getCurrentUser();
+    const isStripeReturn = window.location.search.includes('stripe_status=');
 
     if (initialState.view === 'dashboard' && user) {
         const normalizedRole = mapBackendRoleToFrontend(user?.role);
@@ -262,6 +271,11 @@ function AppContent() {
         setDashboardPath(initialState.dashboardPath || 'home');
         setViewId(initialState.viewId);
         setCurrentView('dashboard');
+    } else if (initialState.view === 'dashboard' && isStripeReturn) {
+        const returnPath = `${initialState.dashboardPath || 'home'}?${window.location.search.substring(1)}`;
+        setPendingRedirect({ path: returnPath, id: initialState.viewId });
+        setCurrentView('role-selection');
+        replaceView('role-selection');
     } else if (initialState.view === 'dashboard' && !user) {
         setPendingRedirect({ path: initialState.dashboardPath || 'home', id: initialState.viewId });
         setCurrentView('role-selection');
