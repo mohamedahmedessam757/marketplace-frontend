@@ -20,7 +20,7 @@ export const AdminSettings: React.FC = () => {
     subscribeToSettings, unsubscribeFromSettings,
     currentAdmin, fetchVendorContract, saveVendorContract,
     systemStatus, adminActivityLogs, fetchAdminActivityLogs, isLoadingLogs,
-    activeContract
+    activeContract, subscribeToActivityLogs, unsubscribeFromActivityLogs
   } = useAdminStore();
 
   const [activeTab, setActiveTab] = useState<'general' | 'financial' | 'logistics' | 'content' | 'security'>('general');
@@ -42,10 +42,12 @@ export const AdminSettings: React.FC = () => {
     return () => unsubscribeFromSettings();
   }, []);
 
-  // Fetch logs when entering security tab
+  // Fetch logs and subscribe when entering security tab
   useEffect(() => {
     if (activeTab === 'security') {
       fetchAdminActivityLogs();
+      subscribeToActivityLogs();
+      return () => unsubscribeFromActivityLogs();
     }
   }, [activeTab]);
 

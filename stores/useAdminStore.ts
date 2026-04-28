@@ -267,6 +267,9 @@ export interface AdminState {
 
   // Activity Logs
   fetchAdminActivityLogs: () => Promise<void>;
+  subscribeToActivityLogs: () => void;
+  unsubscribeFromActivityLogs: () => void;
+  activitySubscription: any;
   publicSystemStatus: any;
   fetchPublicStatus: () => Promise<void>;
   fetchPublicConfig: () => Promise<void>;
@@ -389,6 +392,7 @@ export const useAdminStore = create<AdminState>()(
         search: ''
       },
       financialSubscription: null,
+      activitySubscription: null,
 
       // Phase 4: Order Financial Timeline
       orderTimeline: null,
@@ -520,6 +524,52 @@ export const useAdminStore = create<AdminState>()(
           console.error("Failed to fetch admin logs", e);
         } finally {
           set({ isLoadingLogs: false });
+        }
+      },
+
+      subscribeToActivityLogs: () => {
+        if (get().activitySubscription) return;
+
+        const sub = supabase
+          .channel('admin_activity_logs_changes')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'admin_activity_logs' },
+            (payload) => {
+              const { eventType, new: newLog } = payload;
+              
+              set((state) => {
+                let logs = [...state.adminActivityLogs];
+                if (eventType === 'INSERT') {
+                  logs = [newLog as AdminActivityLog, ...logs].slice(0, 50);
+                } else if (eventType === 'UPDATE') {
+                  const index = logs.findIndex(l => l.id === (newLog as any).id);
+                  if (index !== -1) {
+                    logs[index] = { ...logs[index], ...(newLog as AdminActivityLog) };
+                    // Sort by newest first
+                    logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                  } else {
+                    // If not in current list (maybe pagination), add it
+                    logs = [newLog as AdminActivityLog, ...logs].slice(0, 50);
+                    logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                  }
+                } else if (eventType === 'DELETE') {
+                  logs = logs.filter(l => l.id !== (payload.old as any).id);
+                }
+                return { adminActivityLogs: logs };
+              });
+            }
+          )
+          .subscribe();
+
+        set({ activitySubscription: sub });
+      },
+
+      unsubscribeFromActivityLogs: () => {
+        const { activitySubscription } = get();
+        if (activitySubscription) {
+          supabase.removeChannel(activitySubscription);
+          set({ activitySubscription: null });
         }
       },
 
@@ -1412,6 +1462,7 @@ export const useAdminStore = create<AdminState>()(
           financialFeedSubscription,
           orderTimeline,
           financialToasts,
+          activitySubscription,
           ...rest 
         } = state;
         return rest;
