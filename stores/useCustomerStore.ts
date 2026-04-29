@@ -56,6 +56,14 @@ export interface Customer {
     orders: number;
     referredUsers: number;
   };
+
+  // Advanced Restrictions (2026)
+  withdrawalsFrozen?: boolean;
+  withdrawalFreezeNote?: string;
+  withdrawalFreezeSignature?: string;
+  orderLimit?: number;
+  dailyOrderCount?: number;
+  restrictionAlertMessage?: string;
 }
 
 interface CustomerState {
@@ -67,6 +75,8 @@ interface CustomerState {
   toggleStatus: (id: string, reason?: string) => Promise<void>;
   updateNotes: (id: string, notes: string) => Promise<void>;
   updateCustomer: (id: string, data: Partial<Customer>) => Promise<void>;
+  updateCustomerRestrictions: (id: string, data: any) => Promise<void>;
+  clearCustomerRestrictions: (id: string, signatureData?: any) => Promise<void>;
   subscribeToCustomerChanges: (id: string, onUpdate: () => void) => { unsubscribe: () => void };
 }
 
@@ -185,6 +195,49 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
       console.error(err);
       // Revert on failure
       set({ customers: previousCustomers });
+    }
+  },
+
+  updateCustomerRestrictions: async (id, data) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${API_URL}/users/admin/customers/${id}/restrictions`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to update restrictions');
+      
+      // Update local state
+      set((state) => ({
+        customers: state.customers.map(c => c.id === id ? { ...c, ...data } : c)
+      }));
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  },
+
+  clearCustomerRestrictions: async (id, signatureData) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${API_URL}/users/admin/customers/${id}/clear-restrictions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(signatureData || {})
+      });
+      if (!response.ok) throw new Error('Failed to clear restrictions');
+    } catch (err) {
+      console.error(err);
+      throw err;
     }
   },
 

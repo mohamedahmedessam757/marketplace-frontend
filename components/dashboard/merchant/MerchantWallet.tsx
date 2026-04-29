@@ -32,10 +32,14 @@ import {
     ShoppingBag,
     Link as LinkIcon,
     ArrowRightLeft,
-    ClipboardCheck
+    ClipboardCheck,
+    ShieldAlert,
+    Lock
 } from 'lucide-react';
+import { useVendorStore } from '../../../stores/useVendorStore';
 import { GlassCard } from '../../ui/GlassCard';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { RestrictionAlertBanner } from '../shared/RestrictionAlertBanner';
 import { useMerchantWalletStore, subscribeToMerchantWalletUpdates } from '../../../stores/useMerchantWalletStore';
 import { getCurrentUser } from '../../../utils/auth';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
@@ -43,6 +47,35 @@ import { useNotificationStore } from '../../../stores/useNotificationStore';
 interface MerchantWalletProps {
     onNavigate?: (page: string, id?: string) => void;
 }
+
+// NEW 2026: Restriction Banner Component for Wallet
+const RestrictionBanner = ({ message, isAr }: { message?: string, isAr: boolean }) => (
+    <motion.div 
+        initial={{ height: 0, opacity: 0 }}
+        animate={{ height: 'auto', opacity: 1 }}
+        className="mb-8 p-6 rounded-[2rem] bg-red-500/10 border border-red-500/20 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative"
+    >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 blur-3xl rounded-full -mr-16 -mt-16" />
+        <div className="flex items-center gap-5 relative z-10">
+            <div className="w-14 h-14 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-500 animate-pulse">
+                <ShieldAlert size={28} />
+            </div>
+            <div>
+                <h4 className="text-lg font-black text-white uppercase tracking-tight">
+                    {isAr ? 'عمليات السحب مقيدة إدارياً' : 'Withdrawals Restricted by Admin'}
+                </h4>
+                <p className="text-red-400/80 text-xs font-bold uppercase tracking-widest mt-1 leading-relaxed">
+                    {message || (isAr ? 'تم تجميد حسابك مؤقتاً لأسباب تدقيقية. يرجى مراجعة الإدارة.' : 'Your account is temporarily frozen for audit reasons. Please contact support.')}
+                </p>
+            </div>
+        </div>
+        <div className="flex items-center gap-3 relative z-10">
+            <div className="px-5 py-2.5 rounded-xl bg-red-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-500/20">
+                {isAr ? 'تم تقييد الوصول' : 'ACCESS RESTRICTED'}
+            </div>
+        </div>
+    </motion.div>
+);
 
 // ═══════════════════════════════════════════════════════
 // NEW: Bank Details Modal (Center Overlay 2026 Style)
@@ -218,6 +251,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
         refreshStripeStatus,
         isLoading 
     } = useMerchantWalletStore();
+    const { withdrawalsFrozen, withdrawalFreezeNote } = useVendorStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [filter, setFilter] = useState<'ALL' | 'DONE' | 'PENDING'>('ALL');
@@ -424,6 +458,11 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
         }
 
         setIsSubmitting(true);
+        if (withdrawalsFrozen) {
+            setWithdrawError(isAr ? 'عمليات السحب مجمدة حالياً' : 'Withdrawals are currently frozen');
+            setIsSubmitting(false);
+            return;
+        }
         const result = await requestWithdrawal(amountNum, payoutMethod);
         setIsSubmitting(false);
 
@@ -625,6 +664,8 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
     return (
         <div dir={isAr ? 'rtl' : 'ltr'} className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             
+            {/* 0. Governance Alerts (2026 Admin Transparency) */}
+
             {/* 1. Header Navigation & Dashboard Controls */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex items-center gap-3">
@@ -914,98 +955,119 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     </GlassCard>
 
                     {/* Payout Section (Withdrawal & Profits) */}
-                    <GlassCard className="p-6 sm:p-8 border-gold-500/10 bg-gradient-to-br from-gold-500/[0.03] to-transparent">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                            <div>
-                                <h3 className="text-lg font-bold text-white flex items-center gap-3">
-                                    <ArrowRightLeft className="text-gold-500" size={20} />
-                                    {isAr ? 'سحب المبالغ والأرباح' : 'Withdrawal & Profits Payout'}
-                                </h3>
-                                <p className="text-white/40 text-xs mt-1">
-                                    {isAr ? 'قم بسحب أرباح متجرك إلى حسابك البنكي أو عبر Stripe بشكل آمن' : 'Withdraw your store profits to your bank account or via Stripe securely.'}
+                    <GlassCard className="p-0 border-gold-500/10 bg-gradient-to-br from-gold-500/[0.03] to-transparent relative overflow-hidden">
+                        {withdrawalsFrozen && (
+                            <div className="absolute inset-0 z-20 backdrop-blur-md bg-black/40 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+                                <motion.div 
+                                    initial={{ scale: 0.8, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    className="w-20 h-20 bg-red-500/20 rounded-3xl flex items-center justify-center border border-red-500/30 mb-4 shadow-2xl shadow-red-500/20"
+                                >
+                                    <Lock size={40} className="text-red-500" />
+                                </motion.div>
+                                <h4 className="text-xl font-black text-white uppercase tracking-widest mb-2">
+                                    {isAr ? 'العمليات المالية مقيدة' : 'Financial Payouts Restricted'}
+                                </h4>
+                                <p className="text-white/60 text-xs max-w-xs leading-relaxed font-medium">
+                                    {isAr 
+                                        ? `تم تجميد عمليات السحب لهذا الحساب مؤقتاً. السبب: ${withdrawalFreezeNote || 'مراجعة أمنية'}`
+                                        : `Payout capabilities are currently restricted for this account. Reason: ${withdrawalFreezeNote || 'Security Review'}`}
                                 </p>
                             </div>
-                            <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 shrink-0">
-                                <button 
-                                    onClick={() => setPayoutMethod('BANK_TRANSFER')}
-                                    className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${payoutMethod === 'BANK_TRANSFER' ? 'bg-gold-500 text-black' : 'text-white/40'}`}
-                                >
-                                    {isAr ? 'تحويل بنكي' : 'Bank Transfer'}
-                                </button>
-                                <button 
-                                    onClick={() => setPayoutMethod('STRIPE')}
-                                    className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${payoutMethod === 'STRIPE' ? 'bg-[#635BFF] text-white' : 'text-white/40'}`}
-                                >
-                                    Stripe
-                                </button>
-                            </div>
-                        </div>
+                        )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Left: Amount */}
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-black text-white/30 uppercase tracking-[2px] block">{isAr ? 'مبلغ السحب (AED)' : 'Withdrawal Amount (AED)'}</label>
-                                <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                                        <Wallet size={18} className="text-gold-500/50 group-focus-within:text-gold-500 transition-colors" />
-                                    </div>
-                                    <input 
-                                        type="number"
-                                        value={withdrawAmount}
-                                        onChange={(e) => setWithdrawAmount(e.target.value)}
-                                        placeholder="0.00"
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-xl font-bold text-white outline-none focus:border-gold-500/50 transition-all font-mono"
-                                    />
+                        <div className={`p-6 sm:p-8 transition-all duration-500 ${withdrawalsFrozen ? 'filter blur-sm opacity-50 grayscale select-none pointer-events-none' : ''}`}>
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                                        <ArrowRightLeft className="text-gold-500" size={20} />
+                                        {isAr ? 'سحب المبالغ والأرباح' : 'Withdrawal & Profits Payout'}
+                                    </h3>
+                                    <p className="text-white/40 text-xs mt-1">
+                                        {isAr ? 'قم بسحب أرباح متجرك إلى حسابك البنكي أو عبر Stripe بشكل آمن' : 'Withdraw your store profits to your bank account or via Stripe securely.'}
+                                    </p>
                                 </div>
-                                <div className="flex justify-between text-[10px] font-bold">
-                                    <span className="text-white/30">{isAr ? 'الرصيد المتاح:' : 'Available:'} <span className="text-gold-500 font-black">{(stats.earnedReferralProfits || 0).toLocaleString()} AED</span></span>
-                                    <span className="text-white/30">{isAr ? 'حد أدنى:' : 'Min:'} <span className="text-white/80">{withdrawalLimits.min} AED</span></span>
+                                <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 shrink-0">
+                                    <button 
+                                        onClick={() => setPayoutMethod('BANK_TRANSFER')}
+                                        className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${payoutMethod === 'BANK_TRANSFER' ? 'bg-gold-500 text-black' : 'text-white/40'}`}
+                                    >
+                                        {isAr ? 'تحويل بنكي' : 'Bank Transfer'}
+                                    </button>
+                                    <button 
+                                        onClick={() => setPayoutMethod('STRIPE')}
+                                        className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${payoutMethod === 'STRIPE' ? 'bg-[#635BFF] text-white' : 'text-white/40'}`}
+                                    >
+                                        Stripe
+                                    </button>
                                 </div>
-                                {withdrawError && (
-                                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-400 text-[10px] font-bold">
-                                        <AlertCircle size={14} /> {withdrawError}
-                                    </div>
-                                )}
-                                {withdrawSuccess && (
-                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-400 text-[10px] font-bold">
-                                        <CheckCircle2 size={14} /> {isAr ? 'تم تقديم طلب السحب!' : 'Withdrawal request submitted!'}
-                                    </div>
-                                )}
-                                <button 
-                                    onClick={(e) => { e.preventDefault(); handleSubmitWithdrawal(e as any); }}
-                                    disabled={isSubmitting || !withdrawAmount || Number(withdrawAmount) <= 0}
-                                    className="w-full py-4 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-black font-black uppercase tracking-[3px] text-xs rounded-2xl transition-all shadow-xl shadow-gold-500/10 flex items-center justify-center gap-2"
-                                >
-                                    {isSubmitting ? <RotateCcw size={18} className="animate-spin" /> : <ArrowUpRight size={18} />}
-                                    {isAr ? 'تأكيد طلب السحب' : 'Confirm Withdrawal'}
-                                </button>
                             </div>
 
-                            {/* Right: Method Config */}
-                            <div>
-                                {payoutMethod === 'STRIPE' ? (
-                                    <GlassCard className="p-6 border-[#635BFF]/20 bg-[#635BFF]/5 h-full flex flex-col justify-center items-center text-center">
-                                        <div className="w-14 h-14 bg-[#635BFF] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#635BFF]/20">
-                                            <CreditCard className="text-white" size={28} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Left: Amount */}
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black text-white/30 uppercase tracking-[2px] block">{isAr ? 'مبلغ السحب (AED)' : 'Withdrawal Amount (AED)'}</label>
+                                    <div className="relative group">
+                                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                            <Wallet size={18} className="text-gold-500/50 group-focus-within:text-gold-500 transition-colors" />
                                         </div>
-                                        <h4 className="text-white font-bold mb-2 text-sm">{isAr ? 'دفعات Stripe الآلية' : 'Stripe Automated Payouts'}</h4>
-                                        <p className="text-white/50 text-[10px] mb-6 px-2 leading-relaxed">
-                                            {isAr ? 'اربط متجرك بـ Stripe Connect لاستلام الأرباح فورياً.' : 'Connect your store to Stripe for instant automated payouts.'}
-                                        </p>
-                                        {stats.stripeOnboarded ? (
-                                            <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-full border border-emerald-500/20 text-[10px] font-black uppercase">
-                                                <ShieldCheck size={14} /> {isAr ? 'الحساب مرتبط ونشط' : 'Account Connected & Active'}
+                                        <input 
+                                            type="number"
+                                            value={withdrawAmount}
+                                            onChange={(e) => setWithdrawAmount(e.target.value)}
+                                            placeholder="0.00"
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-xl font-bold text-white outline-none focus:border-gold-500/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                    <div className="flex justify-between text-[10px] font-bold">
+                                        <span className="text-white/30">{isAr ? 'الرصيد المتاح:' : 'Available:'} <span className="text-gold-500 font-black">{(stats.earnedReferralProfits || 0).toLocaleString()} AED</span></span>
+                                        <span className="text-white/30">{isAr ? 'حد أدنى:' : 'Min:'} <span className="text-white/80">{withdrawalLimits.min} AED</span></span>
+                                    </div>
+                                    {withdrawError && (
+                                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-400 text-[10px] font-bold">
+                                            <AlertCircle size={14} /> {withdrawError}
+                                        </div>
+                                    )}
+                                    {withdrawSuccess && (
+                                        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-400 text-[10px] font-bold">
+                                            <CheckCircle2 size={14} /> {isAr ? 'تم تقديم طلب السحب!' : 'Withdrawal request submitted!'}
+                                        </div>
+                                    )}
+                                    <button 
+                                        onClick={(e) => { e.preventDefault(); handleSubmitWithdrawal(e as any); }}
+                                        disabled={isSubmitting || withdrawalsFrozen || !withdrawAmount || Number(withdrawAmount) <= 0}
+                                        className="w-full py-4 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-black font-black uppercase tracking-[3px] text-xs rounded-2xl transition-all shadow-xl shadow-gold-500/10 flex items-center justify-center gap-2"
+                                    >
+                                        {isSubmitting ? <RotateCcw size={18} className="animate-spin" /> : <ArrowUpRight size={18} />}
+                                        {isAr ? 'تأكيد طلب السحب' : 'Confirm Withdrawal'}
+                                    </button>
+                                </div>
+
+                                {/* Right: Method Config */}
+                                <div>
+                                    {payoutMethod === 'STRIPE' ? (
+                                        <GlassCard className="p-6 border-[#635BFF]/20 bg-[#635BFF]/5 h-full flex flex-col justify-center items-center text-center">
+                                            <div className="w-14 h-14 bg-[#635BFF] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#635BFF]/20">
+                                                <CreditCard className="text-white" size={28} />
                                             </div>
-                                        ) : (
-                                            <button onClick={handleStripeConnect} disabled={isOnboarding}
-                                                className="px-6 py-3 bg-[#635BFF] hover:bg-[#7a73ff] text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all"
-                                            >
-                                                {isOnboarding ? <RotateCcw size={14} className="animate-spin" /> : <ExternalLink size={14} />}
-                                                {isAr ? 'بدء عملية الربط' : 'Start Onboarding'}
-                                            </button>
-                                        )}
-                                    </GlassCard>
-                                ) : (
+                                            <h4 className="text-white font-bold mb-2 text-sm">{isAr ? 'دفعات Stripe الآلية' : 'Stripe Automated Payouts'}</h4>
+                                            <p className="text-white/50 text-[10px] mb-6 px-2 leading-relaxed">
+                                                {isAr ? 'اربط متجرك بـ Stripe Connect لاستلام الأرباح فورياً.' : 'Connect your store to Stripe for instant automated payouts.'}
+                                            </p>
+                                            {stats.stripeOnboarded ? (
+                                                <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-full border border-emerald-500/20 text-[10px] font-black uppercase">
+                                                    <ShieldCheck size={14} /> {isAr ? 'الحساب مرتبط ونشط' : 'Account Connected & Active'}
+                                                </div>
+                                            ) : (
+                                                <button onClick={handleStripeConnect} disabled={isOnboarding}
+                                                    className="px-6 py-3 bg-[#635BFF] hover:bg-[#7a73ff] text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all"
+                                                >
+                                                    {isOnboarding ? <RotateCcw size={14} className="animate-spin" /> : <ExternalLink size={14} />}
+                                                    {isAr ? 'بدء عملية الربط' : 'Start Onboarding'}
+                                                </button>
+                                            )}
+                                        </GlassCard>
+                                    ) : (
                                     <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 h-full flex flex-col">
                                         <div className="flex justify-between items-start mb-4">
                                             <div>
@@ -1046,7 +1108,8 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                 )}
                             </div>
                         </div>
-                    </GlassCard>
+                    </div>
+                </GlassCard>
 
                     {/* Withdrawal History Table */}
                     <GlassCard className="p-0 overflow-hidden border-white/5 bg-black/20">

@@ -8,13 +8,14 @@ import {
     ChevronLeft, ChevronRight, Store, CheckCircle2, XCircle, FileText, Activity, 
     Star, Eye, X, ExternalLink, Mail, Phone, Calendar, Hash, MapPin, CreditCard, 
     Wallet, Smartphone, Tablet, Monitor, Verified, Shield, Award, TrendingUp,
-    Clock, ShieldAlert, ShoppingCart, Package
+    Clock, ShieldAlert, ShoppingCart, Package, Sliders, Loader2, Lock, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storesApi } from '../../../services/api/stores';
 import { paymentsApi } from '../../../services/api/payments';
 // import { toast } from 'react-hot-toast'; // Removed to avoid dependency issue
 import { DocumentReviewModal } from '../../modals/DocumentReviewModal'; // Import New Modal
+import { AdminSignatureModal } from './AdminSignatureModal';
 
 interface AdminStoreProfileProps {
     vendorId: string;
@@ -31,11 +32,12 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
     const [isUpdating, setIsUpdating] = useState(false);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [isBanModalOpen, setIsBanModalOpen] = useState(false);
+    const [pendingRestrictionAction, setPendingRestrictionAction] = useState<'UPDATE' | 'CLEAR' | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
     const [adminNotes, setAdminNotes] = useState(currentStoreProfile?.adminNotes || '');
     const [banType, setBanType] = useState<'BLOCKED' | 'SUSPENDED'>('SUSPENDED');
     const [suspensionDays, setSuspensionDays] = useState(7);
-    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'reviews' | 'financial' | 'sessions' | 'contract'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'reviews' | 'financial' | 'sessions' | 'contract' | 'restrictions'>('overview');
     const [financialStats, setFinancialStats] = useState<{
         available: number;
         pending: number;
@@ -45,6 +47,18 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         completedOrders: number;
     } | null>(null);
     const [isLoadingFinancial, setIsLoadingFinancial] = useState(false);
+    
+    // Restrictions State (2026)
+    const [restrictionData, setRestrictionData] = useState({
+        withdrawalsFrozen: currentStoreProfile?.owner?.withdrawalsFrozen ?? false,
+        withdrawalFreezeNote: currentStoreProfile?.owner?.withdrawalFreezeNote ?? '',
+        offerLimit: currentStoreProfile?.offerLimit ?? -1,
+        visibilityRestricted: currentStoreProfile?.visibilityRestricted ?? false,
+        visibilityRate: currentStoreProfile?.visibilityRate ?? 100,
+        visibilityNote: currentStoreProfile?.visibilityNote ?? ''
+    });
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+    const [pendingRestrictionUpdate, setPendingRestrictionUpdate] = useState<any>(null);
 
     const handleStatusUpdate = async (newStatus: 'ACTIVE' | 'BLOCKED' | 'REJECTED' | 'SUSPENDED', reason?: string, days?: number) => {
         if (!vendorId) return;
@@ -90,6 +104,49 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         }
     };
 
+    const handleUpdateRestrictions = async (signatureData: any) => {
+        if (!vendorId) return;
+        setIsUpdating(true);
+        try {
+            if (pendingRestrictionAction === 'CLEAR') {
+                const success = await useAdminStore.getState().clearStoreRestrictions(vendorId, signatureData);
+                if (success) {
+                    window.alert(isAr ? 'تم مسح القيود التشغيلية بنجاح' : 'Operational restrictions cleared successfully');
+                    setRestrictionData({
+                        ...restrictionData,
+                        offerLimit: -1,
+                        visibilityRestricted: false,
+                        visibilityRate: 100,
+                        visibilityNote: ''
+                    });
+                    setIsSignatureModalOpen(false);
+                } else {
+                    throw new Error('Clear failed');
+                }
+            } else {
+                const data = { ...restrictionData, ...signatureData };
+                const success = await useAdminStore.getState().updateStoreRestrictions(vendorId, data);
+                if (success) {
+                    window.alert(isAr ? 'تم تحديث القيود بنجاح' : 'Restrictions updated successfully');
+                    setIsSignatureModalOpen(false);
+                } else {
+                    throw new Error('Update failed');
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            window.alert(isAr ? 'فشل تنفيذ الإجراء' : 'Action execution failed');
+        } finally {
+            setIsUpdating(false);
+            setPendingRestrictionAction(null);
+        }
+    };
+
+    const handleClearRestrictions = () => {
+        setPendingRestrictionAction('CLEAR');
+        setIsSignatureModalOpen(true);
+    };
+
     const fetchFinancialData = async () => {
         if (!vendor?.ownerId) return;
         setIsLoadingFinancial(true);
@@ -118,9 +175,25 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         }
     }, [vendor?.ownerId]);
 
+    // Sync Admin Notes when store changes or notes are updated in DB
     React.useEffect(() => {
-        if (vendor?.adminNotes) setAdminNotes(vendor.adminNotes);
-    }, [vendor?.adminNotes]);
+        if (vendor?.adminNotes !== undefined) setAdminNotes(vendor.adminNotes || '');
+    }, [vendor?.adminNotes, vendor?.id]);
+
+    // Sync Restriction Data ONLY when switching stores
+    // This prevents local toggles from resetting during background updates
+    React.useEffect(() => {
+        if (vendor) {
+            setRestrictionData({
+                withdrawalsFrozen: vendor.owner?.withdrawalsFrozen ?? false,
+                withdrawalFreezeNote: vendor.owner?.withdrawalFreezeNote ?? '',
+                offerLimit: vendor.offerLimit ?? -1,
+                visibilityRestricted: vendor.visibilityRestricted ?? false,
+                visibilityRate: vendor.visibilityRate ?? 100,
+                visibilityNote: vendor.visibilityNote ?? ''
+            });
+        }
+    }, [vendor?.id]); // Only reset when store changes
 
     if (isLoadingStores || !vendor) {
         return (
@@ -286,6 +359,62 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                 </div>
             )}
 
+            {/* Active Restrictions Banner */}
+            {(vendor.owner?.withdrawalsFrozen || vendor.visibilityRestricted || (vendor.offerLimit !== -1)) && (
+                <motion.div 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6 p-1 rounded-3xl bg-gradient-to-r from-red-500/20 via-orange-500/20 to-red-500/20 border border-red-500/30 overflow-hidden shadow-lg shadow-red-500/10"
+                >
+                    <div className="bg-[#0F0E0D]/80 backdrop-blur-xl p-4 rounded-[22px] flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-red-500/20 flex items-center justify-center border border-red-500/30">
+                                <ShieldAlert className="text-red-500 animate-pulse" />
+                            </div>
+                            <div>
+                                <h4 className="text-white font-black uppercase tracking-widest text-sm">
+                                    {isAr ? 'تنبيه: قيود نشطة' : 'Alert: Active Restrictions'}
+                                </h4>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                    {vendor.owner?.withdrawalsFrozen && (
+                                        <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">
+                                            {isAr ? 'السحب مجمد' : 'Payouts Frozen'}
+                                        </span>
+                                    )}
+                                    {vendor.visibilityRestricted && (
+                                        <span className="text-[10px] bg-orange-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">
+                                            {isAr ? 'تقييد الظهور' : 'Visibility Restricted'}
+                                        </span>
+                                    )}
+                                    {vendor.offerLimit !== -1 && (
+                                        <span className="text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">
+                                            {isAr ? `حد العروض: ${vendor.offerLimit}` : `Offer Limit: ${vendor.offerLimit}`}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {vendor.owner?.withdrawalFreezeNote && vendor.owner?.withdrawalsFrozen && (
+                            <div className="flex-1 min-w-[200px] bg-white/5 p-3 rounded-xl border border-white/5">
+                                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">{isAr ? 'سبب التجميد' : 'Freeze Reason'}</p>
+                                <p className="text-xs text-white/80 font-medium italic">"{vendor.owner.withdrawalFreezeNote}"</p>
+                            </div>
+                        )}
+
+                        <button 
+                            onClick={() => {
+                                const el = document.getElementById('governance-tab');
+                                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all"
+                        >
+                            {isAr ? 'إدارة القيود' : 'Manage Restrictions'}
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+
             {/* Premium Hero Section */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1A1814] to-[#0A0908] border border-white/5 shadow-2xl">
                 {/* Background Decorative Glows */}
@@ -446,6 +575,46 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                 </div>
             </div>
         </div>
+
+            {/* NEW: Administrative Restriction Banners (2026 Admin Visibility) */}
+            {(currentStoreProfile?.withdrawalsFrozen || (currentStoreProfile?.offerLimit && currentStoreProfile?.offerLimit !== -1) || currentStoreProfile?.visibilityRestricted) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {currentStoreProfile?.withdrawalsFrozen && (
+                        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-4 animate-in slide-in-from-top-2 duration-500">
+                            <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500 shrink-0">
+                                <Lock size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">{isAr ? 'عمليات السحب مجمدة' : 'Withdrawals Frozen'}</h4>
+                                <p className="text-[10px] text-red-400 font-bold mt-0.5">{currentStoreProfile.withdrawalFreezeNote || (isAr ? 'تم تقييد سحب الأموال لهذا المتجر' : 'Financial payouts restricted for this vendor')}</p>
+                            </div>
+                        </div>
+                    )}
+                    {currentStoreProfile?.offerLimit && currentStoreProfile?.offerLimit !== -1 && (
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-4 animate-in slide-in-from-top-2 duration-500 delay-75">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                                <Package size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">{isAr ? 'حد العروض مفعل' : 'Offer Limit Active'}</h4>
+                                <p className="text-[10px] text-amber-400 font-bold mt-0.5">{isAr ? `محدد بـ ${currentStoreProfile.offerLimit} عرضاً فقط` : `Limited to ${currentStoreProfile.offerLimit} total offers`}</p>
+                            </div>
+                        </div>
+                    )}
+                    {currentStoreProfile?.visibilityRestricted && (
+                        <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center gap-4 animate-in slide-in-from-top-2 duration-500 delay-100">
+                            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 shrink-0">
+                                <Eye size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">{isAr ? 'الظهور مقيد' : 'Visibility Restricted'}</h4>
+                                <p className="text-[10px] text-blue-400 font-bold mt-0.5">{isAr ? `معدل الظهور: ${currentStoreProfile.visibilityRate}%` : `Visibility Rate: ${currentStoreProfile.visibilityRate}%`}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Advanced Tabs Navigation */}
             <div className="flex gap-2 p-1.5 bg-white/5 border border-white/10 rounded-2xl overflow-x-auto no-scrollbar scroll-smooth">
                 {[
@@ -456,6 +625,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                     { id: 'financial', icon: Wallet, label: t.admin.storeProfile.tabs.financial },
                     { id: 'sessions', icon: Smartphone, label: t.admin.storeProfile.tabs.sessions },
                     { id: 'contract', icon: FileText, label: t.admin.storeProfile.tabs.contract },
+                    { id: 'restrictions', icon: ShieldAlert, label: isAr ? 'القيود والتحكم' : 'Restrictions' },
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -1477,7 +1647,6 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                     </div>
                 </div>
             )}
-
             {activeTab === 'contract' && (
                 <div className="space-y-6">
                     {(!vendor.contractAcceptances || vendor.contractAcceptances.length === 0) ? (
@@ -1559,6 +1728,171 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                             </div>
                         ))
                     )}
+                </div>
+            )}
+
+            {activeTab === 'restrictions' && (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Financial Restrictions */}
+                        <GlassCard className="p-6 space-y-6 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <Lock size={80} />
+                            </div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-red-500/20 rounded-lg text-red-500">
+                                    <ShieldAlert size={20} />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">{isAr ? 'القيود المالية' : 'Financial Restrictions'}</h3>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-bold text-white">{isAr ? 'تجميد عمليات السحب' : 'Freeze Withdrawals'}</div>
+                                        <div className="text-xs text-white/40">{isAr ? 'منع التاجر من طلب تحويل الأموال' : 'Prevent merchant from requesting payouts'}</div>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            const newVal = !restrictionData.withdrawalsFrozen;
+                                            setRestrictionData({ ...restrictionData, withdrawalsFrozen: newVal });
+                                            // Real-time save
+                                            await useAdminStore.getState().updateStoreRestrictions(vendorId!, { ...restrictionData, withdrawalsFrozen: newVal });
+                                        }}
+                                        className={`w-14 h-7 rounded-full p-1 transition-all duration-300 ${restrictionData.withdrawalsFrozen ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'bg-white/10'}`}
+                                    >
+                                        <div className={`w-5 h-5 rounded-full bg-white transition-all duration-300 transform ${restrictionData.withdrawalsFrozen ? (isAr ? '-translate-x-7' : 'translate-x-7') : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-white/40 uppercase tracking-widest">{isAr ? 'سبب التجميد (داخلي)' : 'Freeze Reason (Internal)'}</label>
+                                    <textarea
+                                        value={restrictionData.withdrawalFreezeNote}
+                                        onChange={(e) => setRestrictionData({ ...restrictionData, withdrawalFreezeNote: e.target.value })}
+                                        placeholder={isAr ? 'اكتب ملاحظاتك هنا...' : 'Enter freeze notes...'}
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-red-500/50 outline-none transition-all h-24 resize-none"
+                                    />
+                                </div>
+                            </div>
+                        </GlassCard>
+
+                        {/* Operational Restrictions */}
+                        <GlassCard className="p-6 space-y-6 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <Sliders size={80} />
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-gold-500/20 rounded-lg text-gold-500">
+                                        <Sliders size={20} />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-white">{isAr ? 'القيود التشغيلية' : 'Operational Restrictions'}</h3>
+                                </div>
+                                <button
+                                    onClick={handleClearRestrictions}
+                                    disabled={isUpdating}
+                                    className="px-4 py-2 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-green-500/20 transition-all flex items-center gap-2"
+                                >
+                                    <RotateCcw size={12} />
+                                    {isAr ? 'مسح كافة القيود' : 'Clear All Restrictions'}
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-xs font-black text-white/40 uppercase tracking-widest">{isAr ? 'سقف العروض اليومي' : 'Daily Offer Limit'}</label>
+                                        <span className="text-xs font-mono text-gold-500">{restrictionData.offerLimit === -1 ? (isAr ? 'غير محدود' : 'Unlimited') : restrictionData.offerLimit}</span>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        value={restrictionData.offerLimit}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            setRestrictionData({ ...restrictionData, offerLimit: val });
+                                            // Real-time update with debounce would be better, but for now let's just make it editable
+                                        }}
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-gold-500/50 outline-none transition-all"
+                                        placeholder="-1 for unlimited"
+                                    />
+                                </div>
+
+                                <div className="space-y-3 pt-2 border-t border-white/5">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <div className="text-sm font-bold text-white">{isAr ? 'تقييد الظهور' : 'Visibility Restriction'}</div>
+                                            <div className="text-xs text-white/40">{isAr ? 'تقليل نسبة ظهور الطلبات للتاجر' : 'Reduce order visibility percentage'}</div>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                const newVal = !restrictionData.visibilityRestricted;
+                                                setRestrictionData({ ...restrictionData, visibilityRestricted: newVal });
+                                                // Real-time save
+                                                await useAdminStore.getState().updateStoreRestrictions(vendorId!, { ...restrictionData, visibilityRestricted: newVal });
+                                            }}
+                                            className={`w-14 h-7 rounded-full p-1 transition-all duration-300 ${restrictionData.visibilityRestricted ? 'bg-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.4)]' : 'bg-white/10'}`}
+                                        >
+                                            <div className={`w-5 h-5 rounded-full bg-white transition-all duration-300 transform ${restrictionData.visibilityRestricted ? (isAr ? '-translate-x-7' : 'translate-x-7') : 'translate-x-0'}`} />
+                                        </button>
+                                    </div>
+
+                                    {restrictionData.visibilityRestricted && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="space-y-4 pt-2"
+                                        >
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between">
+                                                    <span className="text-[10px] text-white/30 uppercase font-black">{isAr ? 'معدل الظهور' : 'Visibility Rate'}</span>
+                                                    <span className="text-xs font-mono text-gold-500">{restrictionData.visibilityRate}%</span>
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    value={restrictionData.visibilityRate}
+                                                    onChange={(e) => setRestrictionData({ ...restrictionData, visibilityRate: parseInt(e.target.value) })}
+                                                    onMouseUp={async () => {
+                                                        // Real-time save on drag end
+                                                        await useAdminStore.getState().updateStoreRestrictions(vendorId!, restrictionData);
+                                                    }}
+                                                    className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold-500"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] text-white/30 uppercase font-black">{isAr ? 'ملاحظات التقييد' : 'Restriction Notes'}</label>
+                                                <div className="relative">
+                                                    <textarea
+                                                        value={restrictionData.visibilityNote}
+                                                        onChange={(e) => setRestrictionData({ ...restrictionData, visibilityNote: e.target.value })}
+                                                        className="w-full bg-black/40 border border-white/5 rounded-xl p-3 text-white text-xs outline-none focus:border-gold-500/30 h-20 resize-none"
+                                                        placeholder={isAr ? 'أدخل سبب تقييد الظهور...' : 'Enter visibility restriction reason...'}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </div>
+                            </div>
+                        </GlassCard>
+                    </div>
+
+                    {/* Submit Action - Unified & Real-time Primary Action */}
+                    <div className="flex justify-end pt-4 border-t border-white/5">
+                        <button
+                            onClick={() => {
+                                setPendingRestrictionAction('UPDATE');
+                                setIsSignatureModalOpen(true);
+                            }}
+                            disabled={isUpdating}
+                            className="px-10 py-4 bg-gold-500 text-black font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl hover:scale-[1.02] active:scale-95 transition-all duration-300 shadow-[0_20px_40px_rgba(212,175,55,0.15)] flex items-center gap-3 disabled:opacity-50"
+                        >
+                            {isUpdating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                            {isAr ? 'تحديث كافة القيود والتوقيع' : 'Update All Restrictions & Sign'}
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -1649,6 +1983,15 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <AdminSignatureModal
+                isOpen={isSignatureModalOpen}
+                onClose={() => setIsSignatureModalOpen(false)}
+                onConfirm={handleUpdateRestrictions}
+                title={isAr ? 'اعتماد القيود الإدارية' : 'Authorize Administrative Restrictions'}
+                subtitle={isAr ? 'يرجى التوقيع للمتابعة وتطبيق القيود على هذا المتجر' : 'Please sign to proceed and apply restrictions to this store'}
+            />
+
         </div>
     );
 };

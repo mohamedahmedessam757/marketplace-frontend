@@ -9,6 +9,7 @@ import {
     Calendar, Clock, ShieldAlert, Crown, Diamond, AlertTriangle, Eye
 } from 'lucide-react';
 import { Badge } from '../../ui/Badge';
+import { AdminSignatureModal } from './AdminSignatureModal';
 
 interface AdminCustomerProfileProps {
     customerId: string;
@@ -22,12 +23,22 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
 
     const [customer, setCustomer] = useState<Customer | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'security' | 'financial'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'security' | 'financial' | 'restrictions'>('overview');
+    
+    // Restrictions State (2026)
+    const [restrictionData, setRestrictionData] = useState({
+        withdrawalsFrozen: false,
+        withdrawalFreezeNote: '',
+        orderLimit: -1,
+        restrictionAlertMessage: ''
+    });
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [internalNotes, setInternalNotes] = useState('');
     const [isSavingNotes, setIsSavingNotes] = useState(false);
     
     // Phase 2.3: Edit Profile State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [pendingRestrictionAction, setPendingRestrictionAction] = useState<'UPDATE' | 'CLEAR' | null>(null);
     const [editData, setEditData] = useState({ name: '', email: '', country: '', phone: '' });
     const [isUpdating, setIsUpdating] = useState(false);
 
@@ -46,6 +57,12 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
         if (data) {
             setCustomer(data);
             setInternalNotes(data.adminNotes || '');
+            setRestrictionData({
+                withdrawalsFrozen: data.withdrawalsFrozen || false,
+                withdrawalFreezeNote: data.withdrawalFreezeNote || '',
+                orderLimit: data.orderLimit || -1,
+                restrictionAlertMessage: data.restrictionAlertMessage || ''
+            });
             if (silent) {
                 setIsLive(true);
                 setTimeout(() => setIsLive(false), 3000);
@@ -119,6 +136,42 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
         } finally {
             setIsUpdating(false);
         }
+    };
+
+    const handleUpdateRestrictions = async (signatureData: any) => {
+        if (!customer) return;
+        setIsUpdating(true);
+        try {
+            if (pendingRestrictionAction === 'CLEAR') {
+                await useCustomerStore.getState().clearCustomerRestrictions(customer.id, signatureData);
+                setRestrictionData({
+                    withdrawalsFrozen: false,
+                    withdrawalFreezeNote: '',
+                    orderLimit: -1,
+                    restrictionAlertMessage: ''
+                });
+                setIsSignatureModalOpen(false);
+                window.alert(isAr ? 'تم مسح القيود بنجاح' : 'Restrictions cleared successfully');
+            } else {
+                const data = { ...restrictionData, ...signatureData };
+                await useCustomerStore.getState().updateCustomerRestrictions(customer.id, data);
+                setCustomer(prev => prev ? { ...prev, ...data } : null);
+                setIsSignatureModalOpen(false);
+                window.alert(isAr ? 'تم تحديث القيود بنجاح' : 'Restrictions updated successfully');
+            }
+            await loadData(true);
+        } catch (error) {
+            console.error(error);
+            window.alert(isAr ? 'فشل تنفيذ الإجراء' : 'Action failed');
+        } finally {
+            setIsUpdating(false);
+            setPendingRestrictionAction(null);
+        }
+    };
+
+    const handleClearRestrictions = () => {
+        setPendingRestrictionAction('CLEAR');
+        setIsSignatureModalOpen(true);
     };
 
     const openEditModal = () => {
@@ -363,6 +416,34 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                 </div>
             </div>
 
+            {/* NEW: Administrative Restriction Banners (2026 Admin Visibility) */}
+            {(customer.withdrawalsFrozen || (customer.orderLimit && customer.orderLimit !== -1)) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {customer.withdrawalsFrozen && (
+                        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-4 animate-in slide-in-from-top-2 duration-500">
+                            <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500 shrink-0">
+                                <Lock size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">{isAr ? 'عمليات السحب مجمدة' : 'Withdrawals Frozen'}</h4>
+                                <p className="text-[10px] text-red-400 font-bold mt-0.5">{customer.withdrawalFreezeNote || (isAr ? 'تم تقييد سحب الأموال لهذا العميل' : 'Financial payouts restricted for this user')}</p>
+                            </div>
+                        </div>
+                    )}
+                    {customer.orderLimit && customer.orderLimit !== -1 && (
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-4 animate-in slide-in-from-top-2 duration-500 delay-75">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                                <Package size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">{isAr ? 'حد الطلبات مفعل' : 'Order Limit Active'}</h4>
+                                <p className="text-[10px] text-amber-400 font-bold mt-0.5">{isAr ? `محدد بـ ${customer.orderLimit} طلبات يومياً` : `Limited to ${customer.orderLimit} orders per day`}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className="grid lg:grid-cols-3 gap-6">
 
                 {/* Col 1: Admin Quick Notes Support */}
@@ -401,6 +482,7 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                             { id: 'disputes', label: t.admin.customerProfile.disputes, icon: Scale },
                             { id: 'financial', label: isAr ? 'السجل المالي' : 'Financial Journal', icon: DollarSign },
                             { id: 'security', label: isAr ? 'الجلسات والأمان' : 'Security', icon: Shield },
+                            { id: 'restrictions', label: isAr ? 'التحكم والقيود' : 'Restrictions', icon: ShieldAlert },
                         ].map((tab) => (
                             <button
                                 key={tab.id}
@@ -1011,6 +1093,121 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                                     </div>
                                 </div>
                             )}
+                            {/* Phase 3: Advanced Governance & Restrictions (2026) */}
+                            {activeTab === 'restrictions' && (
+                                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 max-w-4xl mx-auto">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                                                <ShieldAlert size={28} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black text-white uppercase tracking-tight">{isAr ? 'إدارة القيود والتحكم' : 'Restriction Governance'}</h3>
+                                                <p className="text-[10px] text-white/30 uppercase tracking-[0.2em]">{isAr ? 'تعديل سقف العمليات والوصول' : 'Adjust operation limits & access'}</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={handleClearRestrictions}
+                                            className="px-5 py-2.5 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/20 rounded-xl transition-all text-white/40 hover:text-red-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
+                                        >
+                                            <RefreshCcw size={14} />
+                                            {isAr ? 'مسح كافة القيود' : 'Clear All Restrictions'}
+                                        </button>
+                                    </div>
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                        {/* Financial Controls */}
+                                        <GlassCard className="p-6 space-y-6 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                                <Lock size={80} />
+                                            </div>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="p-2 bg-red-500/20 rounded-lg text-red-500">
+                                                    <ShieldAlert size={20} />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-white">{isAr ? 'القيود المالية' : 'Financial Restrictions'}</h3>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-bold text-white">{isAr ? 'تجميد السحب' : 'Freeze Withdrawals'}</div>
+                                                        <div className="text-xs text-white/40">{isAr ? 'منع العميل من سحب الرصيد' : 'Prevent customer from withdrawing balance'}</div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setRestrictionData({ ...restrictionData, withdrawalsFrozen: !restrictionData.withdrawalsFrozen })}
+                                                        className={`w-14 h-7 rounded-full p-1 transition-all duration-300 ${restrictionData.withdrawalsFrozen ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'bg-white/10'}`}
+                                                    >
+                                                        <div className={`w-5 h-5 rounded-full bg-white transition-all duration-300 transform ${restrictionData.withdrawalsFrozen ? (isAr ? '-translate-x-7' : 'translate-x-7') : 'translate-x-0'}`} />
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-xs font-black text-white/40 uppercase tracking-widest">{isAr ? 'سبب التجميد (داخلي)' : 'Freeze Reason (Internal)'}</label>
+                                                    <textarea
+                                                        value={restrictionData.withdrawalFreezeNote}
+                                                        onChange={(e) => setRestrictionData({ ...restrictionData, withdrawalFreezeNote: e.target.value })}
+                                                        placeholder={isAr ? 'اكتب ملاحظاتك هنا...' : 'Enter freeze notes...'}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-red-500/50 outline-none transition-all h-24 resize-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </GlassCard>
+
+                                        {/* Activity Controls */}
+                                        <GlassCard className="p-6 space-y-6 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                                <Target size={80} />
+                                            </div>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="p-2 bg-gold-500/20 rounded-lg text-gold-500">
+                                                    <Package size={20} />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-white">{isAr ? 'قيود النشاط' : 'Activity Constraints'}</h3>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <div className="flex justify-between items-center">
+                                                        <label className="text-xs font-black text-white/40 uppercase tracking-widest">{isAr ? 'حد الطلبات اليومي' : 'Daily Order Limit'}</label>
+                                                        <span className="text-xs font-mono text-gold-500">{restrictionData.orderLimit === -1 ? (isAr ? 'غير محدود' : 'Unlimited') : restrictionData.orderLimit}</span>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        value={restrictionData.orderLimit}
+                                                        onChange={(e) => setRestrictionData({ ...restrictionData, orderLimit: parseInt(e.target.value) })}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-gold-500/50 outline-none transition-all"
+                                                        placeholder="-1 for unlimited"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-xs font-black text-white/40 uppercase tracking-widest">{isAr ? 'رسالة تنبيه للعميل' : 'Customer Alert Message'}</label>
+                                                    <textarea
+                                                        value={restrictionData.restrictionAlertMessage}
+                                                        onChange={(e) => setRestrictionData({ ...restrictionData, restrictionAlertMessage: e.target.value })}
+                                                        placeholder={isAr ? 'رسالة تظهر للعميل عند محاولة الطلب...' : 'Message shown to customer when attempting order...'}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-gold-500/50 outline-none transition-all h-24 resize-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </GlassCard>
+                                    </div>
+
+                                    <div className="flex justify-end">
+                                        <button
+                                            onClick={() => {
+                                                setPendingRestrictionAction('UPDATE');
+                                                setIsSignatureModalOpen(true);
+                                            }}
+                                            disabled={isUpdating}
+                                            className="px-10 py-4 bg-white text-black font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-gold-500 hover:text-white transition-all duration-500 shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex items-center gap-3 group disabled:opacity-50"
+                                        >
+                                            {isUpdating ? <Loader2 className="animate-spin" size={16} /> : <ShieldAlert size={16} className="group-hover:rotate-12 transition-transform" />}
+                                            {isAr ? 'تطبيق القيود واعتمادها' : 'Apply & Authorize Restrictions'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </GlassCard>
                 </div>
@@ -1157,6 +1354,14 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                     </GlassCard>
                 </div>
             )}
+
+            <AdminSignatureModal
+                isOpen={isSignatureModalOpen}
+                onClose={() => setIsSignatureModalOpen(false)}
+                onConfirm={handleUpdateRestrictions}
+                title={isAr ? 'اعتماد القيود الإدارية' : 'Authorize Administrative Restrictions'}
+                subtitle={isAr ? 'يرجى التوقيع للمتابعة وتطبيق القيود على هذا العميل' : 'Please sign to proceed and apply restrictions to this customer'}
+            />
         </div>
     );
 };

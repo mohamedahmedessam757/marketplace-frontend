@@ -59,6 +59,16 @@ export interface VendorState {
   vendorStatus: MerchantStatus;
   storeId: string | null;
   storeRejectionReason: string | null;
+  
+  // Restrictions (2026 Governance)
+  withdrawalsFrozen: boolean;
+  withdrawalFreezeNote: string;
+  offerLimit: number;
+  dailyOfferCount: number;
+  visibilityRestricted: boolean;
+  visibilityRate: number;
+  visibilityNote: string;
+  restrictionAlertMessage: string;
 
   account: {
     name: string;
@@ -148,7 +158,6 @@ export interface VendorState {
   adminBanVendor: () => void;
   connectStripe: () => Promise<void>;
   openStripeDashboard: () => Promise<void>;
-  
   // Real-time
   vendorProfileSubscription: any;
   subscribeToVendorProfile: () => void;
@@ -164,6 +173,14 @@ export const useVendorStore = create<VendorState>()(
   vendorStatus: 'IDLE',
   storeId: null,
   storeRejectionReason: null,
+  withdrawalsFrozen: false,
+  withdrawalFreezeNote: '',
+  offerLimit: -1,
+  dailyOfferCount: 0,
+  visibilityRestricted: false,
+  visibilityRate: 100,
+  visibilityNote: '',
+  restrictionAlertMessage: '',
   account: { name: '', email: '', phone: '', countryCode: '+966', password: '' },
   otpVerified: false,
   storeInfo: { storeName: '', selectedMakes: [], selectedModels: [], customMake: '', customModel: '', bio: '', address: '', lat: null, lng: null },
@@ -479,6 +496,14 @@ export const useVendorStore = create<VendorState>()(
             iban: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'IBAN')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'IBAN')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'IBAN')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'IBAN')?.updatedAt },
             authLetter: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.updatedAt }
           },
+          withdrawalsFrozen: data.owner?.withdrawalsFrozen || false,
+          withdrawalFreezeNote: data.owner?.withdrawalFreezeNote || '',
+          offerLimit: data.offerLimit || -1,
+          dailyOfferCount: data.dailyOfferCount || 0,
+          visibilityRestricted: data.visibilityRestricted || false,
+          visibilityRate: data.visibilityRate || 100,
+          visibilityNote: data.visibilityNote || '',
+          restrictionAlertMessage: data.restrictionAlertMessage || '',
           contractAcceptance: data.contractAcceptances?.[0] || null,
           isLoadingProfile: false
         });

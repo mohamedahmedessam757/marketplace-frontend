@@ -33,6 +33,12 @@ export interface WalletStats {
   name?: string;
   stripeOnboarded?: boolean;
   stripeAccountId?: string;
+
+  // Administrative Restrictions (v2026 Sync)
+  withdrawalsFrozen?: boolean;
+  withdrawalFreezeNote?: string;
+  orderLimit?: number;
+  restrictionAlertMessage?: string;
 }
 
 export interface BankDetails {
@@ -260,7 +266,11 @@ export const subscribeToWalletUpdates = () => {
                     loyaltyTier: payload.new.loyalty_tier,
                     totalSpent: Number(payload.new.total_spent),
                     referralCount: Number(payload.new.referral_count),
-                    referralCode: payload.new.referral_code
+                    referralCode: payload.new.referral_code,
+                    withdrawalsFrozen: payload.new.withdrawals_frozen,
+                    withdrawalFreezeNote: payload.new.withdrawal_freeze_note,
+                    orderLimit: payload.new.order_limit,
+                    restrictionAlertMessage: payload.new.restriction_alert_message
                 });
             }
         )

@@ -135,10 +135,20 @@ export interface Vendor {
   orders?: any[];
   documents?: any[];
   _count?: {
-    orders: number;
     reviews: number;
     offers: number;
   };
+  
+  // Advanced Restrictions (2026)
+  withdrawalsFrozen?: boolean;
+  withdrawalFreezeNote?: string;
+  withdrawalFreezeSignature?: string;
+  offerLimit?: number;
+  dailyOfferCount?: number;
+  visibilityRestricted?: boolean;
+  visibilityNote?: string;
+  visibilitySignature?: string;
+  visibilityRate?: number;
 }
 export interface WithdrawalRequest {
   id: string;
@@ -257,6 +267,8 @@ export interface AdminState {
   updateVendorStatus: (id: string, status: MerchantStatus) => void;
   updateVendorDocStatus: (vendorId: string, docType: 'cr' | 'license', status: 'approved' | 'rejected') => void;
   updateStoreNotes: (id: string, notes: string) => Promise<boolean>;
+  updateStoreRestrictions: (id: string, data: any) => Promise<boolean>;
+  clearStoreRestrictions: (id: string, signatureData?: any) => Promise<boolean>;
   
   // Withdrawal Management
   fetchWithdrawals: (silent?: boolean) => Promise<void>;
@@ -1445,6 +1457,59 @@ export const useAdminStore = create<AdminState>()(
         if (financialSubscription) {
           supabase.removeChannel(financialSubscription);
           set({ financialSubscription: null });
+        }
+      },
+
+      updateStoreRestrictions: async (id, data) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/stores/${id}/restrictions`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+          });
+          if (res.ok) {
+            const updatedProfile = await res.json();
+            // Update local state if profile is open
+            const currentProfile = get().currentStoreProfile;
+            if (currentProfile && currentProfile.id === id) {
+              set({ currentStoreProfile: updatedProfile });
+            }
+            return true;
+          }
+          return false;
+        } catch (error) {
+          console.error("Failed to update store restrictions", error);
+          return false;
+        }
+      },
+
+      clearStoreRestrictions: async (id, signatureData) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/stores/${id}/clear-restrictions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(signatureData || {})
+          });
+          if (res.ok) {
+            const updatedProfile = await res.json();
+            const currentProfile = get().currentStoreProfile;
+            if (currentProfile && currentProfile.id === id) {
+              set({ currentStoreProfile: updatedProfile });
+            }
+            return true;
+          }
+          return false;
+        } catch (error) {
+          console.error("Failed to clear store restrictions", error);
+          return false;
         }
       }
     }),

@@ -11,6 +11,8 @@ import { Order } from '../../types';
 import { CountdownTimer } from './OrderDetails';
 import { OrderCountdown } from '../ui/OrderCountdown';
 import { getDynamicOrderDeadline, isOrderExpired } from '../../utils/dateUtils';
+import { useProfileStore } from '../../stores/useProfileStore';
+import { ShieldAlert, AlertTriangle, Info } from 'lucide-react';
 
 
 
@@ -20,8 +22,10 @@ interface MyOrdersProps {
 
 export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
+    const isAr = language === 'ar';
     const { orders, loading, fetchOrders, cancelOrder, deleteOrder, renewOrder, canCancelOrder } = useOrdersStore();
     const { shipments, fetchShipments } = useShipmentsStore();
+    const { user } = useProfileStore();
 
     // Filters State
     const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -116,6 +120,49 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                         </button>
                     </div>
                 </div>
+
+                {/* 2026 Governance Alert: Order Restrictions */}
+                {(user?.orderLimit !== undefined && user.orderLimit !== -1) && (
+                    <motion.div 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="relative overflow-hidden group"
+                    >
+                        <GlassCard className="p-0 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
+                            <div className="flex items-stretch">
+                                <div className="w-2 bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]"></div>
+                                <div className="p-5 flex flex-col sm:flex-row items-center justify-between gap-6 w-full">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500 border border-amber-500/20 shadow-inner">
+                                            <ShieldAlert size={26} className="animate-pulse" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-base font-black text-white uppercase tracking-tight flex items-center gap-2">
+                                                {isAr ? 'تنبيه: قيود نشطة على الطلبات' : 'Alert: Active Order Restrictions'}
+                                                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-black text-[9px] font-black">{isAr ? 'نشط' : 'ACTIVE'}</span>
+                                            </h4>
+                                            <p className="text-xs text-white/50 font-medium mt-1">
+                                                {user.restrictionAlertMessage || (isAr 
+                                                    ? `تم وضع سقف لطلباتك اليومية بحد أقصى ${user.orderLimit} طلبات.` 
+                                                    : `Your account has a daily order limit of ${user.orderLimit} requests.`)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-right hidden sm:block">
+                                            <div className="text-[10px] font-black text-amber-500/50 uppercase tracking-widest">{isAr ? 'الحد المسموح' : 'Limit'}</div>
+                                            <div className="text-lg font-black text-white">{user.orderLimit} <span className="text-[10px] text-white/30">{isAr ? 'طلبات' : 'Orders'}</span></div>
+                                        </div>
+                                        <div className="w-px h-8 bg-white/10 mx-2 hidden sm:block"></div>
+                                        <button className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black text-white/60 hover:text-white uppercase tracking-widest transition-all">
+                                            {isAr ? 'التفاصيل' : 'Details'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </GlassCard>
+                    </motion.div>
+                )}
 
                 {/* Filters Bar */}
                 <GlassCard className="p-4 flex flex-col md:flex-row items-start md:items-end gap-5 z-20 relative">

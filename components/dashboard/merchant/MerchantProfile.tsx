@@ -21,7 +21,7 @@ export const MerchantProfile: React.FC = () => {
 
     const { fetchImpactRules, impactRules } = useReviewStore();
     
-    const [activeProfileTab, setActiveProfileTab] = useState<'info' | 'contract'>('info');
+    const [activeProfileTab, setActiveProfileTab] = useState<'info' | 'contract' | 'restrictions'>('info');
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [showSaveSuccess, setShowSaveSuccess] = useState(false);
@@ -133,6 +133,16 @@ export const MerchantProfile: React.FC = () => {
                         >
                             {t.dashboard.merchant.storeProfile.contract?.tab || 'العقد'}
                         </button>
+                        <button
+                            onClick={() => setActiveProfileTab('restrictions')}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                                activeProfileTab === 'restrictions' 
+                                ? 'bg-gold-500 text-black shadow-lg shadow-gold-500/20' 
+                                : 'text-white/60 hover:text-white'
+                            }`}
+                        >
+                            {language === 'ar' ? 'القيود والتحكم' : 'Restrictions'}
+                        </button>
                     </div>
 
                     {activeProfileTab === 'info' && (
@@ -169,9 +179,96 @@ export const MerchantProfile: React.FC = () => {
                     )}
                 </div>
             </div>
-
             <AnimatePresence mode="wait">
-                {activeProfileTab === 'info' ? (
+                        {activeProfileTab === 'restrictions' && (
+                            <motion.div
+                                key="restrictions"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="space-y-8"
+                            >
+                                <div className="grid md:grid-cols-2 gap-8">
+                                    {/* Financial Restrictions */}
+                                    <GlassCard className="p-8 border-white/5 relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-3xl rounded-full -mr-16 -mt-16" />
+                                        <div className="flex items-center gap-4 mb-8">
+                                            <div className={`p-4 rounded-2xl ${useVendorStore.getState().withdrawalsFrozen ? 'bg-orange-500/20 text-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.2)]' : 'bg-white/5 text-white/20'}`}>
+                                                <CreditCard size={28} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black text-white uppercase tracking-wider">{language === 'ar' ? 'الوضع المالي' : 'Financial Status'}</h3>
+                                                <p className="text-xs text-white/40">{language === 'ar' ? 'حالة سحب الرصيد والمدفوعات' : 'Payouts and withdrawal status'}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div className={`p-6 rounded-3xl border ${useVendorStore.getState().withdrawalsFrozen ? 'bg-orange-500/5 border-orange-500/20' : 'bg-green-500/5 border-green-500/20'}`}>
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <span className="text-sm font-bold text-white">{language === 'ar' ? 'عمليات السحب' : 'Withdrawals'}</span>
+                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${useVendorStore.getState().withdrawalsFrozen ? 'bg-orange-500 text-black' : 'bg-green-500 text-black'}`}>
+                                                        {useVendorStore.getState().withdrawalsFrozen ? (language === 'ar' ? 'مجمدة' : 'Frozen') : (language === 'ar' ? 'متاحة' : 'Active')}
+                                                    </span>
+                                                </div>
+                                                {useVendorStore.getState().withdrawalsFrozen && (
+                                                    <p className="text-xs text-orange-400/80 leading-relaxed font-medium">
+                                                        {useVendorStore.getState().withdrawalFreezeNote || (language === 'ar' ? 'تم تجميد حسابك مؤقتاً من قبل الإدارة.' : 'Your account has been temporarily frozen by administration.')}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </GlassCard>
+
+                                    {/* Operational Restrictions */}
+                                    <GlassCard className="p-8 border-white/5 relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full -mr-16 -mt-16" />
+                                        <div className="flex items-center gap-4 mb-8">
+                                            <div className={`p-4 rounded-2xl ${useVendorStore.getState().visibilityRestricted || useVendorStore.getState().offerLimit !== -1 ? 'bg-blue-500/20 text-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.2)]' : 'bg-white/5 text-white/20'}`}>
+                                                <AlertTriangle size={28} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black text-white uppercase tracking-wider">{language === 'ar' ? 'القيود التشغيلية' : 'Operational Quotas'}</h3>
+                                                <p className="text-xs text-white/40">{language === 'ar' ? 'حدود العروض ونسبة الظهور' : 'Offer limits and visibility rates'}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center justify-between">
+                                                <div className="text-sm font-bold text-white/60">{language === 'ar' ? 'حد العروض اليومي' : 'Daily Offer Limit'}</div>
+                                                <div className="text-lg font-black text-white font-mono">{useVendorStore.getState().offerLimit === -1 ? '∞' : useVendorStore.getState().offerLimit}</div>
+                                            </div>
+
+                                            <div className={`p-5 rounded-2xl border transition-all ${useVendorStore.getState().visibilityRestricted ? 'bg-blue-500/5 border-blue-500/20' : 'bg-white/[0.02] border-white/5'}`}>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-sm font-bold text-white/60">{language === 'ar' ? 'نسبة ظهور الطلبات' : 'Order Visibility Rate'}</span>
+                                                    <span className="text-lg font-black text-blue-400 font-mono">{useVendorStore.getState().visibilityRate}%</span>
+                                                </div>
+                                                {useVendorStore.getState().visibilityRestricted && (
+                                                    <p className="text-[10px] text-blue-400/60 uppercase font-black tracking-widest italic">
+                                                        {useVendorStore.getState().visibilityNote || (language === 'ar' ? 'معدل ظهورك مقيد إدارياً' : 'Visibility rate restricted by admin')}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </GlassCard>
+                                </div>
+
+                                {useVendorStore.getState().restrictionAlertMessage && (
+                                    <GlassCard className="p-6 bg-red-500/5 border-red-500/20">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-red-500/20 rounded-xl text-red-500">
+                                                <AlertTriangle size={24} />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-black text-red-500 uppercase tracking-widest mb-1">{language === 'ar' ? 'رسالة إدارية هامة' : 'Important Administrative Message'}</h4>
+                                                <p className="text-xs text-white/70 leading-relaxed">{useVendorStore.getState().restrictionAlertMessage}</p>
+                                            </div>
+                                        </div>
+                                    </GlassCard>
+                                )}
+                            </motion.div>
+                        )}
+                        {activeProfileTab === 'info' && (
                     <motion.div
                         key="info"
                         initial={{ opacity: 0, y: 10 }}
@@ -644,8 +741,10 @@ export const MerchantProfile: React.FC = () => {
                                 </GlassCard>
                             </div>
                         </div>
-                    </motion.div>
-                ) : (
+                        </motion.div>
+                        )}
+
+                        {activeProfileTab === 'contract' && (
                     <motion.div
                         key="contract"
                         initial={{ opacity: 0, y: 10 }}
@@ -789,9 +888,9 @@ export const MerchantProfile: React.FC = () => {
                                 </div>
                             </div>
                         )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        </motion.div>
+                        )}
+                    </AnimatePresence>
         </div>
     );
 };

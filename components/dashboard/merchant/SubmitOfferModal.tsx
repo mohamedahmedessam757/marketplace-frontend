@@ -62,7 +62,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     const { addNotification } = useNotificationStore();
     const { systemConfig, fetchPublicConfig } = useAdminStore();
     const { getOrder, addOfferToOrder } = useOrderStore();
-    const { storeId } = useVendorStore();
+    const { storeId, offerLimit, dailyOfferCount } = useVendorStore();
 
     const isAr = language === 'ar';
     const parts = requestDetails?.parts || [];
@@ -282,6 +282,18 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             return;
         }
 
+        // Check Daily Limit before starting loop
+        if (offerLimit !== -1) {
+            const available = offerLimit - dailyOfferCount;
+            if (selectedPartIds.size > available) {
+                triggerError(isAr 
+                    ? `لا يمكنك إرسال ${selectedPartIds.size} عروض. المتبقي لك اليوم: ${available}` 
+                    : `Cannot send ${selectedPartIds.size} offers. Remaining today: ${available}`);
+                return;
+            }
+        }
+
+
         // Validate all selected parts
         for (const partId of selectedPartIds) {
             const form = formDataMap[partId];
@@ -441,6 +453,28 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
                     className="bg-[#1A1814] border border-gold-500/20 rounded-2xl w-full max-w-5xl shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden"
                 >
+                    {/* Offer Limit Warning Banner [2026 Governance] */}
+                    {offerLimit !== -1 && dailyOfferCount >= offerLimit && (
+                        <div className="bg-red-500/10 border-b border-red-500/20 p-4 flex items-center justify-between gap-4 animate-pulse">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-red-500/20 rounded-xl flex items-center justify-center text-red-500">
+                                    <ShieldCheck size={20} />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-white uppercase tracking-tight">
+                                        {isAr ? 'تم الوصول للحد اليومي للعروض' : 'Daily Offer Limit Reached'}
+                                    </h4>
+                                    <p className="text-red-400/80 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                                        {isAr ? `لقد استهلكت جميع عروضك المتاحة اليوم (${offerLimit}/${offerLimit})` : `You have consumed all your available offers today (${offerLimit}/${offerLimit})`}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="text-[10px] font-black text-red-500 uppercase border border-red-500/30 px-3 py-1.5 rounded-lg">
+                                {isAr ? 'مقيد إدارياً' : 'Restricted'}
+                            </div>
+                        </div>
+                    )}
+
 
                     {/* ====== PART SELECTION BAR (Multi-Part Only) ====== */}
                     {isMultiPart && (
@@ -890,7 +924,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                         </button>
                                         <button
                                             onClick={handleSubmit}
-                                            disabled={isSubmitting}
+                                            disabled={isSubmitting || (offerLimit !== -1 && dailyOfferCount >= offerLimit)}
                                             className={`flex-[2] py-3 rounded-xl bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white font-bold text-sm shadow-lg shadow-gold-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
                                         >
                                             {isSubmitting ? (

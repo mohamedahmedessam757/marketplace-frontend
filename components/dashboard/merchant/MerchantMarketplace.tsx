@@ -19,7 +19,7 @@ interface MerchantMarketplaceProps {
 export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const { orders, addOfferToOrder } = useOrderStore();
-    const { vendorStatus, storeInfo, storeId } = useVendorStore();
+    const { vendorStatus, storeInfo, storeId, visibilityRestricted, visibilityRate, visibilityNote } = useVendorStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
 
@@ -140,6 +140,43 @@ export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavi
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            {/* Visibility Restriction Transparency Banner [2026 Governance] */}
+            {visibilityRestricted && visibilityRate < 100 && (
+                <GlassCard className="bg-blue-500/10 border-blue-500/20 p-5 flex items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400">
+                            <Shield size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-white mb-1">
+                                {isAr ? 'تم تطبيق تحسين الرؤية' : 'Visibility Optimization Applied'}
+                            </h3>
+                            <p className="text-white/60 text-sm max-w-2xl">
+                                {isAr 
+                                    ? `متجرك حالياً في وضع الرؤية المحسنة بنسبة ${visibilityRate}%. هذا يعني أنك تشاهد مجموعة مختارة من الطلبات لضمان توازن السوق وجودة العروض.` 
+                                    : `Your store is currently in ${visibilityRate}% visibility optimization mode. This means you are seeing a curated selection of orders to ensure market balance and offer quality.`}
+                                {visibilityNote && <span className="block mt-1 text-blue-400/80 font-medium">Note: {visibilityNote}</span>}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="hidden md:flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                            <div className="h-2 w-32 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${visibilityRate}%` }}
+                                    className="h-full bg-blue-500"
+                                />
+                            </div>
+                            <span className="text-xs font-mono text-blue-400">{visibilityRate}%</span>
+                        </div>
+                        <span className="text-[10px] font-black text-blue-500/60 uppercase tracking-widest">
+                            {isAr ? 'تنظيم إداري' : 'Admin Regulation'}
+                        </span>
+                    </div>
+                </GlassCard>
+            )}
+
 
             {/* Header & Filter Bar */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

@@ -15,12 +15,14 @@ interface AdminSignatureModalProps {
         adminSignatureImage?: string;
         adminReviewDetails?: string; 
     }) => Promise<void>;
-    actionType: 'APPROVE' | 'REJECT';
+    actionType?: 'APPROVE' | 'REJECT';
     initialDetails?: string;
+    title?: string;
+    subtitle?: string;
 }
 
 export const AdminSignatureModal: React.FC<AdminSignatureModalProps> = ({
-    isOpen, onClose, onConfirm, actionType, initialDetails = ''
+    isOpen, onClose, onConfirm, actionType = 'APPROVE', initialDetails = '', title, subtitle
 }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
@@ -177,10 +179,10 @@ export const AdminSignatureModal: React.FC<AdminSignatureModalProps> = ({
                                     </div>
                                     <div>
                                         <h2 className="text-2xl font-bold text-white leading-tight">
-                                            {translates.modalTitle}
+                                            {title || translates.modalTitle}
                                         </h2>
                                         <p className="text-white/50 text-sm mt-1">
-                                            {actionType === 'APPROVE' ? (isAr ? 'اعتماد مطابقة القطعة للمستندات' : 'Approving part compliance') : (isAr ? 'رفض مطابقة القطعة' : 'Rejecting part compliance')}
+                                            {subtitle || (actionType === 'APPROVE' ? (isAr ? 'اعتماد مطابقة القطعة للمستندات' : 'Approving part compliance') : (isAr ? 'رفض مطابقة القطعة' : 'Rejecting part compliance'))}
                                         </p>
                                     </div>
                                 </div>

@@ -35,6 +35,7 @@ import { AdminViolations } from './AdminViolations';
 interface AdminHomeProps {
     subPath?: string;
     viewId?: any; // ID passed from routing
+    onNavigate?: (path: string, id?: any) => void;
 }
 
 // Ultra-Modern 2026 Skeleton Pre-loader (No flashes, extremely fast structural rendering)
@@ -149,7 +150,7 @@ const KPICard = React.memo(({ label, value, icon: Icon, color, trend, loading, c
     );
 });
 
-export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
+export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigate }) => {
     const { t, language } = useLanguage();
     const { currentAdmin, isLoadingStats, commissionRate, fetchDashboardStats, dashboardStats, subscribeToStats, unsubscribeFromStats } = useAdminStore();
     const { cases } = useResolutionStore();
@@ -185,7 +186,9 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
         // Listen for internal navigation events
         const handleInternalNav = (e: any) => {
             const { path, id } = e.detail;
-            navigate(path, id);
+            if (onNavigate) {
+                onNavigate(path, id);
+            }
         };
         window.addEventListener('admin-nav', handleInternalNav);
 
@@ -198,7 +201,11 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId }) => {
 
     // Helper for internal nav bubbling
     const navigate = (path: string, id?: any) => {
-        window.dispatchEvent(new CustomEvent('admin-nav', { detail: { path, id } }));
+        if (onNavigate) {
+            onNavigate(path, id);
+        } else {
+            window.dispatchEvent(new CustomEvent('admin-nav', { detail: { path, id } }));
+        }
     };
 
     // --- ANALYTICS ENGINE (KPIs) ---

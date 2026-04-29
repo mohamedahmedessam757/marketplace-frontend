@@ -16,7 +16,7 @@ interface MerchantHomeProps {
 export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const { orders } = useOrderStore();
-    const { performance, documents, vendorStatus, storeId: myStoreId, storeInfo } = useVendorStore();
+    const { performance, documents, vendorStatus, storeId: myStoreId, storeInfo, withdrawalsFrozen, offerLimit, dailyOfferCount, visibilityRestricted, visibilityRate, restrictionAlertMessage } = useVendorStore();
     const { addNotification, notifications } = useNotificationStore();
     const isAr = language === 'ar';
     const ChevronIcon = isAr ? ChevronLeft : ChevronRight;
@@ -186,6 +186,44 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
                         </div>
                         <h1 className="text-3xl font-bold text-white mb-2">{t.dashboard.merchant.home.welcome}</h1>
                         <p className="text-white/40 text-sm max-w-md leading-relaxed">{t.dashboard.merchant.home.welcomeSub}</p>
+                        
+                        {/* NEW: Administrative Restriction Highlights (2026 UX) */}
+                        {(withdrawalsFrozen || (offerLimit !== -1) || visibilityRestricted || restrictionAlertMessage) && (
+                            <div className="flex flex-wrap gap-3 mt-6">
+                                {withdrawalsFrozen && (
+                                    <button 
+                                        onClick={() => onNavigate('wallet')}
+                                        className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-xl flex items-center gap-2 animate-pulse hover:bg-red-500/30 transition-all cursor-pointer group/pill"
+                                    >
+                                        <ShieldAlert size={14} className="text-red-500 group-hover/pill:scale-110 transition-transform" />
+                                        <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">{isAr ? 'السحب مجمد إدارياً' : 'Payouts Frozen by Admin'}</span>
+                                    </button>
+                                )}
+                                {offerLimit !== -1 && (
+                                    <button 
+                                        onClick={() => onNavigate('marketplace')}
+                                        className="px-4 py-2 bg-amber-500/20 border border-amber-500/30 rounded-xl flex items-center gap-2 hover:bg-amber-500/30 transition-all cursor-pointer group/pill"
+                                    >
+                                        <Package size={14} className="text-amber-500 group-hover/pill:scale-110 transition-transform" />
+                                        <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                                            {isAr ? `حد العروض: ${dailyOfferCount}/${offerLimit}` : `Offer Limit: ${dailyOfferCount}/${offerLimit}`}
+                                        </span>
+                                    </button>
+                                )}
+                                {visibilityRestricted && (
+                                    <button 
+                                        onClick={() => onNavigate('marketplace')}
+                                        className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-xl flex items-center gap-2 hover:bg-blue-500/30 transition-all cursor-pointer group/pill"
+                                    >
+                                        <Zap size={14} className="text-blue-500 group-hover/pill:scale-110 transition-transform" />
+                                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                                            {isAr ? `الظهور: ${visibilityRate}%` : `Visibility: ${visibilityRate}%`}
+                                        </span>
+                                    </button>
+                                )}
+
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -15,6 +15,7 @@ import { useCustomerWalletStore, subscribeToWalletUpdates } from '../../stores/u
 import { NotificationDrawer } from './notifications/NotificationDrawer';
 import { NavigationDrawer } from './NavigationDrawer';
 import { VerdictPopUp } from './resolution/VerdictPopUp';
+import { RestrictionAlertBanner } from './shared/RestrictionAlertBanner';
 import { getCurrentUserId } from '../../utils/auth';
 
 interface DashboardLayoutProps {
@@ -43,16 +44,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const { startRealtime, stopRealtime } = useOrderStore();
   const { fetchInvoices, fetchCards } = useBillingStore();
   const { fetchWallet } = useMerchantWalletStore();
-  const { user, fetchProfile } = useProfileStore();
+  const { user, fetchProfile, subscribeToProfile } = useProfileStore();
   const { subscribeToCases, unsubscribeFromCases } = useResolutionStore();
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const walletSubRef = useRef<{ unsubscribe: () => void } | null>(null);
 
   useEffect(() => {
+    let profileUnsub: (() => void) | undefined;
     const userId = getCurrentUserId();
     if (userId && role) {
       // 1. Core Profile & Notification Init
       fetchProfile();
+      profileUnsub = subscribeToProfile();
+      
+      if (role === 'merchant') {
+        useVendorStore.getState().subscribeToVendorProfile();
+      }
       
       // SAFETY: SILENCE ALL BACKGROUND FETCHES IF MAINTENANCE IS ACTIVE
       const isMaintenance = useAdminStore.getState().publicSystemStatus?.maintenanceMode;
@@ -82,6 +89,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     return () => {
       unsubscribeFromNotifications();
       unsubscribeFromCases();
+      if (profileUnsub) profileUnsub();
+      if (role === 'merchant') {
+        useVendorStore.getState().unsubscribeFromVendorProfile();
+      }
       if (walletSubRef.current) {
         walletSubRef.current.unsubscribe();
         walletSubRef.current = null;
@@ -151,8 +162,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
     // Start Realtime WebSockets for zero-latency sync (replaces legacy polling)
     startRealtime(getCurrentUserId() || undefined, role);
+    const stopProfileSub = useProfileStore.getState().subscribeToProfile();
 
-    return () => stopRealtime();
+    return () => {
+      stopRealtime();
+      stopProfileSub();
+    };
   }, [role, startRealtime, stopRealtime]);
 
   // Define Menu Items per Role
@@ -238,9 +253,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const navItems = getNavItems();
 
   const getRoleBadge = () => {
+    // 2026 Governance: Check both account-level and entity-level (vendor) restrictions
+    const hasAccountRestrictions = user?.withdrawalsFrozen || (user?.orderLimit !== undefined && user.orderLimit !== -1);
+    const vProfile = vendorProfile as any;
+    const hasVendorRestrictions = role === 'merchant' && (vProfile?.withdrawalsFrozen || vProfile?.visibilityRestricted || (vProfile?.offerLimit !== -1));
+    const hasAnyRestriction = hasAccountRestrictions || hasVendorRestrictions;
+
     switch (role) {
       case 'merchant':
         if (vendorStatus === 'LICENSE_EXPIRED') return <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] font-bold border border-red-500/20 animate-pulse">EXPIRED</span>;
+        if (hasAnyRestriction) return <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] font-bold border border-red-500/20 animate-pulse">RESTRICTED</span>;
         return <span className="bg-gold-500/20 text-gold-400 px-2 py-0.5 rounded text-[10px] font-bold border border-gold-500/20">MERCHANT</span>;
       case 'admin':
         return (
@@ -252,7 +274,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             {adminRole}
           </span>
         );
-      default: return <span className="bg-white/10 text-white/60 px-2 py-0.5 rounded text-[10px] font-bold">CUSTOMER</span>;
+      default: 
+        if (hasAnyRestriction) return <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-[10px] font-bold border border-red-500/20 animate-pulse uppercase tracking-tighter">RESTRICTED</span>;
+        return <span className="bg-white/10 text-white/60 px-2 py-0.5 rounded text-[10px] font-bold">CUSTOMER</span>;
     }
   };
 
@@ -375,6 +399,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
           </div>
         </header>
+
+        <RestrictionAlertBanner onNavigate={onNavigate} />
 
         {/* Page Content */}
         <div className="flex-1 p-4 md:p-8 mt-2 md:mt-4 pb-24 md:pb-8">

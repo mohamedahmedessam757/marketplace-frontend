@@ -25,7 +25,9 @@ import {
     RotateCcw,
     ShoppingBag,
     Star,
-    Share2
+    Share2,
+    ShieldAlert,
+    Lock
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useCustomerWalletStore, subscribeToWalletUpdates } from '../../../stores/useCustomerWalletStore';
@@ -36,6 +38,8 @@ import {
     ChevronDown, 
     Settings, 
 } from 'lucide-react';
+
+import { RestrictionAlertBanner } from '../shared/RestrictionAlertBanner';
 
 interface WalletViewProps {
     onNavigate?: (path: string, id?: any) => void;
@@ -199,6 +203,7 @@ const BankDetailsModal = ({
 
 export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
     const { language, t } = useLanguage();
+    const isAr = language === 'ar';
     const { 
         stats, 
         transactions, 
@@ -233,8 +238,6 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
     const [bankForm, setBankForm] = useState({ bankName: '', accountHolder: '', iban: '', swift: '' });
     const [isSavingBank, setIsSavingBank] = useState(false);
     const [showBankForm, setShowBankForm] = useState(false);
-    
-    const isAr = language === 'ar';
 
     useEffect(() => {
         fetchWalletData();
@@ -613,7 +616,6 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
         return labels[status?.toUpperCase()] || status;
     };
 
-    // Helper for Stat Card to avoid overlap
     const StatCard = ({ label, value, unit, icon: Icon, colorClass, borderClass, bgClass }: any) => (
         <GlassCard className={`p-4 sm:p-5 flex flex-col justify-between min-h-[100px] sm:min-h-[110px] ${borderClass || ''}`}>
             <div className="flex justify-between items-start w-full">
@@ -630,6 +632,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
 
     return (
         <div className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12 px-2 sm:px-0" dir={isAr ? 'rtl' : 'ltr'}>
+            {/* 2026 Admin Transparency Banner */}
             
             {/* 1. Header Navigation & Title */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -680,6 +683,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     </button>
                 </div>
             </div>
+
 
             {/* 2. Primary Stat Cards (Legacy Restoration) */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
@@ -736,7 +740,16 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
             </div>
 
             {/* 3. Main Dashboard Row (Income Summary) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="relative">
+                {/* 2026 Lock Overlay for Rewards/Income Grid */}
+                {stats?.withdrawalsFrozen && (
+                    <div className="absolute inset-0 z-20 backdrop-blur-md bg-black/40 rounded-2xl flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-500 border border-red-500/10">
+                        <Lock size={32} className="text-red-500/50 mb-2" />
+                        <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">{isAr ? 'المكافآت مقيدة حالياً' : 'REWARDS TEMPORARILY RESTRICTED'}</p>
+                    </div>
+                )}
+                
+                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 transition-all duration-500 ${stats?.withdrawalsFrozen ? 'filter blur-sm grayscale opacity-30 select-none pointer-events-none' : ''}`}>
                 <GlassCard className="p-5 sm:p-6 relative overflow-hidden group bg-gradient-to-br from-white/[0.04] to-transparent">
                     <div className="flex justify-between items-start relative z-10">
                         <div>
@@ -784,6 +797,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     </GlassCard>
                 </div>
             </div>
+        </div>
 
             {/* 4. Main Content Area */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 sm:gap-8">
@@ -998,8 +1012,34 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
 
                     {/* NEW: Withdrawal & Payout Management Section */}
                     <div className="space-y-6 pt-2">
-                        <GlassCard className="p-6 sm:p-8 border-gold-500/10 bg-gradient-to-br from-gold-500/[0.03] to-transparent">
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                        <GlassCard className="p-6 sm:p-8 border-gold-500/10 bg-gradient-to-br from-gold-500/[0.03] to-transparent relative overflow-hidden">
+                            {/* 2026 Premium Lock Overlay */}
+                            {stats?.withdrawalsFrozen && (
+                                <div className="absolute inset-0 z-30 backdrop-blur-md bg-black/60 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                                    <motion.div 
+                                        initial={{ scale: 0.8, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        className="w-20 h-20 bg-red-500/20 rounded-[2rem] flex items-center justify-center border border-red-500/30 mb-6 shadow-2xl shadow-red-500/20"
+                                    >
+                                        <Lock size={40} className="text-red-500" />
+                                    </motion.div>
+                                    <h4 className="text-xl font-black text-white uppercase tracking-widest mb-3">
+                                        {isAr ? 'عمليات السحب مقيدة' : 'Withdrawals Restricted'}
+                                    </h4>
+                                    <p className="text-white/60 text-xs max-w-xs leading-relaxed font-medium mb-6">
+                                        {isAr 
+                                            ? `تم تجميد عمليات السحب لهذا الحساب مؤقتاً لأسباب أمنية أو إدارية. السبب: ${stats.withdrawalFreezeNote || 'مراجعة أمنية جارية'}`
+                                            : `Withdrawal capabilities are currently restricted for this account. Reason: ${stats.withdrawalFreezeNote || 'Security Review in Progress'}`}
+                                    </p>
+                                    <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 text-[9px] font-black text-white/40 uppercase tracking-widest">
+                                        <ShieldAlert size={12} className="text-red-500" />
+                                        {isAr ? 'يرجى مراجعة الدعم الفني لمزيد من المعلومات' : 'Please contact support for more information'}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className={`transition-all duration-700 ${stats?.withdrawalsFrozen ? 'filter blur-xl grayscale opacity-30 select-none pointer-events-none' : ''}`}>
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
                                 <div>
                                     <h3 className="text-xl font-bold text-white flex items-center gap-3">
                                         <ArrowRightLeft className="text-gold-500" size={20} />
@@ -1058,11 +1098,18 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                     
                                     <button 
                                         type="submit"
-                                        disabled={isSubmitting || !withdrawAmount}
-                                        className="w-full py-4 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-black uppercase tracking-[3px] text-xs rounded-2xl transition-all shadow-xl shadow-gold-500/10 flex items-center justify-center gap-2 mt-4"
+                                        disabled={isSubmitting || !withdrawAmount || stats?.withdrawalsFrozen}
+                                        className={`w-full py-4 font-black uppercase tracking-[3px] text-xs rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 mt-4 ${
+                                            stats?.withdrawalsFrozen 
+                                            ? 'bg-white/5 text-white/20 border border-white/10 cursor-not-allowed' 
+                                            : 'bg-gold-500 hover:bg-gold-400 text-black shadow-gold-500/10'
+                                        }`}
                                     >
                                         {isSubmitting ? <RotateCcw size={18} className="animate-spin" /> : <ArrowUpRight size={18} />}
-                                        {isAr ? 'تأكيد طلب السحب' : 'Confirm Withdrawal'}
+                                        {stats?.withdrawalsFrozen 
+                                            ? (isAr ? 'السحب مجمد حالياً' : 'Withdrawals Frozen') 
+                                            : (isAr ? 'تأكيد طلب السحب' : 'Confirm Withdrawal')
+                                        }
                                     </button>
                                 </div>
 
@@ -1137,7 +1184,8 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                     )}
                                 </div>
                             </form>
-                        </GlassCard>
+                        </div>
+                    </GlassCard>
 
                         {/* Withdrawal Request History */}
                         <GlassCard className="p-0 overflow-hidden border-white/5">
@@ -1191,7 +1239,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         </GlassCard>
                     </div>
                 </div>
-
+                    
                 {/* 4b. Sidebar (Real Notifications & Referrals) */}
                 <div className="space-y-6">
                     

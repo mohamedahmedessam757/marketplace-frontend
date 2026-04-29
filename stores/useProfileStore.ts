@@ -9,6 +9,10 @@ export interface UserProfile {
   phone: string;
   role: string;
   avatar?: string;
+  withdrawalsFrozen?: boolean;
+  withdrawalFreezeNote?: string;
+  orderLimit?: number;
+  restrictionAlertMessage?: string;
 }
 
 export interface Address {
@@ -70,6 +74,7 @@ interface ProfileState {
   
   // System Actions
   clearProfile: () => void;
+  subscribeToProfile: () => (() => void);
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
@@ -113,7 +118,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       // 1. Fetch user data
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, name, email, phone, role, avatar')
+        .select('id, name, email, phone, role, avatar, withdrawals_frozen, withdrawal_freeze_note, order_limit, restriction_alert_message')
         .eq('id', userId)
         .maybeSingle(); // Changed from single() to maybeSingle() to prevent 406 errors
 
@@ -136,7 +141,11 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
                 email: apiProfile.email,
                 phone: apiProfile.phone,
                 role: apiProfile.role,
-                avatar: apiProfile.avatar
+                avatar: apiProfile.avatar,
+                withdrawalsFrozen: apiProfile.withdrawalsFrozen,
+                withdrawalFreezeNote: apiProfile.withdrawalFreezeNote,
+                orderLimit: apiProfile.orderLimit,
+                restrictionAlertMessage: apiProfile.restrictionAlertMessage
               },
               loading: false
             });
@@ -202,7 +211,11 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           email: userData.email || '',
           phone: userData.phone || '',
           role: userData.role || 'CUSTOMER',
-          avatar: userData.avatar
+          avatar: userData.avatar,
+          withdrawalsFrozen: userData.withdrawals_frozen,
+          withdrawalFreezeNote: userData.withdrawal_freeze_note,
+          orderLimit: userData.order_limit,
+          restrictionAlertMessage: userData.restriction_alert_message
         },
         settings: currentSettings,
         loading: false
@@ -433,5 +446,39 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       // Fallback: Clear if it fails to load real DB list
       set({ sessions: [] });
     }
+  },
+
+  subscribeToProfile: () => {
+    const userId = getCurrentUserId();
+    if (!userId) return () => {};
+
+    const subscription = supabase
+      .channel(`profile-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${userId}`
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          set((state) => ({
+            user: state.user ? {
+              ...state.user,
+              withdrawalsFrozen: newData.withdrawals_frozen ?? state.user.withdrawalsFrozen,
+              withdrawalFreezeNote: newData.withdrawal_freeze_note ?? state.user.withdrawalFreezeNote,
+              orderLimit: newData.order_limit ?? state.user.orderLimit,
+              restrictionAlertMessage: newData.restriction_alert_message ?? state.user.restrictionAlertMessage,
+            } : null
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }
 }));
