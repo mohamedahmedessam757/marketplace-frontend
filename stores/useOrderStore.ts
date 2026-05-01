@@ -12,6 +12,8 @@ const REALTIME_DEBOUNCE_MS = 1500;
 
 // --- FSM CONFIGURATION (Must match Backend) ---
 const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
+    COLLECTING_OFFERS: ['AWAITING_SELECTION', 'CANCELLED'],
+    AWAITING_SELECTION: ['AWAITING_PAYMENT', 'CANCELLED'],
     AWAITING_OFFERS: ['AWAITING_PAYMENT', 'CANCELLED'],
     AWAITING_PAYMENT: ['PREPARATION', 'CANCELLED'],
     PREPARATION: ['PREPARED', 'DELAYED_PREPARATION', 'CANCELLED'],
@@ -97,6 +99,8 @@ export interface OrderOffer {
     partType?: string; // Original, Commercial, etc.
     orderPartId?: string; // Links to specific part
     partName?: string; // Part name for display
+    canEditUntil?: string; // 2026 Governance Timer
+    isWithdrawn?: boolean; // 2026 Governance State
 }
 
 export interface Order {
@@ -197,6 +201,11 @@ export interface Order {
     warranty_active_at?: string;
     warranty_end_at?: string;
 
+    // 2026 Governance
+    revealOffersAt?: string;
+    offersStopAt?: string;
+    selectionDeadlineAt?: string;
+
     // Review
     review?: any;
 }
@@ -236,6 +245,7 @@ interface OrderState {
     updateOrderStatus: (id: string, status: StatusType) => void;
     adminUpdateOffer: (offerId: string, updateDto: any) => Promise<void>;
     adminDeleteOffer: (offerId: string) => Promise<void>;
+    withdrawOffer: (offerId: string) => Promise<void>;
     updateAdminNotes: (orderId: string, notes: string) => Promise<void>;
     confirmOrderReceived: (id: string, note?: string) => Promise<boolean>;
 }
@@ -485,10 +495,15 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     offerImage: offer.offerImage,
                     weight: Number(offer.weightKg || offer.weight || 0),
                     partType: offer.partType || 'original',
-                    orderPartId: offer.orderPartId || offer.order_part_id || null
+                    orderPartId: offer.orderPartId || offer.order_part_id || null,
+                    canEditUntil: offer.canEditUntil,
+                    isWithdrawn: !!offer.isWithdrawn
                 })) : [],
                 createdAt: o.createdAt,
                 updatedAt: o.updatedAt,
+                revealOffersAt: o.revealOffersAt,
+                offersStopAt: o.offersStopAt,
+                selectionDeadlineAt: o.selectionDeadlineAt,
                 customer: o.customer ? {
                     ...o.customer,
                     customerCode: o.customer.id ? `CUS-${o.customer.id.substring(0, 6).toUpperCase()}` : undefined
@@ -685,6 +700,22 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             throw new Error(err.message || 'Failed to delete offer by admin');
         }
         await get().silentFetch(); // Refresh orders after deletion
+    },
+    
+    withdrawOffer: async (offerId) => {
+        const token = localStorage.getItem('access_token');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_URL}/offers/${offerId}/withdraw`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'Failed to withdraw offer');
+        }
+        await get().silentFetch(); // Refresh to show 'withdrawn' status
     },
 
     updateAdminNotes: async (orderId, notes) => {

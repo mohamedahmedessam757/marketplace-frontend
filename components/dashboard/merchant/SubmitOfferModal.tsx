@@ -49,7 +49,7 @@ const DEFAULT_FORM: PartFormData = {
     weight: '',
     partType: 'standard',
     hasWarranty: false,
-    warrantyDuration: 'month1',
+    warrantyDuration: '15days',
     deliveryTime: 'd1_3',
     condition: 'used_clean',
     notes: '',
@@ -120,7 +120,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             weight: offer.weightKg?.toString() || offer.weight_kg?.toString() || '',
             partType: offer.partType || offer.part_type || 'normal',
             hasWarranty: offer.hasWarranty ?? offer.has_warranty ?? false,
-            warrantyDuration: offer.warrantyDuration || offer.warranty_duration || 'month1',
+            warrantyDuration: offer.warrantyDuration || offer.warranty_duration || '15days',
             deliveryTime: offer.deliveryDays || offer.delivery_days || 'd1_3',
             condition: offer.condition || 'used_clean',
             notes: offer.notes || '',
@@ -394,7 +394,8 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                 }
             }
 
-            // Notifications
+            // 2026 Blind Auction: Customer notification suppressed during bidding phase
+            /*
             if (requestDetails) {
                 const orderData = getOrder(requestDetails.id);
                 if (orderData?.customer?.id) {
@@ -412,6 +413,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                     });
                 }
             }
+            */
 
             onSubmit({});
 
@@ -715,9 +717,9 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                 ))}
                                                 {(!systemConfig.logistics?.shipmentTypes || systemConfig.logistics.shipmentTypes.length === 0) && (
                                                     <>
-                                                        <option value="standard" className="bg-[#1A1814]">{isAr ? 'شحن قياسي' : 'Standard Shipping'}</option>
-                                                        <option value="engine" className="bg-[#1A1814]">{isAr ? 'شحن ماكينة' : 'Engine'}</option>
-                                                        <option value="gearbox" className="bg-[#1A1814]">{isAr ? 'شحن جيربوكس' : 'Gearbox'}</option>
+                                                        <option value="standard" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.standard}</option>
+                                                        <option value="engine" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.engine}</option>
+                                                        <option value="gearbox" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.gearbox}</option>
                                                     </>
                                                 )}
                                             </select>

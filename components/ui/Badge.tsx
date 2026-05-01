@@ -4,6 +4,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { Truck } from 'lucide-react';
 
 export type StatusType =
+  | 'COLLECTING_OFFERS'
+  | 'AWAITING_SELECTION'
   | 'AWAITING_OFFERS'
   | 'AWAITING_PAYMENT'
   | 'PREPARATION'
@@ -74,6 +76,8 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, 
   ].includes(status);
 
   const styles: Record<string, string> = {
+    COLLECTING_OFFERS: "bg-gold-500/10 text-gold-500 border-gold-500/30 animate-pulse shadow-[0_0_15px_rgba(212,175,55,0.2)]",
+    AWAITING_SELECTION: "bg-purple-500/10 text-purple-400 border-purple-500/20 animate-pulse",
     AWAITING_OFFERS: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
     AWAITING_PAYMENT: "bg-orange-500/10 text-orange-500 border-orange-500/20",
     PREPARATION: "bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse",

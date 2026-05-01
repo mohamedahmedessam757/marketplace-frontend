@@ -40,6 +40,8 @@ export const common = {
     noData: 'لا توجد بيانات',
     actions: 'الإجراءات',
     status: {
+      COLLECTING_OFFERS: 'جاري جمع أفضل العروض',
+      AWAITING_SELECTION: 'بانتظار اختيارك للقطع',
       AWAITING_OFFERS: 'بانتظار العروض',
       AWAITING_PAYMENT: 'بانتظار الدفع',
       PREPARATION: 'قيد التجهيز',
@@ -189,6 +191,8 @@ export const common = {
     noData: 'No Data',
     actions: 'Actions',
     status: {
+      COLLECTING_OFFERS: 'Collecting Best Offers',
+      AWAITING_SELECTION: 'Awaiting Your Selection',
       AWAITING_OFFERS: 'Awaiting Offers',
       AWAITING_PAYMENT: 'Awaiting Payment',
       PREPARATION: 'Preparation',

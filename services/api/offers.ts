@@ -24,5 +24,10 @@ export const offersApi = {
     cancel: async (offerId: string) => {
         const response = await client.delete(`/offers/${offerId}`);
         return response.data;
+    },
+
+    withdraw: async (offerId: string) => {
+        const response = await client.post(`/offers/${offerId}/withdraw`);
+        return response.data;
     }
 };

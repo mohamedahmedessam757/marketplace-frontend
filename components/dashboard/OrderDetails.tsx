@@ -6,7 +6,7 @@ import { Badge, StatusType } from '../ui/Badge';
 import { StatusTimeline } from '../ui/StatusTimeline';
 import { OfferCard } from './OfferCard';
 import { PartOffersDrawer } from './PartOffersDrawer';
-import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2, Eye, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2, Eye, ChevronDown, ChevronUp, ExternalLink, Lock } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCheckoutStore } from '../../stores/useCheckoutStore';
 import { useChatStore } from '../../stores/useChatStore';
@@ -26,6 +26,7 @@ import { OrderCountdown } from '../ui/OrderCountdown';
 import { WarrantyProtectionCard } from '../ui/WarrantyProtectionCard';
 import { useResolutionStore } from '../../stores/useResolutionStore';
 import { ShippingPaymentCard } from './resolution/ShippingPaymentCard';
+import { supabase } from '../../services/supabase';
 
 interface OrderDetailsProps {
     orderId: string | null;
@@ -226,6 +227,51 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
         useOrderStore.getState().fetchOrders();
         checkSLA();
         fetchShipments();
+    }, [orderId]);
+
+    // 2026 Real-time Subscription Handler
+    useEffect(() => {
+        if (!orderId) return;
+
+        // Subscribe to order changes (status transitions, reveal timestamp reach, etc)
+        const orderChannel = supabase.channel(`customer_order_sync_${orderId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `id=eq.${orderId}`
+                },
+                (payload) => {
+                    console.log('Order Sync Update:', payload);
+                    // Trigger a silent fetch to update the store and UI
+                    useOrderStore.getState().silentFetch();
+                }
+            )
+            .subscribe();
+
+        // Subscribe to offer reveals/additions
+        const offersChannel = supabase.channel(`customer_offers_sync_${orderId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'offers',
+                    filter: `order_id=eq.${orderId}`
+                },
+                (payload) => {
+                    console.log('Offers Sync Update:', payload);
+                    useOrderStore.getState().silentFetch();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(orderChannel);
+            supabase.removeChannel(offersChannel);
+        };
     }, [orderId]);
 
     // Auto-open drawer for specific part if requested from checkout
@@ -600,6 +646,9 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     </button>
 
                     {/* Timers — each status shows its own correct deadline */}
+                    {order.status === 'COLLECTING_OFFERS' && order.revealOffersAt && (
+                        <CountdownTimer targetDate={order.revealOffersAt} label={language === 'ar' ? 'يتم الكشف عن العروض خلال' : 'Offers Reveal In'} />
+                    )}
                     {order.status === 'AWAITING_OFFERS' && (
                         <CountdownTimer targetDate={getOfferDeadline()} label={t.dashboard.timers.offers_expires} />
                     )}
@@ -906,6 +955,33 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
                     {/* OVERVIEW CONTENT */}
                     <div className={activeTab === 'overview' ? 'space-y-6' : 'hidden'}>
+
+                    {/* STATE: COLLECTING OFFERS (2026 Reveal Buffer) */}
+                    {order.status === 'COLLECTING_OFFERS' && (
+                        <GlassCard className="flex flex-col items-center justify-center text-center py-16 border-dashed border-gold-500/20 bg-gold-500/5">
+                            <div className="w-20 h-20 bg-[#1A1814] rounded-full flex items-center justify-center mb-6 relative">
+                                <div className="absolute inset-0 bg-gold-500 rounded-full opacity-20 animate-pulse" />
+                                <Lock size={32} className="text-gold-400 relative z-10" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">
+                                {language === 'ar' ? 'جاري جمع عروض التجار' : 'Collecting Merchant Offers'}
+                            </h3>
+                            <p className="text-white/50 max-w-md mx-auto mb-4">
+                                {language === 'ar' 
+                                    ? 'يتم حالياً جمع أفضل العروض من التجار الموثوقين. سيتم الكشف عنها جميعاً فور انتهاء المهلة لضمان الشفافية والعدالة.'
+                                    : 'We are collecting the best offers from trusted merchants. They will all be revealed once the deadline expires to ensure transparency and fairness.'}
+                            </p>
+                            {order.revealOffersAt && (
+                                <div className="flex items-center gap-2 px-6 py-3 bg-white/5 rounded-2xl border border-white/10">
+                                    <Clock size={16} className="text-gold-400" />
+                                    <span className="text-sm text-white font-mono">
+                                        {language === 'ar' ? 'الوقت المتبقي للكشف:' : 'Reveal In:'}
+                                    </span>
+                                    <CountdownTimer targetDate={order.revealOffersAt} compact hideExpiredText />
+                                </div>
+                            )}
+                        </GlassCard>
+                    )}
 
                     {/* STATE: AWAITING OFFERS - Only show if NO offers yet */}
                     {order.status === 'AWAITING_OFFERS' && !isExpired && order.offers.filter(o => o.status !== 'rejected').length === 0 && (

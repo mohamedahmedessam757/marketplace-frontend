@@ -349,9 +349,10 @@ export const merchant = {
       weightUnit: 'كجم',
       partTypeLabel: 'نوع القطعة',
       partTypes: {
-        normal: 'قطعة عادية',
-        engine: 'ماكينة (Engine)',
-        gearbox: 'جيربوكس (Gearbox)'
+        standard: 'شحن قياسي (قطع غيار عادية)',
+        normal: 'شحن قياسي (قطع غيار عادية)',
+        engine: 'شحن ماكينة (محرك)',
+        gearbox: 'شحن جيربوكس'
       },
       warrantyLabel: 'هل يوجد ضمان؟',
       warrantyDurationLabel: 'مدة الضمان',
@@ -377,10 +378,10 @@ export const merchant = {
         used_avg: 'مستعمل (متوسط)'
       },
       warranties: {
-        days3: '3 أيام (تشغيل)',
-        month1: 'شهر واحد',
-        month3: '3 أشهر',
-        month6: '6 أشهر'
+        '15days': '15 يوم',
+        '1month': 'شهر واحد',
+        '3months': '3 أشهر',
+        '12months': '12 شهر'
       },
       deliveryTimes: {
         d1_3: '1 - 3 أيام',
@@ -975,6 +976,7 @@ export const merchant = {
       weightUnit: 'kg',
       partTypeLabel: 'Part Type',
       partTypes: {
+        standard: 'Standard Shipping',
         normal: 'Normal Part',
         engine: 'Engine',
         gearbox: 'Gearbox'
@@ -1003,10 +1005,10 @@ export const merchant = {
         used_avg: 'Used (Average)'
       },
       warranties: {
-        days3: '3 Days (Testing)',
-        month1: '1 Month',
-        month3: '3 Months',
-        month6: '6 Months'
+        '15days': '15 Days',
+        '1month': '1 Month',
+        '3months': '3 Months',
+        '12months': '12 Months'
       },
       deliveryTimes: {
         d1_3: '1 - 3 Days',

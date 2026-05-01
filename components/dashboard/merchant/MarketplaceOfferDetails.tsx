@@ -4,7 +4,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import {
-    ArrowLeft, ArrowRight, Clock, MapPin, Package, Settings, Monitor, ShieldCheck, FileText, CheckCircle2, ChevronDown, MessageCircle, AlertTriangle, Search, Car, Box, Calendar, Truck, User, DollarSign, Weight, Shield, Edit3, XCircle, Loader2, ExternalLink
+    ArrowLeft, ArrowRight, Clock, MapPin, Package, Settings, Monitor, ShieldCheck, FileText, CheckCircle2, ChevronDown, MessageCircle, AlertTriangle, Search, Car, Box, Calendar, Truck, User, DollarSign, Weight, Shield, Edit3, XCircle, Loader2, ExternalLink, Scale
 } from 'lucide-react';
 import { CountdownTimer } from '../OrderDetails';
 import { WarrantyProtectionCard } from '../../ui/WarrantyProtectionCard';
@@ -74,8 +74,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ArrowRight : ArrowLeft;
 
-    // Translation helpers matching OfferCard
-    const offersT = (t.dashboard as any)?.offers || (t.offers as any);
+    // Translation helpers matching OfferCard - Correct path for 2026 Merchant Dashboard
+    const offersT = (t.dashboard as any)?.merchant?.offerModal || (t.dashboard as any)?.offers || (t.offers as any);
 
     const getConditionText = (val: string) => {
         if (!val) return '';
@@ -84,17 +84,18 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     };
 
     const getWarrantyText = (val: string | boolean) => {
-        if (val === undefined || val === null) return offersT?.warranties?.no || 'No Warranty';
+        if (val === undefined || val === null || val === 'No' || val === false) return isAr ? 'بدون ضمان' : 'No Warranty';
         const strictVal = typeof val === 'boolean' ? (val ? 'yes' : 'no') : val.toLowerCase().trim().replace(/\s/g, '');
         
-        // Custom 2026 fallbacks
-        if (strictVal === '15days') return isAr ? '15 يوم' : '15 Days';
-        if (strictVal === '1month') return isAr ? 'شهر' : '1 Month';
-        if (strictVal === '3months') return isAr ? '3 أشهر' : '3 Months';
-        if (strictVal === '12months') return isAr ? '12 شهر' : '12 Months';
-        if (strictVal === 'custom') return val.toString(); // Fallback to raw string value entered by user
+        // Priority: Translation File -> Hardcoded fallback -> Raw Value
+        const duration = (offersT?.warranties?.[strictVal]) || 
+               (strictVal === '15days' ? (isAr ? '15 يوم' : '15 Days') :
+                strictVal === '1month' ? (isAr ? 'شهر واحد' : '1 Month') :
+                strictVal === '3months' ? (isAr ? '3 أشهر' : '3 Months') :
+                strictVal === '12months' ? (isAr ? '12 شهر' : '12 Months') : 
+                val.toString());
         
-        return offersT?.warranties?.[strictVal] || val.toString();
+        return duration;
     };
 
     const getDeliveryText = (val: string) => {
@@ -316,7 +317,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
     const getOfferDeadline = (dateStr: string) => {
         const d = new Date(dateStr);
-        d.setHours(d.getHours() + 24);
+        d.setHours(d.getHours() + 23);
+        d.setMinutes(d.getMinutes() + 45); // 23:45 Cutoff for 2026 Governance
         return d.toISOString();
     };
 
@@ -338,9 +340,19 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     };
 
     const isOrderExpired = (dateStr: string) => {
-        const deadline = new Date(getOfferDeadline(dateStr)).getTime();
-        return new Date().getTime() > deadline;
+        if (!dateStr) return false;
+        try {
+            const deadline = new Date(getOfferDeadline(dateStr)).getTime();
+            if (isNaN(deadline)) return false;
+            return new Date().getTime() > deadline;
+        } catch (e) {
+            return false;
+        }
     };
+
+    // 2026 Centralized Lifecycle States
+    const progressiveStates = ['AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
+    const isProgressive = order ? progressiveStates.includes(order.status) : false;
 
     const handleOpenLightbox = (images: string[], index: number) => {
         setLightboxImages(images);
@@ -350,15 +362,43 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
     const handleCancelOffer = async () => {
         if (!offerToCancel) return;
+        if (offerToCancel.isWithdrawn) {
+            alert(isAr ? 'هذا العرض تم سحبه بالفعل.' : 'This offer is already withdrawn.');
+            setIsCancelDialogOpen(false);
+            return;
+        }
+
         setIsCancelling(true);
         try {
-            await offersApi.cancel(offerToCancel.id);
+            // 2026 Governance: Decide between Free Cancel and Violation Withdrawal
+            const canEditUntil = offerToCancel.canEditUntil ? new Date(offerToCancel.canEditUntil) : null;
+            
+            // Add a 30-second buffer for clock skew between client and server
+            const now = new Date();
+            const isFreeWindow = canEditUntil && (now.getTime() < canEditUntil.getTime() + 30000);
+
+            if (isFreeWindow) {
+                // Within 15m (plus buffer): DELETE (Free retraction)
+                await offersApi.cancel(offerToCancel.id);
+                // After successful delete, we can safely allow the merchant to submit again
+            } else {
+                // After 15m: POST /withdraw (Violation tracking)
+                // WARNING: This will block the merchant from this order permanently!
+                await offersApi.withdraw(offerToCancel.id);
+            }
+
             await fetchMyOffers();
             setIsCancelDialogOpen(false);
             setOfferToCancel(null);
-        } catch (err) {
-            console.error('Failed to cancel offer:', err);
-            alert(isAr ? 'فشل الغاء العرف، قد يكون تم قبول العرض بالفعل.' : 'Failed to cancel offer.');
+            
+            if (isFreeWindow) {
+                // Within the 15m free window, we simply allow the merchant to bid again if they want.
+                // We no longer auto-open the modal as per user request.
+            }
+        } catch (err: any) {
+            console.error('Failed to retract offer:', err);
+            const msg = err.response?.data?.message || err.message;
+            alert(isAr ? `فشل إلغاء العرض: ${msg}` : `Failed to retract offer: ${msg}`);
         } finally {
             setIsCancelling(false);
         }
@@ -493,15 +533,21 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                 {/* Status Badge & Timer */}
                 <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/10 w-full md:w-auto">
                     {(() => {
-                        const progressiveStates = ['AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
-                        const isProgressive = progressiveStates.includes(order.status);
-                        
-                        // If order is active and time hasn't expired
-                        if (order.status === 'AWAITING_OFFERS' && !expired) {
+                        // If order is active and time hasn't expired (or status is explicitly collecting)
+                        if ((order.status === 'AWAITING_OFFERS' || order.status === 'COLLECTING_OFFERS') && (!expired || order.status === 'COLLECTING_OFFERS')) {
                             return (
                                 <div className="flex items-center justify-between w-full md:w-auto gap-4">
                                     <span className="text-sm text-white/60">{isAr ? 'الوقت المتبقي لتقديم عرض:' : 'Time left to offer:'}</span>
                                     <CountdownTimer targetDate={getOfferDeadline(order.createdAt || order.date)} compact={true} />
+                                </div>
+                            );
+                        }
+
+                        if (order.status === 'AWAITING_SELECTION') {
+                            return (
+                                <div className="flex items-center justify-between w-full md:w-auto gap-4">
+                                    <span className="text-sm text-white/60">{isAr ? 'مهلة اختيار العميل المتبقية:' : 'Selection deadline:'}</span>
+                                    <CountdownTimer targetDate={order.selectionDeadlineAt || new Date(new Date(order.createdAt || order.date).getTime() + 48 * 60 * 60 * 1000).toISOString()} compact={true} />
                                 </div>
                             );
                         }
@@ -966,7 +1012,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                             {partOffer.partType && (
                                                                 <div className="bg-black/20 rounded-lg px-2 py-1.5 truncate">
                                                                     <span className="text-[10px] text-white/40 block">{isAr ? 'النوع' : 'Type'}</span>
-                                                                    <span className="text-sm font-bold text-white">{offersT?.partTypes?.[(partOffer.partType || 'Original').toLowerCase()] || partOffer.partType || 'Original'}</span>
+                                                                    <span className="text-sm font-bold text-white">{offersT?.partTypes?.[(partOffer.partType || 'standard').toLowerCase()] || partOffer.partType || (isAr ? 'شحن قياسي' : 'Standard')}</span>
                                                                 </div>
                                                             )}
                                                             {partOffer.warranty && (
@@ -977,15 +1023,52 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                             )}
                                                         </div>
 
-                                                        {/* Cancel / Lock Trigger Button */}
-                                                        {order.status === 'AWAITING_OFFERS' && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); setOfferToCancel(partOffer); setIsCancelDialogOpen(true); }}
-                                                                className="mt-3 w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.05)]"
-                                                            >
-                                                                <AlertTriangle size={14} className="animate-pulse" />
-                                                                {isAr ? 'إلغاء هذا العرض لغرض التعديل' : 'Cancel Offer to Edit'}
-                                                            </button>
+                                                        {/* 2026 Governance: Edit/Withdraw Logic */}
+                                                        {(order.status === 'AWAITING_OFFERS' || order.status === 'COLLECTING_OFFERS') && (
+                                                            <div className="mt-3 space-y-2">
+                                                                {/* Edit Timer (15 min window) */}
+                                                                {partOffer.canEditUntil && new Date(partOffer.canEditUntil) > new Date() && (
+                                                                    <div className="flex items-center justify-between bg-gold-500/10 px-3 py-2 rounded-xl border border-gold-500/20">
+                                                                        <span className="text-[10px] font-bold text-gold-400 uppercase tracking-widest flex items-center gap-1">
+                                                                            <Clock size={12} />
+                                                                            {isAr ? 'مهلة التعديل المجاني' : 'Free Edit Window'}
+                                                                        </span>
+                                                                        <CountdownTimer 
+                                                                            targetDate={partOffer.canEditUntil} 
+                                                                            compact={true} 
+                                                                            hideExpiredText={true}
+                                                                        />
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Withdrawal Button with Warning */}
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); setOfferToCancel(partOffer); setIsCancelDialogOpen(true); }}
+                                                                    className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm ${
+                                                                        partOffer.canEditUntil && new Date(partOffer.canEditUntil) > new Date()
+                                                                            ? 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10'
+                                                                            : 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20'
+                                                                    }`}
+                                                                >
+                                                                    {partOffer.canEditUntil && new Date(partOffer.canEditUntil) > new Date() ? (
+                                                                        <>
+                                                                            <Edit3 size={14} />
+                                                                            {isAr ? 'إلغاء وتعديل العرض (مجاناً)' : 'Cancel & Edit (Free)'}
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <AlertTriangle size={14} className="animate-pulse" />
+                                                                            {isAr ? 'انسحاب من الطلب (مخالفة)' : 'Withdraw (Violation)'}
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                                
+                                                                {!(partOffer.canEditUntil && new Date(partOffer.canEditUntil) > new Date()) && (
+                                                                    <p className="text-[10px] text-red-500/60 text-center px-2">
+                                                                        {isAr ? '* سيتم تسجيل مخالفة انسحاب (يؤثر على تقييمك)' : '* Withdrawal violation will be recorded'}
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 )}
@@ -1010,7 +1093,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                 </div>
 
                 {/* RIGHT COLUMN: Sidebar (Bidding Action & Intelligence) */}
-                <div className="space-y-6">
+                <div className="space-y-6 lg:sticky lg:top-24 self-start">
 
                     {/* Market Intelligence Widget */}
                     <GlassCard className="p-6 border-gold-500/30 bg-gold-500/5 relative overflow-hidden">
@@ -1096,7 +1179,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                     </GlassCard>
 
                     {/* Dynamic Context Card (Bidding vs Action) */}
-                    <GlassCard className="p-6 sticky top-24">
+                    <GlassCard className="p-6 relative z-20">
                         {(order.status === 'PREPARATION' || order.status === 'DELAYED_PREPARATION') ? (
                             <div className="text-center">
                                 <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border ${order.status === 'DELAYED_PREPARATION' ? 'bg-red-500/10 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'bg-blue-500/10 border-blue-500/20'}`}>
@@ -1346,7 +1429,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                         );
                                     }
 
-                                    if (isProgressive || (order.status !== 'AWAITING_OFFERS' && order.status !== 'CANCELLED')) {
+                                    if (isProgressive || (order.status !== 'AWAITING_OFFERS' && order.status !== 'COLLECTING_OFFERS' && order.status !== 'CANCELLED')) {
                                         return (
                                             <button
                                                 disabled
@@ -1357,7 +1440,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                         );
                                     }
 
-                                    if (expired || order.status === 'CANCELLED') {
+                                    if ((expired && order.status !== 'COLLECTING_OFFERS') || order.status === 'CANCELLED') {
                                         return (
                                             <button
                                                 disabled
@@ -1412,6 +1495,71 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 })()}
                             </>
                         )}
+                    </GlassCard>
+
+                    {/* 2026 Merchant Governance & SLA Card */}
+                    <GlassCard className="bg-[#1A1814] border-gold-500/10 p-6 overflow-hidden relative group z-10">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-gold-500/10 transition-colors" />
+                        
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-6 uppercase tracking-wider">
+                            <Scale size={18} className="text-gold-400" />
+                            {isAr ? 'حوكمة العروض 2026' : 'Offer Governance 2026'}
+                        </h3>
+
+                        <div className="space-y-4 relative z-10">
+                            {/* 15m Rule */}
+                            <div className="flex gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 shrink-0">
+                                    <Clock size={16} />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-bold text-white mb-0.5">{isAr ? 'نافذة التعديل المجاني' : 'Free Edit Window'}</div>
+                                    <div className="text-[10px] text-white/40 leading-relaxed">
+                                        {isAr ? 'لديك 15 دقيقة للتعديل أو الحذف مجاناً بعد إرسال العرض.' : 'You have 15 minutes to edit or delete for free after submission.'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Withdrawal Rule */}
+                            <div className="flex gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 shrink-0">
+                                    <AlertTriangle size={16} />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-bold text-white mb-0.5">{isAr ? 'قفل العرض والانسحاب' : 'Locking & Withdrawal'}</div>
+                                    <div className="text-[10px] text-white/40 leading-relaxed">
+                                        {isAr ? 'بعد 15 دقيقة، يقفل العرض ولا يمكنك إلا الانسحاب (يسجل كمخالفة).' : 'After 15m, offer locks. Only withdrawal is possible (counts as violation).'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 23:45 Cutoff */}
+                            <div className="flex gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
+                                    <ShieldCheck size={16} />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-bold text-white mb-0.5">{isAr ? 'موعد الإغلاق (23:45)' : 'Cutoff Time (23:45)'}</div>
+                                    <div className="text-[10px] text-white/40 leading-relaxed">
+                                        {isAr ? 'يتوقف النظام عن استقبال العروض قبل 15 دقيقة من نهاية الـ 24 ساعة.' : 'Submission stops 15 minutes before the 24h collection ends.'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 5% Violation Rule */}
+                            <div className="mt-4 pt-4 border-t border-white/5">
+                                <div className="flex items-center justify-between text-[10px] mb-2">
+                                    <span className="text-white/40 uppercase font-bold">{isAr ? 'عتبة المخالفات' : 'Violation Threshold'}</span>
+                                    <span className="text-gold-400 font-bold">5% Max</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-gold-500/40 w-[20%]" />
+                                </div>
+                                <p className="text-[9px] text-white/30 mt-2 italic">
+                                    {isAr ? '* تجاوز نسبة 5% من المخالفات يؤدي لتعطيل الحساب آلياً.' : '* Exceeding 5% violation rate leads to automated account suspension.'}
+                                </p>
+                            </div>
+                        </div>
                     </GlassCard>
                 </div>
             </div>

@@ -217,9 +217,10 @@ export const customer = {
       shippingIncluded: 'شامل الشحن',
       offerNotes: 'ملاحظات المتجر',
       conditions: {
-        new: 'جديد',
+        new: 'جديد / بكرتونه',
         used: 'مستعمل',
-        used_clean: 'مستعمل - نظيف',
+        used_clean: 'مستعمل نظيف (أصلي)',
+        used_avg: 'مستعمل (متوسط)',
         remanufactured: 'مجدد'
       },
       delivery: {
@@ -239,20 +240,18 @@ export const customer = {
         unitPrice: 'سعر القطعة'
       },
       partTypes: {
-        original: 'أصلي',
-        commercial: 'تجاري',
-        aftermarket: 'تجاري',
-        normal: 'عادي',
-        engine: 'محرك',
-        gearbox: 'قير / ناقل حركة'
+        standard: 'شحن قياسي (قطع غيار عادية)',
+        normal: 'شحن قياسي (قطع غيار عادية)',
+        engine: 'شحن ماكينة (محرك)',
+        gearbox: 'شحن جيربوكس'
       },
       warranties: {
         yes: 'ضمان متوفر',
         no: 'بدون ضمان',
-        month1: 'ضمان شهر',
-        month3: 'ضمان 3 أشهر',
-        month6: 'ضمان 6 أشهر',
-        year1: 'ضمان سنة'
+        '15days': '15 يوم',
+        '1month': 'شهر واحد',
+        '3months': '3 أشهر',
+        '12months': '12 شهر'
       },
       units: {
         kg: 'كجم',
@@ -1046,9 +1045,10 @@ export const customer = {
       shippingIncluded: 'Shipping Included',
       offerNotes: 'Vendor Notes',
       conditions: {
-        new: 'New',
+        new: 'New / In Box',
         used: 'Used',
-        used_clean: 'Used - Clean',
+        used_clean: 'Used Clean (Genuine)',
+        used_avg: 'Used (Average)',
         remanufactured: 'Remanufactured'
       },
       delivery: {
@@ -1071,6 +1071,7 @@ export const customer = {
         original: 'Original',
         commercial: 'Commercial',
         aftermarket: 'Aftermarket',
+        standard: 'Standard Shipping',
         normal: 'Normal',
         engine: 'Engine',
         gearbox: 'Gearbox'
@@ -1078,10 +1079,10 @@ export const customer = {
       warranties: {
         yes: 'Warranty Available',
         no: 'No Warranty',
-        month1: '1 Month Warranty',
-        month3: '3 Months Warranty',
-        month6: '6 Months Warranty',
-        year1: '1 Year Warranty'
+        '15days': '15 Days',
+        '1month': '1 Month',
+        '3months': '3 Months',
+        '12months': '12 Months'
       },
       units: {
         kg: 'Kg',
