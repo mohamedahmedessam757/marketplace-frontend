@@ -71,6 +71,8 @@ export interface ShipmentType {
   nameEn: string;
   basePrice: number;
   isWeightBound: boolean;
+  hasCylinders?: boolean;
+  cylinderRates?: { cylinders: number; price: number }[];
   weightBrackets: ShippingRule[];
 }
 
@@ -478,6 +480,12 @@ export const useAdminStore = create<AdminState>()(
               nameEn: 'Engine Shipping',
               basePrice: 450,
               isWeightBound: false,
+              hasCylinders: true,
+              cylinderRates: [
+                { cylinders: 4, price: 450 },
+                { cylinders: 6, price: 650 },
+                { cylinders: 8, price: 850 }
+              ],
               weightBrackets: []
             },
             {

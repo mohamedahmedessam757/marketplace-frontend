@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, DollarSign, UploadCloud, Car, Settings, Loader2, Calculator, Info, Scale, ShieldCheck, PlayCircle, AlertCircle, Check, Package, ChevronRight, ChevronLeft, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { X, DollarSign, UploadCloud, Car, Settings, Loader2, Calculator, Info, Scale, ShieldCheck, PlayCircle, AlertCircle, Check, Package, ChevronRight, ChevronLeft, CheckCircle2, ChevronDown } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderChatStore } from '../../../stores/useOrderChatStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
@@ -42,6 +42,7 @@ interface PartFormData {
     condition: string;
     notes: string;
     imageUrl: string | null;
+    cylinders?: number;
 }
 
 const DEFAULT_FORM: PartFormData = {
@@ -54,6 +55,7 @@ const DEFAULT_FORM: PartFormData = {
     condition: 'used_clean',
     notes: '',
     imageUrl: null,
+    cylinders: 4,
 };
 
 export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onClose, requestDetails, existingOffers = [], onSubmit }) => {
@@ -65,6 +67,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     const { storeId, offerLimit, dailyOfferCount } = useVendorStore();
 
     const isAr = language === 'ar';
+    const offersT = t.dashboard.merchant.offerModal;
     const parts = requestDetails?.parts || [];
     const isMultiPart = parts.length > 1;
 
@@ -125,6 +128,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             condition: offer.condition || 'used_clean',
             notes: offer.notes || '',
             imageUrl: offer.offerImage || offer.offer_image || null,
+            cylinders: offer.cylinders || 4,
         });
 
         if (parts.length === 1) {
@@ -164,18 +168,27 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     // Get active form data
     const activeForm = activePartId ? (formDataMap[activePartId] || DEFAULT_FORM) : DEFAULT_FORM;
 
+    // --- Performance Optimization: Deferred Pricing ---
+    const deferredBasePrice = useDeferredValue(activeForm.basePrice);
+    const deferredWeight = useDeferredValue(activeForm.weight);
+    const deferredCylinders = useDeferredValue(activeForm.cylinders);
+    const deferredPartType = useDeferredValue(activeForm.partType);
+
     // Update a field in the active form
     const updateField = useCallback(<K extends keyof PartFormData>(field: K, value: PartFormData[K]) => {
         if (!activePartId) return;
-        setFormDataMap(prev => ({
-            ...prev,
-            [activePartId]: { ...prev[activePartId], [field]: value }
-        }));
+        setFormDataMap(prev => {
+            if (prev[activePartId]?.[field] === value) return prev;
+            return {
+                ...prev,
+                [activePartId]: { ...prev[activePartId], [field]: value }
+            };
+        });
         if (error) setError(null);
     }, [activePartId, error]);
 
     // Shared Calculation Logic for 2026 Resiliency
-    const getQuoteCalculations = useCallback((basePriceStr: string, weightStr: string, partType: string) => {
+    const getQuoteCalculations = useCallback((basePriceStr: string, weightStr: string, partType: string, cylinders?: number) => {
         const price = parseFloat(basePriceStr) || 0;
         const w = parseFloat(weightStr) || 0;
         
@@ -185,7 +198,12 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         let shippingCost = 0;
         if (shipmentType) {
             shippingCost = shipmentType.basePrice || 0;
-            if (shipmentType.isWeightBound && w > 0) {
+
+            // 2026 Cylinder Logic: Override with fixed cylinder rates if applicable
+            if (shipmentType.hasCylinders && cylinders) {
+                const rate = (shipmentType.cylinderRates || []).find((r: any) => r.cylinders === cylinders);
+                if (rate) shippingCost = rate.price;
+            } else if (shipmentType.isWeightBound && w > 0) {
                 const brackets = shipmentType.weightBrackets || [];
                 const bracket = brackets.find((b: any) => w >= b.minWeight && w <= b.maxWeight);
                 if (bracket) {
@@ -215,10 +233,10 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         };
     }, [systemConfig]);
 
-    // --- Calculations for active part (UI Preview) ---
+    // --- Calculations for active part (Optimized with Deferred Values) ---
     const calculations = useMemo(() => {
-        return getQuoteCalculations(activeForm.basePrice, activeForm.weight, activeForm.partType);
-    }, [activeForm.basePrice, activeForm.weight, activeForm.partType, getQuoteCalculations]);
+        return getQuoteCalculations(deferredBasePrice, deferredWeight, deferredPartType, deferredCylinders);
+    }, [deferredBasePrice, deferredWeight, deferredPartType, deferredCylinders, getQuoteCalculations]);
 
     // Toggle part selection
     const togglePart = (partId: string) => {
@@ -328,10 +346,9 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                 const form = formDataMap[partId];
                 const part = parts.find((p: any) => p.id === partId);
 
-                // Calculate per-part pricing
                 // Dynamic calculation using shared logic (2026 Standard)
                 const { shipping: shippingCost, finalPrice, merchantEarnings: price, weightKg: w } = {
-                    ...getQuoteCalculations(form.basePrice, form.weight, form.partType),
+                    ...getQuoteCalculations(form.basePrice, form.weight, form.partType, form.cylinders),
                     weightKg: parseFloat(form.weight) || 0
                 };
 
@@ -352,6 +369,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                     notes: form.notes,
                     offerImage: form.imageUrl || undefined,
                     shippingCost,
+                    cylinders: form.cylinders,
                 };
 
                 // CREATE — Always create new (Edit is locked, requires cancel first)
@@ -450,10 +468,11 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                 className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
             >
                 <motion.div
-                    initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                    initial={{ scale: 0.98, opacity: 0, y: 10 }}
                     animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                    className="bg-[#1A1814] border border-gold-500/20 rounded-2xl w-full max-w-5xl shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden"
+                    exit={{ scale: 0.98, opacity: 0, y: 10 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    className="bg-[#1A1814] border border-gold-500/20 rounded-2xl w-full max-w-5xl shadow-[0_30px_100px_rgba(0,0,0,0.8)] relative flex flex-col max-h-[90vh] overflow-hidden will-change-transform"
                 >
                     {/* Offer Limit Warning Banner [2026 Governance] */}
                     {offerLimit !== -1 && dailyOfferCount >= offerLimit && (
@@ -644,87 +663,175 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                     </p>
                                 </div>
 
-                                {/* LIVE CALCULATOR CARD */}
-                                <div className="bg-[#0F0E0C] rounded-xl border border-gold-500/30 p-5 relative overflow-hidden">
-                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gold-600 to-gold-400" />
+                                {/* ENHANCED LIVE CALCULATOR CARD */}
+                                <div className="bg-[#12110F] rounded-3xl border border-gold-500/20 p-6 relative overflow-hidden shadow-2xl">
+                                    <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-transparent via-gold-500 to-transparent opacity-50" />
+                                    <div className="absolute -right-8 -top-8 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl" />
 
-                                    <div className="flex items-center gap-2 mb-6 text-gold-400">
-                                        <Calculator size={18} />
-                                        <h3 className="font-bold text-sm uppercase tracking-wider">{t.dashboard.merchant.offerModal.calc.title}</h3>
+                                    <div className="flex items-center gap-3 mb-8">
+                                        <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center text-gold-500 shadow-lg shadow-gold-500/5">
+                                            <Calculator size={20} />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-white/40">{t.dashboard.merchant.offerModal.calc.title}</h3>
+                                            <p className="text-[10px] text-gold-500/60 font-black uppercase tracking-tighter">{isAr ? 'تحديث حي' : 'Live Analytics'}</p>
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-4 text-sm">
-                                        {/* Display ONLY crucial items per user request */}
-                                        <div className="flex justify-between items-center text-white/80 font-medium">
-                                            <span>{t.dashboard.merchant.offerModal.calc.merchantNet}</span>
-                                            <span className="font-mono text-lg text-white">{(parseFloat(activeForm.basePrice || '0')).toLocaleString()} AED</span>
+                                    <div className="space-y-6">
+                                        <div className="flex justify-between items-center group">
+                                            <span className="text-xs font-bold text-white/30 uppercase tracking-wider group-hover:text-white/60 transition-colors">{t.dashboard.merchant.offerModal.calc.merchantNet}</span>
+                                            <motion.span 
+                                                animate={{ 
+                                                    scale: activeForm.basePrice !== deferredBasePrice ? 1.05 : 1,
+                                                    opacity: activeForm.basePrice !== deferredBasePrice ? 0.6 : 1
+                                                }}
+                                                className="font-mono text-xl text-white font-black"
+                                            >
+                                                {(parseFloat(activeForm.basePrice || '0')).toLocaleString()} <span className="text-[10px] text-white/20 ml-1">AED</span>
+                                            </motion.span>
                                         </div>
 
-                                        <div className="pt-4 border-t border-white/10 mt-2">
-                                            <div className="flex justify-between items-end">
-                                                <span className="font-bold text-white text-sm">{t.dashboard.merchant.offerModal.calc.finalCustomerPrice}</span>
-                                                <span className="font-bold text-2xl text-green-400 font-mono">{calculations.finalPrice.toLocaleString()} <span className="text-xs">AED</span></span>
+                                        <div className="p-6 rounded-[2rem] bg-gradient-to-br from-gold-500/10 via-gold-500/[0.02] to-transparent border border-gold-500/20 shadow-inner">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-[10px] font-black text-gold-500 uppercase tracking-widest">{t.dashboard.merchant.offerModal.calc.finalCustomerPrice}</span>
+                                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                                    <span className="text-[7px] text-green-500 font-black uppercase tracking-tighter">Live Price</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-baseline gap-2">
+                                                <motion.span 
+                                                    animate={{ 
+                                                        y: activeForm.basePrice !== deferredBasePrice ? -2 : 0,
+                                                        opacity: activeForm.basePrice !== deferredBasePrice ? 0.7 : 1
+                                                    }}
+                                                    className="text-4xl font-black text-white font-mono tracking-tighter"
+                                                >
+                                                    {calculations.finalPrice.toLocaleString()}
+                                                </motion.span>
+                                                <span className="text-sm font-black text-gold-500/40 font-mono">AED</span>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div className="mt-8 pt-6 border-t border-white/5">
+                                        <div className="flex items-center gap-2 text-[9px] font-bold text-white/20 uppercase tracking-[0.2em]">
+                                            <ShieldCheck size={12} className="text-gold-500/30" />
+                                            {isAr ? 'نظام تسعير ذكي معتمد' : 'Smart Certified Engine'}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
                             {/* RIGHT SIDE: Offer Form */}
                             <div className="w-full lg:w-[55%] flex flex-col min-h-0 bg-[#1A1814] overflow-y-auto">
-                                <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                                    <h3 className="text-lg font-bold text-white">{t.dashboard.merchant.offerModal.yourOffer}</h3>
-                                    {!isMultiPart && <button onClick={onClose} className="text-white/40 hover:text-white"><X size={20} /></button>}
+                                <div className="p-8 border-b border-white/5 flex justify-between items-center bg-black/20">
+                                    <div>
+                                        <h3 className="text-xl font-black text-white uppercase tracking-tight">{t.dashboard.merchant.offerModal.yourOffer}</h3>
+                                        <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest mt-1">{isAr ? 'أدخل تفاصيل عرضك بدقة' : 'Enter your offer details with precision'}</p>
+                                    </div>
+                                    {!isMultiPart && (
+                                        <button 
+                                            onClick={onClose} 
+                                            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    )}
                                 </div>
 
                                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
 
-                                    {/* 1. Price & Type Row */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs text-white/60 mb-2 uppercase tracking-wider">
-                                                {t.dashboard.merchant.offerModal.priceLabel} <span className="text-red-500">*</span>
-                                            </label>
-                                            <div className="relative">
-                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gold-500">
-                                                    <span className="font-bold text-sm">AED</span>
-                                                </div>
-                                                <input
-                                                    type="number"
-                                                    required
-                                                    min="1"
-                                                    value={activeForm.basePrice}
-                                                    onChange={(e) => updateField('basePrice', e.target.value)}
-                                                    className={`w-full bg-black/40 border rounded-xl py-3 pl-12 pr-4 text-white font-bold text-lg outline-none transition-all placeholder-white/10 ${error && !activeForm.basePrice ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
-                                                    placeholder="0.00"
-                                                />
-                                            </div>
+                                    {/* SECTION 1: PRICE & LOGISTICS */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-white/10" />
+                                            <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">{isAr ? 'السعر واللوجستيات' : 'Price & Logistics'}</span>
+                                            <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-white/10" />
                                         </div>
 
-                                        <div>
-                                            <label className="block text-xs text-white/60 mb-2 uppercase tracking-wider">
-                                                {t.dashboard.merchant.offerModal.partTypeLabel}
-                                            </label>
-                                            <select
-                                                value={activeForm.partType}
-                                                onChange={(e) => updateField('partType', e.target.value)}
-                                                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-gold-500 outline-none appearance-none"
-                                            >
-                                                {(systemConfig.logistics?.shipmentTypes || []).map((type: any) => (
-                                                    <option key={type.id} value={type.id} className="bg-[#1A1814]">
-                                                        {isAr ? type.nameAr : type.nameEn}
-                                                    </option>
-                                                ))}
-                                                {(!systemConfig.logistics?.shipmentTypes || systemConfig.logistics.shipmentTypes.length === 0) && (
-                                                    <>
-                                                        <option value="standard" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.standard}</option>
-                                                        <option value="engine" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.engine}</option>
-                                                        <option value="gearbox" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.partTypes.gearbox}</option>
-                                                    </>
-                                                )}
-                                            </select>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="group">
+                                                <label className="block text-[10px] font-black text-white/40 mb-2 uppercase tracking-widest group-focus-within:text-gold-500 transition-colors">
+                                                    {t.dashboard.merchant.offerModal.priceLabel} <span className="text-gold-500">*</span>
+                                                </label>
+                                                <div className="relative group">
+                                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-transform group-focus-within:scale-110">
+                                                        <span className="font-black text-xs text-gold-500/40 group-focus-within:text-gold-500">AED</span>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        required
+                                                        min="1"
+                                                        value={activeForm.basePrice}
+                                                        onChange={(e) => updateField('basePrice', e.target.value)}
+                                                        className={`w-full bg-black/60 border rounded-2xl py-4 pl-14 pr-4 text-white font-black text-xl outline-none transition-all placeholder-white/5 ${error && !activeForm.basePrice ? 'border-red-500/50 bg-red-500/5 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : 'border-white/5 hover:border-white/10 focus:border-gold-500/50 focus:bg-gold-500/5 focus:shadow-[0_0_25px_rgba(212,175,55,0.05)]'}`}
+                                                        placeholder="0.00"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black text-white/40 mb-2 uppercase tracking-widest">
+                                                    {t.dashboard.merchant.offerModal.partTypeLabel}
+                                                </label>
+                                                <div className="relative group">
+                                                    <select
+                                                        value={activeForm.partType}
+                                                        onChange={(e) => updateField('partType', e.target.value)}
+                                                        className="w-full bg-black/40 border border-white/5 hover:border-white/10 focus:border-gold-500/50 rounded-2xl py-4 px-4 text-white text-sm font-bold focus:bg-gold-500/5 outline-none appearance-none transition-all cursor-pointer"
+                                                    >
+                                                        {(systemConfig.logistics?.shipmentTypes || []).map((type: any) => (
+                                                            <option key={type.id} value={type.id} className="bg-[#1A1814]">
+                                                                {isAr ? type.nameAr : type.nameEn}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-white/20 group-hover:text-gold-500 transition-colors">
+                                                        <ChevronDown size={16} />
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
+
+                                    {/* 1.5 Cylinder Count (2026 Engine Logic) */}
+                                    {(() => {
+                                        const activeType = systemConfig.logistics?.shipmentTypes?.find((t: any) => t.id === activeForm.partType);
+                                        if (!activeType?.hasCylinders) return null;
+
+                                        return (
+                                            <motion.div 
+                                                initial={{ y: 20, opacity: 0 }}
+                                                animate={{ y: 0, opacity: 1 }}
+                                                className="p-6 rounded-3xl bg-gold-500/5 border border-gold-500/20 shadow-inner"
+                                            >
+                                                <label className="block text-[10px] font-black text-gold-500 mb-4 uppercase tracking-[0.2em]">
+                                                    {offersT?.cylinderCount || (isAr ? 'عدد السلندرات' : 'Cylinder Count')}
+                                                </label>
+                                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                                                    {(activeType.cylinderRates || []).sort((a: any, b: any) => a.cylinders - b.cylinders).map((rate: any) => (
+                                                        <button
+                                                            key={rate.cylinders}
+                                                            type="button"
+                                                            onClick={() => updateField('cylinders', rate.cylinders)}
+                                                            className={`group flex flex-col items-center py-3 px-2 rounded-2xl border transition-all duration-300 ${activeForm.cylinders === rate.cylinders ? 'bg-gold-500 border-gold-500 text-black shadow-lg shadow-gold-500/30' : 'bg-black/40 border-white/5 text-white/30 hover:border-gold-500/30 hover:text-white/60'}`}
+                                                        >
+                                                            <span className="text-lg font-black font-mono leading-none">{rate.cylinders}</span>
+                                                            <span className={`text-[8px] uppercase font-black tracking-tighter mt-1 ${activeForm.cylinders === rate.cylinders ? 'text-black/60' : 'text-white/20 group-hover:text-gold-500'}`}>
+                                                                {isAr ? 'سلندر' : 'Cyl'}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-4 text-[9px] text-white/30 font-bold italic">
+                                                    <div className="w-1 h-1 rounded-full bg-gold-500/40" />
+                                                    {offersT?.cylinderNote || (isAr ? '* شحن المكائن يعتمد على عدد السلندرات بسعر ثابت.' : '* Engine shipping cost is fixed based on cylinder count.')}
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })()}
 
                                     {/* 2. Weight */}
                                     <AnimatePresence>
@@ -750,7 +857,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                             step="0.1"
                                                             value={activeForm.weight}
                                                             onChange={(e) => updateField('weight', e.target.value)}
-                                                            className={`w-full bg-white/5 border rounded-xl py-3 px-4 text-white font-mono outline-none transition-all placeholder-white/10 ${error && !activeForm.weight ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
+                                                            className={`w-full bg-black/40 border rounded-xl py-3 px-4 text-white font-mono outline-none transition-all placeholder-white/10 ${error && !activeForm.weight ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500'}`}
                                                             placeholder="0.0"
                                                         />
                                                         <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-white/30 text-xs">
@@ -764,21 +871,34 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
 
                                     <div className="h-px bg-white/5 my-4" />
 
-                                    {/* 3. Specs Row */}
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div>
-                                            <label className="block text-xs text-white/60 mb-2 uppercase tracking-wider">
-                                                {t.dashboard.merchant.offerModal.conditionLabel}
-                                            </label>
-                                            <select
-                                                value={activeForm.condition}
-                                                onChange={(e) => updateField('condition', e.target.value)}
-                                                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-gold-500 outline-none appearance-none"
-                                            >
-                                                <option value="new" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.new}</option>
-                                                <option value="used_clean" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.used_clean}</option>
-                                                <option value="used_avg" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.used_avg}</option>
-                                            </select>
+                                    {/* SECTION 2: PART SPECS & WARRANTY */}
+                                    <div className="space-y-4 pt-4">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-white/10" />
+                                            <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">{isAr ? 'المواصفات والضمان' : 'Specs & Warranty'}</span>
+                                            <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-white/10" />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-white/40 mb-2 uppercase tracking-widest">
+                                                    {t.dashboard.merchant.offerModal.conditionLabel}
+                                                </label>
+                                                <div className="relative group">
+                                                    <select
+                                                        value={activeForm.condition}
+                                                        onChange={(e) => updateField('condition', e.target.value)}
+                                                        className="w-full bg-black/40 border border-white/5 hover:border-white/10 focus:border-gold-500/50 rounded-2xl py-4 px-4 text-white text-sm font-bold focus:bg-gold-500/5 outline-none appearance-none transition-all cursor-pointer"
+                                                    >
+                                                        <option value="new" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.new}</option>
+                                                        <option value="used_clean" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.used_clean}</option>
+                                                        <option value="used_avg" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.used_avg}</option>
+                                                    </select>
+                                                    <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-white/20 group-hover:text-gold-500 transition-colors">
+                                                        <ChevronDown size={16} />
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -915,28 +1035,31 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                         </div>
                                     )}
 
-                                    {/* Action Buttons */}
-                                    <div className="pt-4 mt-4 border-t border-white/10 flex gap-3">
+                                    {/* ENHANCED FOOTER ACTIONS */}
+                                    <div className="pt-8 mt-8 border-t border-white/5 flex flex-col sm:flex-row gap-4">
                                         <button
                                             type="button"
                                             onClick={onClose}
-                                            className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium text-sm transition-colors"
+                                            className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-2xl font-black transition-all border border-white/5 uppercase tracking-widest text-[10px]"
                                         >
-                                            {t.dashboard.merchant.offerModal.cancel}
+                                            {t.common.cancel || (isAr ? "إلغاء" : "Cancel")}
                                         </button>
                                         <button
                                             onClick={handleSubmit}
                                             disabled={isSubmitting || (offerLimit !== -1 && dailyOfferCount >= offerLimit)}
-                                            className={`flex-[2] py-3 rounded-xl bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-white font-bold text-sm shadow-lg shadow-gold-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
+                                            className={`flex-1 relative group overflow-hidden bg-gradient-to-r from-gold-600 via-gold-500 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-black font-black py-4 rounded-2xl transition-all shadow-xl shadow-gold-500/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
                                         >
+                                            <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                                             {isSubmitting ? (
-                                                <Loader2 className="animate-spin" size={20} />
+                                                <Loader2 className="animate-spin" size={24} />
                                             ) : (
                                                 <>
-                                                    <DollarSign size={16} />
-                                                    {t.dashboard.merchant.offerModal.submit}
+                                                    <DollarSign size={20} />
+                                                    <span className="uppercase tracking-widest">{t.dashboard.merchant.offerModal.submit}</span>
                                                     {selectedPartIds.size > 1 && (
-                                                        <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] font-mono">{selectedPartIds.size}</span>
+                                                        <div className="bg-black/20 px-2 py-0.5 rounded-lg text-[10px] font-mono border border-black/10">
+                                                            {selectedPartIds.size}
+                                                        </div>
                                                     )}
                                                 </>
                                             )}

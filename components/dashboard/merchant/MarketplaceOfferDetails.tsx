@@ -956,6 +956,20 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                             </div>
                                                         )}
                                                     </div>
+                                                ) : (order.partImages && order.partImages.length > 0) ? (
+                                                    <div
+                                                        onClick={() => handleOpenLightbox(order.partImages, 0)}
+                                                        className="aspect-square rounded-xl overflow-hidden bg-black/50 border border-white/10 relative group cursor-pointer"
+                                                    >
+                                                        <img src={order.partImages[0]} alt={part.name || 'Part image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                        {order.partImages.length > 1 && (
+                                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <span className="text-white font-medium bg-black/50 px-3 py-1 rounded-full text-sm backdrop-blur-md">
+                                                                    +{order.partImages.length - 1} {isAr ? 'صور أخرى' : 'more'}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <div className="aspect-square rounded-xl bg-white/5 border border-white/10 flex flex-col items-center justify-center text-white/20">
                                                         <Box size={32} className="mb-2" />
@@ -966,8 +980,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
                                             {/* Content Area */}
                                             <div className="flex-1">
-                                                <h3 className="text-lg font-bold text-white mb-2">{part.name || order.part}</h3>
-                                                <p className="text-white/60 text-sm mb-4 leading-relaxed">{part.description || order.description || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
+                                                <h3 className="text-lg font-bold text-white mb-2">{part.name || order.partName || order.part}</h3>
+                                                <p className="text-white/60 text-sm mb-4 leading-relaxed">{part.description || order.partDescription || order.description || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
 
                                                 {/* Your Offer Summary for this part */}
                                                 {hasOffer && (
@@ -1009,10 +1023,16 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                                     <span className="text-sm font-bold text-white uppercase">{getConditionText(partOffer.condition)}</span>
                                                                 </div>
                                                             )}
-                                                            {partOffer.weight && (
+                                                            {partOffer.weight && Number(partOffer.weight) > 0 && (
                                                                 <div className="bg-black/20 rounded-lg px-2 py-1.5 truncate">
                                                                     <span className="text-[10px] text-white/40 block">{isAr ? 'الوزن' : 'Weight'}</span>
                                                                     <span className="text-sm font-bold text-white">{partOffer.weight} {offersT?.units?.kg || 'kg'}</span>
+                                                                </div>
+                                                            )}
+                                                            {partOffer.cylinders && (
+                                                                <div className="bg-black/20 rounded-lg px-2 py-1.5 truncate border border-gold-500/20">
+                                                                    <span className="text-[10px] text-gold-400 block font-bold">{isAr ? 'السلندرات' : 'Cylinders'}</span>
+                                                                    <span className="text-sm font-bold text-white">{partOffer.cylinders}</span>
                                                                 </div>
                                                             )}
                                                             {partOffer.partType && (
@@ -1059,7 +1079,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                                     {partOffer.canEditUntil && new Date(partOffer.canEditUntil) > new Date() ? (
                                                                         <>
                                                                             <Edit3 size={14} />
-                                                                            {isAr ? 'إلغاء وتعديل العرض (مجاناً)' : 'Cancel & Edit (Free)'}
+                                                                            {isAr ? 'إلغاء وتعديل العرض' : 'Cancel & Edit'}
                                                                         </>
                                                                     ) : (
                                                                         <>
@@ -1086,9 +1106,33 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                         ) : (
                             <GlassCard className="p-6">
                                 <div className="flex flex-col md:flex-row gap-6">
+                                    {/* Media Preview Area for Single Part (Legacy/Fallback) */}
+                                    <div className="w-full md:w-48 shrink-0">
+                                        {(order.partImages && order.partImages.length > 0) ? (
+                                            <div
+                                                onClick={() => handleOpenLightbox(order.partImages, 0)}
+                                                className="aspect-square rounded-xl overflow-hidden bg-black/50 border border-white/10 relative group cursor-pointer"
+                                            >
+                                                <img src={order.partImages[0]} alt={order.partName || 'Part image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                {order.partImages.length > 1 && (
+                                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <span className="text-white font-medium bg-black/50 px-3 py-1 rounded-full text-sm backdrop-blur-md">
+                                                            +{order.partImages.length - 1} {isAr ? 'صور أخرى' : 'more'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="aspect-square rounded-xl bg-white/5 border border-white/10 flex flex-col items-center justify-center text-white/20">
+                                                <Box size={32} className="mb-2" />
+                                                <span className="text-xs">{isAr ? 'لا توجد صور' : 'No images'}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="flex-1">
-                                        <h3 className="text-lg font-bold text-white mb-2">{order.part}</h3>
-                                        <p className="text-white/60 text-sm mb-4 leading-relaxed">{order.description || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
+                                        <h3 className="text-lg font-bold text-white mb-2">{order.partName || order.part}</h3>
+                                        <p className="text-white/60 text-sm mb-4 leading-relaxed">{order.partDescription || order.description || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
                                     </div>
                                 </div>
                             </GlassCard>
@@ -1519,9 +1563,9 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                     <Clock size={16} />
                                 </div>
                                 <div>
-                                    <div className="text-xs font-bold text-white mb-0.5">{isAr ? 'نافذة التعديل المجاني' : 'Free Edit Window'}</div>
+                                    <div className="text-xs font-bold text-white mb-0.5">{isAr ? 'نافذة التعديل والتحكم' : 'Edit & Control Window'}</div>
                                     <div className="text-[10px] text-white/40 leading-relaxed">
-                                        {isAr ? 'لديك 15 دقيقة للتعديل أو الحذف مجاناً بعد إرسال العرض.' : 'You have 15 minutes to edit or delete for free after submission.'}
+                                        {isAr ? 'لديك 15 دقيقة لتعديل أو حذف عرضك بعد الإرسال مباشرة.' : 'You have 15 minutes to edit or delete your offer immediately after submission.'}
                                     </div>
                                 </div>
                             </div>
@@ -1571,8 +1615,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 </div>
                                 <p className="text-[9px] text-white/30 mt-2 italic">
                                     {isAr 
-                                        ? `* نقاط المخالفات النشطة: ${performance.violationScore || 0}`
-                                        : `* Active Violation Points: ${performance.violationScore || 0}`}
+                                        ? `* الحد الأقصى المسموح به هو 5% لتجنب المخالفات.`
+                                        : `* Maximum allowed modification rate is 5% to avoid violations.`}
                                 </p>
                             </div>
                         </div>

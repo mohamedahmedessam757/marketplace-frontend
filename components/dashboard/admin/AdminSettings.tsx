@@ -448,20 +448,107 @@ export const AdminSettings: React.FC = () => {
                                   </div>
                                 </div>
 
-                                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-black text-white/60 uppercase tracking-tight">{isAr ? 'يعتمد على الوزن؟' : 'Weight-based?'}</span>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                      <input 
-                                        type="checkbox" 
-                                        checked={activeType.isWeightBound} 
-                                        onChange={(e) => updateShipmentType(activeShipmentTypeId, 'isWeightBound', e.target.checked)} 
-                                        className="sr-only peer" 
-                                      />
-                                      <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
-                                    </label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-black text-white/60 uppercase tracking-tight">{isAr ? 'يعتمد على الوزن؟' : 'Weight-based?'}</span>
+                                      <label className="relative inline-flex items-center cursor-pointer">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={activeType.isWeightBound} 
+                                          onChange={(e) => updateShipmentType(activeShipmentTypeId, 'isWeightBound', e.target.checked)} 
+                                          className="sr-only peer" 
+                                        />
+                                        <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                                      </label>
+                                    </div>
+                                  </div>
+
+                                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-black text-white/60 uppercase tracking-tight">{isAr ? 'يعتمد على السلندرات؟' : 'Cylinder-based?'}</span>
+                                      <label className="relative inline-flex items-center cursor-pointer">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={activeType.hasCylinders || false} 
+                                          onChange={(e) => updateShipmentType(activeShipmentTypeId, 'hasCylinders', e.target.checked)} 
+                                          className="sr-only peer" 
+                                        />
+                                        <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gold-500"></div>
+                                      </label>
+                                    </div>
                                   </div>
                                 </div>
+
+                                {activeType.hasCylinders && (
+                                  <div className="space-y-6 p-8 rounded-[2rem] bg-gold-500/5 border border-gold-500/10 animate-in zoom-in-95 duration-300">
+                                    <div className="flex justify-between items-center border-b border-gold-500/10 pb-4">
+                                      <h5 className="text-[10px] font-black text-gold-500 uppercase tracking-widest flex items-center gap-2">
+                                        <Activity size={14} /> {isAr ? 'تسعير السلندرات (AED)' : 'Cylinder Rates (AED)'}
+                                      </h5>
+                                      <button 
+                                        onClick={() => {
+                                          const currentRates = activeType.cylinderRates || [];
+                                          const newRates = [...currentRates, { cylinders: 0, price: 0 }];
+                                          updateShipmentType(activeShipmentTypeId, 'cylinderRates', newRates);
+                                        }}
+                                        className="px-4 py-1.5 bg-gold-500 text-black text-[9px] font-black uppercase rounded-lg hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/10"
+                                      >
+                                        + {isAr ? 'إضافة خيار' : 'Add Option'}
+                                      </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-3">
+                                      {(activeType.cylinderRates || []).map((rate: any, idx: number) => (
+                                        <div key={idx} className="flex items-center gap-4 p-3 bg-black/40 border border-white/5 rounded-xl group transition-all hover:border-gold-500/30">
+                                          <div className="flex-1 grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                              <span className="text-[9px] font-bold text-white/20 uppercase tracking-tighter">{isAr ? 'عدد السلندرات' : 'Cylinders'}</span>
+                                              <input 
+                                                type="number" 
+                                                value={rate.cylinders}
+                                                onChange={(e) => {
+                                                  const newRates = [...activeType.cylinderRates];
+                                                  newRates[idx].cylinders = parseInt(e.target.value);
+                                                  updateShipmentType(activeShipmentTypeId, 'cylinderRates', newRates);
+                                                }}
+                                                className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-xs text-white font-mono font-bold outline-none focus:border-gold-500/50"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <span className="text-[9px] font-bold text-white/20 uppercase tracking-tighter">{isAr ? 'السعر (درهم)' : 'Price (AED)'}</span>
+                                              <input 
+                                                type="number" 
+                                                value={rate.price}
+                                                onChange={(e) => {
+                                                  const newRates = [...activeType.cylinderRates];
+                                                  newRates[idx].price = parseFloat(e.target.value);
+                                                  updateShipmentType(activeShipmentTypeId, 'cylinderRates', newRates);
+                                                }}
+                                                className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-xs text-gold-500 font-mono font-bold outline-none focus:border-gold-500/50"
+                                              />
+                                            </div>
+                                          </div>
+                                          <button 
+                                            onClick={() => {
+                                              const newRates = activeType.cylinderRates.filter((_: any, i: number) => i !== idx);
+                                              updateShipmentType(activeShipmentTypeId, 'cylinderRates', newRates);
+                                            }}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/10 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      ))}
+
+                                      {(activeType.cylinderRates || []).length === 0 && (
+                                        <div className="text-center py-6 text-white/10 text-[9px] font-bold uppercase tracking-widest border border-dashed border-white/10 rounded-xl">
+                                          {isAr ? 'لا يوجد خيارات مخصصة' : 'No custom options defined'}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </GlassCard>
                           );

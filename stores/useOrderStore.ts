@@ -98,6 +98,7 @@ export interface OrderOffer {
     weight?: number; // In Kg
     partType?: string; // Original, Commercial, etc.
     orderPartId?: string; // Links to specific part
+    cylinders?: number | string; // Engine cylinder count
     partName?: string; // Part name for display
     canEditUntil?: string; // 2026 Governance Timer
     isWithdrawn?: boolean; // 2026 Governance State

@@ -1,6 +1,6 @@
 import React, { useState, memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Star, ShieldCheck, Truck, MessageSquare, CheckCircle2, Box, Tag, X, ZoomIn } from 'lucide-react';
+import { Star, ShieldCheck, Truck, MessageSquare, CheckCircle2, Box, Tag, X, ZoomIn,Settings } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 export interface OfferProps {
@@ -29,6 +29,7 @@ export interface OfferProps {
     storeCode?: string;
     submittedAt?: string;
     acceptLoading?: boolean;
+    cylinders?: number | string;
 }
 
 export const OfferCard: React.FC<OfferProps> = memo(({
@@ -57,7 +58,8 @@ export const OfferCard: React.FC<OfferProps> = memo(({
     offerNumber,
     storeCode,
     submittedAt,
-    acceptLoading
+    acceptLoading,
+    cylinders
 }) => {
     const { t, language } = useLanguage();
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -241,6 +243,17 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.weight || 'Weight'}</span>
                                 <span className="text-sm font-medium">{weight} {offersT?.units?.kg || 'Kg'}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Cylinders (Optional - 2026 Engine Logic) */}
+                    {cylinders && (
+                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gold-500/5 border border-gold-500/20 text-white/80">
+                            <Settings size={16} className="text-gold-400 shrink-0" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] text-gold-400 uppercase tracking-wider font-bold">{language === 'ar' ? 'السلندرات' : 'Cylinders'}</span>
+                                <span className="text-sm font-bold text-white">{cylinders}</span>
                             </div>
                         </div>
                     )}
