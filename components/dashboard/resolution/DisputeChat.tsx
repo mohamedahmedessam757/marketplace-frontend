@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Paperclip, User, Shield, Store, Clock } from 'lucide-react';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { useProfileStore } from '../../../stores/useProfileStore';
+import { usePlatformSettingsStore } from '../../../stores/usePlatformSettingsStore';
 
 interface DisputeChatProps {
     caseId: string;
@@ -15,6 +16,7 @@ export const DisputeChat: React.FC<DisputeChatProps> = ({ caseId, caseType, t })
     const [message, setMessage] = useState('');
     const { caseMessages, fetchCaseMessages, sendCaseMessage, subscribeToCases, unsubscribeFromCases } = useResolutionStore();
     const { user } = useProfileStore();
+    const { isAttachmentsEnabled, fetchSettings, subscribeToSettings: subscribePlatform } = usePlatformSettingsStore();
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -22,7 +24,12 @@ export const DisputeChat: React.FC<DisputeChatProps> = ({ caseId, caseType, t })
             fetchCaseMessages(caseId);
             subscribeToCases(user?.role?.toLowerCase() as any);
         }
-        return () => unsubscribeFromCases();
+        fetchSettings();
+        const unsub = subscribePlatform();
+        return () => {
+            unsubscribeFromCases();
+            unsub();
+        };
     }, [caseId]);
 
     useEffect(() => {
@@ -133,12 +140,14 @@ export const DisputeChat: React.FC<DisputeChatProps> = ({ caseId, caseType, t })
             {/* Input Area */}
             <form onSubmit={handleSend} className="p-4 bg-black/20 border-t border-white/10">
                 <div className="relative flex items-center gap-2">
-                    <button 
-                        type="button"
-                        className="p-2 text-gray-400 hover:text-white transition-colors hover:bg-white/5 rounded-xl"
-                    >
-                        <Paperclip className="w-5 h-5" />
-                    </button>
+                    {isAttachmentsEnabled && (
+                        <button 
+                            type="button"
+                            className="p-2 text-gray-400 hover:text-white transition-colors hover:bg-white/5 rounded-xl"
+                        >
+                            <Paperclip className="w-5 h-5" />
+                        </button>
+                    )}
                     
                     <input
                         value={message}

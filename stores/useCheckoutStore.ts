@@ -55,6 +55,7 @@ interface CheckoutState {
   paymentError: string | null;
   lastPaymentResult: PaymentResult | null;
   clientSecret: string | null;
+  isOnline: boolean;
 
   setOrderId: (id: string | null) => void;
   setStep: (step: number) => void;
@@ -73,6 +74,9 @@ interface CheckoutState {
   createPaymentIntent: (orderId: string, offerId: string) => Promise<string | null>;
   clearPaymentError: () => void;
   submitPayment: () => Promise<void>;
+  setIsOnline: (online: boolean) => void;
+  resetPaymentState: () => void;
+  fetchPaymentStatus: (offerId: string) => Promise<any>;
   reset: () => void;
 }
 
@@ -100,6 +104,7 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
   paymentError: null,
   lastPaymentResult: null,
   clientSecret: null,
+  isOnline: navigator.onLine,
 
   setOrderId: (id) => set({ orderId: id }),
   setStep: (step) => set({ step }),
@@ -186,6 +191,23 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
 
   clearPaymentError: () => set({ paymentError: null }),
 
+  setIsOnline: (online) => set({ isOnline: online }),
+
+  resetPaymentState: () => set({ 
+    paymentError: null, 
+    clientSecret: null,
+    isProcessing: false 
+  }),
+
+  fetchPaymentStatus: async (offerId: string) => {
+    try {
+      return await paymentsApi.getStatus(offerId);
+    } catch (e) {
+      console.error('Failed to fetch payment status:', e);
+      return null;
+    }
+  },
+
   submitPayment: async () => {
     set({ isProcessing: true });
     return new Promise<void>((resolve) => {
@@ -211,5 +233,6 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
     paymentError: null,
     lastPaymentResult: null,
     clientSecret: null,
+    isOnline: navigator.onLine,
   })
 }));

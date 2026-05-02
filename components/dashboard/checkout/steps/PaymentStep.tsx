@@ -1,10 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useCheckoutStore } from '../../../../stores/useCheckoutStore';
 import { useOrderStore } from '../../../../stores/useOrderStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
-import { CheckCircle, AlertTriangle, Package, Loader2, ChevronDown, ChevronUp, Copy, CheckCircle2, X } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Package, Loader2, ChevronDown, ChevronUp, Copy, CheckCircle2, X, Wifi, WifiOff, RefreshCw, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StripePaymentForm } from '../StripePaymentForm';
+import { supabase } from '../../../../services/supabase';
+import { cardsApi, UserCard } from '../../../../services/api/cards';
+import { CreditCard } from 'lucide-react';
 
 export const PaymentStep: React.FC = () => {
   const { t, language } = useLanguage();
@@ -12,13 +15,27 @@ export const PaymentStep: React.FC = () => {
   const tPay = t.dashboard.checkout.payment;
   const tFR = t.dashboard.checkout.finalReview;
 
-  const { orderId, createPaymentIntent, isProcessing, paidOfferIds, paymentError, clearPaymentError } = useCheckoutStore();
+  const { 
+    orderId, 
+    createPaymentIntent, 
+    isProcessing, 
+    paidOfferIds, 
+    paymentError, 
+    clearPaymentError,
+    isOnline,
+    setIsOnline,
+    resetPaymentState,
+    fetchPaymentStatus
+  } = useCheckoutStore();
   const { orders } = useOrderStore();
 
   // Selected offer being actively paid (has a client secret)
   const [activePaymentOfferId, setActivePaymentOfferId] = useState<string | null>(null);
   const [activeClientSecret, setActiveClientSecret] = useState<string | null>(null);
   const [activeAmount, setActiveAmount] = useState<number>(0);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [savedCards, setSavedCards] = useState<UserCard[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   // UI state
   const [expandedOfferId, setExpandedOfferId] = useState<string | null>(null);
@@ -75,6 +92,91 @@ export const PaymentStep: React.FC = () => {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+  };
+
+  /**
+   * Network Resilience: Sync online/offline state (2026 Standards)
+   */
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [setIsOnline]);
+
+  // Fetch saved cards (2026 Wallet Integration)
+  useEffect(() => {
+    const fetchCards = async () => {
+      try {
+        const cards = await cardsApi.getUserCards();
+        setSavedCards(cards);
+        if (cards.length > 0) {
+          const defaultCard = cards.find(c => c.isDefault) || cards[0];
+          setSelectedCardId(defaultCard.id);
+        }
+      } catch (err) {
+        console.error('Failed to fetch saved cards:', err);
+      }
+    };
+    fetchCards();
+  }, []);
+
+  /**
+   * Real-time Synchronization: Supabase Subscription (2026 Standards)
+   * This ensures the UI stays in sync even if the webhook confirms payment while the tab is closed.
+   */
+  useEffect(() => {
+    if (!orderId) return;
+
+    const channel = supabase
+      .channel(`order-payments-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'payment_transactions',
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          if (payload.new.status === 'SUCCESS') {
+            const offerId = payload.new.offer_id;
+            if (!paidOfferIds.includes(offerId)) {
+              useCheckoutStore.setState((state) => ({
+                paidOfferIds: [...state.paidOfferIds, offerId]
+              }));
+              
+              if (activePaymentOfferId === offerId) {
+                setActivePaymentOfferId(null);
+                setActiveClientSecret(null);
+                setSuccessMessage(isAr ? '✅ تم تأكيد الدفع بنجاح!' : '✅ Payment confirmed successfully!');
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId, paidOfferIds, activePaymentOfferId, isAr]);
+
+  /**
+   * Pre-fetching Logic: Prepare intent when card is expanded (Speed Optimization)
+   */
+  const handlePreFetchIntent = async (offerId: string) => {
+    // Only pre-fetch if not already paid and no active payment
+    if (paidOfferIds.includes(offerId) || activePaymentOfferId) return;
+
+    const currentOrderId = String(currentOrder?.id || orderId);
+    await createPaymentIntent(currentOrderId, offerId);
   };
 
   /**
@@ -203,27 +305,59 @@ export const PaymentStep: React.FC = () => {
       <AnimatePresence>
         {successMessage && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-green-400 text-sm font-bold text-center"
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: -20 }}
+            className="bg-green-500/10 border-2 border-green-500/30 rounded-2xl p-6 text-green-400 text-sm font-bold text-center shadow-[0_0_30px_rgba(34,197,94,0.15)] relative overflow-hidden"
           >
-            {successMessage}
+            <motion.div 
+              initial={{ x: '-100%' }}
+              animate={{ x: '100%' }}
+              transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none"
+            />
+            <div className="flex flex-col items-center gap-2">
+              <CheckCircle2 size={32} className="text-green-400 mb-1" />
+              <span className="text-lg">{successMessage}</span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ────────────── Global Payment Error ────────────── */}
+      {/* ────────────── Global Payment Error / Offline ────────────── */}
       <AnimatePresence>
+        {!isOnline && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-amber-400 text-sm font-bold flex items-center gap-3 shadow-lg"
+          >
+            <WifiOff size={18} className="animate-pulse" />
+            <div className="flex-1">
+              {isAr ? 'عذراً، يبدو أنك غير متصل بالإنترنت. يرجى التحقق من اتصالك.' : 'Oops, it seems you are offline. Please check your connection.'}
+            </div>
+          </motion.div>
+        )}
+
         {paymentError && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.2)]"
+            className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm font-bold flex flex-col md:flex-row items-center gap-3 shadow-[0_0_20px_rgba(239,68,68,0.2)]"
           >
-            <AlertTriangle size={16} />
-            {paymentError}
+            <div className="flex items-center gap-2 flex-1">
+              <AlertTriangle size={16} />
+              {paymentError}
+            </div>
+            <button 
+              onClick={() => resetPaymentState()}
+              className="px-4 py-1.5 bg-red-500 text-white rounded-lg text-xs hover:bg-red-600 transition-colors flex items-center gap-2 shrink-0"
+            >
+              <RefreshCw size={12} />
+              {isAr ? 'إعادة المحاولة' : 'Retry'}
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -254,17 +388,38 @@ export const PaymentStep: React.FC = () => {
             <motion.div
               key={offer.id}
               layout
-              className={`rounded-2xl border overflow-hidden transition-all duration-300 ${isPaid
-                ? 'bg-green-500/5 border-green-500/30'
+              whileHover={{ y: isPaid ? 0 : -4 }}
+              className={`rounded-2xl border overflow-hidden transition-all duration-500 relative ${isPaid
+                ? 'bg-green-500/5 border-green-500/30 shadow-none'
                 : isReadyToPay
-                  ? 'bg-[#1a1508] border-gold-500/50 shadow-[0_0_20px_rgba(212,175,55,0.15)]'
-                  : 'bg-[#121212] border-[#2b271d] hover:border-[#3b351d]'
+                  ? 'bg-[#1a1508] border-gold-500/50 shadow-[0_20px_50px_rgba(212,175,55,0.15)]'
+                  : 'bg-[#121212] border-[#2b271d] hover:border-gold-500/30 hover:shadow-[0_10px_30px_rgba(0,0,0,0.3)]'
                 }`}
             >
+              {isProcessing && activePaymentOfferId === offer.id && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="absolute inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center"
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="animate-spin text-gold-500" size={40} />
+                    <span className="text-gold-500 font-bold text-xs animate-pulse uppercase tracking-widest">
+                      {isAr ? 'جاري المعالجة...' : 'Processing...'}
+                    </span>
+                  </div>
+                </motion.div>
+              )}
               {/* ── Top Header ── */}
               <div
                 className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-5 cursor-pointer"
-                onClick={() => !isPaid && !isReadyToPay && setExpandedOfferId(isExpanded ? null : offer.id)}
+                onClick={() => {
+                  if (!isPaid && !isReadyToPay) {
+                    const nextExpanded = expandedOfferId === offer.id ? null : offer.id;
+                    setExpandedOfferId(nextExpanded);
+                    if (nextExpanded) handlePreFetchIntent(offer.id);
+                  }
+                }}
               >
                 <div className="flex items-center gap-4 w-full md:w-auto">
                   <div
@@ -343,14 +498,55 @@ export const PaymentStep: React.FC = () => {
                     exit={{ height: 0, opacity: 0 }}
                     className="overflow-hidden bg-black/20"
                   >
-                    <div className="px-5 pb-6 pt-2">
+                    <div className="px-5 pb-6 pt-2 space-y-4">
+                      {/* ── Saved Cards Quick Select (Visible early for UX) ── */}
+                      {savedCards.length > 0 && !isPaid && (
+                        <div className="space-y-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-bold text-gold-500/80 uppercase tracking-widest flex items-center gap-2">
+                              <CreditCard size={12} />
+                              {isAr ? 'الدفع السريع بالبطاقات المحفوظة' : 'Quick Pay with Saved Cards'}
+                            </p>
+                            <span className="text-[9px] text-white/20 uppercase font-mono">
+                              {savedCards.length} {isAr ? 'بطاقات' : 'Cards'}
+                            </span>
+                          </div>
+                          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+                            {savedCards.map((card) => (
+                              <motion.button
+                                key={card.id}
+                                whileHover={{ y: -2 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setSelectedCardId(card.id)}
+                                className={`flex-shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all duration-300 ${
+                                  selectedCardId === card.id
+                                    ? 'bg-gold-500/10 border-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.1)]'
+                                    : 'bg-white/5 border-white/5 hover:border-white/10'
+                                }`}
+                              >
+                                <div className={`w-7 h-4 rounded flex items-center justify-center text-[7px] font-bold uppercase ${
+                                  card.brand === 'visa' ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'
+                                }`}>
+                                  {card.brand}
+                                </div>
+                                <p className="text-xs font-bold text-white">•••• {card.last4}</p>
+                                {selectedCardId === card.id && <CheckCircle2 size={12} className="text-gold-500" />}
+                              </motion.button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {!activePaymentOfferId ? (
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => handlePreparePayment(offer.id)}
-                          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-gold-600 to-gold-500 text-black font-bold text-sm shadow-lg hover:shadow-gold-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                          className="w-full py-4 rounded-xl bg-gradient-to-r from-gold-600 via-gold-500 to-gold-600 bg-[length:200%_auto] hover:bg-right transition-all text-black font-extrabold text-sm shadow-[0_10px_20px_rgba(212,175,55,0.2)] flex items-center justify-center gap-2 active:scale-[0.98]"
                         >
-                          {tPay.payForOffer} — AED {price.toLocaleString()}
-                        </button>
+                          <Lock size={16} />
+                          {selectedCardId ? (isAr ? 'تأكيد الدفع بالبطاقة المختارة' : 'Confirm & Pay with Card') : (tPay.payForOffer)} — AED {price.toLocaleString()}
+                        </motion.button>
                       ) : activePaymentOfferId === offer.id ? (
                         <div>
                           {isPreparing ? (
@@ -361,11 +557,23 @@ export const PaymentStep: React.FC = () => {
                               </p>
                             </div>
                           ) : activeClientSecret && (
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                                 <div className="flex items-center justify-between text-xs px-2">
-                                    <span className="text-white/40">{isAr ? 'دفع آمن عبر' : 'Secure payment via'}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-white/40">
+                                        {isAr ? 'دفع آمن عبر ' : 'Secure payment via '}
+                                        <span className="text-[#635bff] font-bold">Stripe</span>
+                                      </span>
+                                      <div className="h-3 w-[1px] bg-white/10 mx-1" />
+                                      <div className={`flex items-center gap-1 ${isOnline ? 'text-green-500/80' : 'text-amber-500/80'}`}>
+                                        {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
+                                        <span className="text-[9px] font-bold uppercase tracking-tighter opacity-80">
+                                          {isOnline ? (isAr ? 'متصل' : 'Online') : (isAr ? 'غير متصل' : 'Offline')}
+                                        </span>
+                                      </div>
+                                    </div>
                                     <button 
-                                      onClick={() => { setActivePaymentOfferId(null); setActiveClientSecret(null); }}
+                                      onClick={() => { setActivePaymentOfferId(null); setActiveClientSecret(null); resetPaymentState(); }}
                                       className="text-red-400/60 hover:text-red-400 transition-colors"
                                     >
                                       {isAr ? 'إلغاء' : 'Cancel'}
@@ -374,6 +582,7 @@ export const PaymentStep: React.FC = () => {
                                 <StripePaymentForm 
                                     clientSecret={activeClientSecret}
                                     amount={activeAmount}
+                                    savedPaymentMethodId={savedCards.find(c => c.id === selectedCardId)?.stripePaymentMethodId}
                                     onSuccess={handlePaymentSuccess}
                                     onError={(err) => useCheckoutStore.setState({ paymentError: err })}
                                 />

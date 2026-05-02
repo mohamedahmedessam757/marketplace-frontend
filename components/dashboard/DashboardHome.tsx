@@ -51,7 +51,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         || orders.find(o => o.status === 'VERIFICATION')
         || orders.find(o => o.status === 'PREPARATION')
         || orders.find(o => o.status === 'DELAYED_PREPARATION')
-        || orders.find(o => o.status === 'AWAITING_PAYMENT')
+        || orders.find(o => ['AWAITING_PAYMENT', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS'].includes(o.status))
         || orders.find(o => o.status === 'AWAITING_SELECTION')
         || orders.find(o => o.status === 'COLLECTING_OFFERS')
         || orders.find(o => o.status === 'AWAITING_OFFERS')
@@ -59,9 +59,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
 
     const getProgress = (status: StatusType) => {
         switch (status) {
-            case 'AWAITING_OFFERS': return 10;
             case 'COLLECTING_OFFERS': return 20;
             case 'AWAITING_SELECTION': return 30;
+            case 'AWAITING_OFFERS': return 10;
             case 'AWAITING_PAYMENT': return 40;
             case 'PARTIALLY_PAID': return 45;
             case 'PREPARATION': return 50;

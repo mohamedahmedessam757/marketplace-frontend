@@ -106,10 +106,10 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
 
         // 4. Payment Filter
         if (paymentFilter !== 'ALL') {
-            const isPaid = order.status !== 'AWAITING_PAYMENT' && order.status !== 'AWAITING_OFFERS' && order.status !== 'CANCELLED' && order.status !== 'RETURNED';
+            const isPaid = !['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'CANCELLED', 'RETURNED'].includes(order.status);
 
             if (paymentFilter === 'PAID' && !isPaid) return false;
-            if (paymentFilter === 'UNPAID' && order.status !== 'AWAITING_PAYMENT' && order.status !== 'AWAITING_OFFERS') return false;
+            if (paymentFilter === 'UNPAID' && !['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT'].includes(order.status)) return false;
             if (paymentFilter === 'PARTIAL' && order.status !== 'PARTIALLY_PAID') return false;
         }
 

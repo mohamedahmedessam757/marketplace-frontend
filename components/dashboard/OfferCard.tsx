@@ -272,8 +272,29 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                 )}
 
                 {/* Actions */}
-                <div className="flex justify-end gap-3 mt-4">
-                    {status === 'accepted' ? (
+                <div className="flex justify-end items-center gap-3 mt-4">
+                    {/* Persistent Chat Button (Visible before and after acceptance) */}
+                    {status !== 'rejected' && (
+                        <button
+                            onClick={onChat}
+                            disabled={acceptLoading}
+                            className={`px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors flex items-center gap-2 ${acceptLoading ? 'opacity-50 pointer-events-none' : ''}`}
+                        >
+                            <MessageSquare size={18} />
+                            <span>{offersT?.chat || 'Chat'}</span>
+                        </button>
+                    )}
+
+                    {/* Status Banners or Action Buttons */}
+                    {acceptLoading ? (
+                         <button
+                            disabled
+                            className="px-8 py-3 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/20 flex items-center gap-2 animate-pulse"
+                        >
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>{language === 'ar' ? 'جاري التحويل...' : 'Redirecting...'}</span>
+                        </button>
+                    ) : status === 'accepted' ? (
                         <div className="px-6 py-3 rounded-xl bg-green-500/20 border border-green-500/40 text-green-400 font-bold text-sm flex items-center gap-2">
                             <CheckCircle2 size={18} />
                             {language === 'ar' ? 'تم القبول' : 'Accepted'}
@@ -288,14 +309,6 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                         </div>
                     ) : (
                         <>
-                            <button
-                                onClick={onChat}
-                                disabled={acceptLoading}
-                                className={`px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors flex items-center gap-2 ${acceptLoading ? 'opacity-50 pointer-events-none' : ''}`}
-                            >
-                                <MessageSquare size={18} />
-                                <span>{offersT?.chat || 'Chat'}</span>
-                            </button>
                             {onReject && (
                                 <button
                                     onClick={onReject}
@@ -311,12 +324,8 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                                 disabled={acceptLoading}
                                 className={`px-8 py-3 rounded-xl bg-gold-500 hover:bg-gold-600 text-white font-bold shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center gap-2 ${acceptLoading ? 'opacity-50 pointer-events-none' : ''}`}
                             >
-                                {acceptLoading ? (
-                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                ) : (
-                                    <CheckCircle2 size={18} />
-                                )}
-                                <span>{acceptLoading ? (language === 'ar' ? 'جاري القبول...' : 'Accepting...') : (offersT?.acceptOffer || 'Accept Offer')}</span>
+                                <CheckCircle2 size={18} />
+                                <span>{offersT?.acceptOffer || 'Accept Offer'}</span>
                             </button>
                         </>
                     )}

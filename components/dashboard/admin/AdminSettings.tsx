@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VehicleCatalogManager } from './VehicleCatalogManager';
+import { usePlatformSettingsStore } from '../../../stores/usePlatformSettingsStore';
 
 export const AdminSettings: React.FC = () => {
   const { t, language, setLanguage } = useLanguage();
@@ -22,6 +23,8 @@ export const AdminSettings: React.FC = () => {
     systemStatus, adminActivityLogs, fetchAdminActivityLogs, isLoadingLogs,
     activeContract, subscribeToActivityLogs, unsubscribeFromActivityLogs
   } = useAdminStore();
+
+  const { isAttachmentsEnabled, setAttachmentsEnabled, fetchSettings, subscribeToSettings: subscribeToPlatformSettings } = usePlatformSettingsStore();
 
   const [activeTab, setActiveTab] = useState<'general' | 'financial' | 'logistics' | 'content' | 'security' | 'catalog'>('general');
   const [activeShipmentTypeId, setActiveShipmentTypeId] = useState<string>('standard');
@@ -39,7 +42,13 @@ export const AdminSettings: React.FC = () => {
     fetchSystemSettings();
     fetchVendorContract();
     subscribeToSettings();
-    return () => unsubscribeFromSettings();
+    fetchSettings(); // Fetch initial platform settings
+    const unsubscribePlatform = subscribeToPlatformSettings(); // Subscribe to realtime changes
+
+    return () => {
+      unsubscribeFromSettings();
+      unsubscribePlatform();
+    };
   }, []);
 
   // Fetch logs and subscribe when entering security tab
@@ -265,6 +274,40 @@ export const AdminSettings: React.FC = () => {
                        </header>
                        
                        <div className="space-y-6">
+                           {/* 2026 Chat Attachments Master Toggle */}
+                           <div className="p-8 rounded-3xl bg-gold-500/[0.03] border border-gold-500/10 shadow-inner group hover:border-gold-500/30 transition-all mb-4">
+                             <div className="flex items-center justify-between gap-6">
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-gold-500/10 flex items-center justify-center text-gold-500 group-hover:scale-110 transition-transform">
+                                       <Plus size={22} />
+                                    </div>
+                                    <div>
+                                      <h4 className="text-sm font-black text-white uppercase tracking-tight">{isAr ? 'مرفقات المحادثة' : 'Chat Attachments'}</h4>
+                                      <p className="text-[11px] text-white/30 mt-1 leading-relaxed max-w-xs">
+                                        {isAr 
+                                          ? 'التحكم في إمكانية إرفاق الصور والملفات في الدردشة لدى العملاء والتجار.' 
+                                          : 'Enable or disable image and file attachments for all users.'}
+                                      </p>
+                                    </div>
+                                 </div>
+                                 <label className="relative inline-flex items-center cursor-pointer scale-110">
+                                   <input 
+                                     type="checkbox" 
+                                     checked={isAttachmentsEnabled} 
+                                     onChange={(e) => {
+                                        const newValue = e.target.checked;
+                                        setAttachmentsEnabled(newValue); // Optimistic Update
+                                        const reason = isAr 
+                                          ? `${newValue ? 'تفعيل' : 'إيقاف'} مرفقات الدردشة عالمياً` 
+                                          : `${newValue ? 'Enabling' : 'Disabling'} global chat attachments`;
+                                        saveSystemSetting('CHAT_ATTACHMENTS_ENABLED', newValue.toString(), reason);
+                                     }} 
+                                     className="sr-only peer" 
+                                   />
+                                   <div className="w-14 h-7 bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:rounded-full after:h-5 after:w-6 after:transition-all peer-checked:bg-gold-500 shadow-[0_0_15px_rgba(234,179,8,0)] peer-checked:shadow-[0_0_15px_rgba(234,179,8,0.2)]"></div>
+                                 </label>
+                             </div>
+                           </div>
                           <div className="p-8 rounded-3xl bg-white/[0.03] border border-white/5 shadow-inner">
                             <div className="flex items-center justify-between gap-6">
                                 <div>

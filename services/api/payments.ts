@@ -19,4 +19,8 @@ export const paymentsApi = {
         const res = await client.get(`/payments/admin/merchant/${targetUserId}/dashboard`, { params: filters });
         return res.data;
     },
+    getStatus: async (offerId: string) => {
+        const res = await client.get(`/payments/status/${offerId}`);
+        return res.data;
+    },
 };

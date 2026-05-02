@@ -12,6 +12,7 @@ import { supabase } from '../../../services/supabase';
 import { client as api } from '../../../services/api/client';
 import { useOrderStore } from '../../../stores/useOrderStore'; // ADDED
 import { Badge } from '../../ui/Badge'; // ADDED
+import { usePlatformSettingsStore } from '../../../stores/usePlatformSettingsStore';
 
 interface ChatWindowProps {
   onNavigateToCheckout: () => void;
@@ -28,6 +29,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
   const { settings: userSettings, user } = useProfileStore(); // Get user object
   const { settings: vendorSettings } = useVendorStore();
   const { t, language } = useLanguage();
+  const { isAttachmentsEnabled, fetchSettings, subscribeToSettings: subscribePlatform } = usePlatformSettingsStore();
+
+  // Initialize Platform Governance
+  useEffect(() => {
+    fetchSettings();
+    const unsub = subscribePlatform();
+    return () => unsub();
+  }, [fetchSettings, subscribePlatform]);
 
   const [text, setText] = useState('');
   const [pendingAttachment, setPendingAttachment] = useState<{ url: string; type: 'image' | 'video' | 'document'; file: File } | null>(null);
@@ -100,6 +109,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
       markAsRead(orderChat.id);
     }
   }, [isOrderChat, orderChat?.id, orderChat?.messages?.length, markAsRead]);
+
+  // Real-time Governance: Clear pending attachment if admin disables it
+  useEffect(() => {
+    if (!isAttachmentsEnabled && pendingAttachment) {
+      clearAttachment();
+    }
+  }, [isAttachmentsEnabled, pendingAttachment]);
 
   // Determine Auto-Translate Setting based on Context (Simulated)
   const isMerchant = window.location.pathname.includes('/merchant');
@@ -518,13 +534,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
                 accept="image/*,video/*,.pdf,.doc,.docx"
                 onChange={handleFileUpload}
               />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className={`p-3 rounded-xl transition-colors ${pendingAttachment ? 'bg-gold-500/20 text-gold-500' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
-                title="Attach Media"
-              >
-                <Paperclip size={20} />
-              </button>
+              {isAttachmentsEnabled && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`p-3 rounded-xl transition-colors ${pendingAttachment ? 'bg-gold-500/20 text-gold-500' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                  title="Attach Media"
+                >
+                  <Paperclip size={20} />
+                </button>
+              )}
 
               <input
                 type="text"

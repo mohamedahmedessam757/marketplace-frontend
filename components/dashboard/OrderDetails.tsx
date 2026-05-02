@@ -749,7 +749,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             {/* Simulation buttons removed for production/customer view */}
 
                             {/* Continue Checkout Button */}
-                            {['AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && order.offers?.some(o => o.status === 'accepted') && (
+                            {['COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && order.offers?.some(o => o.status === 'accepted') && (
                                 <button
                                     onClick={() => {
                                         useCheckoutStore.getState().reset();
@@ -1175,18 +1175,19 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                     .slice(0, 10)
                                     .map(offer => (
                                         <div key={offer.id} className="relative">
-                                            <OfferCard
-                                                {...offer}
-                                                storeName={offer.merchantName}
-                                                rating={offer.storeRating || 0}
-                                                reviewCount={offer.storeReviewCount || 0}
-                                                unitPrice={offer.unitPrice || offer.price}
-                                                isSelected={selectedOffer === offer.id}
-                                                onAccept={() => handleAcceptOffer(offer)}
-                                                onChat={() => handleChat(offer)}
-                                                onReject={() => setOfferToReject(offer)}
-                                                disabled={isExpired || ['CANCELLED', 'COMPLETED', 'REJECTED'].includes(order.status) || acceptLoadingOfferId !== null}
-                                            />
+                                                <OfferCard
+                                                    {...offer}
+                                                    storeName={offer.merchantName}
+                                                    rating={offer.storeRating || 0}
+                                                    reviewCount={offer.storeReviewCount || 0}
+                                                    unitPrice={offer.unitPrice || offer.price}
+                                                    isSelected={selectedOffer === offer.id}
+                                                    onAccept={() => handleAcceptOffer(offer)}
+                                                    onChat={() => handleChat(offer)}
+                                                    onReject={() => setOfferToReject(offer)}
+                                                    acceptLoading={acceptLoadingOfferId === offer.id}
+                                                    disabled={isExpired || ['CANCELLED', 'COMPLETED', 'REJECTED'].includes(order.status) || acceptLoadingOfferId !== null}
+                                                />
                                             {/* Disable Cover during loading */}
                                             {acceptLoadingOfferId !== null && acceptLoadingOfferId !== offer.id && (
                                                 <div className="absolute inset-0 bg-black/20 z-10 rounded-2xl pointer-events-none backdrop-blur-[1px]" />
@@ -1292,8 +1293,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         </div>
                     </button>
 
-                    {/* Mobile Continue Checkout Button (Sticky/prominent for mobile) */}
-                    {['AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && order.offers?.some(o => o.status === 'accepted') && (
+                    {/* Mobile/Sidebar Continue Checkout Button */}
+                    {['COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && order.offers?.some(o => o.status === 'accepted') && (
                         <button
                             onClick={() => {
                                 useCheckoutStore.getState().reset();
@@ -1309,7 +1310,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 }
                                 onNavigate('checkout');
                             }}
-                            className="md:hidden w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-black rounded-2xl transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] font-bold text-lg mb-4"
+                            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-black rounded-2xl transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] font-bold text-lg mb-4"
                         >
                             <CheckCircle2 size={24} />
                             {language === 'ar' ? 'إكمال تفاصيل الدفع' : 'Continue Checkout'}
