@@ -34,6 +34,7 @@ export const customer = {
       reviews: 'تقييمات',
       status: {
         AWAITING_OFFERS: 'بانتظار العروض',
+        COLLECTING_OFFERS: 'جارى جمع أفضل العروض',
         AWAITING_PAYMENT: 'بانتظار الدفع',
         PREPARATION: 'قيد التجهيز',
         VERIFICATION: 'قيد التوثيق',
@@ -243,7 +244,8 @@ export const customer = {
         standard: 'شحن قياسي (قطع غيار عادية)',
         normal: 'شحن قياسي (قطع غيار عادية)',
         engine: 'شحن ماكينة (محرك)',
-        gearbox: 'شحن جيربوكس'
+        gearbox: 'شحن جيربوكس',
+        bumper: 'صدام أمامى'
       },
       warranties: {
         yes: 'ضمان متوفر',
@@ -862,6 +864,7 @@ export const customer = {
       reviews: 'Reviews',
       status: {
         AWAITING_OFFERS: 'Awaiting Offers',
+        COLLECTING_OFFERS: 'Collecting Best Offers',
         AWAITING_PAYMENT: 'Awaiting Payment',
         PREPARATION: 'Preparation',
         VERIFICATION: 'Verification Pending',
@@ -1074,7 +1077,8 @@ export const customer = {
         standard: 'Standard Shipping',
         normal: 'Normal',
         engine: 'Engine',
-        gearbox: 'Gearbox'
+        gearbox: 'Gearbox',
+        bumper: 'Front Bumper'
       },
       warranties: {
         yes: 'Warranty Available',

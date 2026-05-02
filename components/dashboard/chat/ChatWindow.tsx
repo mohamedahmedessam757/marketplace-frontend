@@ -149,7 +149,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
 
   // Smart Chat Logic Checks
   const chatStatus = displayChat.status;
-  const isChatActive = chatStatus === 'active' || (orderStatus && orderStatus !== 'AWAITING_OFFERS' && orderStatus !== 'CANCELLED');
+  const isChatActive = chatStatus === 'active' || 
+    (orderStatus && ['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PREPARATION', 'SHIPPED'].includes(orderStatus));
 
   const handleSend = async () => {
     if ((!text.trim() && !pendingAttachment) || !isChatActive || isUploading) return;
@@ -315,14 +316,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
           {/* Status Badge or SLA Timer */}
           {chatStatus === 'active' && orderChat?.type !== 'support' && (
             <div className="hidden md:block">
-              {orderStatus && orderStatus !== 'AWAITING_OFFERS' ? (
+              {orderStatus && !['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION'].includes(orderStatus) ? (
                 <Badge status={orderStatus} />
               ) : (
                 <CountdownTimer
                   targetDate={
-                    orderChat?.expiryAt
-                      ? orderChat.expiryAt
-                      : new Date(new Date(legacyChat?.createdAt || orderChat?.createdAt || Date.now()).getTime() + 24 * 60 * 60 * 1000).toISOString()
+                    (['AWAITING_OFFERS', 'COLLECTING_OFFERS'].includes(orderStatus || ''))
+                      ? (order?.revealOffersAt || new Date(new Date(order?.createdAt || Date.now()).getTime() + 24 * 60 * 60 * 1000).toISOString())
+                      : (order?.selectionDeadlineAt || orderChat?.expiryAt || new Date(new Date(order?.createdAt || Date.now()).getTime() + 48 * 60 * 60 * 1000).toISOString())
                   }
                   compact
                 />
@@ -387,6 +388,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6 relative">
+        {/* Selection Phase Banner */}
+        {orderStatus === 'AWAITING_SELECTION' && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex flex-col md:flex-row items-center justify-between gap-4 backdrop-blur-sm sticky top-0 z-20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gold-500/20 flex items-center justify-center text-gold-500">
+                <Clock size={20} />
+              </div>
+              <div>
+                <h4 className="text-white font-bold text-sm">
+                  {language === 'ar' ? 'مرحلة اختيار العروض' : 'Offer Selection Phase'}
+                </h4>
+                <p className="text-xs text-white/50">
+                  {language === 'ar' 
+                    ? 'تم كشف العروض! يمكنك الدردشة مع التاجر قبل اتخاذ قرارك النهائي.' 
+                    : 'Offers are revealed! You can chat with the merchant before making your final decision.'}
+                </p>
+              </div>
+            </div>
+            {user?.role === 'CUSTOMER' && (
+              <button 
+                onClick={() => window.location.href = `/dashboard/orders/${orderChat?.orderId}`}
+                className="px-4 py-2 bg-gold-500 hover:bg-gold-600 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-gold-500/20"
+              >
+                {language === 'ar' ? 'عرض كافة العروض' : 'View All Offers'}
+              </button>
+            )}
+          </motion.div>
+        )}
         {isOrderChat && isChatContentLoading ? (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#1A1814]/80 backdrop-blur-sm">
             <div className="w-8 h-8 border-2 border-gold-500/30 border-t-gold-500 rounded-full animate-spin mb-3"></div>

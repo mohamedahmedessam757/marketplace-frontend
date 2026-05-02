@@ -164,11 +164,26 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
     // Helper for progress
     const getProgress = (status: string) => {
         switch (status) {
-            case 'AWAITING_PAYMENT': return 33;
-            case 'PREPARATION': return 66;
+            case 'AWAITING_OFFERS': return 10;
+            case 'COLLECTING_OFFERS': return 20;
+            case 'AWAITING_SELECTION': return 30;
+            case 'AWAITING_PAYMENT': return 40;
+            case 'PARTIALLY_PAID': return 45;
+            case 'PREPARATION': return 50;
+            case 'DELAYED_PREPARATION': return 55;
+            case 'PREPARED': return 60;
+            case 'VERIFICATION': return 70;
+            case 'NON_MATCHING': return 72;
+            case 'CORRECTION_PERIOD': return 74;
+            case 'CORRECTION_SUBMITTED': return 76;
+            case 'VERIFICATION_SUCCESS': return 80;
+            case 'READY_FOR_SHIPPING': return 85;
             case 'SHIPPED': return 90;
+            case 'DELIVERED': return 95;
+            case 'WARRANTY_ACTIVE': return 98;
             case 'COMPLETED': return 100;
-            default: return 10;
+            case 'CANCELLED': return 0;
+            default: return 0;
         }
     };
 

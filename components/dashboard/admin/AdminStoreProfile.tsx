@@ -577,16 +577,16 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         </div>
 
             {/* NEW: Administrative Restriction Banners (2026 Admin Visibility) */}
-            {(currentStoreProfile?.withdrawalsFrozen || (currentStoreProfile?.offerLimit && currentStoreProfile?.offerLimit !== -1) || currentStoreProfile?.visibilityRestricted) && (
+            {(currentStoreProfile?.owner?.withdrawalsFrozen || (currentStoreProfile?.offerLimit && currentStoreProfile?.offerLimit !== -1) || currentStoreProfile?.visibilityRestricted) && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {currentStoreProfile?.withdrawalsFrozen && (
+                    {currentStoreProfile?.owner?.withdrawalsFrozen && (
                         <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-4 animate-in slide-in-from-top-2 duration-500">
                             <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500 shrink-0">
                                 <Lock size={20} />
                             </div>
                             <div>
                                 <h4 className="text-xs font-black text-white uppercase tracking-widest">{isAr ? 'عمليات السحب مجمدة' : 'Withdrawals Frozen'}</h4>
-                                <p className="text-[10px] text-red-400 font-bold mt-0.5">{currentStoreProfile.withdrawalFreezeNote || (isAr ? 'تم تقييد سحب الأموال لهذا المتجر' : 'Financial payouts restricted for this vendor')}</p>
+                                <p className="text-[10px] text-red-400 font-bold mt-0.5">{currentStoreProfile.owner.withdrawalFreezeNote || (isAr ? 'تم تقييد سحب الأموال لهذا المتجر' : 'Financial payouts restricted for this vendor')}</p>
                             </div>
                         </div>
                     )}

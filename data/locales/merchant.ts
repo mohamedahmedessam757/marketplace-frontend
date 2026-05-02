@@ -352,7 +352,8 @@ export const merchant = {
         standard: 'شحن قياسي (قطع غيار عادية)',
         normal: 'شحن قياسي (قطع غيار عادية)',
         engine: 'شحن ماكينة (محرك)',
-        gearbox: 'شحن جيربوكس'
+        gearbox: 'شحن جيربوكس',
+        bumper: 'صدام أمامى'
       },
       warrantyLabel: 'هل يوجد ضمان؟',
       warrantyDurationLabel: 'مدة الضمان',
@@ -979,7 +980,8 @@ export const merchant = {
         standard: 'Standard Shipping',
         normal: 'Normal Part',
         engine: 'Engine',
-        gearbox: 'Gearbox'
+        gearbox: 'Gearbox',
+        bumper: 'Front Bumper'
       },
       warrantyLabel: 'Include Warranty?',
       warrantyDurationLabel: 'Warranty Duration',

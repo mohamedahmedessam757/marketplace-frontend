@@ -39,7 +39,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { unreadCount, fetchNotifications, subscribeToNotifications, unsubscribeFromNotifications } = useNotificationStore(); // Added fetchNotifications
-  const { checkLicenseStatus, vendorStatus, fetchVendorProfile, profile: vendorProfile } = useVendorStore();
+  const { 
+    checkLicenseStatus, 
+    vendorStatus, 
+    fetchVendorProfile, 
+    profile: vendorProfile,
+    withdrawalsFrozen: vWithdrawalsFrozen,
+    visibilityRestricted: vVisibilityRestricted,
+    offerLimit: vOfferLimit 
+  } = useVendorStore();
   const { currentAdmin, systemStatus, publicSystemStatus } = useAdminStore();
   const { startRealtime, stopRealtime } = useOrderStore();
   const { fetchInvoices, fetchCards } = useBillingStore();
@@ -255,8 +263,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const getRoleBadge = () => {
     // 2026 Governance: Check both account-level and entity-level (vendor) restrictions
     const hasAccountRestrictions = user?.withdrawalsFrozen || (user?.orderLimit !== undefined && user.orderLimit !== -1);
-    const vProfile = vendorProfile as any;
-    const hasVendorRestrictions = role === 'merchant' && (vProfile?.withdrawalsFrozen || vProfile?.visibilityRestricted || (vProfile?.offerLimit !== -1));
+    
+    // Fixed: Check root store properties for merchant, not the profile object
+    const hasVendorRestrictions = role === 'merchant' && (vWithdrawalsFrozen || vVisibilityRestricted || (vOfferLimit !== -1));
+    
     const hasAnyRestriction = hasAccountRestrictions || hasVendorRestrictions;
 
     switch (role) {

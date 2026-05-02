@@ -6,7 +6,7 @@ import { Badge, StatusType } from '../ui/Badge';
 import { StatusTimeline } from '../ui/StatusTimeline';
 import { OfferCard } from './OfferCard';
 import { PartOffersDrawer } from './PartOffersDrawer';
-import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2, Eye, ChevronDown, ChevronUp, ExternalLink, Lock } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2, Eye, ChevronDown, ChevronUp, ExternalLink, Lock, ShoppingBag } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCheckoutStore } from '../../stores/useCheckoutStore';
 import { useChatStore } from '../../stores/useChatStore';
@@ -224,7 +224,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     // Timer Check & Data Refresh
     useEffect(() => {
         // Ensure fresh data on mount (Fixes the "Missing Offers" issue)
-        useOrderStore.getState().fetchOrders();
+        if (orderId) useOrderStore.getState().fetchOrder(orderId);
         checkSLA();
         fetchShipments();
     }, [orderId]);
@@ -451,11 +451,26 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
     const isOrderExpired = () => {
         if (order.status === 'CANCELLED') return true;
-        if (order.status !== 'AWAITING_OFFERS') return false;
-        const d = new Date(order.createdAt || order.date);
-        d.setHours(d.getHours() + 24);
-        const deadline = d.getTime();
-        return new Date().getTime() > deadline;
+        
+        // 1. Awaiting Offers Expiry (Legacy/Single-Part)
+        if (order.status === 'AWAITING_OFFERS') {
+            const d = new Date(order.createdAt || order.date);
+            d.setHours(d.getHours() + 24);
+            return new Date().getTime() > d.getTime();
+        }
+
+        // 2. Awaiting Selection Expiry (2026/Multi-Part Reveal Logic)
+        if (order.status === 'AWAITING_SELECTION') {
+            if (order.selectionDeadlineAt) {
+                return new Date().getTime() > new Date(order.selectionDeadlineAt).getTime();
+            }
+            // Fallback: 48h from creation (24h collecting + 24h selection)
+            const d = new Date(order.createdAt || order.date);
+            d.setHours(d.getHours() + 48);
+            return new Date().getTime() > d.getTime();
+        }
+
+        return false;
     };
 
     const isExpired = isOrderExpired();
@@ -806,6 +821,21 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
+                            {/* Dynamic Phase Timer (COLLECTING_OFFERS / AWAITING_SELECTION) */}
+                            {['COLLECTING_OFFERS', 'AWAITING_SELECTION'].includes(order.status) && (
+                                <div className="text-right hidden md:block border-l border-white/10 pl-4 ml-2">
+                                    <div className="text-xs text-gold-500/60 font-bold uppercase tracking-widest mb-1">
+                                        {order.status === 'COLLECTING_OFFERS' 
+                                            ? (language === 'ar' ? 'كشف العروض خلال' : 'Revealing In')
+                                            : (language === 'ar' ? 'انتهاء مهلة الاختيار' : 'Selection Ends')}
+                                    </div>
+                                    <CountdownTimer 
+                                        targetDate={order.status === 'COLLECTING_OFFERS' ? order.revealOffersAt : order.selectionDeadlineAt} 
+                                        compact 
+                                    />
+                                </div>
+                            )}
+
                             <div className="text-right hidden md:block border-l border-white/10 pl-4 ml-2">
                                 <div className="text-xs text-white/40 mb-1">{(t.dashboard.orders as any).requestDate}</div>
                                 <div className="flex items-center gap-2 text-white/80 font-mono text-sm">
@@ -817,7 +847,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     </div>
 
                     {/* Extended Tracking View Trigger */}
-                    {!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'CANCELLED'].includes(order.status) ? (
+                    {!['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'CANCELLED'].includes(order.status) ? (
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-6">
                                 <StatusTimeline currentStatus={order.status} />
@@ -1016,6 +1046,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     )}
 
 
+
                     {/* Requested Parts List + View Offers Button */}
                     {(order.parts && order.parts.length > 0) && (
                         <div className="space-y-6">
@@ -1027,7 +1058,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             <div className="space-y-4">
                                 {order.parts.map((p, idx) => {
                                     const partOffers = order.offers
-                                        .filter((o: any) => o.orderPartId === p.id && o.status !== 'rejected')
+                                        .filter((o: any) => (o.orderPartId === p.id || (!o.orderPartId && order.parts.length === 1)) && o.status !== 'rejected')
                                         .slice(0, 10); // Hard cap: max 10
 
                                     const hasOffers = partOffers.length > 0;

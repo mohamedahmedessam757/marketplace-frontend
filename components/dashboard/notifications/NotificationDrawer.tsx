@@ -1,22 +1,28 @@
 
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, Truck, CheckCircle2, DollarSign, MessageSquare, AlertTriangle, Package, Mail, Smartphone, RotateCcw } from 'lucide-react';
+import { X, Bell, CheckCircle2, DollarSign, MessageSquare, AlertTriangle, Package, RotateCcw, Truck } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { useNotificationStore, NotificationType } from '../../../stores/useNotificationStore';
+import { useNotificationStore, NotificationType, Notification } from '../../../stores/useNotificationStore';
 import { getCurrentUserId } from '../../../utils/auth';
 
 interface NotificationDrawerProps {
     isOpen: boolean;
     onClose: () => void;
-    onNavigate: (path: string, id?: number) => void;
+    onNavigate: (path: string, id?: string) => void;
     role: 'customer' | 'merchant' | 'admin' | string;
 }
 
-export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose, onNavigate, role }) => {
-    const { t, language } = useLanguage();
-    const { notifications, markAsRead, markAllAsRead } = useNotificationStore();
-
+// 1. Memoized Notification Item for Performance (2026 Optimization)
+const NotificationItem = memo(({ 
+    notif, 
+    language, 
+    onClick 
+}: { 
+    notif: Notification; 
+    language: string; 
+    onClick: () => void;
+}) => {
     const getIcon = (type: NotificationType | string) => {
         switch (type) {
             case 'OFFER': return <MessageSquare size={18} className="text-blue-400" />;
@@ -33,114 +39,179 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
         }
     };
 
-    const getTitle = (key: string) => {
-        return (t.dashboard.notifications as any)[key] || key;
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={onClick}
+            className={`p-4 hover:bg-white/5 cursor-pointer transition-all duration-200 relative group border-b border-white/5 ${!notif.isRead ? 'bg-gold-500/[0.03]' : ''}`}
+            style={{ willChange: 'transform, opacity' }}
+        >
+            {!notif.isRead && (
+                <div className={`absolute top-4 ${language === 'ar' ? 'left-4' : 'right-4'} w-2 h-2 rounded-full bg-gold-500 shadow-[0_0_8px_rgba(212,175,55,0.6)]`} />
+            )}
+            <div className="flex gap-3">
+                <div className="mt-1 p-2 rounded-xl bg-[#0F0E0C] border border-white/10 h-fit group-hover:border-gold-500/30 transition-colors">
+                    {getIcon(notif.type)}
+                </div>
+                <div className="flex-1">
+                    <h4 className={`text-sm font-bold mb-1 transition-colors ${!notif.isRead ? 'text-white' : 'text-white/60 group-hover:text-white/80'}`}>
+                        {language === 'ar' ? notif.titleAr : notif.titleEn}
+                    </h4>
+                    <p className="text-xs text-white/50 leading-relaxed line-clamp-2 group-hover:text-white/70 transition-colors">
+                        {language === 'ar' ? notif.messageAr : notif.messageEn}
+                    </p>
+
+                    <div className="flex items-center justify-between mt-2">
+                        <span className="text-[10px] text-white/30 font-medium">
+                            {new Date(notif.createdAt).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+});
+
+NotificationItem.displayName = 'NotificationItem';
+
+export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose, onNavigate, role }) => {
+    const { t, language } = useLanguage();
+    const { notifications, markAsRead, markAllAsRead, isLoading } = useNotificationStore();
+
+    const handleNotifClick = (notif: Notification) => {
+        const uid = getCurrentUserId();
+        if (uid && !notif.isRead) markAsRead(notif.id, uid);
+
+        if (notif.link) {
+            if (notif.metadata?.orderId) {
+                onNavigate('order-details', notif.metadata.orderId);
+            } else if (notif.metadata?.caseId) {
+                const detailPath = role === 'admin' ? 'admin-dispute-details' : 'dispute-details';
+                onNavigate(detailPath, notif.metadata.caseId);
+            } else {
+                onNavigate(notif.link.replace(/^\//, ''));
+            }
+            onClose();
+        }
+    };
+
+    // 2026 High-Performance Animation Variants
+    const drawerVariants = {
+        closed: { 
+            x: language === 'ar' ? '-100%' : '100%',
+            transition: { type: 'tween', duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+        },
+        open: { 
+            x: 0,
+            transition: { type: 'tween', duration: 0.4, ease: [0, 0, 0.2, 1] }
+        }
     };
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {isOpen && (
-                <>
-                    {/* Backdrop */}
+                <div className="fixed inset-0 z-[100] overflow-hidden">
+                    {/* Backdrop - Separate for better perf */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]"
+                        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+                        style={{ willChange: 'opacity' }}
                     />
 
                     {/* Drawer */}
                     <motion.div
-                        initial={{ x: language === 'ar' ? '-100%' : '100%' }}
-                        animate={{ x: 0 }}
-                        exit={{ x: language === 'ar' ? '-100%' : '100%' }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className={`fixed top-0 bottom-0 ${language === 'ar' ? 'left-0' : 'right-0'} w-full max-w-sm bg-[#1A1814]/95 border-x border-white/10 backdrop-blur-xl z-[70] shadow-2xl flex flex-col`}
+                        variants={drawerVariants}
+                        initial="closed"
+                        animate="open"
+                        exit="closed"
+                        className={`absolute top-0 bottom-0 ${language === 'ar' ? 'left-0' : 'right-0'} w-full max-w-[400px] bg-[#0A0A0A] border-x border-white/5 shadow-[0_0_50px_rgba(0,0,0,0.5)] z-[110] flex flex-col`}
+                        style={{ willChange: 'transform' }}
                     >
-                        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Bell className="text-gold-500" size={20} />
-                                <h3 className="font-bold text-white text-lg">{t.dashboard.notifications.title}</h3>
+                        {/* Header */}
+                        <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#0F0E0C]">
+                            <div className="flex items-center gap-3">
+                                <div className="relative">
+                                    <Bell className="text-gold-500" size={24} />
+                                    {notifications.some(n => !n.isRead) && (
+                                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-[#0F0E0C] rounded-full" />
+                                    )}
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-xl tracking-tight">{t.dashboard.notifications.title}</h3>
+                                    <p className="text-[10px] text-white/40 uppercase tracking-widest font-medium">Real-time Updates</p>
+                                </div>
                             </div>
-                            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                            <button 
+                                onClick={onClose} 
+                                className="p-2 hover:bg-white/10 rounded-xl text-white/50 hover:text-white transition-all duration-200 active:scale-95"
+                            >
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <div className="p-3 border-b border-white/5 bg-white/5 flex justify-end">
+                        {/* Actions Bar */}
+                        <div className="px-6 py-3 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+                            <span className="text-[11px] text-white/30 font-medium">
+                                {notifications.filter(n => !n.isRead).length} {language === 'ar' ? 'تنبيهات جديدة' : 'New Alerts'}
+                            </span>
                             <button
                                 onClick={() => {
                                     const uid = getCurrentUserId();
                                     if (uid) markAllAsRead(uid, role);
                                 }}
-                                className="text-xs text-gold-400 hover:text-gold-300 font-medium"
+                                className="text-[11px] text-gold-400 hover:text-gold-300 font-bold uppercase tracking-wider transition-colors active:opacity-50"
                             >
                                 {t.dashboard.notifications.markAllRead}
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto">
-                            {notifications.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full text-white/30">
-                                    <Bell size={40} className="mb-4 opacity-20" />
-                                    <p>{t.dashboard.notifications.empty}</p>
+                        {/* Notifications List */}
+                        <div className="flex-1 overflow-y-auto scrollbar-hide py-2">
+                            {isLoading && notifications.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full space-y-4">
+                                    <div className="w-10 h-10 border-2 border-gold-500/20 border-t-gold-500 rounded-full animate-spin" />
+                                </div>
+                            ) : notifications.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full text-white/20 px-10 text-center">
+                                    <div className="w-20 h-20 rounded-full bg-white/[0.02] flex items-center justify-center mb-6">
+                                        <Bell size={40} className="opacity-20" />
+                                    </div>
+                                    <p className="text-sm font-medium">{t.dashboard.notifications.empty}</p>
                                 </div>
                             ) : (
-                                <div className="divide-y divide-white/5">
-                                    {notifications.map((notif) => (
-                                        <div
-                                            key={notif.id}
-                                            onClick={() => {
-                                                const uid = getCurrentUserId();
-                                                if (uid) markAsRead(notif.id, uid);
-
-                                                if (notif.link) {
-                                                    // High-Fidelity Navigation (2026 Router Sync)
-                                                    if (notif.metadata?.orderId) {
-                                                        onNavigate('order-details', notif.metadata.orderId);
-                                                    } else if (notif.metadata?.caseId) {
-                                                        // Map to correct detail view based on role context
-                                                        const detailPath = role === 'admin' ? 'admin-dispute-details' : 'dispute-details';
-                                                        onNavigate(detailPath, notif.metadata.caseId);
-                                                    } else {
-                                                        // Fallback for simple paths
-                                                        onNavigate(notif.link.replace('/', ''));
-                                                    }
-                                                    onClose();
-                                                }
-                                            }}
-                                            className={`p-4 hover:bg-white/5 cursor-pointer transition-colors relative ${!notif.isRead ? 'bg-gold-500/5' : ''}`}
-                                        >
-                                            {!notif.isRead && (
-                                                <div className={`absolute top-4 ${language === 'ar' ? 'left-4' : 'right-4'} w-2 h-2 rounded-full bg-gold-500`} />
-                                            )}
-                                            <div className="flex gap-3">
-                                                <div className="mt-1 p-2 rounded-full bg-[#0F0E0C] border border-white/10 h-fit">
-                                                    {getIcon(notif.type as NotificationType)}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className={`text-sm font-bold mb-1 ${!notif.isRead ? 'text-white' : 'text-white/70'}`}>
-                                                        {language === 'ar' ? notif.titleAr : notif.titleEn}
-                                                    </h4>
-                                                    <p className="text-xs text-white/50 leading-relaxed mb-2">
-                                                        {language === 'ar' ? notif.messageAr : notif.messageEn}
-                                                    </p>
-
-                                                    <div className="flex items-center justify-between mt-2">
-                                                        <span className="text-[10px] text-white/30 font-mono">
-                                                            {new Date(notif.createdAt).toLocaleDateString()} {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="flex flex-col">
+                                    <AnimatePresence initial={false}>
+                                        {notifications.map((notif) => (
+                                            <NotificationItem
+                                                key={notif.id}
+                                                notif={notif}
+                                                language={language}
+                                                onClick={() => handleNotifClick(notif)}
+                                            />
+                                        ))}
+                                    </AnimatePresence>
                                 </div>
                             )}
                         </div>
+                        
+                        {/* Footer - 2026 Premium Finish */}
+                        <div className="p-4 border-t border-white/5 bg-white/[0.01] text-center">
+                            <p className="text-[10px] text-white/20 font-medium tracking-tighter">
+                                {language === 'ar' ? 'مركز التنبيهات الذكي 2026' : 'SMART NOTIFICATION CENTER 2026'}
+                            </p>
+                        </div>
                     </motion.div>
-                </>
+                </div>
             )}
         </AnimatePresence>
     );

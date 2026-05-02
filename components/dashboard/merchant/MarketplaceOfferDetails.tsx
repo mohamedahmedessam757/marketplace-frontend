@@ -68,7 +68,7 @@ interface MarketplaceOfferDetailsProps {
 export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = ({ orderId, onBack }) => {
     const { t, language } = useLanguage();
     const { orders, addOfferToOrder } = useOrderStore(); // We'll need to fetch the exact order from API in real app
-    const { storeId } = useVendorStore();
+    const { storeId, performance, fetchDashboardStats } = useVendorStore();
     const { shipments, fetchShipments } = useShipmentsStore();
     const { cases, fetchCases } = useResolutionStore();
     const isAr = language === 'ar';
@@ -139,6 +139,12 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
     // Shipping Request State
     const [isRequestingShipping, setIsRequestingShipping] = useState(false);
+
+    
+    // Fetch stats on mount to ensure governance metrics are fresh
+    useEffect(() => {
+        fetchDashboardStats();
+    }, [fetchDashboardStats]);
 
     // Fetch merchant's real offers from API on mount and after submissions
     const fetchMyOffers = useCallback(async () => {
@@ -1549,14 +1555,24 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                             {/* 5% Violation Rule */}
                             <div className="mt-4 pt-4 border-t border-white/5">
                                 <div className="flex items-center justify-between text-[10px] mb-2">
-                                    <span className="text-white/40 uppercase font-bold">{isAr ? 'عتبة المخالفات' : 'Violation Threshold'}</span>
-                                    <span className="text-gold-400 font-bold">5% Max</span>
+                                    <span className="text-white/40 uppercase font-bold">{isAr ? 'معدل التعديل الحالي' : 'Current Mod Rate'}</span>
+                                    <span className={`font-bold ${((performance.editCount + performance.withdrawalCount) / Math.max(performance.totalOffersSent, 1)) > 0.05 ? 'text-red-400' : 'text-gold-400'}`}>
+                                        {performance.totalOffersSent > 0 
+                                            ? `${(((performance.editCount + performance.withdrawalCount) / performance.totalOffersSent) * 100).toFixed(1)}%`
+                                            : '0%'}
+                                    </span>
                                 </div>
                                 <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-gold-500/40 w-[20%]" />
+                                    <motion.div 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${Math.min(((performance.editCount + performance.withdrawalCount) / Math.max(performance.totalOffersSent, 1)) * 100, 100)}%` }}
+                                        className={`h-full transition-colors ${((performance.editCount + performance.withdrawalCount) / Math.max(performance.totalOffersSent, 1)) > 0.05 ? 'bg-red-500' : 'bg-gold-500/40'}`} 
+                                    />
                                 </div>
                                 <p className="text-[9px] text-white/30 mt-2 italic">
-                                    {isAr ? '* تجاوز نسبة 5% من المخالفات يؤدي لتعطيل الحساب آلياً.' : '* Exceeding 5% violation rate leads to automated account suspension.'}
+                                    {isAr 
+                                        ? `* نقاط المخالفات النشطة: ${performance.violationScore || 0}`
+                                        : `* Active Violation Points: ${performance.violationScore || 0}`}
                                 </p>
                             </div>
                         </div>

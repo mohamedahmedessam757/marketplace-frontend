@@ -80,11 +80,16 @@ export const OrderControl: React.FC<{ onNavigate?: (path: string, id: any) => vo
     const statuses = [
         { label: isAr ? 'كافة الحالات' : 'All Statuses', value: 'ALL' },
         { label: isAr ? 'بانتظار العروض' : 'Awaiting Offers', value: 'AWAITING_OFFERS' },
+        { label: isAr ? 'جمع العروض (بندقية)' : 'Collecting Offers (Auction)', value: 'COLLECTING_OFFERS' },
         { label: isAr ? 'بانتظار الدفع' : 'Awaiting Payment', value: 'AWAITING_PAYMENT' },
         { label: isAr ? 'قيد التجهيز' : 'Preparation', value: 'PREPARATION' },
+        { label: isAr ? 'قيد التوثيق' : 'Verification', value: 'VERIFICATION' },
+        { label: isAr ? 'تم التوثيق' : 'Verified', value: 'VERIFICATION_SUCCESS' },
+        { label: isAr ? 'جاهز للشحن' : 'Ready for Shipping', value: 'READY_FOR_SHIPPING' },
         { label: isAr ? 'تم الشحن' : 'Shipped', value: 'SHIPPED' },
         { label: isAr ? 'تم الاستلام' : 'Delivered', value: 'DELIVERED' },
         { label: isAr ? 'مكتمل' : 'Completed', value: 'COMPLETED' },
+        { label: isAr ? 'فترة التصحيح' : 'Correction Period', value: 'CORRECTION_PERIOD' },
         { label: isAr ? 'ملغي' : 'Cancelled', value: 'CANCELLED' },
         { label: isAr ? 'نزاع قائم' : 'Disputed', value: 'DISPUTED' },
     ];

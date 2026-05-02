@@ -32,6 +32,10 @@ export const AdminAlerts: React.FC = () => {
                     title = t.admin.alerts.types.late_prep;
                     msg = isAr ? `يوجد ${a.count} طلبات تأخر تجهيزها لأكثر من 48 ساعة` : `${a.count} orders delayed > 48h`;
                     break;
+                case 'STALLED_VERIFICATION':
+                    title = isAr ? 'توثيق متوقف' : 'Stalled Verification';
+                    msg = isAr ? `يوجد ${a.count} طلبات في مرحلة التوثيق لأكثر من 24 ساعة` : `${a.count} orders in verification > 24h`;
+                    break;
                 case 'LICENSE_EXPIRING':
                     title = t.admin.alerts.types.license_expiry;
                     msg = isAr ? `${a.count} متاجر تنتهي رخصها قريباً` : `${a.count} Stores Expiring Soon`;
@@ -73,6 +77,7 @@ export const AdminAlerts: React.FC = () => {
                 break;
             case 'LATE_RESPONSE':
             case 'LATE_PREP':
+            case 'STALLED_VERIFICATION':
                 navigate('orders-control');
                 break;
             default:

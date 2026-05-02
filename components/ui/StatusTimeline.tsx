@@ -25,8 +25,12 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus })
 
   const getActiveStepIndex = (status: string): number => {
     switch (status) {
-      case 'AWAITING_OFFERS': return 1;
-      case 'AWAITING_PAYMENT': return 2;
+      case 'AWAITING_OFFERS':
+      case 'COLLECTING_OFFERS':
+      case 'AWAITING_SELECTION': return 1;
+      
+      case 'AWAITING_PAYMENT':
+      case 'PARTIALLY_PAID': return 2;
       
       // Preparation phase
       case 'PREPARATION': 

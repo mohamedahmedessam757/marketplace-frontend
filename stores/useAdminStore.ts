@@ -450,6 +450,14 @@ export const useAdminStore = create<AdminState>()(
               basePrice: 350,
               isWeightBound: false,
               weightBrackets: []
+            },
+            {
+              id: 'bumper',
+              nameAr: 'صدام أمامى',
+              nameEn: 'Front Bumper',
+              basePrice: 150,
+              isWeightBound: false,
+              weightBrackets: []
             }
           ]
         },

@@ -251,14 +251,19 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigat
         // Dynamic mapping of all possible statuses to 2026 premium colors
         const statusConfig: Record<string, string> = {
             AWAITING_OFFERS: '#818CF8', // Indigo
+            COLLECTING_OFFERS: '#6366F1', // Indigo-600
             AWAITING_PAYMENT: '#A78BFA', // Violet
+            PARTIALLY_PAID: '#C084FC', // Purple
             PREPARATION: '#FBBF24', // Amber
+            PREPARED: '#F59E0B', // Amber-600
+            DELAYED_PREPARATION: '#EF4444', // Red
             VERIFICATION: '#22D3EE', // Cyan
             VERIFICATION_SUCCESS: '#34D399', // Emerald
+            READY_FOR_SHIPPING: '#0EA5E9', // Sky
             SHIPPED: '#60A5FA', // Blue
             DELIVERED: '#2DD4BF', // Teal
             COMPLETED: '#10B981', // Green
-            CANCELLED: '#F87171', // Red
+            CANCELLED: '#64748B', // Slate
             DISPUTED: '#EF4444', // Bright Red
             RETURN_REQUESTED: '#FB923C', // Orange
             RETURN_APPROVED: '#F97316', // Dark Orange
@@ -267,6 +272,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigat
             WARRANTY_EXPIRED: '#94A3B8', // Slate
             NON_MATCHING: '#F43F5E', // Rose
             CORRECTION_PERIOD: '#F59E0B', // Amber
+            CORRECTION_SUBMITTED: '#FCD34D', // Amber-300
         };
 
         const donutData = sDist.map(item => ({

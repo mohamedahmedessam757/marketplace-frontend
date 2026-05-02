@@ -8,7 +8,7 @@ import { supabase } from '../services/supabase';
 
 // Module-level debounce timer to prevent realtime spam and race conditions with DB transactions
 let realtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-const REALTIME_DEBOUNCE_MS = 1500;
+const REALTIME_DEBOUNCE_MS = 300; // 2026 High-Performance Threshold
 
 // --- FSM CONFIGURATION (Must match Backend) ---
 const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
@@ -248,6 +248,11 @@ interface OrderState {
     withdrawOffer: (offerId: string) => Promise<void>;
     updateAdminNotes: (orderId: string, notes: string) => Promise<void>;
     confirmOrderReceived: (id: string, note?: string) => Promise<boolean>;
+    cancelOrder: (id: string, reason?: string) => Promise<boolean>;
+    deleteOrder: (id: string) => Promise<boolean>;
+    renewOrder: (id: string) => Promise<boolean>;
+    canCancelOrder: (id: string) => boolean;
+    getOrderById: (id: string) => Order | undefined;
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
@@ -357,7 +362,14 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
     fetchOrders: async (params = {}) => {
         const { search, status, page = 1 } = params;
-        set({ isLoading: true, error: null });
+        const { orders } = get();
+        
+        // 2026 SWR-like Pattern: Only show global loader if no data exists
+        if (orders.length === 0) {
+            set({ isLoading: true, error: null });
+        } else {
+            set({ error: null });
+        }
 
         try {
             const result = await ordersApi.getAll({ 
@@ -415,16 +427,21 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
     silentFetch: async () => {
         const { isLoading, isFetchingMore, page, limit } = get();
+        // Allow silent fetch even if other fetches are in progress, but guard against overlap
         if (isLoading || isFetchingMore) return;
 
         try {
-            // Re-fetch everything up to current page to ensure consistency?
-            // For now, just refresh the current visible set (page 1 to current)
-            // But usually, silentFetch only refreshes page 1 if it's a "New Items" check.
-            // Strategic choice: Refresh only page 1 for now to identify if list changed.
-            const result = await ordersApi.getAll({ page: 1, limit: page * limit });
+            // Strategic Refresh: Fetch the current view + first page of active items
+            const result = await ordersApi.getAll({ page: 1, limit: Math.max(page * limit, 50) });
             const mappedOrders = get().mapBackendOrders(result.items);
-            set({ orders: mappedOrders, total: result.total, hasMore: result.hasMore });
+            
+            set((state) => ({ 
+                orders: mappedOrders, 
+                total: result.total, 
+                hasMore: result.hasMore,
+                // Update specific orders if they were expanded/detailed in UI? 
+                // mappedOrders already contains the latest list state.
+            }));
         } catch (err) {
             console.error('Silent fetch failed', err);
         }
@@ -631,22 +648,26 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     },
 
     transitionOrder: async (id, targetStatus, actor = 'SYSTEM', metadata = {}) => {
-        // Optimistic Update or Wait? Let's wait for API
+        const { orders } = get();
+        const previousOrders = [...orders];
+
+        // 1. Optimistic Update (2026 UX Standard)
+        const now = new Date().toISOString();
+        set((state) => ({
+            orders: state.orders.map(o => String(o.id) === String(id) ? { ...o, status: targetStatus, updatedAt: now } : o)
+        }));
+
         try {
             await ordersApi.transition(id, targetStatus, JSON.stringify(metadata));
-
-            set((state) => ({
-                orders: state.orders.map(o => {
-                    if (o.id !== id) return o;
-                    const now = new Date().toISOString();
-                    return { ...o, status: targetStatus, updatedAt: now };
-                })
-            }));
-
             return { success: true };
         } catch (err: any) {
-            console.error(err);
-            return { success: false, message: err.response?.data?.message || 'Transition Failed' };
+            console.error('Transition failed, rolling back...', err);
+            // Rollback on failure
+            set({ orders: previousOrders });
+            return { 
+                success: false, 
+                message: err.response?.data?.message || 'Transition Failed' 
+            };
         }
     },
 
@@ -760,5 +781,65 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             set({ orders: previousOrders });
             return false;
         }
+    },
+
+    cancelOrder: async (id: string, reason?: string) => {
+        // Optimistic UI
+        const previousOrders = get().orders;
+        set(state => ({
+            orders: state.orders.map(o => String(o.id) === String(id) ? { ...o, status: 'CANCELLED' as StatusType } : o)
+        }));
+
+        try {
+            await ordersApi.cancel(id, reason);
+            get().silentFetch();
+            return true;
+        } catch (err) {
+            console.error('Failed to cancel order', err);
+            set({ orders: previousOrders }); // Rollback
+            return false;
+        }
+    },
+
+    deleteOrder: async (id: string) => {
+        // Optimistic UI
+        const previousOrders = get().orders;
+        set(state => ({
+            orders: state.orders.filter(o => String(o.id) !== String(id))
+        }));
+
+        try {
+            await ordersApi.delete(id);
+            get().silentFetch();
+            return true;
+        } catch (err) {
+            console.error('Failed to delete order', err);
+            set({ orders: previousOrders }); // Rollback
+            return false;
+        }
+    },
+
+    renewOrder: async (id: string) => {
+        set({ isLoading: true });
+        try {
+            await ordersApi.renew(id);
+            await get().fetchOrders(); // Full refresh to get new deadline
+            return true;
+        } catch (err) {
+            console.error('Failed to renew order', err);
+            set({ isLoading: false });
+            return false;
+        }
+    },
+
+    getOrderById: (id: string) => {
+        return get().orders.find(o => String(o.id) === String(id));
+    },
+
+    canCancelOrder: (id: string) => {
+        const order = get().orders.find(o => String(o.id) === String(id));
+        if (!order) return false;
+        const immutableStatuses = ['SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
+        return !immutableStatuses.includes(order.status);
     }
 }));

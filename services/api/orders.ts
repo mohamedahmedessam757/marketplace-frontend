@@ -114,5 +114,23 @@ export const ordersApi = {
     confirmDelivery: async (id: string, customerNote?: string) => {
         const response = await client.post(`/orders/${id}/deliver`, { customerNote });
         return response.data;
+    },
+    
+    delete: async (id: string) => {
+        const response = await client.delete(`/orders/${id}`);
+        return response.data;
+    },
+
+    renew: async (id: string) => {
+        const response = await client.patch(`/orders/${id}/renew`);
+        return response.data;
+    },
+
+    cancel: async (id: string, reason?: string) => {
+        const response = await client.patch(`/orders/${id}/transition`, {
+            newStatus: 'CANCELLED',
+            reason: reason || 'Cancelled by customer'
+        });
+        return response.data;
     }
 };

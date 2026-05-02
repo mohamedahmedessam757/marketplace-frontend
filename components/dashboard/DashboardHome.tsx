@@ -7,6 +7,7 @@ import { Badge, StatusType } from '../ui/Badge';
 import { Plus, Search, Car, ArrowRight, ArrowLeft, Clock, CheckCircle2, TrendingUp, ChevronRight, ChevronLeft, Activity, Package } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useOrderStore } from '../../stores/useOrderStore';
+import { useProfileStore } from '../../stores/useProfileStore';
 
 interface DashboardHomeProps {
     onNavigate: (path: string, id?: number) => void;
@@ -14,32 +15,69 @@ interface DashboardHomeProps {
 
 export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
-    const { orders } = useOrderStore(); // Connect to real store
+    const { orders, startRealtime, stopRealtime, fetchOrders } = useOrderStore();
+    const { user } = useProfileStore();
+
+    React.useEffect(() => {
+        if (user?.id) {
+            startRealtime(user.id, 'customer');
+        } else {
+            fetchOrders();
+        }
+        return () => stopRealtime();
+    }, [user?.id, startRealtime, stopRealtime, fetchOrders]);
+
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
     const ChevronIcon = isAr ? ChevronLeft : ChevronRight;
 
     // 1. Calculate Stats
-    const activeOrdersCount = orders.filter(o => ['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'PREPARATION', 'SHIPPED'].includes(o.status)).length;
-    const completedOrdersCount = orders.filter(o => o.status === 'COMPLETED' || o.status === 'DELIVERED').length;
+    const activeStatuses = [
+        'AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PARTIALLY_PAID',
+        'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 
+        'VERIFICATION_SUCCESS', 'NON_MATCHING', 'CORRECTION_PERIOD', 
+        'CORRECTION_SUBMITTED', 'READY_FOR_SHIPPING', 'SHIPPED', 'DISPUTED'
+    ];
+    const activeOrdersCount = orders.filter(o => activeStatuses.includes(o.status)).length;
+    const completedOrdersCount = orders.filter(o => ['COMPLETED', 'DELIVERED', 'WARRANTY_ACTIVE'].includes(o.status)).length;
 
     const totalOrdersCount = orders.length;
 
     // 2. Get the most relevant active order to show in the "Live Tracking" card
     // Priority: Shipped > Preparation > Awaiting Payment > Awaiting Offers
     const activeOrder = orders.find(o => o.status === 'SHIPPED')
+        || orders.find(o => o.status === 'READY_FOR_SHIPPING')
+        || orders.find(o => o.status === 'VERIFICATION_SUCCESS')
+        || orders.find(o => o.status === 'VERIFICATION')
         || orders.find(o => o.status === 'PREPARATION')
+        || orders.find(o => o.status === 'DELAYED_PREPARATION')
         || orders.find(o => o.status === 'AWAITING_PAYMENT')
-        || orders.find(o => o.status === 'AWAITING_OFFERS');
+        || orders.find(o => o.status === 'AWAITING_SELECTION')
+        || orders.find(o => o.status === 'COLLECTING_OFFERS')
+        || orders.find(o => o.status === 'AWAITING_OFFERS')
+        || orders.find(o => ['NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'DISPUTED'].includes(o.status));
 
     const getProgress = (status: StatusType) => {
         switch (status) {
             case 'AWAITING_OFFERS': return 10;
-            case 'AWAITING_PAYMENT': return 30;
+            case 'COLLECTING_OFFERS': return 20;
+            case 'AWAITING_SELECTION': return 30;
+            case 'AWAITING_PAYMENT': return 40;
+            case 'PARTIALLY_PAID': return 45;
             case 'PREPARATION': return 50;
-            case 'SHIPPED': return 75;
-            case 'DELIVERED': return 90;
+            case 'DELAYED_PREPARATION': return 55;
+            case 'PREPARED': return 60;
+            case 'VERIFICATION': return 70;
+            case 'NON_MATCHING': return 72;
+            case 'CORRECTION_PERIOD': return 74;
+            case 'CORRECTION_SUBMITTED': return 76;
+            case 'VERIFICATION_SUCCESS': return 80;
+            case 'READY_FOR_SHIPPING': return 85;
+            case 'SHIPPED': return 90;
+            case 'DELIVERED': return 95;
+            case 'WARRANTY_ACTIVE': return 98;
             case 'COMPLETED': return 100;
+            case 'CANCELLED': return 0;
             default: return 0;
         }
     };
@@ -217,14 +255,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
 
                         {/* Changed h-64 to min-h-[100px] max-h-[300px] h-auto to fit content tightly */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar min-h-[100px] max-h-[300px] h-auto">
-                            {orders.filter(o => !['COMPLETED', 'CANCELLED', 'RETURNED', 'REFUNDED', 'RESOLVED', 'DELIVERED'].includes(o.status)).length === 0 ? (
+                            {orders.filter(o => activeStatuses.includes(o.status)).length === 0 ? (
                                 <div className="flex flex-col items-center justify-center text-white/30 space-y-2 py-8">
                                     <Activity size={32} />
                                     <span className="text-sm">{t.common.noData}</span>
                                 </div>
                             ) : (
                                 orders
-                                    .filter(o => !['COMPLETED', 'CANCELLED', 'RETURNED', 'REFUNDED', 'RESOLVED', 'DELIVERED'].includes(o.status))
+                                    .filter(o => activeStatuses.includes(o.status))
                                     .slice(0, 3) // STRICTLY LIMIT TO 3
                                     .map((order, i) => (
                                         <motion.div

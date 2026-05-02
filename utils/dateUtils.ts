@@ -8,14 +8,23 @@ export const getDynamicOrderDeadline = (order: any): string | null => {
     if (!order || !order.status) return null;
 
     switch (order.status) {
+        case 'COLLECTING_OFFERS':
         case 'AWAITING_OFFERS': {
-            // Prefer the DB-stored deadline (most accurate)
             if (order.offersDeadlineAt) return order.offersDeadlineAt;
             if (order.offers_deadline_at) return order.offers_deadline_at;
-            // Fallback: calculate 24h from creation
             const dateStr = order.createdAt || order.created_at || order.date;
             if (!dateStr) return null;
             const d = new Date(dateStr);
+            d.setHours(d.getHours() + 24);
+            return d.toISOString();
+        }
+        
+        case 'AWAITING_SELECTION': {
+            if (order.selectionDeadlineAt) return order.selectionDeadlineAt;
+            if (order.selection_deadline_at) return order.selection_deadline_at;
+            const baseDate = order.revealOffersAt || order.reveal_offers_at || order.updatedAt || order.updated_at;
+            if (!baseDate) return null;
+            const d = new Date(baseDate);
             d.setHours(d.getHours() + 24);
             return d.toISOString();
         }
@@ -114,7 +123,7 @@ export const isOrderExpired = (order: any): boolean => {
     // Only AWAITING_OFFERS and AWAITING_PAYMENT can naturally "expire" into a dead state.
     // Other statuses like PREPARATION, SHIPPED, DELIVERED have SLAs that might breach, 
     // but the order itself doesn't become "Expired", it becomes "Delayed" or "Completed".
-    if (!['AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status)) {
+    if (!['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status)) {
         return false;
     }
 

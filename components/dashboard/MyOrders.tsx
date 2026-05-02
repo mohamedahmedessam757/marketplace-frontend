@@ -5,7 +5,7 @@ import { GlassCard } from '../ui/GlassCard';
 import { Badge, StatusType } from '../ui/Badge';
 import { Search, Filter, Calendar, Box, ChevronRight, ChevronLeft, RefreshCw, XCircle, Trash2, CreditCard, Tag, Clock, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useOrdersStore } from '../../stores/useOrdersStore';
+import { useOrderStore } from '../../stores/useOrderStore';
 import { useShipmentsStore } from '../../stores/useShipmentsStore';
 import { Order } from '../../types';
 import { CountdownTimer } from './OrderDetails';
@@ -23,7 +23,17 @@ interface MyOrdersProps {
 export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
-    const { orders, loading, fetchOrders, cancelOrder, deleteOrder, renewOrder, canCancelOrder } = useOrdersStore();
+    const { 
+        orders, 
+        isLoading: loading, 
+        fetchOrders, 
+        cancelOrder, 
+        deleteOrder, 
+        renewOrder, 
+        canCancelOrder,
+        startRealtime,
+        stopRealtime
+    } = useOrderStore();
     const { shipments, fetchShipments } = useShipmentsStore();
     const { user } = useProfileStore();
 
@@ -36,9 +46,18 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
     const ArrowIcon = language === 'ar' ? ChevronLeft : ChevronRight;
 
     useEffect(() => {
-        fetchOrders();
-        fetchShipments(); // Fetch shipments for the badges
-    }, [fetchOrders, fetchShipments]);
+        // startRealtime takes (userId, role)
+        if (user?.id) {
+            startRealtime(user.id, 'customer');
+        } else {
+            fetchOrders();
+        }
+        fetchShipments();
+
+        return () => {
+            stopRealtime();
+        };
+    }, [user?.id, startRealtime, stopRealtime, fetchOrders, fetchShipments]);
 
 
 
@@ -47,8 +66,8 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
         // 1. Search
         const searchLower = searchQuery.toLowerCase();
         const matchesSearch =
-            (order.partName || '').toLowerCase().includes(searchLower) ||
-            (order.vehicleMake || '').toLowerCase().includes(searchLower) ||
+            (order.part || '').toLowerCase().includes(searchLower) ||
+            (order.car || '').toLowerCase().includes(searchLower) ||
             (order.orderNumber || '').toLowerCase().includes(searchLower);
 
         if (!matchesSearch) return false;
@@ -59,7 +78,12 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
 
             if (statusFilter === 'ACTIVE') {
                 if (expired) return false;
-                if (!['AWAITING_OFFERS', 'AWAITING_PAYMENT', 'PREPARATION', 'SHIPPED', 'DISPUTED'].includes(order.status)) return false;
+                if (![
+                    'AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PARTIALLY_PAID',
+                    'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 
+                    'VERIFICATION_SUCCESS', 'NON_MATCHING', 'CORRECTION_PERIOD', 
+                    'CORRECTION_SUBMITTED', 'READY_FOR_SHIPPING', 'SHIPPED', 'DISPUTED'
+                ].includes(order.status)) return false;
             } else if (statusFilter === 'COMPLETED') {
                 if (!['COMPLETED', 'DELIVERED'].includes(order.status)) return false;
             } else if (statusFilter === 'CANCELLED') {
@@ -269,7 +293,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                             order.status === 'SHIPPED' ? 'border-r-purple-500' : 
                                                 order.status === 'AWAITING_PAYMENT' ? 'border-r-orange-500' :
                                                     isOrderExpired(order) ? 'border-r-red-500' : 
-                                                        order.status === 'AWAITING_OFFERS' ? 'border-r-yellow-500' :
+                                                    ['AWAITING_OFFERS', 'COLLECTING_OFFERS'].includes(order.status) ? 'border-r-yellow-500' :
                                                             order.status === 'CANCELLED' ? 'border-r-gray-600' :
                                                                 'border-r-gold-500'}
                         `}>
@@ -291,9 +315,9 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                                     <h3 className="font-bold text-white text-lg">
                                                         {(order.parts && order.parts.length > 1)
                                                             ? (language === 'ar' ? `طلبية متعددة (${order.parts.length} قطع)` : `Multi-Part Order (${order.parts.length} items)`)
-                                                            : order.partName}
+                                                            : order.part}
                                                     </h3>
-                                                    <p className="text-sm text-white/60">{order.vehicleMake} {order.vehicleModel} {order.vehicleYear}</p>
+                                                    <p className="text-sm text-white/60">{order.car}</p>
                                                 </div>
                                             </div>
 
@@ -304,7 +328,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                                         <Badge status={order.status as StatusType} />
                                                         {(() => {
                                                             const shipment = shipments.find(s => s.orderId === order.id);
-                                                            if (shipment && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status)) {
+                                                            if (shipment && !['CANCELLED', 'AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status)) {
                                                                 return (
                                                                     <div className="flex items-center gap-2">
                                                                         <Badge status={shipment.status as StatusType} className="animate-in fade-in zoom-in duration-500" />
@@ -319,22 +343,32 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                                     {/* Independent Timer: only for specific pending/tracking states */}
                                                     {(() => {
                                                         const deadline = getDynamicOrderDeadline(order);
-                                                        const isAwaiting = ['AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status);
-                                                        const isTracking = ['PREPARATION', 'DELAYED_PREPARATION', 'CORRECTION_PERIOD', 'DELIVERED'].includes(order.status);
+                                                        const isAwaiting = ['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT'].includes(order.status);
+                                                        const isTracking = [
+                                                            'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 
+                                                            'VERIFICATION', 'VERIFICATION_SUCCESS', 
+                                                            'NON_MATCHING', 'CORRECTION_PERIOD', 
+                                                            'CORRECTION_SUBMITTED', 'READY_FOR_SHIPPING', 
+                                                            'DELIVERED'
+                                                        ].includes(order.status);
                                                         
-                                                        // Hide timer for SHIPPED or statuses where internal detail doesn't show it
                                                         if (!deadline || (!isAwaiting && !isTracking)) return null;
                                                         
                                                         const expiredNow = new Date(deadline).getTime() < new Date().getTime();
-                                                        if (expiredNow && !isAwaiting) return null; // Hide expired SLA for post-acceptance states
+                                                        if (expiredNow && !isAwaiting) return null;
 
                                                         return (
-                                                            <div className="flex justify-end border border-gold-500/20 bg-gold-500/10 rounded-full px-3 py-1">
-                                                                <CountdownTimer 
-                                                                    targetDate={deadline} 
-                                                                    compact={true} 
-                                                                    hideExpiredText={!isAwaiting}
-                                                                />
+                                                            <div className="flex justify-end bg-gold-500/10 rounded-xl px-4 py-2 border border-gold-500/30 shadow-[0_0_15px_rgba(168,139,62,0.1)] group-hover:border-gold-500/50 transition-colors">
+                                                                <div className="flex flex-col items-end">
+                                                                    <span className="text-[9px] text-gold-400/60 uppercase font-black tracking-widest mb-0.5">
+                                                                        {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
+                                                                    </span>
+                                                                    <CountdownTimer 
+                                                                        targetDate={deadline} 
+                                                                        compact={true} 
+                                                                        hideExpiredText={!isAwaiting}
+                                                                    />
+                                                                </div>
                                                             </div>
                                                         );
                                                     })()}
@@ -342,7 +376,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                                     {/* New Offers Count */}
                                                     {(() => {
                                                         const activeOffersCount = order.offers?.filter(o => o.status !== 'rejected').length || 0;
-                                                        if (activeOffersCount > 0 && order.status === 'AWAITING_OFFERS') {
+                                                        if (activeOffersCount > 0 && ['AWAITING_OFFERS', 'COLLECTING_OFFERS'].includes(order.status)) {
                                                             return (
                                                                 <span className="text-xs font-medium text-gold-400 animate-pulse">
                                                                     {activeOffersCount} {t.dashboard.orders.newOffers}

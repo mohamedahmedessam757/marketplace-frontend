@@ -162,7 +162,7 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
     ];
 
     const activeOrders = orders.filter(o => 
-        [...prepStatuses, 'SHIPPED', 'DELIVERED', 'WARRANTY_ACTIVE', 'COMPLETED', ...resolutionStatuses].includes(o.status) &&
+        [...prepStatuses, 'SHIPPED', 'DELIVERED', 'WARRANTY_ACTIVE', 'COMPLETED', 'COLLECTING_OFFERS', 'AWAITING_OFFERS', ...resolutionStatuses].includes(o.status) &&
         myStoreId && o.offers?.some(off => off.storeId === myStoreId && off.status === 'accepted')
     );
 

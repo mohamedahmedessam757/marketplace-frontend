@@ -52,6 +52,11 @@ export interface PerformanceMetrics {
   activeOrdersCount?: number;
   loyaltyTier?: MerchantStatus; // Sync with StoreLoyaltyTier
   lifetimeEarnings?: number;
+  // 2026 Governance Metrics
+  totalOffersSent: number;
+  editCount: number;
+  withdrawalCount: number;
+  violationScore: number;
 }
 
 export interface VendorState {
@@ -218,7 +223,11 @@ export const useVendorStore = create<VendorState>()(
     prepSpeed: 20,
     acceptanceRate: 85,
     complaintRate: 1.2,
-    rating: 4.8
+    rating: 4.8,
+    totalOffersSent: 0,
+    editCount: 0,
+    withdrawalCount: 0,
+    violationScore: 0
   },
 
   // Initialize with empty docs for registration flow, or mock data for demo
@@ -665,12 +674,27 @@ export const useVendorStore = create<VendorState>()(
     const { vendorProfileSubscription, fetchVendorProfile, storeId } = get();
     if (vendorProfileSubscription || !storeId) return;
 
+    console.log(`⚡ [VendorStore] Starting Realtime for store ${storeId}`);
+
     const channel = supabase.channel(`vendor-profile-${storeId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` },
-        () => {
-          console.log('🔔 Vendor Store Profile Update Received Real-time');
+        { event: 'UPDATE', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` },
+        (payload) => {
+          console.log('⚡ [VendorStore] Store profile updated via Realtime:', payload.new);
+          // 1. Instant sync for governance fields (2026 Standard)
+          set({
+            vendorStatus: payload.new.status,
+            withdrawalsFrozen: payload.new.withdrawals_frozen,
+            withdrawalFreezeNote: payload.new.withdrawal_freeze_note,
+            offerLimit: payload.new.offer_limit,
+            dailyOfferCount: payload.new.daily_offer_count,
+            visibilityRestricted: payload.new.visibility_restricted,
+            visibilityRate: payload.new.visibility_rate,
+            restrictionAlertMessage: payload.new.restriction_alert_message
+          });
+          
+          // 2. Background full refresh for complex relations
           fetchVendorProfile();
         }
       )
@@ -729,7 +753,11 @@ export const useVendorStore = create<VendorState>()(
         prepSpeed: 0,
         acceptanceRate: 100,
         complaintRate: 0,
-        rating: 5.0
+        rating: 5.0,
+        totalOffersSent: 0,
+        editCount: 0,
+        withdrawalCount: 0,
+        violationScore: 0
       },
       documents: {
         cr: { ...initialDocState },
