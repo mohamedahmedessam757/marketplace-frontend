@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useAdminStore, ShippingRule, AdminActivityLog } from '../../../stores/useAdminStore';
@@ -10,6 +9,7 @@ import {
   Coins, Languages, Clock, Monitor, MapPin, Hash, User, Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { VehicleCatalogManager } from './VehicleCatalogManager';
 
 export const AdminSettings: React.FC = () => {
   const { t, language, setLanguage } = useLanguage();
@@ -23,7 +23,7 @@ export const AdminSettings: React.FC = () => {
     activeContract, subscribeToActivityLogs, unsubscribeFromActivityLogs
   } = useAdminStore();
 
-  const [activeTab, setActiveTab] = useState<'general' | 'financial' | 'logistics' | 'content' | 'security'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'financial' | 'logistics' | 'content' | 'security' | 'catalog'>('general');
   const [activeShipmentTypeId, setActiveShipmentTypeId] = useState<string>('standard');
   const [showSuccess, setShowSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -48,6 +48,15 @@ export const AdminSettings: React.FC = () => {
       fetchAdminActivityLogs();
       subscribeToActivityLogs();
       return () => unsubscribeFromActivityLogs();
+    }
+  }, [activeTab]);
+
+  // Handle Catalog Subscription
+  const { subscribeToCatalog, unsubscribeFromCatalog } = useAdminStore();
+  useEffect(() => {
+    if (activeTab === 'catalog') {
+      subscribeToCatalog();
+      return () => unsubscribeFromCatalog();
     }
   }, [activeTab]);
 
@@ -155,6 +164,7 @@ export const AdminSettings: React.FC = () => {
     { id: 'financial', label: t.admin.settingsTabs.financial, icon: DollarSign, color: 'text-green-400' },
     { id: 'logistics', label: t.admin.settingsTabs.logistics, icon: Truck, color: 'text-purple-400' },
     { id: 'content', label: t.admin.settingsTabs.content, icon: FileText, color: 'text-gold-400' },
+    { id: 'catalog', label: isAr ? 'كتالوج المركبات' : 'Vehicle Catalog', icon: Box, color: 'text-orange-400' },
     { id: 'security', label: isAr ? 'الصيانة وسجل النشاط' : 'Maintenance & Activity', icon: Activity, color: 'text-red-400' },
   ];
 
@@ -741,6 +751,13 @@ export const AdminSettings: React.FC = () => {
                          </div>
                       </div>
                    </div>
+                )}
+
+                {/* 6. VEHICLE CATALOG (2026 Enhanced) */}
+                {activeTab === 'catalog' && (
+                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+                    <VehicleCatalogManager />
+                  </div>
                 )}
               </div>
 

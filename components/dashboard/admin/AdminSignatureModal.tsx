@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, User, PenTool, Calendar, X, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -40,7 +41,12 @@ export const AdminSignatureModal: React.FC<AdminSignatureModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             setReviewDetails(initialDetails);
+            // Lock body scroll
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
         }
+        return () => { document.body.style.overflow = 'unset'; };
     }, [isOpen, initialDetails]);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,8 +61,8 @@ export const AdminSignatureModal: React.FC<AdminSignatureModalProps> = ({
                 ctx.lineWidth = 3;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-                ctx.strokeStyle = '#22c55e'; // Green for Admin approval feel
-                if (actionType === 'REJECT') ctx.strokeStyle = '#ef4444'; // Red for rejection
+                ctx.strokeStyle = '#ffffff'; // Explicit White for visibility on dark bg
+                if (actionType === 'REJECT') ctx.strokeStyle = '#f87171'; // Brighter red
             }
         }
     }, [isOpen, signatureType, actionType]);
@@ -150,27 +156,29 @@ export const AdminSignatureModal: React.FC<AdminSignatureModalProps> = ({
         }
     };
 
-    return (
+    // Use Portal for absolute viewport centering (resilience against parent transforms)
+    return createPortal(
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        className="absolute inset-0 bg-black/90 backdrop-blur-md"
                     />
 
                     {/* Modal Content */}
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        initial={{ opacity: 0, scale: 0.9, y: 50 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 50 }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                         className="relative w-full max-w-2xl"
                     >
-                        <GlassCard className="p-8 border-white/10 shadow-2xl overflow-hidden">
+                        <GlassCard className="p-8 border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden">
                             {/* Header */}
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-4">
@@ -259,7 +267,7 @@ export const AdminSignatureModal: React.FC<AdminSignatureModalProps> = ({
                                                     type="text"
                                                     value={signatureText}
                                                     onChange={(e) => { setSignatureText(e.target.value); setError(''); }}
-                                                    className="w-full bg-transparent border-b border-primary-500/30 focus:border-primary-500 text-center text-4xl text-primary-400 py-2 focus:outline-none placeholder:text-white/5"
+                                                    className="w-full bg-transparent border-b border-amber-500/30 focus:border-amber-500 text-center text-4xl text-amber-400 py-2 focus:outline-none placeholder:text-white/5"
                                                     placeholder={isAr ? 'التوقيع الرقمي' : 'Digital Signature'}
                                                     style={{ fontFamily: '"Brush Script MT", cursive, sans-serif' }}
                                                 />
@@ -343,6 +351,7 @@ export const AdminSignatureModal: React.FC<AdminSignatureModalProps> = ({
                     </motion.div>
                 </div>
             )}
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 };

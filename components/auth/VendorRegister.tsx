@@ -11,7 +11,7 @@ import { useAdminStore } from '../../stores/useAdminStore'; // Import AdminStore
 import { OTPVerification } from './OTPVerification';
 import { OTPMethodSelection } from './OTPMethodSelection';
 import { authApi } from '@/services/api/auth';
-import { manufacturers } from '../../data/manufacturers';
+import { useCatalogStore } from '../../stores/useCatalogStore';
 import { MultiSelectDropdown } from '../ui/MultiSelectDropdown';
 
 const generateSecurePassword = () => {
@@ -40,14 +40,15 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
   const [otpStep, setOtpStep] = React.useState<'method' | 'verify'>('method');
   const [otpMethod, setOtpMethod] = React.useState<'email' | 'whatsapp'>('email');
 
+  const { makes, fetchCatalog, isLoading: isLoadingCatalog, subscribeToCatalog, unsubscribeFromCatalog } = useCatalogStore();
   const [errorField, setErrorField] = React.useState<'name' | 'email' | 'phone' | 'storeName' | 'address' | 'makes' | 'models' | 'all' | null>(null);
 
   // Computed Models list based on selected makes
   const availableModels = React.useMemo(() => {
-    return manufacturers
+    return makes
       .filter(m => store.storeInfo.selectedMakes.includes(m.name))
-      .flatMap(m => m.types.map(t => ({ ...t, make: m.name })));
-  }, [store.storeInfo.selectedMakes]);
+      .flatMap(m => m.models.map(t => ({ ...t, make: m.name })));
+  }, [store.storeInfo.selectedMakes, makes]);
 
   const countries = [
     { code: '+966', name: language === 'ar' ? 'السعودية' : 'Saudi Arabia', flag: '🇸🇦' },
@@ -93,6 +94,11 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
   // Reset store on mount
   useEffect(() => {
     store.reset();
+    if (makes.length === 0) {
+      fetchCatalog();
+    }
+    subscribeToCatalog();
+    return () => unsubscribeFromCatalog();
   }, []);
 
   // Reset OTP step when entering step 2
@@ -704,16 +710,16 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
               <div className="pt-4 border-t border-white/10">
                 <MultiSelectDropdown
                   label={language === 'ar' ? 'تخصص شركات السيارات' : 'Car Makes Specialization'}
-                  items={manufacturers.map(m => ({ id: m.name, name: m.name, nameAr: m.nameAr }))}
+                  items={makes.map(m => ({ id: m.name, name: m.name, nameAr: m.nameAr }))}
                   selectedItems={store.storeInfo.selectedMakes}
                   onChange={(newMakes) => {
                     store.updateStoreInfo('selectedMakes', newMakes as any);
                     if (errorField === 'makes' || errorField === 'all') { setError(null); setErrorField(null); }
 
                     // Cascading model deselection
-                    const stillAvailableModels = manufacturers
+                    const stillAvailableModels = makes
                       .filter(m => newMakes.includes(m.name))
-                      .flatMap(m => m.types);
+                      .flatMap(m => m.models);
 
                     const stillAvailableModelNames = stillAvailableModels.map(m => m.name);
                     const filteredModels = store.storeInfo.selectedModels.filter(sm => stillAvailableModelNames.includes(sm));

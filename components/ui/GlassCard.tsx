@@ -7,6 +7,7 @@ interface GlassCardProps {
   delay?: number;
   onClick?: () => void;
   enableHover?: boolean;
+  enableBlur?: boolean;
 }
 
 export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(({
@@ -14,7 +15,8 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(({
   className = '',
   delay = 0,
   onClick,
-  enableHover = true
+  enableHover = true,
+  enableBlur = true
 }, ref) => {
   return (
     <motion.div
@@ -26,7 +28,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(({
       onClick={onClick}
       className={`
         bg-white/5 
-        backdrop-blur-xl 
+        ${enableBlur ? 'backdrop-blur-xl' : ''} 
         border border-white/10 
         shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] 
         rounded-2xl 

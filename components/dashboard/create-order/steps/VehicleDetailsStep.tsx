@@ -3,18 +3,28 @@ import { motion } from 'framer-motion';
 import { Car, Calendar, Hash, Camera, Info, ChevronDown, AlertCircle } from 'lucide-react';
 import { useCreateOrderStore } from '../../../../stores/useCreateOrderStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
-import { manufacturers } from '../../../../data/manufacturers';
+import { useCatalogStore } from '../../../../stores/useCatalogStore';
 import { GlassCard } from '../../../ui/GlassCard';
+import { useEffect } from 'react';
 
 export const VehicleDetailsStep: React.FC = () => {
   const { vehicle, updateVehicle, showErrors } = useCreateOrderStore();
+  const { makes, fetchCatalog, isLoading, subscribeToCatalog, unsubscribeFromCatalog } = useCatalogStore();
   const { t, language } = useLanguage();
   const isRTL = language === 'ar';
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (makes.length === 0) {
+      fetchCatalog();
+    }
+    subscribeToCatalog();
+    return () => unsubscribeFromCatalog();
+  }, []);
+
   const selectedManufacturer = useMemo(() => {
-    return manufacturers.find(m => m.name === vehicle.make);
-  }, [vehicle.make]);
+    return makes.find(m => m.name === vehicle.make);
+  }, [vehicle.make, makes]);
 
   // Handle Manufacturer Change
   const handleManufacturerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -76,10 +86,10 @@ export const VehicleDetailsStep: React.FC = () => {
               className={`w-full bg-white/5 border rounded-xl py-3 text-white outline-none transition-all appearance-none ${showErrors && !vehicle.make ? 'border-red-500 ring-2 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:border-red-500' : 'border-white/10 focus:border-gold-500 focus:ring-1 focus:ring-gold-500'} ${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} ${!vehicle.make ? 'text-white/30' : ''}`}
             >
               <option value="" disabled className="bg-[#1A1814] text-gray-400">
-                {language === 'ar' ? "اختر الشركة المصنعة" : "Select Manufacturer"}
+                {isLoading ? (language === 'ar' ? "جاري التحميل..." : "Loading...") : (language === 'ar' ? "اختر الشركة المصنعة" : "Select Manufacturer")}
               </option>
-              {manufacturers.map((m) => (
-                <option key={m.name} value={m.name} className="bg-[#1A1814] text-white">
+              {makes.map((m) => (
+                <option key={m.id} value={m.name} className="bg-[#1A1814] text-white">
                   {language === 'ar' ? m.nameAr : m.name}
                 </option>
               ))}
@@ -110,9 +120,9 @@ export const VehicleDetailsStep: React.FC = () => {
               <option value="" disabled className="bg-[#1A1814] text-gray-400">
                 {language === 'ar' ? "اختر نوع السيارة" : "Select Vehicle Type"}
               </option>
-              {selectedManufacturer?.types.map((type) => (
-                <option key={type.name} value={type.name} className="bg-[#1A1814] text-white">
-                  {language === 'ar' ? type.nameAr : type.name}
+              {selectedManufacturer?.models.map((model) => (
+                <option key={model.id} value={model.name} className="bg-[#1A1814] text-white">
+                  {language === 'ar' ? model.nameAr : model.name}
                 </option>
               ))}
             </select>

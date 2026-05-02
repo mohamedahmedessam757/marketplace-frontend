@@ -216,6 +216,26 @@ export interface UnifiedFinancialEvent {
   isNew?: boolean; // For glow effect
 }
 
+export interface VehicleModel {
+  id: string;
+  makeId: string;
+  name: string;
+  nameAr: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VehicleMake {
+  id: string;
+  name: string;
+  nameAr: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  models: VehicleModel[];
+}
+
 export interface AdminState {
   currentAdmin: AdminUser | null;
   commissionRate: number;
@@ -344,11 +364,23 @@ export interface AdminState {
   fetchAllStores: () => Promise<void>;
   silentFetchStores: () => Promise<void>;
 
-  // Phase 4: Order Financial Timeline (2026)
   orderTimeline: any | null;
   orderTimelineLoading: boolean;
   fetchOrderTimeline: (orderId: string) => Promise<void>;
   clearOrderTimeline: () => void;
+
+  // Vehicle Catalog Management (2026)
+  vehicleMakes: VehicleMake[];
+  isLoadingCatalog: boolean;
+  fetchVehicleCatalog: () => Promise<void>;
+  createVehicleMake: (dto: { name: string; nameAr: string }) => Promise<boolean>;
+  updateVehicleMake: (id: string, dto: { name?: string; nameAr?: string; isActive?: boolean; signatureData?: any }) => Promise<boolean>;
+  createVehicleModel: (dto: { makeId: string; name: string; nameAr: string }) => Promise<boolean>;
+  updateVehicleModel: (id: string, dto: { name?: string; nameAr?: string; isActive?: boolean; signatureData?: any }) => Promise<boolean>;
+  toggleAllModels: (makeId: string, isActive: boolean, signatureData?: any) => Promise<boolean>;
+  subscribeToCatalog: () => void;
+  unsubscribeFromCatalog: () => void;
+  catalogSubscription: any;
 }
 
 const DEFAULT_STATUS: SystemStatus = {
@@ -409,6 +441,11 @@ export const useAdminStore = create<AdminState>()(
       // Phase 4: Order Financial Timeline
       orderTimeline: null,
       orderTimelineLoading: false,
+
+      // Vehicle Catalog
+      vehicleMakes: [],
+      isLoadingCatalog: false,
+      catalogSubscription: null,
 
       systemConfig: {
         general: {
@@ -1519,6 +1556,153 @@ export const useAdminStore = create<AdminState>()(
           console.error("Failed to clear store restrictions", error);
           return false;
         }
+      },
+
+      fetchVehicleCatalog: async () => {
+        set({ isLoadingCatalog: true });
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/vehicle-catalog/admin/all`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            set({ vehicleMakes: data });
+          }
+        } catch (error) {
+          console.error('Failed to fetch vehicle catalog', error);
+        } finally {
+          set({ isLoadingCatalog: false });
+        }
+      },
+
+      createVehicleMake: async (dto) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/vehicle-catalog/admin/makes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(dto)
+          });
+          return res.ok;
+        } catch (error) {
+          return false;
+        }
+      },
+
+      updateVehicleMake: async (id, dto) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/vehicle-catalog/admin/makes/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(dto)
+          });
+          
+          if (res.ok) {
+            const currentMakes = get().vehicleMakes;
+            set({
+              vehicleMakes: currentMakes.map(m => 
+                m.id === id ? { ...m, ...dto } : m
+              )
+            });
+            return true;
+          }
+          return false;
+        } catch (error) {
+          return false;
+        }
+      },
+
+      createVehicleModel: async (dto) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/vehicle-catalog/admin/models`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(dto)
+          });
+          return res.ok;
+        } catch (error) {
+          return false;
+        }
+      },
+
+      updateVehicleModel: async (id, dto) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/vehicle-catalog/admin/models/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(dto)
+          });
+          
+          if (res.ok) {
+            const currentMakes = get().vehicleMakes;
+            set({
+              vehicleMakes: currentMakes.map(m => ({
+                ...m,
+                models: m.models.map(mod => 
+                  mod.id === id ? { ...mod, ...dto } : mod
+                )
+              }))
+            });
+            return true;
+          }
+          return false;
+        } catch (error) {
+          return false;
+        }
+      },
+
+      toggleAllModels: async (makeId, isActive, signatureData) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const res = await fetch(`${API_URL}/vehicle-catalog/admin/makes/${makeId}/toggle-models`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ isActive, signatureData })
+          });
+          
+          if (res.ok) {
+            const currentMakes = get().vehicleMakes;
+            set({
+              vehicleMakes: currentMakes.map(m => 
+                m.id === makeId 
+                  ? { ...m, models: m.models.map(mod => ({ ...mod, isActive })) }
+                  : m
+              )
+            });
+            return true;
+          }
+          return false;
+        } catch (error) {
+          return false;
+        }
+      },
+
+      subscribeToCatalog: () => {
+        if (get().catalogSubscription) return;
+
+        const sub = supabase.channel('admin-vehicle-catalog-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicle_makes' }, () => {
+            get().fetchVehicleCatalog();
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicle_models' }, () => {
+            get().fetchVehicleCatalog();
+          })
+          .subscribe();
+
+        set({ catalogSubscription: sub });
+        get().fetchVehicleCatalog();
+      },
+
+      unsubscribeFromCatalog: () => {
+        const { catalogSubscription } = get();
+        if (catalogSubscription) {
+          supabase.removeChannel(catalogSubscription);
+          set({ catalogSubscription: null });
+        }
       }
     }),
     {
@@ -1536,6 +1720,7 @@ export const useAdminStore = create<AdminState>()(
           orderTimeline,
           financialToasts,
           activitySubscription,
+          catalogSubscription,
           ...rest 
         } = state;
         return rest;

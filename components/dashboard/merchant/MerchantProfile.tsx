@@ -6,7 +6,7 @@ import { useVendorStore } from '../../../stores/useVendorStore';
 import { useReviewStore } from '../../../stores/useReviewStore';
 import { GlassCard } from '../../ui/GlassCard';
 import { MultiSelectDropdown } from '../../ui/MultiSelectDropdown';
-import { manufacturers } from '../../../data/manufacturers';
+import { useCatalogStore } from '../../../stores/useCatalogStore';
 
 export const MerchantProfile: React.FC = () => {
     const { t, language } = useLanguage();
@@ -20,6 +20,7 @@ export const MerchantProfile: React.FC = () => {
     } = useVendorStore();
 
     const { fetchImpactRules, impactRules } = useReviewStore();
+    const { makes, fetchCatalog, isLoading: isLoadingCatalog, subscribeToCatalog, unsubscribeFromCatalog } = useCatalogStore();
     
     const [activeProfileTab, setActiveProfileTab] = useState<'info' | 'contract' | 'restrictions'>('info');
     const [isEditing, setIsEditing] = useState(false);
@@ -32,8 +33,15 @@ export const MerchantProfile: React.FC = () => {
         fetchVendorProfile();
         fetchImpactRules();
         subscribeToVendorProfile();
-        return () => unsubscribeFromVendorProfile();
-    }, [fetchVendorProfile, fetchImpactRules, subscribeToVendorProfile, unsubscribeFromVendorProfile]);
+        if (makes.length === 0) {
+            fetchCatalog();
+        }
+        subscribeToCatalog();
+        return () => {
+            unsubscribeFromVendorProfile();
+            unsubscribeFromCatalog();
+        };
+    }, [fetchVendorProfile, fetchImpactRules, subscribeToVendorProfile, unsubscribeFromVendorProfile, makes.length, fetchCatalog, subscribeToCatalog, unsubscribeFromCatalog]);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -495,14 +503,14 @@ export const MerchantProfile: React.FC = () => {
                                         <div className="space-y-6">
                                             <MultiSelectDropdown
                                                 label={language === 'ar' ? 'تخصص شركات السيارات' : 'Car Makes Specialization'}
-                                                items={manufacturers.map(m => ({ id: m.name, name: m.name, nameAr: m.nameAr }))}
+                                                items={makes.map(m => ({ id: m.name, name: m.name, nameAr: m.nameAr }))}
                                                 selectedItems={storeInfo.selectedMakes ?? []}
                                                 disabled={!isEditing}
                                                 onChange={(newMakes) => {
                                                     updateStoreInfo('selectedMakes', newMakes as any);
-                                                    const availableModels = manufacturers
+                                                    const availableModels = makes
                                                         .filter(m => newMakes.includes(m.name))
-                                                        .flatMap(m => m.types);
+                                                        .flatMap(m => m.models);
                                                     const availableModelNames = availableModels.map(m => m.name);
                                                     const filteredModels = (storeInfo.selectedModels ?? []).filter(sm => availableModelNames.includes(sm));
                                                     if (filteredModels.length !== (storeInfo.selectedModels ?? []).length) {
@@ -516,9 +524,9 @@ export const MerchantProfile: React.FC = () => {
                                             { (storeInfo.selectedMakes ?? []).length > 0 && (
                                                 <MultiSelectDropdown
                                                     label={language === 'ar' ? 'تخصص موديلات السيارات' : 'Car Models Specialization'}
-                                                    items={manufacturers
+                                                    items={makes
                                                         .filter(m => (storeInfo.selectedMakes ?? []).includes(m.name))
-                                                        .flatMap(m => m.types.map(t => ({ 
+                                                        .flatMap(m => m.models.map(t => ({ 
                                                             id: t.name, 
                                                             name: t.name, 
                                                             nameAr: t.nameAr, 
