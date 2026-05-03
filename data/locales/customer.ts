@@ -798,6 +798,10 @@ export const customer = {
     violationsPage: {
         title: 'سجل الالتزام والمخالفات',
         subtitle: 'تتبع نقاط التزامك، وتعرف على المخالفات المسجلة والطعون.',
+        tabs: {
+            history: 'سجل المخالفات',
+            reliability: 'مؤشر الموثوقية'
+        },
         scoreCard: {
             title: 'مؤشر الالتزام',
             perfect: 'أداء مثالي',
@@ -1564,6 +1568,10 @@ export const customer = {
     violationsPage: {
         title: 'Compliance & Violations',
         subtitle: 'Track your compliance score, view violations, and submit appeals.',
+        tabs: {
+            history: 'Violation History',
+            reliability: 'Reliability Meter'
+        },
         scoreCard: {
             title: 'Compliance Score',
             perfect: 'Perfect Performance',

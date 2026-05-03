@@ -8,7 +8,6 @@ import { Plus, Search, Car, ArrowRight, ArrowLeft, Clock, CheckCircle2, Trending
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useOrderStore } from '../../stores/useOrderStore';
 import { useProfileStore } from '../../stores/useProfileStore';
-import { CustomerReliabilityMeter } from './customer/CustomerReliabilityMeter';
 
 interface DashboardHomeProps {
     onNavigate: (path: string, id?: number) => void;
@@ -166,10 +165,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                 ))}
             </div>
 
-            {/* 2.5 Reliability Section */}
-            <motion.div variants={itemVariants}>
-                <CustomerReliabilityMeter />
-            </motion.div>
 
             <div className="grid lg:grid-cols-3 gap-8">
 

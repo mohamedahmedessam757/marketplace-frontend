@@ -24,6 +24,7 @@ import {
   File as FileIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CustomerReliabilityMeter } from './customer/CustomerReliabilityMeter';
 
 interface ViolationsPageProps {
     role: 'customer' | 'merchant';
@@ -55,6 +56,7 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [uploadingFile, setUploadingFile] = useState(false);
     const [isTransparencyAccepted, setIsTransparencyAccepted] = useState(false);
+    const [activeTab, setActiveTab] = useState<'history' | 'reliability'>('history');
     
     const [appealData, setAppealData] = useState({
         reason: '',
@@ -186,8 +188,44 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
                 </div>
             </div>
 
-            {/* Score Overview */}
-            <GlassCard className="p-8 border-white/5 overflow-hidden relative group">
+            {/* Tabs Selector (Customer Only) */}
+            {role === 'customer' && (
+                <div className="flex items-center gap-2 p-1.5 bg-white/5 border border-white/5 rounded-2xl w-fit">
+                    <button
+                        onClick={() => setActiveTab('history')}
+                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'history' ? 'bg-white text-black shadow-xl' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                    >
+                        {vt.tabs?.history || (isAr ? 'سجل المخالفات' : 'Violation History')}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('reliability')}
+                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'reliability' ? 'bg-white text-black shadow-xl' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                    >
+                        {vt.tabs?.reliability || (isAr ? 'مؤشر الموثوقية' : 'Reliability Meter')}
+                    </button>
+                </div>
+            )}
+
+            <AnimatePresence mode="wait">
+                {activeTab === 'reliability' && role === 'customer' ? (
+                    <motion.div
+                        key="reliability-tab"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                    >
+                        <CustomerReliabilityMeter />
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="history-tab"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="space-y-8"
+                    >
+                        {/* Score Overview */}
+                        <GlassCard className="p-8 border-white/5 overflow-hidden relative group">
                 <div className={`absolute top-0 right-0 w-64 h-64 ${scoreInfo.bg} blur-[120px] -z-10 transition-colors duration-1000`} />
                 
                 <div className="flex flex-col lg:flex-row justify-between items-center gap-12">
@@ -324,6 +362,9 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
                     )}
                 </div>
             </div>
+            </motion.div>
+        )}
+    </AnimatePresence>
 
             {/* Appeal Modal */}
             <AnimatePresence>
