@@ -109,6 +109,26 @@ export const customer = {
       actions: {
         viewDetails: 'عرض التفاصيل الكاملة',
         viewHistory: 'عرض كل السجل'
+      },
+      reliability: {
+        title: 'مؤشر الموثوقية',
+        score: 'درجة النزاهة',
+        level: 'مستوى الحساب',
+        returnRate: 'معدل المرتجعات',
+        deliveredOrders: 'الطلبات الناجحة',
+        returns: 'المرتجعات',
+        status: {
+          EXCELLENT: 'موثوق جداً 💎',
+          GOOD: 'موثوق ✅',
+          FAIR: 'مقبول ⚠️',
+          POOR: 'ضعيف ❌'
+        },
+        tips: {
+          title: 'كيف تحافظ على موثوقيتك؟',
+          tip1: 'تأكد من توافق القطعة مع سيارتك قبل الطلب.',
+          tip2: 'استخدم رقم الهيكل (VIN) لضمان الدقة.',
+          tip3: 'تواصل مع التاجر في الشات للتأكد من حالة القطعة.'
+        }
       }
     },
     headers: {
@@ -389,9 +409,7 @@ export const customer = {
           push: 'إشعارات التنبيه (Push)',
           pushDesc: 'تنبيهات فورية على جهازك.',
           offers: 'عروض تسويقية',
-          offersDesc: 'خصومات خاصة وعروض الشركاء.',
-          sms: 'رسائل نصية (SMS)',
-          smsDesc: 'تحديثات الأمان والتوصيل الهامة.'
+          offersDesc: 'خصومات خاصة وعروض الشركاء.'
         }
       },
       addresses: { title: 'العناوين المحفوظة', add: 'إضافة عنوان جديد', default: 'الافتراضي', setDefault: 'تعيين كافتراضي', noAddresses: 'لا توجد عناوين محفوظة', save: 'حفظ العنوان' },
@@ -938,7 +956,27 @@ export const customer = {
       },
       actions: {
         viewDetails: 'View Full Details',
-        viewHistory: 'View Full History'
+        viewHistory: 'View full history'
+      },
+      reliability: {
+        title: 'Reliability Index',
+        score: 'Integrity Score',
+        level: 'Account Level',
+        returnRate: 'Return Rate',
+        deliveredOrders: 'Successful Orders',
+        returns: 'Returns',
+        status: {
+          EXCELLENT: 'Elite Buyer 💎',
+          GOOD: 'Trusted ✅',
+          FAIR: 'Fair Standing ⚠️',
+          POOR: 'At Risk ❌'
+        },
+        tips: {
+          title: 'How to maintain reliability?',
+          tip1: 'Ensure part compatibility before ordering.',
+          tip2: 'Use VIN number for maximum precision.',
+          tip3: 'Chat with the merchant to verify part condition.'
+        }
       }
     },
     headers: {
@@ -1222,9 +1260,7 @@ export const customer = {
           push: 'Push Notifications',
           pushDesc: 'Get real-time alerts on your device',
           offers: 'Marketing Offers',
-          offersDesc: 'Receive special discounts and partner offers',
-          sms: 'SMS Alerts',
-          smsDesc: 'Important security and delivery updates via SMS'
+          offersDesc: 'Receive special discounts and partner offers'
         }
       },
       addresses: { title: 'Saved Addresses', add: 'Add New Address', default: 'Default', setDefault: 'Set Default', noAddresses: 'No saved addresses', save: 'Save Address' },

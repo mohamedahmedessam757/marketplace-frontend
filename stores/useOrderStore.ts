@@ -514,6 +514,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     weight: Number(offer.weightKg || offer.weight || 0),
                     partType: offer.partType || 'original',
                     orderPartId: offer.orderPartId || offer.order_part_id || null,
+                    cylinders: offer.cylinders,
                     canEditUntil: offer.canEditUntil,
                     isWithdrawn: !!offer.isWithdrawn
                 })) : [],

@@ -45,7 +45,8 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
         submitAppeal,
         uploadAppealFile,
         fetchThresholds,
-        fetchViolationTypes
+        fetchViolationTypes,
+        subscribeToViolations
     } = useViolationStore();
 
     const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
@@ -65,6 +66,9 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
         fetchMyScore();
         fetchThresholds(role.toUpperCase());
         fetchViolationTypes(role.toUpperCase());
+
+        const unsubscribe = subscribeToViolations();
+        return () => unsubscribe();
     }, []);
 
     const maxScore = thresholds.length > 0 

@@ -13,6 +13,10 @@ export interface UserProfile {
   withdrawalFreezeNote?: string;
   orderLimit?: number;
   restrictionAlertMessage?: string;
+  violationScore?: number;
+  totalDeliveredOrders?: number;
+  totalReturnDisputeOrders?: number;
+  cachedReturnRate?: number;
 }
 
 export interface Address {
@@ -118,9 +122,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       // 1. Fetch user data
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, name, email, phone, role, avatar, withdrawals_frozen, withdrawal_freeze_note, order_limit, restriction_alert_message')
+        .select('id, name, email, phone, role, avatar, withdrawals_frozen, withdrawal_freeze_note, order_limit, restriction_alert_message, violation_score, total_delivered_orders, total_return_dispute_orders, cached_return_rate')
         .eq('id', userId)
-        .maybeSingle(); // Changed from single() to maybeSingle() to prevent 406 errors
+        .maybeSingle(); 
 
       if (userError) {
         // Fallback: Try fetching profile from our Custom Backend API (Bypasses RLS)
@@ -145,7 +149,11 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
                 withdrawalsFrozen: apiProfile.withdrawalsFrozen,
                 withdrawalFreezeNote: apiProfile.withdrawalFreezeNote,
                 orderLimit: apiProfile.orderLimit,
-                restrictionAlertMessage: apiProfile.restrictionAlertMessage
+                restrictionAlertMessage: apiProfile.restrictionAlertMessage,
+                violationScore: apiProfile.violationScore,
+                totalDeliveredOrders: apiProfile.totalDeliveredOrders,
+                totalReturnDisputeOrders: apiProfile.totalReturnDisputeOrders,
+                cachedReturnRate: apiProfile.cachedReturnRate
               },
               loading: false
             });
@@ -215,7 +223,11 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           withdrawalsFrozen: userData.withdrawals_frozen,
           withdrawalFreezeNote: userData.withdrawal_freeze_note,
           orderLimit: userData.order_limit,
-          restrictionAlertMessage: userData.restriction_alert_message
+          restrictionAlertMessage: userData.restriction_alert_message,
+          violationScore: userData.violation_score,
+          totalDeliveredOrders: userData.total_delivered_orders,
+          totalReturnDisputeOrders: userData.total_return_dispute_orders,
+          cachedReturnRate: userData.cached_return_rate
         },
         settings: currentSettings,
         loading: false
@@ -471,6 +483,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
               withdrawalFreezeNote: newData.withdrawal_freeze_note ?? state.user.withdrawalFreezeNote,
               orderLimit: newData.order_limit ?? state.user.orderLimit,
               restrictionAlertMessage: newData.restriction_alert_message ?? state.user.restrictionAlertMessage,
+              violationScore: newData.violation_score ?? state.user.violationScore,
+              totalDeliveredOrders: newData.total_delivered_orders ?? state.user.totalDeliveredOrders,
+              totalReturnDisputeOrders: newData.total_return_dispute_orders ?? state.user.totalReturnDisputeOrders,
+              cachedReturnRate: newData.cached_return_rate ?? state.user.cachedReturnRate,
             } : null
           }));
         }

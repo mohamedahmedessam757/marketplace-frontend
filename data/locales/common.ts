@@ -109,7 +109,67 @@ export const common = {
         guarantee: 'ضمان الشحن في الوقت المحدد وسياسة إرجاع سهلة',
         terms: 'تُطبق الشروط والأحكام',
         orderNow: 'متابعة الطلب',
-        back: 'كيف نعمل'
+        back: 'كيف نعمل',
+        earnIncome: 'اكسب دخل شهري معنا',
+        earnIncomeDesc: 'كل طلب = ربح كاش يُضاف إلى محفظتك'
+      }
+    },
+    loyaltySystem: {
+      title: 'اكسب دخل شهري معنا',
+      subtitle: 'كل طلب = ربح كاش يُضاف إلى محفظتك',
+      intro: {
+        title: '💡 مو مجرد شراء… هذا مصدر دخل لك',
+        desc1: 'كل طلب تقوم به داخل المنصة',
+        desc2: '= أرباح تُضاف مباشرة إلى محفظتك',
+        desc3: 'ابدأ اليوم… وخَلّ مشترياتك تشتغل لصالحك'
+      },
+      howToStart: {
+        title: '🚀 كيف تبدأ؟',
+        step1: { title: 'اطلب من المنصة', desc: 'اختر القطعة وابدأ طلبك بشكل طبيعي' },
+        step2: { title: 'يكتمل الطلب', desc: 'يتم تنفيذ الطلب ووصوله لك' },
+        step3: { title: 'التحقق', desc: 'بعد انتهاء فترة الإرجاع وعدم وجود مشكلة' },
+        step4: { title: 'تربح 💰', desc: 'تُضاف أرباحك مباشرة إلى محفظتك' }
+      },
+      first: {
+        title: '💼 أولاً: نظام الولاء (اشترِ واكسب كاش)',
+        subtitle: 'كل أرباحك تُجمع في مكان واحد داخل لوحة التحكم:',
+        bullet1: '✔ استخدامها كخصم على طلباتك',
+        bullet2: '✔ أو سحبها حسب الشروط',
+        bullet3: '✔ متابعة أرباحك أول بأول'
+      },
+      second: {
+        title: '🔗 ثانياً: نظام الإحالة (ضاعف دخلك)',
+        subtitle: 'لا تربح لحالك 👇',
+        bullet1: '✔ احصل على رابط دعوة خاص بك',
+        bullet2: '✔ شاركه مع أصدقائك',
+        bullet3: '✔ عند شراءهم عبر الرابط تربح تلقائيًا بدون أي جهد إضافي'
+      },
+      timing: {
+        title: '⏱ متى تُحتسب الأرباح؟',
+        subtitle: 'يتم احتساب الأرباح فقط عند:',
+        bullet1: '✔ اكتمال الطلب',
+        bullet2: '✔ انتهاء فترة الإرجاع',
+        bullet3: '✔ عدم وجود نزاع أو استرجاع',
+        footer: 'غير ذلك تبقى الأرباح قيد الانتظار'
+      },
+      whyDifferent: {
+        title: '⭐ لماذا هذا النظام مختلف؟',
+        bullet1: '✔ تربح من استخدامك اليومي',
+        bullet2: '✔ كلما زاد استخدامك… زاد دخلك',
+        bullet3: '✔ نظام عادل ومحمي',
+        bullet4: '✔ يحوّلك من عميل إلى شريك'
+      },
+      imagine: {
+        title: '🤯 تخيّل',
+        p1: 'أنت تشتري… وفي نفس الوقت تكسب',
+        p2: 'بدل ما تكون مصروفاتك فقط… تصبح مصدر دخل لك',
+        cta: 'ابدأ الآن'
+      },
+      cta: 'ابدأ الربح الآن',
+      stats: {
+        activeUsers: 'مستخدم نشط يربح الآن',
+        totalDistributed: 'إجمالي المكافآت الموزعة',
+        referrals: 'عملية إحالة ناجحة'
       }
     },
     wholesale: {
@@ -258,7 +318,67 @@ export const common = {
         guarantee: 'On-time shipping guarantee and easy return policy',
         terms: 'Terms and Conditions apply',
         orderNow: 'Continue Order',
-        back: 'How We Work'
+        back: 'How We Work',
+        earnIncome: 'Earn Monthly Income with Us',
+        earnIncomeDesc: 'Every order = Cash profit added to your wallet'
+      }
+    },
+    loyaltySystem: {
+      title: 'Earn Monthly Income with Us',
+      subtitle: 'Every order = Cash profit added to your wallet',
+      intro: {
+        title: '💡 Not just buying… this is an income source for you',
+        desc1: 'Every order you place on the platform',
+        desc2: '= Profits added directly to your wallet',
+        desc3: 'Start today… and let your purchases work for you'
+      },
+      howToStart: {
+        title: '🚀 How to start?',
+        step1: { title: 'Order from the platform', desc: 'Choose the part and start your order normally' },
+        step2: { title: 'Order completed', desc: 'The order is fulfilled and delivered to you' },
+        step3: { title: 'Verification', desc: 'After the return period ends and no issues are found' },
+        step4: { title: 'You profit 💰', desc: 'Your profits are added directly to your wallet' }
+      },
+      first: {
+        title: '💼 First: Loyalty System (Buy & Earn Cash)',
+        subtitle: 'All your profits are gathered in one place inside the dashboard:',
+        bullet1: '✔ Use them as a discount on your orders',
+        bullet2: '✔ Or withdraw them according to terms',
+        bullet3: '✔ Track your profits in real-time'
+      },
+      second: {
+        title: '🔗 Second: Referral System (Double Your Income)',
+        subtitle: "Don't profit alone 👇",
+        bullet1: '✔ Get your own referral invitation link',
+        bullet2: '✔ Share it with your friends',
+        bullet3: '✔ When they buy via the link, you profit automatically'
+      },
+      timing: {
+        title: '⏱ When are profits calculated?',
+        subtitle: 'Profits are calculated only when:',
+        bullet1: '✔ Order is completed',
+        bullet2: '✔ Return period expires',
+        bullet3: '✔ No dispute or refund exists',
+        footer: 'Otherwise, profits remain pending'
+      },
+      whyDifferent: {
+        title: '⭐ Why is this system different?',
+        bullet1: '✔ Profit from your daily use',
+        bullet2: '✔ The more you use… the more you earn',
+        bullet3: '✔ Fair and protected system',
+        bullet4: '✔ Turns you from a customer into a partner'
+      },
+      imagine: {
+        title: '🤯 Imagine',
+        p1: 'You buy… and at the same time you earn',
+        p2: 'Instead of just expenses… it becomes an income source for you',
+        cta: 'Start Now'
+      },
+      cta: 'Start Earning Now',
+      stats: {
+        activeUsers: 'Active users earning now',
+        totalDistributed: 'Total rewards distributed',
+        referrals: 'Successful referrals'
       }
     },
     auth: {

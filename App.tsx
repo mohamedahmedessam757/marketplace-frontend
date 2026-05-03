@@ -95,6 +95,7 @@ const ForgotPassword = lazy(() => import('./components/auth/ForgotPassword').the
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword').then(module => ({ default: module.ResetPassword })));
 const TermsView = lazy(() => import('./components/auth/TermsView').then(module => ({ default: module.TermsView })));
 const AccountRecoveryWizard = lazy(() => import('./components/auth/AccountRecoveryWizard').then(module => ({ default: module.AccountRecoveryWizard })));
+import { EarnIncomeLanding } from './components/EarnIncomeLanding';
 
 type ViewState =
   | 'landing'
@@ -112,7 +113,8 @@ type ViewState =
   | 'role-selection'
   | 'wholesale'
   | 'how-we-work'
-  | 'how-we-work-tutorial';
+  | 'how-we-work-tutorial'
+  | 'earn-income';
 type UserRole = 'customer' | 'merchant' | 'admin' | null;
 
 function AppContent() {
@@ -685,7 +687,13 @@ function AppContent() {
                 onAdminClick={() => handleNavigate('admin-login')}
                 onNavigateToLegal={handleNavigateToLegal}
                 onNavigateToLandingSection={handleNavigateToLandingSection}
+                onEarnIncomeClick={() => handleNavigate('earn-income')}
               />
+            ) : currentView === 'earn-income' ? (
+                <EarnIncomeLanding 
+                  onBack={() => handleNavigate('role-selection')}
+                  onStart={() => handleNavigate('role-selection')}
+                />
             ) : currentView === 'wholesale' ? (
               <WholesaleScreen onBack={() => handleNavigate('role-selection')} />
             ) : currentView === 'how-we-work' ? (

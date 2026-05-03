@@ -815,7 +815,8 @@ export const admin = {
         appeals: 'طلبات الطعن',
         penalties: 'العقوبات المعلقة',
         types: 'أنواع المخالفات',
-        thresholds: 'حدود العقوبات'
+        thresholds: 'حدود العقوبات',
+        riskAlerts: 'تنبيهات مخاطر العملاء'
       },
       stats: {
         total: 'إجمالي المخالفات',
@@ -835,7 +836,10 @@ export const admin = {
         decayDays: 'أيام التحلل',
         threshold: 'حد النقاط',
         action: 'العقوبة المقترحة',
-        duration: 'المدة (أيام)'
+        duration: 'المدة (أيام)',
+        returnRate: 'معدل المرتجعات',
+        deliveredOrders: 'الطلبات المستلمة',
+        negativeOrders: 'المرتجعات/النزاعات'
       },
       actions: {
         issue: 'إصدار مخالفة',
@@ -1638,7 +1642,8 @@ export const admin = {
         appeals: 'Appeals',
         penalties: 'Pending Penalties',
         types: 'Violation Types',
-        thresholds: 'Penalty Thresholds'
+        thresholds: 'Penalty Thresholds',
+        riskAlerts: 'Customer Risk Alerts'
       },
       stats: {
         total: 'Total Violations',
@@ -1658,7 +1663,10 @@ export const admin = {
         decayDays: 'Decay Days',
         threshold: 'Score Threshold',
         action: 'Triggered Action',
-        duration: 'Duration (Days)'
+        duration: 'Duration (Days)',
+        returnRate: 'Return Rate',
+        deliveredOrders: 'Delivered Orders',
+        negativeOrders: 'Returns/Disputes'
       },
       actions: {
         issue: 'Issue Violation',

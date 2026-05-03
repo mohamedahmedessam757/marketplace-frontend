@@ -71,12 +71,36 @@ export interface PenaltyAction {
   targetUser?: { name: string; email: string };
 }
 
+export interface RiskAlert {
+  id: string;
+  userId: string;
+  returnRate: number;
+  deliveredCount: number;
+  negativeCount: number;
+  status: 'PENDING_REVIEW' | 'DISMISSED' | 'VIOLATION_ISSUED';
+  adminNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  user?: { 
+    id: string;
+    name: string; 
+    email: string; 
+    phone?: string;
+    avatar?: string;
+    totalDeliveredOrders?: number;
+    totalReturnDisputeOrders?: number;
+    cachedReturnRate?: number;
+  };
+}
+
 export interface ViolationState {
   violations: Violation[];
   violationTypes: ViolationType[];
   thresholds: PenaltyThreshold[];
   pendingAppeals: ViolationAppeal[];
   pendingPenalties: PenaltyAction[];
+  riskAlerts: RiskAlert[];
   myViolations: Violation[];
   myScore: number | null;
   isLoading: boolean;
@@ -87,12 +111,14 @@ export interface ViolationState {
   fetchThresholds: (targetType?: string) => Promise<void>;
   fetchPendingAppeals: () => Promise<void>;
   fetchPendingPenalties: () => Promise<void>;
+  fetchRiskAlerts: (status?: string) => Promise<void>;
   fetchMyViolations: () => Promise<void>;
   fetchMyScore: () => Promise<void>;
   
   issueViolation: (data: any) => Promise<{ success: boolean; message: string }>;
   reviewAppeal: (id: string, data: any) => Promise<{ success: boolean; message: string }>;
   reviewPenalty: (id: string, data: any) => Promise<{ success: boolean; message: string }>;
+  resolveRiskAlert: (id: string, data: { resolution: string; adminNotes?: string }) => Promise<{ success: boolean; message: string }>;
   submitAppeal: (violationId: string, data: { reason: string; evidenceUrls?: string[] }) => Promise<{ success: boolean; message: string }>;
   
   createViolationType: (data: any) => Promise<{ success: boolean; message: string }>;
@@ -113,6 +139,7 @@ export const useViolationStore = create<ViolationState>((set, get) => ({
   thresholds: [],
   pendingAppeals: [],
   pendingPenalties: [],
+  riskAlerts: [],
   myViolations: [],
   myScore: null,
   isLoading: false,
@@ -165,6 +192,15 @@ export const useViolationStore = create<ViolationState>((set, get) => ({
     }
   },
 
+  fetchRiskAlerts: async (status) => {
+    try {
+      const data = await violationsApi.getRiskAlerts(status);
+      set({ riskAlerts: data });
+    } catch (e) {
+      console.error(e);
+    }
+  },
+
   fetchMyViolations: async () => {
     set({ isLoading: true });
     try {
@@ -210,6 +246,19 @@ export const useViolationStore = create<ViolationState>((set, get) => ({
       const result = await violationsApi.reviewPenalty(id, data);
       get().fetchPendingPenalties();
       return { success: true, message: result.message };
+    } catch (e: any) {
+      return { success: false, message: e.response?.data?.message || 'Server error' };
+    }
+  },
+
+  resolveRiskAlert: async (id, data) => {
+    try {
+      const result = await violationsApi.resolveRiskAlert(id, data);
+      get().fetchRiskAlerts();
+      if (data.resolution === 'VIOLATION_ISSUED') {
+        get().fetchViolations();
+      }
+      return { success: true, message: result.message || 'Alert resolved' };
     } catch (e: any) {
       return { success: false, message: e.response?.data?.message || 'Server error' };
     }
@@ -290,6 +339,7 @@ export const useViolationStore = create<ViolationState>((set, get) => ({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'violations' }, () => get().fetchViolations())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'violation_appeals' }, () => get().fetchPendingAppeals())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'penalty_actions' }, () => get().fetchPendingPenalties())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_risk_alerts' }, () => get().fetchRiskAlerts())
       .subscribe();
       
     return () => supabase.removeChannel(channel);

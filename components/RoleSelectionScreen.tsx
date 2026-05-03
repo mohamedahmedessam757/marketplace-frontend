@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, Store, ShoppingCart, HelpCircle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { User, Store, ShoppingCart, HelpCircle, ArrowLeft, ArrowRight, TrendingUp } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LandingFooter } from './LandingFooter';
 
@@ -13,6 +13,7 @@ interface RoleSelectionScreenProps {
     onAdminClick: () => void;
     onNavigateToLegal: (section: 'terms' | 'privacy') => void;
     onNavigateToLandingSection: (section: string) => void;
+    onEarnIncomeClick: () => void;
 }
 
 export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
@@ -24,6 +25,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     onAdminClick,
     onNavigateToLegal,
     onNavigateToLandingSection,
+    onEarnIncomeClick,
 }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
@@ -169,6 +171,36 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
                                 </span>
                             </div>
                             <ArrowIcon className="text-white/80 group-hover:text-white transition-colors" />
+                        </motion.button>
+
+                        {/* Earn Income Button (New 2026 Feature) */}
+                        <motion.button
+                            variants={itemVariants}
+                            onClick={onEarnIncomeClick}
+                            whileHover={{ scale: 1.02, x: isAr ? -5 : 5 }}
+                            whileTap={{ scale: 0.98 }}
+                            className="w-full group relative overflow-hidden rounded-xl p-4 flex items-center justify-between transition-all duration-300"
+                            style={{
+                                background: 'linear-gradient(135deg, #1A1814, #2A2824)',
+                                border: '1px solid rgba(168, 139, 62, 0.4)',
+                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+                            }}
+                        >
+                            <div className="absolute inset-0 bg-gold-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center text-gold-500 border border-gold-500/20 group-hover:bg-gold-500 group-hover:text-black transition-all">
+                                    <TrendingUp size={20} />
+                                </div>
+                                <div className="flex flex-col items-start">
+                                    <span className="text-lg font-bold text-white leading-tight">
+                                        {t.common.roleSelection?.earnIncome || 'اكسب دخل شهري معنا'}
+                                    </span>
+                                    <span className="text-[10px] text-white/40 font-medium">
+                                        {t.common.roleSelection?.earnIncomeDesc || 'كل طلب = ربح كاش يُضاف إلى محفظتك'}
+                                    </span>
+                                </div>
+                            </div>
+                            <ArrowIcon className="text-white/40 group-hover:text-gold-500 transition-colors" />
                         </motion.button>
 
                     </div>

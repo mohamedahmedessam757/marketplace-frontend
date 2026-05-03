@@ -69,6 +69,17 @@ export const violationsApi = {
     return response.data;
   },
 
+  getRiskAlerts: async (status?: string) => {
+    const params = status ? { status } : {};
+    const response = await client.get('/violations/admin/risk-alerts', { params });
+    return response.data;
+  },
+
+  resolveRiskAlert: async (id: string, data: any) => {
+    const response = await client.patch(`/violations/admin/risk-alerts/${id}/resolve`, data);
+    return response.data;
+  },
+
   // User Endpoints
   getMyViolations: async () => {
     const response = await client.get('/violations/my');

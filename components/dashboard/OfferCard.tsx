@@ -30,6 +30,8 @@ export interface OfferProps {
     submittedAt?: string;
     acceptLoading?: boolean;
     cylinders?: number | string;
+    isSelected?: boolean;
+    notes?: string;
 }
 
 export const OfferCard: React.FC<OfferProps> = memo(({
@@ -205,6 +207,17 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                         </div>
                     </div>
 
+                    {/* Cylinders (Moved up for better visibility - 2026 Engine Logic) */}
+                    {(cylinders !== undefined && cylinders !== null && cylinders !== 0 && cylinders !== '') && (
+                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gold-500/10 border border-gold-500/20 text-white/80">
+                            <Settings size={16} className="text-gold-400 shrink-0" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] text-gold-400 uppercase tracking-wider font-bold">{language === 'ar' ? 'السلندرات' : 'Cylinders'}</span>
+                                <span className="text-sm font-bold text-white">{cylinders}</span>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Part Type */}
                     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-white/80">
                         <Tag size={16} className="text-purple-400 shrink-0" />
@@ -225,8 +238,6 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                         </div>
                     </div>
 
-
-
                     {/* Part Price (New) - Now showing Final Price */}
                     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-white/80">
                         <div className="text-yellow-400 font-bold shrink-0 text-lg">$</div>
@@ -236,24 +247,13 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                         </div>
                     </div>
 
-                    {/* Weight (Optional) */}
-                    {weight && weight > 0 && (
+                    {/* Weight (Optional) - Strict Guard for '0' issue */}
+                    {typeof weight === 'number' && weight > 0 && (
                         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-white/80">
                             <Box size={16} className="text-orange-400 shrink-0" />
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.weight || 'Weight'}</span>
                                 <span className="text-sm font-medium">{weight} {offersT?.units?.kg || 'Kg'}</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Cylinders (Optional - 2026 Engine Logic) */}
-                    {cylinders && (
-                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gold-500/5 border border-gold-500/20 text-white/80">
-                            <Settings size={16} className="text-gold-400 shrink-0" />
-                            <div className="flex flex-col">
-                                <span className="text-[10px] text-gold-400 uppercase tracking-wider font-bold">{language === 'ar' ? 'السلندرات' : 'Cylinders'}</span>
-                                <span className="text-sm font-bold text-white">{cylinders}</span>
                             </div>
                         </div>
                     )}

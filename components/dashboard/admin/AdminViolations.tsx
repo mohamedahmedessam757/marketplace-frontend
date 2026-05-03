@@ -45,6 +45,9 @@ export const AdminViolations: React.FC = () => {
         fetchThresholds,
         fetchPendingAppeals,
         fetchPendingPenalties,
+        riskAlerts,
+        fetchRiskAlerts,
+        resolveRiskAlert,
         issueViolation,
         reviewAppeal,
         reviewPenalty,
@@ -55,7 +58,7 @@ export const AdminViolations: React.FC = () => {
         subscribeToViolations
     } = useViolationStore();
 
-    const [activeTab, setActiveTab] = useState<'violations' | 'appeals' | 'penalties' | 'types' | 'thresholds'>('violations');
+    const [activeTab, setActiveTab] = useState<'violations' | 'appeals' | 'penalties' | 'risk_alerts' | 'types' | 'thresholds'>('violations');
     const [search, setSearch] = useState('');
     const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
     const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
@@ -63,6 +66,12 @@ export const AdminViolations: React.FC = () => {
     const [editingType, setEditingType] = useState<ViolationType | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [processingAppealId, setProcessingAppealId] = useState<string | null>(null);
+    const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+    const [resolvingAlert, setResolvingAlert] = useState<any | null>(null);
+    const [resolveFormData, setResolveFormData] = useState({
+        resolution: 'DISMISSED' as 'DISMISSED' | 'VIOLATION_ISSUED',
+        adminNotes: ''
+    });
     // Form State for Violation Issuance
     const [formData, setFormData] = useState({
         targetUserId: '',
@@ -97,8 +106,15 @@ export const AdminViolations: React.FC = () => {
     const { customers, fetchCustomers: fetchAllCustomers } = useCustomerStore();
 
     useEffect(() => {
-        // We no longer need to fetch all stores/customers locally for search
-        // as we use the real-time EntitySearchInput component.
+        fetchViolations();
+        fetchViolationTypes();
+        fetchThresholds();
+        fetchPendingAppeals();
+        fetchPendingPenalties();
+        fetchRiskAlerts();
+
+        const unsubscribe = subscribeToViolations();
+        return () => unsubscribe();
     }, []);
 
     // Local user filtering removed in favor of real-time server-side search
@@ -125,6 +141,12 @@ export const AdminViolations: React.FC = () => {
         (p.action || '').toLowerCase().includes(search.toLowerCase()) ||
         (p.reason || '').toLowerCase().includes(search.toLowerCase())
     ), [pendingPenalties, search]);
+
+    const filteredRiskAlerts = useMemo(() => riskAlerts.filter(a => 
+        (a.user?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (a.user?.email || '').toLowerCase().includes(search.toLowerCase()) ||
+        (a.status || '').toLowerCase().includes(search.toLowerCase())
+    ), [riskAlerts, search]);
 
     const filteredViolationTypes = useMemo(() => violationTypes.filter(t => 
         (t.nameAr || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -153,6 +175,7 @@ export const AdminViolations: React.FC = () => {
             case 'violations': return 'Search violations...';
             case 'appeals': return 'Search appeals...';
             case 'penalties': return 'Search penalties...';
+            case 'risk_alerts': return 'Search risk alerts...';
             case 'types': return 'Search violation types...';
             case 'thresholds': return 'Search thresholds...';
             default: return 'Search...';
@@ -166,6 +189,7 @@ export const AdminViolations: React.FC = () => {
         fetchThresholds();
         fetchPendingAppeals();
         fetchPendingPenalties();
+        fetchRiskAlerts();
         return () => unsubscribe();
     }, []);
 
@@ -280,6 +304,24 @@ export const AdminViolations: React.FC = () => {
         }
     };
 
+    const handleResolveRiskAlert = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!resolvingAlert) return;
+        setIsSubmitting(true);
+        try {
+            const res = await resolveRiskAlert(resolvingAlert.id, resolveFormData);
+            if (res.success) {
+                setIsResolveModalOpen(false);
+                setResolvingAlert(null);
+                setResolveFormData({ resolution: 'DISMISSED', adminNotes: '' });
+            } else {
+                alert(res.message);
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
             {/* Header Section */}
@@ -367,6 +409,7 @@ export const AdminViolations: React.FC = () => {
                     { id: 'violations', label: vt.tabs.active, icon: ShieldAlert },
                     { id: 'appeals', label: vt.tabs.appeals, icon: Scale },
                     { id: 'penalties', label: vt.tabs.penalties, icon: AlertTriangle },
+                    { id: 'risk_alerts', label: vt.tabs.riskAlerts, icon: ShieldAlert },
                     { id: 'types', label: vt.tabs.types, icon: FileText }
                 ].map((tab) => (
                     <button
@@ -545,6 +588,71 @@ export const AdminViolations: React.FC = () => {
                                 </GlassCard>
                             )) : (
                                 <div className="text-center py-20 opacity-30 italic">{isAr ? 'لا توجد عقوبات بانتظار المراجعة' : 'No penalties awaiting review.'}</div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'risk_alerts' && (
+                        <div className="grid gap-4">
+                            {filteredRiskAlerts.length > 0 ? filteredRiskAlerts.map(alert => (
+                                <GlassCard key={alert.id} className="p-6 border-white/5 hover:border-blue-500/20 transition-all overflow-hidden relative">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-[80px] -z-10" />
+                                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.5fr_1fr] items-center gap-8">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+                                                <ShieldAlert size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-black text-white uppercase italic tracking-tight mb-1">{alert.user?.name || 'Unknown User'}</h3>
+                                                <p className="text-[10px] text-white/40 font-bold font-mono">{alert.user?.email}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="px-6 lg:border-x border-white/5">
+                                            <div className="text-[9px] text-white/20 font-black uppercase tracking-widest mb-1 italic">{vt.table.returnRate}</div>
+                                            <div className="text-xl font-black text-red-500 font-mono">{(alert.returnRate * 100).toFixed(1)}%</div>
+                                            <div className="text-[9px] text-white/30 font-bold uppercase tracking-widest mt-0.5">Threshold: 15.0%</div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <div className="text-[9px] text-white/20 font-black uppercase tracking-widest mb-1">{vt.table.deliveredOrders}</div>
+                                                <div className="text-xs font-black text-white font-mono">{alert.deliveredCount}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[9px] text-white/20 font-black uppercase tracking-widest mb-1">{vt.table.negativeOrders}</div>
+                                                <div className="text-xs font-black text-white font-mono">{alert.negativeCount}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end gap-2">
+                                            {alert.status === 'PENDING_REVIEW' ? (
+                                                <button 
+                                                    onClick={() => {
+                                                        setResolvingAlert(alert);
+                                                        setIsResolveModalOpen(true);
+                                                    }}
+                                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-600/20"
+                                                >
+                                                    {isAr ? 'مراجعة' : 'Review'}
+                                                </button>
+                                            ) : (
+                                                <div className="flex flex-col items-end">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                        alert.status === 'VIOLATION_ISSUED' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'
+                                                    }`}>
+                                                        {alert.status}
+                                                    </span>
+                                                    <span className="text-[8px] text-white/20 mt-1 uppercase font-mono">
+                                                        {new Date(alert.createdAt).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </GlassCard>
+                            )) : (
+                                <div className="text-center py-20 opacity-30 italic">{isAr ? 'لا توجد تنبيهات مخاطر معلقة' : 'No pending risk alerts.'}</div>
                             )}
                         </div>
                     )}
@@ -1066,6 +1174,113 @@ export const AdminViolations: React.FC = () => {
                                     ) : (
                                         vt.forms.submit
                                     )}
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Resolve Risk Alert Modal */}
+            {isResolveModalOpen && resolvingAlert && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <motion.div 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="w-full max-w-lg bg-[#151310] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+                    >
+                        <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-blue-600/10 to-transparent">
+                            <div>
+                                <h3 className="text-xl font-black text-white uppercase italic">{isAr ? 'مراجعة مخاطر العميل' : 'Customer Risk Review'}</h3>
+                                <p className="text-[10px] text-blue-400/60 font-bold tracking-widest uppercase mt-1">2026 Governance Protocol</p>
+                            </div>
+                            <button onClick={() => setIsResolveModalOpen(false)} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white/50 flex items-center justify-center transition-colors">
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleResolveRiskAlert} className="p-8 space-y-6">
+                            {/* User Info Context */}
+                            <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center overflow-hidden">
+                                        {resolvingAlert.user?.avatar ? (
+                                            <img src={resolvingAlert.user.avatar} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="text-white/20" size={20} />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-black text-white uppercase tracking-tight">{resolvingAlert.user?.name}</h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[9px] font-black text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/10">
+                                                {(resolvingAlert.returnRate * 100).toFixed(1)}% Return Rate
+                                            </span>
+                                            <span className="text-[9px] text-white/30 font-bold">
+                                                {resolvingAlert.deliveredCount} Delivered Orders
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-white/40 font-black uppercase tracking-widest">{isAr ? 'القرار الإداري' : 'Governance Decision'}</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setResolveFormData({...resolveFormData, resolution: 'DISMISSED'})}
+                                        className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
+                                            resolveFormData.resolution === 'DISMISSED' 
+                                            ? 'bg-green-500/10 border-green-500/50 text-green-500' 
+                                            : 'bg-white/5 border-white/5 text-white/30 grayscale opacity-50'
+                                        }`}
+                                    >
+                                        <CheckCircle2 size={24} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{isAr ? 'تجاهل (سليم)' : 'Dismiss (Good Standing)'}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setResolveFormData({...resolveFormData, resolution: 'VIOLATION_ISSUED'})}
+                                        className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
+                                            resolveFormData.resolution === 'VIOLATION_ISSUED' 
+                                            ? 'bg-red-500/10 border-red-500/50 text-red-500' 
+                                            : 'bg-white/5 border-white/5 text-white/30 grayscale opacity-50'
+                                        }`}
+                                    >
+                                        <AlertTriangle size={24} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{isAr ? 'إصدار مخالفة' : 'Issue Violation'}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-white/40 font-black uppercase tracking-widest">{vt.forms.reason}</label>
+                                <textarea 
+                                    required
+                                    rows={3}
+                                    placeholder={isAr ? 'ملاحظات المراجعة (تظهر للعميل في حال الرفض)...' : 'Review notes (visible to user if rejected)...'}
+                                    className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 resize-none"
+                                    value={resolveFormData.adminNotes}
+                                    onChange={e => setResolveFormData({...resolveFormData, adminNotes: e.target.value})}
+                                />
+                            </div>
+
+                            <div className="pt-4 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsResolveModalOpen(false)}
+                                    className="flex-1 px-6 py-4 rounded-2xl bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                                >
+                                    {isAr ? 'إلغاء' : 'Cancel'}
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="flex-[2] px-6 py-4 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-gold-500 hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                                    {isAr ? 'تنفيذ القرار' : 'Execute Decision'}
                                 </button>
                             </div>
                         </form>

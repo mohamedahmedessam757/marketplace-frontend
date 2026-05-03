@@ -828,7 +828,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     <GlassCard className="p-0 overflow-hidden relative border-white/5">
                         <div className="p-4 sm:p-6 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/[0.01]">
                             <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-3">
-                                {isAr ? 'سجل الطلبات والدفع' : 'Orders & Payment Log'}
+                                {isAr ? 'سجل الارباح والطلبات' : 'Earnings & Orders Log'}
                             </h3>
                             <div className="flex p-1 bg-black/40 rounded-xl border border-white/5">
                                 {['ALL', 'DONE', 'PENDING'].map((f) => (

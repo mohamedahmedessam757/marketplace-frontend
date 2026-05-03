@@ -124,8 +124,7 @@ export const SettingsTab: React.FC = () => {
                     {[
                         { key: 'notifications_email', label: t.dashboard.profile.settings?.notificationTypes?.email || 'Email Notifications' },
                         { key: 'notifications_push', label: t.dashboard.profile.settings?.notificationTypes?.push || 'Push Notifications' },
-                        { key: 'notifications_offers', label: t.dashboard.profile.settings?.notificationTypes?.offers || 'Offer Updates' },
-                        { key: 'notifications_sms', label: t.dashboard.profile.settings?.notificationTypes?.sms || 'SMS Alerts' }
+                        { key: 'notifications_offers', label: t.dashboard.profile.settings?.notificationTypes?.offers || 'Offer Updates' }
                     ].map((item: any) => (
                         <div key={item.key} className="flex items-center justify-between p-4 hover:bg-white/5 transition-colors">
                             <h4 className="font-bold text-white text-sm">{item.label}</h4>
