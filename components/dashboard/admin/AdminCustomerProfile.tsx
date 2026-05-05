@@ -6,10 +6,13 @@ import {
     ChevronLeft, ChevronRight, User, Mail, Phone, Lock, Unlock,
     Shield, Smartphone, Globe, Package, Scale, RefreshCcw,
     DollarSign, Target, MessageSquare, CheckCircle2, Loader2,
-    Calendar, Clock, ShieldAlert, Crown, Diamond, AlertTriangle, Eye
+    Calendar, Clock, ShieldAlert, Crown, Diamond, AlertTriangle, Eye,FileText
 } from 'lucide-react';
 import { Badge } from '../../ui/Badge';
 import { AdminSignatureModal } from './AdminSignatureModal';
+import { AdminInitiateChatModal } from './AdminInitiateChatModal';
+import { chatsApi } from '../../../services/api/chats';
+import * as XLSX from 'xlsx';
 
 interface AdminCustomerProfileProps {
     customerId: string;
@@ -35,6 +38,9 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [internalNotes, setInternalNotes] = useState('');
     const [isSavingNotes, setIsSavingNotes] = useState(false);
+    
+    // 2026 Admin Management Tools State
+    const [isChatModalOpen, setIsChatModalOpen] = useState(false);
     
     // Phase 2.3: Edit Profile State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -126,6 +132,48 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
         }
     };
 
+    const handleExportPaymentsExcel = () => {
+        if (!customer) return;
+
+        const isAr = language === 'ar';
+
+        const paymentsData = (customer.payments || []).map((tx: any) => ({
+            [isAr ? 'رقم الحركة' : 'Txn Number']: tx.transactionNumber,
+            [isAr ? 'التاريخ' : 'Date']: new Date(tx.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB'),
+            [isAr ? 'رقم الطلب' : 'Order Ref']: tx.order?.orderNumber || '---',
+            [isAr ? 'المبلغ (AED)' : 'Amount (AED)']: Number(tx.totalAmount),
+            [isAr ? 'الوسيلة' : 'Method']: tx.cardBrand || 'Card',
+            [isAr ? 'الحالة' : 'Status']: tx.status
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(paymentsData);
+        XLSX.utils.book_append_sheet(wb, ws, isAr ? "المدفوعات" : "Payments History");
+
+        XLSX.writeFile(wb, `Payments_Report_${customer.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const handleExportWithdrawalsExcel = () => {
+        if (!customer) return;
+
+        const isAr = language === 'ar';
+
+        const withdrawalsData = (customer.withdrawalRequests || []).map((req: any) => ({
+            [isAr ? 'التاريخ' : 'Date']: new Date(req.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB'),
+            [isAr ? 'المبلغ (AED)' : 'Amount (AED)']: Number(req.amount),
+            [isAr ? 'الحالة' : 'Status']: req.status,
+            [isAr ? 'اسم البنك' : 'Bank Name']: req.bankName || '',
+            [isAr ? 'رقم الحساب' : 'Account Number']: req.accountNumber || '',
+            [isAr ? 'ملاحظات الإدارة' : 'Admin Notes']: req.adminNotes || ''
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(withdrawalsData);
+        XLSX.utils.book_append_sheet(wb, ws, isAr ? "طلبات السحب" : "Withdrawal Requests");
+
+        XLSX.writeFile(wb, `Withdrawals_Report_${customer.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     const handleUpdateCustomer = async () => {
         if (!customer) return;
         setIsUpdating(true);
@@ -166,6 +214,24 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
         } finally {
             setIsUpdating(false);
             setPendingRestrictionAction(null);
+        }
+    };
+
+    const handleInitiateChat = async (data: any) => {
+        if (!customer) return;
+        try {
+            const response = await chatsApi.adminInitChat({
+                targetUserId: customer.id,
+                targetRole: 'CUSTOMER',
+                ...data
+            });
+            if (response?.id) {
+                window.alert(isAr ? 'تم فتح المحادثة بنجاح' : 'Chat initiated successfully');
+                if (onNavigate) onNavigate('/dashboard/chats', response.id);
+            }
+        } catch (error: any) {
+            console.error('Failed to initiate chat:', error);
+            throw error;
         }
     };
 
@@ -357,6 +423,13 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                                 </button>
                                 
                                 <div className="grid grid-cols-1 gap-2">
+                                    <button 
+                                        onClick={() => setIsChatModalOpen(true)}
+                                        className="w-full py-3.5 bg-primary-500/10 hover:bg-primary-500 text-primary-400 hover:text-black font-black text-[10px] uppercase tracking-widest rounded-2xl border border-primary-500/20 transition-all flex items-center justify-center gap-2 group"
+                                    >
+                                        <MessageSquare size={16} className="group-hover:rotate-12 transition-transform" />
+                                        {isAr ? 'بدء محادثة فورية' : 'Direct Support Chat'}
+                                    </button>
                                     <button 
                                         onClick={handleToggleStatus}
                                         disabled={isBanning}
@@ -860,6 +933,13 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                                                         <p className="text-[10px] text-white/40 uppercase tracking-[0.2em]">{isAr ? 'تتبع التدفقات المالية للطلبات' : 'Transaction flow per order'}</p>
                                                     </div>
                                                 </div>
+                                                <button 
+                                                    onClick={handleExportPaymentsExcel}
+                                                    className="flex items-center gap-2 px-6 py-2.5 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-black border border-green-500/20 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all group"
+                                                >
+                                                    <FileText size={14} className="group-hover:scale-110 transition-transform" />
+                                                    {isAr ? 'تصدير تقرير EXCEL' : 'Export Excel Report'}
+                                                </button>
                                             </div>
                                             
                                             <GlassCard className="min-h-[400px] border-white/5 bg-white/[0.01] overflow-hidden flex flex-col">
@@ -957,6 +1037,13 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                                                         <p className="text-[10px] text-white/40 uppercase tracking-[0.2em]">{isAr ? 'طلبات تحويل الرصيد' : 'Balance payout requests'}</p>
                                                     </div>
                                                 </div>
+                                                <button 
+                                                    onClick={handleExportWithdrawalsExcel}
+                                                    className="flex items-center gap-2 px-6 py-2.5 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-black border border-green-500/20 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all group"
+                                                >
+                                                    <FileText size={14} className="group-hover:scale-110 transition-transform" />
+                                                    {isAr ? 'تصدير تقرير EXCEL' : 'Export Excel Report'}
+                                                </button>
                                             </div>
 
                                             <GlassCard className="min-h-[400px] border-white/5 bg-white/[0.01] overflow-hidden flex flex-col">
@@ -1361,6 +1448,14 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                 onConfirm={handleUpdateRestrictions}
                 title={isAr ? 'اعتماد القيود الإدارية' : 'Authorize Administrative Restrictions'}
                 subtitle={isAr ? 'يرجى التوقيع للمتابعة وتطبيق القيود على هذا العميل' : 'Please sign to proceed and apply restrictions to this customer'}
+            />
+
+            <AdminInitiateChatModal
+                isOpen={isChatModalOpen}
+                onClose={() => setIsChatModalOpen(false)}
+                onConfirm={handleInitiateChat}
+                targetName={customer?.name || 'Customer'}
+                targetRole="CUSTOMER"
             />
         </div>
     );

@@ -8,7 +8,8 @@ import {
     ChevronLeft, ChevronRight, Store, CheckCircle2, XCircle, FileText, Activity, 
     Star, Eye, X, ExternalLink, Mail, Phone, Calendar, Hash, MapPin, CreditCard, 
     Wallet, Smartphone, Tablet, Monitor, Verified, Shield, Award, TrendingUp,
-    Clock, ShieldAlert, ShoppingCart, Package, Sliders, Loader2, Lock, RotateCcw
+    Clock, ShieldAlert, ShoppingCart, Package, Sliders, Loader2, Lock, RotateCcw,
+    MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storesApi } from '../../../services/api/stores';
@@ -16,6 +17,12 @@ import { paymentsApi } from '../../../services/api/payments';
 // import { toast } from 'react-hot-toast'; // Removed to avoid dependency issue
 import { DocumentReviewModal } from '../../modals/DocumentReviewModal'; // Import New Modal
 import { AdminSignatureModal } from './AdminSignatureModal';
+import { AdminInitiateChatModal } from './AdminInitiateChatModal';
+import { PrintTemplate } from './PrintTemplate';
+import { printHtml } from '../../../utils/print';
+import { renderToString } from 'react-dom/server';
+import { chatsApi } from '../../../services/api/chats';
+import * as XLSX from 'xlsx';
 
 interface AdminStoreProfileProps {
     vendorId: string;
@@ -59,6 +66,10 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
     });
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [pendingRestrictionUpdate, setPendingRestrictionUpdate] = useState<any>(null);
+
+    // 2026 Admin Management Tools State
+    const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+    const [financialSubTab, setFinancialSubTab] = useState<'ledger' | 'withdrawals'>('ledger');
 
     const handleStatusUpdate = async (newStatus: 'ACTIVE' | 'BLOCKED' | 'REJECTED' | 'SUSPENDED', reason?: string, days?: number) => {
         if (!vendorId) return;
@@ -158,6 +169,256 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         } finally {
             setIsLoadingFinancial(false);
         }
+    };
+
+    const handleInitiateChat = async (data: any) => {
+        if (!vendor?.ownerId) return;
+        try {
+            const response = await chatsApi.adminInitChat({
+                targetUserId: vendor.ownerId,
+                targetRole: 'VENDOR',
+                ...data
+            });
+            if (response?.id) {
+                window.alert(isAr ? 'تم فتح المحادثة بنجاح' : 'Chat initiated successfully');
+                if (onNavigate) onNavigate('support', response.id);
+            }
+        } catch (error: any) {
+            console.error('Failed to initiate chat:', error);
+            throw error;
+        }
+    };
+
+    const handleExportWalletExcel = () => {
+        const vendor = currentStoreProfile;
+        if (!vendor) return;
+
+        const isAr = language === 'ar';
+
+        const walletData = (vendor.walletTransactions || []).map((tx: any) => ({
+            [isAr ? 'رقم الطلب' : 'Order Ref']: tx.payment?.order?.orderNumber || tx.escrow?.order?.orderNumber || tx.metadata?.orderNumber || (tx.transactionType === 'withdrawal' ? (isAr ? 'سحب رصيد' : 'Withdrawal') : 'N/A'),
+            [isAr ? 'التاريخ' : 'Date']: new Date(tx.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB'),
+            [isAr ? 'النوع' : 'Type']: tx.type === 'CREDIT' ? (isAr ? 'إيداع' : 'CREDIT') : (isAr ? 'خصم' : 'DEBIT'),
+            [isAr ? 'العملية' : 'Operation']: tx.transactionType,
+            [isAr ? 'المبلغ (AED)' : 'Amount (AED)']: Number(tx.amount),
+            [isAr ? 'الوصف' : 'Description']: tx.description || '',
+            [isAr ? 'الرصيد بعد العملية' : 'Balance After']: Number(tx.balanceAfter)
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(walletData);
+        XLSX.utils.book_append_sheet(wb, ws, isAr ? "حركات المحفظة" : "Wallet Transactions");
+
+        XLSX.writeFile(wb, `Wallet_Report_${vendor.storeCode}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const handleExportWithdrawalsExcel = () => {
+        const vendor = currentStoreProfile;
+        if (!vendor) return;
+
+        const isAr = language === 'ar';
+
+        const withdrawalsData = (vendor.withdrawalRequests || []).map((req: any) => ({
+            [isAr ? 'التاريخ' : 'Date']: new Date(req.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB'),
+            [isAr ? 'المبلغ (AED)' : 'Amount (AED)']: Number(req.amount),
+            [isAr ? 'الحالة' : 'Status']: req.status,
+            [isAr ? 'الوسيلة' : 'Method']: req.payoutMethod || (isAr ? 'تحويل بنكي' : 'Bank Transfer'),
+            [isAr ? 'اسم البنك' : 'Bank Name']: req.bankName || '',
+            [isAr ? 'رقم الحساب' : 'Account Number']: req.accountNumber || '',
+            [isAr ? 'ملاحظات الإدارة' : 'Admin Notes']: req.adminNotes || ''
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(withdrawalsData);
+        XLSX.utils.book_append_sheet(wb, ws, isAr ? "طلبات السحب" : "Withdrawal Requests");
+
+        XLSX.writeFile(wb, `Withdrawals_Report_${vendor.storeCode}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const handlePrintProfile = () => {
+        if (!vendor) return;
+        
+        const content = (
+            <div className="space-y-12">
+                <section>
+                    <h3 className="text-2xl font-black mb-6 text-gray-800 border-r-4 border-black pr-4">بيانات المتجر الأساسية</h3>
+                    <div className="grid grid-cols-2 gap-y-6 gap-x-12 bg-gray-50 p-8 rounded-2xl">
+                        <div className="space-y-1">
+                            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">اسم المتجر</p>
+                            <p className="font-bold text-lg">{vendor.name}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">كود المتجر</p>
+                            <p className="font-mono font-bold text-lg">{vendor.storeCode}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">البريد الإلكتروني</p>
+                            <p className="font-bold">{vendor.owner?.email || 'N/A'}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">رقم التواصل</p>
+                            <p className="font-bold tabular-nums" dir="ltr">{vendor.owner?.phone || 'N/A'}</p>
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                            <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">عنوان المتجر</p>
+                            <p className="font-bold">{vendor.address || 'N/A'}</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <h3 className="text-2xl font-black mb-6 text-gray-800 border-r-4 border-black pr-4">المستندات القانونية والموثوقية</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        {vendor.documents?.map((doc: any) => (
+                            <div key={doc.id} className="border border-gray-100 p-6 rounded-2xl bg-white shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p className="font-black text-sm uppercase tracking-wide mb-1">{doc.docType}</p>
+                                    <p className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full inline-block ${
+                                        doc.status === 'approved' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'
+                                    }`}>
+                                        {doc.status}
+                                    </p>
+                                </div>
+                                {doc.fileUrl && (
+                                    <div className="w-20 h-20 bg-gray-50 rounded-xl overflow-hidden border border-gray-100 p-1">
+                                        <img src={doc.fileUrl} alt={doc.docType} className="w-full h-full object-contain" />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                <section className="bg-black text-white p-10 rounded-3xl">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">Performance Score</h3>
+                        <div className="text-4xl font-black text-gold-500">{Number(vendor.performanceScore || 0).toFixed(1)}%</div>
+                    </div>
+                    <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-gold-500" style={{ width: `${vendor.performanceScore || 0}%` }} />
+                    </div>
+                </section>
+            </div>
+        );
+
+        const html = renderToString(
+            <PrintTemplate 
+                title={isAr ? 'ملف التاجر الرسمي' : 'Official Merchant Profile'} 
+                subtitle={vendor.name}
+                content={content}
+            />
+        );
+        printHtml(html, `Merchant_${vendor.storeCode}`);
+    };
+
+    const handlePrintContract = (acceptance: any) => {
+        if (!acceptance || !vendor) return;
+        
+        const content = (
+            <div className="space-y-8" dir="rtl">
+                <section>
+                    <table className="w-full border-collapse border border-gray-300 text-sm mb-6">
+                        <thead>
+                            <tr>
+                                <th colSpan={4} className="bg-gray-100 p-3 text-right font-bold text-gray-800 border border-gray-300 uppercase">
+                                    {isAr ? 'بيانات العقد المعتمدة (نسخة الحوكمة)' : 'Certified Contract Metadata'}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300 w-1/4">{isAr ? 'تاريخ القبول:' : 'Acceptance Date:'}</td>
+                                <td className="p-3 border border-gray-300 w-1/4">{new Date(acceptance.acceptedAt).toLocaleString('ar-EG', { dateStyle: 'long', timeStyle: 'short' })}</td>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300 w-1/4">{isAr ? 'مرجع العقد:' : 'Contract Ref:'}</td>
+                                <td className="p-3 border border-gray-300 font-mono text-xs w-1/4">{acceptance.id.toUpperCase()}</td>
+                            </tr>
+                            <tr>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300">{isAr ? 'إصدار العقد:' : 'Contract Version:'}</td>
+                                <td className="p-3 border border-gray-300 font-bold">{acceptance.contractVersion || '2026.04'}</td>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300">{isAr ? 'الحالة:' : 'Status:'}</td>
+                                <td className="p-3 border border-gray-300 font-bold text-green-700">{isAr ? 'معتمد إلكترونياً' : 'Electronically Certified'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <table className="w-full border-collapse border border-gray-300 text-sm">
+                        <thead>
+                            <tr>
+                                <th colSpan={4} className="bg-gray-100 p-3 text-right font-bold text-gray-800 border border-gray-300 uppercase">
+                                    {isAr ? 'بيانات الطرف الثاني (التاجر)' : 'Second Party (Merchant) Details'}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300 w-1/4">{isAr ? 'اسم المنشأة:' : 'Company Name:'}</td>
+                                <td className="p-3 border border-gray-300 w-1/4 font-bold">{acceptance.secondPartyData?.companyName}</td>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300 w-1/4">{isAr ? 'المدير المسؤول:' : 'Managing Director:'}</td>
+                                <td className="p-3 border border-gray-300 w-1/4">{acceptance.secondPartyData?.managerName}</td>
+                            </tr>
+                            <tr>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300">{isAr ? 'السجل التجاري:' : 'CR Number:'}</td>
+                                <td className="p-3 border border-gray-300 font-mono text-xs">{acceptance.secondPartyData?.crNumber}</td>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300">{isAr ? 'الرخصة التجارية:' : 'Trade License:'}</td>
+                                <td className="p-3 border border-gray-300 font-mono text-xs">{acceptance.secondPartyData?.licenseNumber}</td>
+                            </tr>
+                            <tr>
+                                <td className="bg-gray-50 p-3 font-bold border border-gray-300">{isAr ? 'البريد الإلكتروني:' : 'Certified Email:'}</td>
+                                <td colSpan={3} className="p-3 border border-gray-300">{acceptance.signatureData?.email || vendor?.owner?.email}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section className="mt-8 border-2 border-gray-800 p-6 relative">
+                    <h3 className="text-lg font-black mb-6 text-center text-gray-900 uppercase tracking-widest border-b-2 border-gray-200 pb-4">
+                        {isAr ? 'نص الاتفاقية الموثقة' : 'Documented Agreement Text'}
+                    </h3>
+                    <div 
+                        className="text-sm leading-relaxed text-gray-800 text-justify"
+                        style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                    >
+                        {isAr ? acceptance.contentArSnapshot : acceptance.contentEnSnapshot}
+                    </div>
+                </section>
+
+                <section className="mt-12 flex justify-between gap-10">
+                    <div className="flex-1 border border-gray-300 p-6 flex flex-col items-center min-h-[180px]">
+                        <p className="text-xs text-gray-600 font-bold uppercase mb-6">{isAr ? 'توقيع الطرف الأول (المنصة)' : 'First Party Signature'}</p>
+                        <div className="flex flex-col items-center">
+                            <div className="w-20 h-20 rounded-full border-2 border-gray-300 flex items-center justify-center mb-2">
+                                <div className="text-[10px] font-black text-center text-gray-400">E-TASHLEH<br/>OFFICIAL<br/>SEAL</div>
+                            </div>
+                            <p className="text-[10px] font-bold text-gray-500">{isAr ? 'ختم إلكتروني معتمد' : 'Authenticated Electronic Seal'}</p>
+                        </div>
+                    </div>
+                    <div className="flex-1 border border-gray-300 p-6 flex flex-col items-center min-h-[180px]">
+                        <p className="text-xs text-gray-600 font-bold uppercase mb-6">{isAr ? 'توقيع الطرف الثاني (التاجر)' : 'Second Party Signature'}</p>
+                        <div className="flex flex-col items-center gap-4 mt-4">
+                            <div className="font-black text-2xl text-gray-900" style={{ fontFamily: '"Brush Script MT", cursive' }}>
+                                {acceptance.signatureData?.signedName}
+                            </div>
+                            <div className="h-px w-48 bg-gray-400 mt-2" />
+                            <p className="text-[10px] font-mono text-gray-500">DIGITAL ID: {acceptance.id.split('-')[1]?.toUpperCase() || 'VERIFIED'}</p>
+                        </div>
+                    </div>
+                </section>
+
+                <div className="mt-8 pt-4 border-t border-gray-200 text-center space-y-1">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Global Governance Standards v2026.4.12</p>
+                    <p className="text-[9px] text-gray-400 font-mono">Security Check: {acceptance.ipAddress || '---'} | Timestamp: {new Date().toISOString()}</p>
+                </div>
+            </div>
+        );
+
+        const html = renderToString(
+            <PrintTemplate 
+                title={isAr ? 'عقد انضمام وشروط الخدمة' : 'Merchant Partnership Agreement'} 
+                subtitle={`Store ID: ${vendor.storeCode}`}
+                content={content}
+            />
+        );
+        printHtml(html, `Contract_${vendor.storeCode}`);
     };
 
     const vendor = currentStoreProfile;
@@ -494,6 +755,16 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                         {isAr ? 'تنشيط المتجر الآن' : 'Unleash Store (Approve)'}
                                     </button>
                                 )}
+
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setIsChatModalOpen(true)}
+                                        className="w-full py-4 bg-white text-black font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl shadow-lg shadow-white/5 hover:scale-[1.02] transition-all flex items-center justify-center gap-3 border border-white/10"
+                                    >
+                                        <MessageSquare size={16} />
+                                        {isAr ? 'بدء محادثة فورية' : 'Initiate Support Session'}
+                                    </button>
+                                </div>
 
                                 <div className="flex gap-2">
                                     <button 
@@ -866,11 +1137,72 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                                 type: doc.docType,
                                                 status: doc.status
                                             })}
-                                            className="group p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-gold-500/30 transition-all text-left relative overflow-hidden"
+                                            className="group p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-white/30 transition-all text-left relative overflow-hidden"
                                         >
                                             <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-30 transition-opacity">
                                                 <FileText size={24} />
                                             </div>
+                                            
+                                            {/* Individual Print Button */}
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const content = (
+                                                        <div className="space-y-6" dir="rtl">
+                                                            {/* Document Preview Box */}
+                                                            <div className="p-4 border-2 border-gray-800 bg-white flex items-center justify-center min-h-[400px]">
+                                                                {doc.fileUrl ? (
+                                                                    <img src={doc.fileUrl} alt={doc.docType} className="max-w-full max-h-[600px] object-contain" />
+                                                                ) : (
+                                                                    <div className="flex flex-col items-center gap-4 text-gray-400">
+                                                                        <FileText size={48} />
+                                                                        <p className="italic font-bold tracking-widest uppercase">No Document Image</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Verification Metadata - Table based to prevent overlaps */}
+                                                            <table className="w-full border-collapse border border-gray-300 text-sm">
+                                                                <tbody>
+                                                                    <tr>
+                                                                        <td className="bg-gray-100 p-3 font-bold border border-gray-300 w-1/4">{isAr ? 'نوع المستند الموثق:' : 'Document Type:'}</td>
+                                                                        <td className="p-3 border border-gray-300 w-1/4 font-black">{translatedTitle}</td>
+                                                                        <td className="bg-gray-100 p-3 font-bold border border-gray-300 w-1/4">{isAr ? 'حالة الاعتماد:' : 'Status:'}</td>
+                                                                        <td className={`p-3 border border-gray-300 w-1/4 font-black uppercase ${doc.status === 'approved' ? 'text-green-700' : 'text-yellow-700'}`}>{doc.status}</td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <td className="bg-gray-100 p-3 font-bold border border-gray-300">{isAr ? 'تاريخ الاستخراج الأصلي:' : 'Issuance Date:'}</td>
+                                                                        <td className="p-3 border border-gray-300">{new Date(doc.createdAt).toLocaleDateString('ar-EG')}</td>
+                                                                        <td className="bg-gray-100 p-3 font-bold border border-gray-300">{isAr ? 'الرقم المرجعي للتدقيق:' : 'Audit ID:'}</td>
+                                                                        <td className="p-3 border border-gray-300 font-mono text-xs">{doc.id}</td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+
+                                                            {/* Security Footer */}
+                                                            <div className="mt-8 p-4 bg-gray-50 border border-gray-200 text-center">
+                                                                <p className="text-xs font-bold text-gray-700 uppercase mb-1">Authenticated by E-TASHLEH Verification Engine</p>
+                                                                <p className="text-[10px] text-gray-500 font-mono">
+                                                                    Digital integrity hash verified at {new Date().toISOString()}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                    const html = renderToString(
+                                                        <PrintTemplate 
+                                                            title={isAr ? `وثيقة: ${translatedTitle}` : `Document: ${translatedTitle}`}
+                                                            subtitle={`${vendor.name} | ${vendor.storeCode}`}
+                                                            content={content}
+                                                        />
+                                                    );
+                                                    printHtml(html, `Doc_${doc.docType}_${vendor.storeCode}`);
+                                                }}
+                                                className="absolute bottom-2 right-2 p-2 bg-white/10 hover:bg-white text-white hover:text-black rounded-xl transition-all z-20"
+                                                title={isAr ? 'طباعة هذا المستند' : 'Print this document'}
+                                            >
+                                                <FileText size={16} />
+                                            </button>
+
                                             <div className="relative z-10 w-full">
                                                 <p className="text-[10px] font-black text-white/50 uppercase tracking-wide mb-1 truncate">{translatedTitle}</p>
                                                 
@@ -1201,6 +1533,30 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
             {activeTab === 'financial' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 max-w-4xl mx-auto">
                     {/* Phase 3: Premium 6-Card Financial Matrix */}
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/10">
+                            <button 
+                                onClick={() => setFinancialSubTab('ledger')}
+                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${financialSubTab === 'ledger' ? 'bg-gold-500 text-black shadow-lg shadow-gold-500/20' : 'text-white/40 hover:text-white'}`}
+                            >
+                                {isAr ? 'حركات المحفظة' : 'Wallet Activity'}
+                            </button>
+                            <button 
+                                onClick={() => setFinancialSubTab('withdrawals')}
+                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${financialSubTab === 'withdrawals' ? 'bg-gold-500 text-black shadow-lg shadow-gold-500/20' : 'text-white/40 hover:text-white'}`}
+                            >
+                                {isAr ? 'طلبات السحب' : 'Withdrawal Logs'}
+                            </button>
+                        </div>
+                        <button 
+                            onClick={handleExportWalletExcel}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-black border border-green-500/20 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all group"
+                        >
+                            <FileText size={14} className="group-hover:scale-110 transition-transform" />
+                            {isAr ? 'تصدير تقرير EXCEL' : 'Export Excel Report'}
+                        </button>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                         {/* 1. Available Balance */}
                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -1377,188 +1733,200 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                     {/* Ledgers Stack */}
                     <div className="flex flex-col gap-8">
                         {/* 1. Transaction Ledger */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between px-2">
-                                <h4 className="text-[11px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shadow-[0_0_10px_rgba(212,175,55,0.5)]" />
-                                    {t.admin.storeProfile.financial.walletLedger}
-                                </h4>
-                            </div>
-                            <GlassCard className="min-h-[300px] border-white/5 bg-white/[0.01] overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-white/5 bg-white/[0.02]">
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.orderId}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.date}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.amount}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.paymentStatus}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.orderStatus}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.operation}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest text-center">{t.admin.storeProfile.financial.actions}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/[0.03]">
-                                            {vendor.walletTransactions && vendor.walletTransactions.length > 0 ? (
-                                                vendor.walletTransactions.map((tx: any, idx: number) => (
-                                                    <motion.tr 
-                                                        key={tx.id} 
-                                                        initial={{ opacity: 0, x: -10 }} 
-                                                        animate={{ opacity: 1, x: 0 }} 
-                                                        transition={{ delay: 0.4 + (idx * 0.05) }}
-                                                        className="group hover:bg-white/[0.02] transition-colors"
-                                                    >
-                                                        <td className="p-4">
-                                                            <div className="text-[11px] font-bold text-gold-500/80 font-mono tracking-tight bg-gold-500/5 px-2 py-1 rounded inline-flex">
-                                                                {tx.payment?.order?.orderNumber || tx.escrow?.order?.orderNumber || tx.metadata?.orderNumber || (tx.metadata?.orderId || tx.orderId)?.split('-').slice(-1)[0] || 'N/A'}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className="text-[10px] text-white/60 font-medium">
-                                                                {new Date(tx.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className={`text-sm font-black font-mono tabular-nums ${tx.type === 'CREDIT' ? 'text-green-500' : 'text-red-500'}`}>
-                                                                {tx.type === 'CREDIT' ? '+' : '-'}
-                                                                {Number(tx.amount).toLocaleString()}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className={`inline-flex px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${tx.payment?.status === 'SUCCESS' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
-                                                                {tx.payment?.status || 'PENDING'}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className={`inline-flex px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-tight ${
-                                                                (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 
-                                                                (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'PREPARATION' ? 'bg-amber-500/10 text-amber-500' : 
-                                                                (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'READY_FOR_SHIPPING' ? 'bg-blue-500/10 text-blue-500' : 
-                                                                'bg-white/5 text-white/40'
-                                                            }`}>
-                                                                {tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus || 'N/A'}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className="flex items-center gap-2">
-                                                                <Activity size={10} className="text-white/20" />
-                                                                <span className="text-[10px] font-bold text-white/60 uppercase tracking-wide">
-                                                                    {tx.type === 'CREDIT' ? t.admin.storeProfile.financial.sales : t.admin.storeProfile.financial.withdrawal}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4 text-center">
-                                                            <button 
-                                                                className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-white/30 hover:text-white transition-all border border-white/5"
-                                                                onClick={() => {
-                                                                    const orderId = tx.payment?.order?.id || tx.escrow?.order?.id || tx.metadata?.orderId;
-                                                                    if (orderId && onNavigate) {
-                                                                        onNavigate('admin-order-details', orderId);
-                                                                    } else if (orderId) {
-                                                                        window.location.hash = `/dashboard/admin/orders/${orderId}`;
-                                                                    }
-                                                                }}
-                                                                title={isAr ? 'عرض تفاصيل الطلب' : 'View Order Details'}
-                                                            >
-                                                                <FileText size={14} />
-                                                            </button>
-                                                        </td>
-                                                    </motion.tr>
-                                                ))
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan={7} className="p-20 text-center opacity-10">
-                                                        <Activity size={40} className="mx-auto mb-2" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">{t.admin.storeProfile.financial.noTransactions}</p>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                        {financialSubTab === 'ledger' && (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between px-2">
+                                    <h4 className="text-[11px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shadow-[0_0_10px_rgba(212,175,55,0.5)]" />
+                                        {t.admin.storeProfile.financial.walletLedger}
+                                    </h4>
                                 </div>
-                            </GlassCard>
-                        </div>
+                                <GlassCard className="min-h-[300px] border-white/5 bg-white/[0.01] overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="border-b border-white/5 bg-white/[0.02]">
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.orderId}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.date}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.amount}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.paymentStatus}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.orderStatus}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.operation}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest text-center">{t.admin.storeProfile.financial.actions}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/[0.03]">
+                                                {vendor.walletTransactions && vendor.walletTransactions.length > 0 ? (
+                                                    vendor.walletTransactions.map((tx: any, idx: number) => (
+                                                        <motion.tr 
+                                                            key={tx.id} 
+                                                            initial={{ opacity: 0, x: -10 }} 
+                                                            animate={{ opacity: 1, x: 0 }} 
+                                                            transition={{ delay: 0.4 + (idx * 0.05) }}
+                                                            className="group hover:bg-white/[0.02] transition-colors"
+                                                        >
+                                                            <td className="p-4">
+                                                                <div className="text-[11px] font-bold text-gold-500/80 font-mono tracking-tight bg-gold-500/5 px-2 py-1 rounded inline-flex">
+                                                                    {tx.payment?.order?.orderNumber || tx.escrow?.order?.orderNumber || tx.metadata?.orderNumber || (tx.transactionType === 'withdrawal' ? (isAr ? 'سحب رصيد' : 'Withdrawal') : 'N/A')}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="text-[10px] text-white/60 font-medium">
+                                                                    {new Date(tx.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className={`text-sm font-black font-mono tabular-nums ${tx.type === 'CREDIT' ? 'text-green-500' : 'text-red-500'}`}>
+                                                                    {tx.type === 'CREDIT' ? '+' : '-'}
+                                                                    {Number(tx.amount).toLocaleString()}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className={`inline-flex px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${tx.payment?.status === 'SUCCESS' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
+                                                                    {tx.payment?.status || (tx.transactionType === 'withdrawal' ? (isAr ? 'مكتمل' : 'COMPLETED') : 'PENDING')}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className={`inline-flex px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-tight ${
+                                                                    (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 
+                                                                    (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'PREPARATION' ? 'bg-amber-500/10 text-amber-500' : 
+                                                                    (tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus) === 'READY_FOR_SHIPPING' ? 'bg-blue-500/10 text-blue-500' : 
+                                                                    'bg-white/5 text-white/40'
+                                                                }`}>
+                                                                    {tx.payment?.order?.status || tx.escrow?.order?.status || tx.metadata?.orderStatus || (tx.transactionType === 'withdrawal' ? (isAr ? 'حوالة' : 'PAYOUT') : 'N/A')}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Activity size={10} className="text-white/20" />
+                                                                    <span className="text-[10px] font-bold text-white/60 uppercase tracking-wide">
+                                                                        {tx.transactionType === 'withdrawal' ? (isAr ? 'سحب' : 'Withdrawal') : tx.type === 'CREDIT' ? t.admin.storeProfile.financial.sales : t.admin.storeProfile.financial.withdrawal}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                <button 
+                                                                    className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-white/30 hover:text-white transition-all border border-white/5 disabled:opacity-30"
+                                                                    disabled={!tx.payment?.order?.id && !tx.escrow?.order?.id && !tx.metadata?.orderId}
+                                                                    onClick={() => {
+                                                                        const orderId = tx.payment?.order?.id || tx.escrow?.order?.id || tx.metadata?.orderId;
+                                                                        if (orderId && onNavigate) {
+                                                                            onNavigate('admin-order-details', orderId);
+                                                                        } else if (orderId) {
+                                                                            window.location.hash = `/dashboard/admin/orders/${orderId}`;
+                                                                        }
+                                                                    }}
+                                                                    title={isAr ? 'عرض تفاصيل الطلب' : 'View Order Details'}
+                                                                >
+                                                                    <FileText size={14} />
+                                                                </button>
+                                                            </td>
+                                                        </motion.tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={7} className="p-20 text-center opacity-10">
+                                                            <Activity size={40} className="mx-auto mb-2" />
+                                                            <p className="text-[10px] font-black uppercase tracking-widest">{t.admin.storeProfile.financial.noTransactions}</p>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </GlassCard>
+                            </div>
+                        )}
 
                         {/* 2. Withdrawal Ledger */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between px-2">
-                                <h4 className="text-[11px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                                    {t.admin.storeProfile.financial.withdrawalLedger}
-                                </h4>
-                            </div>
-                            <GlassCard className="min-h-[300px] border-white/5 bg-white/[0.01] overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-white/5 bg-white/[0.02]">
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.amount}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest text-center">{t.admin.storeProfile.financial.status}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.method}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.reviewDate}</th>
-                                                <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.requestDate}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/[0.03]">
-                                            {vendor.withdrawalRequests && vendor.withdrawalRequests.length > 0 ? (
-                                                vendor.withdrawalRequests.map((req: any, idx: number) => (
-                                                    <motion.tr 
-                                                        key={req.id} 
-                                                        initial={{ opacity: 0, x: 10 }} 
-                                                        animate={{ opacity: 1, x: 0 }} 
-                                                        transition={{ delay: 0.4 + (idx * 0.05) }}
-                                                        className="group hover:bg-white/[0.02] transition-colors"
-                                                    >
-                                                        <td className="p-4">
-                                                            <div className="text-sm font-black text-white font-mono tracking-tight tabular-nums">
-                                                                {Number(req.amount).toLocaleString()}
-                                                                <span className="text-[10px] text-white/40 ml-1">AED</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4 text-center">
-                                                            <div className={`px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-tight inline-flex ${
-                                                                req.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
-                                                                req.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 
-                                                                'bg-red-500/10 text-red-500 border-red-500/20'
-                                                            }`}>
-                                                                {req.status}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center">
-                                                                    <Hash size={12} className="text-blue-400/50" />
-                                                                </div>
-                                                                <span className="text-[10px] font-bold text-white/60 uppercase">
-                                                                    {req.payoutMethod || t.admin.storeProfile.financial.payoutMethod}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className="text-[10px] text-white/40 font-mono">
-                                                                {req.reviewedAt ? new Date(req.reviewedAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className="text-[10px] text-white/60 font-black">
-                                                                {new Date(req.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                                            </div>
-                                                        </td>
-                                                    </motion.tr>
-                                                ))
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan={5} className="p-20 text-center opacity-10">
-                                                        <Activity size={40} className="mx-auto mb-2" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">{isAr ? 'لا يوجد سجل سحوبات' : 'No withdrawal records'}</p>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                        {financialSubTab === 'withdrawals' && (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between px-2">
+                                    <h4 className="text-[11px] font-black text-white uppercase tracking-[0.3em] flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                                        {t.admin.storeProfile.financial.withdrawalLedger}
+                                    </h4>
+                                    <button 
+                                        onClick={handleExportWithdrawalsExcel}
+                                        className="flex items-center gap-2 px-6 py-2.5 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-black border border-green-500/20 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all group"
+                                    >
+                                        <FileText size={14} className="group-hover:scale-110 transition-transform" />
+                                        {isAr ? 'تصدير تقرير EXCEL' : 'Export Excel Report'}
+                                    </button>
                                 </div>
-                            </GlassCard>
-                        </div>
+                                <GlassCard className="min-h-[300px] border-white/5 bg-white/[0.01] overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="border-b border-white/5 bg-white/[0.02]">
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.amount}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest text-center">{t.admin.storeProfile.financial.status}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.method}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.reviewDate}</th>
+                                                    <th className="p-4 text-[10px] font-black text-white/40 uppercase tracking-widest">{t.admin.storeProfile.financial.requestDate}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/[0.03]">
+                                                {vendor.withdrawalRequests && vendor.withdrawalRequests.length > 0 ? (
+                                                    vendor.withdrawalRequests.map((req: any, idx: number) => (
+                                                        <motion.tr 
+                                                            key={req.id} 
+                                                            initial={{ opacity: 0, x: 10 }} 
+                                                            animate={{ opacity: 1, x: 0 }} 
+                                                            transition={{ delay: 0.4 + (idx * 0.05) }}
+                                                            className="group hover:bg-white/[0.02] transition-colors"
+                                                        >
+                                                            <td className="p-4">
+                                                                <div className="text-sm font-black text-white font-mono tracking-tight tabular-nums">
+                                                                    {Number(req.amount).toLocaleString()}
+                                                                    <span className="text-[10px] text-white/40 ml-1">AED</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                <div className={`px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-tight inline-flex ${
+                                                                    req.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
+                                                                    req.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 
+                                                                    'bg-red-500/10 text-red-500 border-red-500/20'
+                                                                }`}>
+                                                                    {req.status}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center">
+                                                                        <Hash size={12} className="text-blue-400/50" />
+                                                                    </div>
+                                                                    <span className="text-[10px] font-bold text-white/60 uppercase">
+                                                                        {req.payoutMethod || t.admin.storeProfile.financial.payoutMethod}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="text-[10px] text-white/40 font-mono">
+                                                                    {req.reviewedAt ? new Date(req.reviewedAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="text-[10px] text-white/60 font-black">
+                                                                    {new Date(req.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                                                </div>
+                                                            </td>
+                                                        </motion.tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={5} className="p-20 text-center opacity-10">
+                                                            <Activity size={40} className="mx-auto mb-2" />
+                                                            <p className="text-[10px] font-black uppercase tracking-widest">{isAr ? 'لا يوجد سجل سحوبات' : 'No withdrawal records'}</p>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </GlassCard>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -1713,11 +2081,20 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                 </div>
 
                                 <GlassCard className="p-0 h-[500px] flex flex-col overflow-hidden">
-                                    <div className="p-6 border-b border-white/5">
+                                    <div className="p-6 border-b border-white/5 flex items-center justify-between">
                                         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                                             <FileText size={16} className="text-gold-500" />
                                             {isAr ? 'لقطة العقد الموقع (Snapshot)' : 'Signed Contract Snapshot'}
                                         </h3>
+                                        
+                                        {/* 2026 Audit Action: Print Official Contract */}
+                                        <button 
+                                            onClick={() => handlePrintContract(acceptance)}
+                                            className="flex items-center gap-2 px-4 py-2 bg-gold-500/10 hover:bg-gold-500 text-gold-500 hover:text-black rounded-xl text-[9px] font-black uppercase tracking-widest border border-gold-500/20 transition-all"
+                                        >
+                                            <FileText size={12} />
+                                            {isAr ? 'طباعة العقد المعتمد' : 'Print Official Contract'}
+                                        </button>
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gold-500/30">
                                         <div className="whitespace-pre-wrap text-white/80 font-normal leading-relaxed text-base">
@@ -1990,6 +2367,14 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                 onConfirm={handleUpdateRestrictions}
                 title={isAr ? 'اعتماد القيود الإدارية' : 'Authorize Administrative Restrictions'}
                 subtitle={isAr ? 'يرجى التوقيع للمتابعة وتطبيق القيود على هذا المتجر' : 'Please sign to proceed and apply restrictions to this store'}
+            />
+
+            <AdminInitiateChatModal
+                isOpen={isChatModalOpen}
+                onClose={() => setIsChatModalOpen(false)}
+                onConfirm={handleInitiateChat}
+                targetName={vendor.name}
+                targetRole="VENDOR"
             />
 
         </div>

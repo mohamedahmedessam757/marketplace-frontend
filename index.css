@@ -54,3 +54,13 @@ body {
   border-right: 4px solid #A88B3E !important;
   background: linear-gradient(-90deg, rgba(168, 139, 62, 0.08) 0%, transparent 100%) !important;
 }
+
+/* Premium 2026 Shine Animation */
+@keyframes shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-shine {
+  animation: shine 2s infinite ease-in-out;
+}

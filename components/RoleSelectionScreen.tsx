@@ -173,34 +173,38 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
                             <ArrowIcon className="text-white/80 group-hover:text-white transition-colors" />
                         </motion.button>
 
-                        {/* Earn Income Button (New 2026 Feature) */}
+                        {/* Earn Income Button (New 2026 Feature) - Attention Grabbing Red Style */}
                         <motion.button
                             variants={itemVariants}
                             onClick={onEarnIncomeClick}
-                            whileHover={{ scale: 1.02, x: isAr ? -5 : 5 }}
+                            whileHover={{ scale: 1.05, y: -2 }}
                             whileTap={{ scale: 0.98 }}
-                            className="w-full group relative overflow-hidden rounded-xl p-4 flex items-center justify-between transition-all duration-300"
+                            className="w-full group relative overflow-hidden rounded-xl p-5 flex items-center justify-between transition-all duration-300"
                             style={{
-                                background: 'linear-gradient(135deg, #1A1814, #2A2824)',
-                                border: '1px solid rgba(168, 139, 62, 0.4)',
-                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+                                background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                boxShadow: '0 8px 32px rgba(239, 68, 68, 0.3)'
                             }}
                         >
-                            <div className="absolute inset-0 bg-gold-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center text-gold-500 border border-gold-500/20 group-hover:bg-gold-500 group-hover:text-black transition-all">
-                                    <TrendingUp size={20} />
+                            {/* Animated Shine Effect */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shine transition-transform" />
+                            
+                            <div className="flex items-center gap-4 relative z-10">
+                                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white border border-white/30 group-hover:scale-110 transition-transform shadow-inner">
+                                    <TrendingUp size={24} />
                                 </div>
                                 <div className="flex flex-col items-start">
-                                    <span className="text-lg font-bold text-white leading-tight">
+                                    <span className="text-xl font-black text-white leading-tight tracking-tight uppercase italic font-outfit">
                                         {t.common.roleSelection?.earnIncome || 'اكسب دخل شهري معنا'}
                                     </span>
-                                    <span className="text-[10px] text-white/40 font-medium">
+                                    <span className="text-[11px] text-white/80 font-bold uppercase tracking-wider mt-0.5">
                                         {t.common.roleSelection?.earnIncomeDesc || 'كل طلب = ربح كاش يُضاف إلى محفظتك'}
                                     </span>
                                 </div>
                             </div>
-                            <ArrowIcon className="text-white/40 group-hover:text-gold-500 transition-colors" />
+                            <div className="bg-black/20 p-2 rounded-full backdrop-blur-md border border-white/10 group-hover:bg-black/40 group-hover:border-white/20 transition-all">
+                                <ArrowIcon size={20} className="text-white group-hover:translate-x-0.5 transition-transform" />
+                            </div>
                         </motion.button>
 
                     </div>
