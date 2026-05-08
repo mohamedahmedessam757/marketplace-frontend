@@ -35,7 +35,8 @@ interface MerchantCartItemProps {
 }
 
 export const MerchantCartItem: React.FC<MerchantCartItemProps> = ({ item }) => {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
+    const isAr = language === 'ar';
 
     const txtPartsRequired = 'القطع المطلوبة';
     const txtVehicle = 'المركبة المعنية';
@@ -161,9 +162,11 @@ export const MerchantCartItem: React.FC<MerchantCartItemProps> = ({ item }) => {
                     {/* Shipping Address Row (Only for own offer) */}
                     {item.shippingAddress && item.isMyOffer && (
                         <div className="pt-4 border-t border-white/5 mt-2">
-                            <h5 className="text-gold-500/50 text-[10px] font-bold uppercase tracking-widest mb-2">وجهة الشحن للعميل</h5>
+                            <h5 className="text-gold-500/50 text-[10px] font-bold uppercase tracking-widest mb-2">
+                                {isAr ? 'وجهة الشحن للعميل' : 'CUSTOMER SHIPPING DESTINATION'}
+                            </h5>
                             <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
-                                <p className="text-white/80"><span className="text-white/40">الاسم: </span>{item.shippingAddress.fullName}</p>
+                                <p className="text-white/80"><span className="text-white/40">الاسم: </span>{isAr ? 'عميل منصة إي-تشليح' : 'E-Tashleh Customer'}</p>
                                 <p className="text-white/80"><span className="text-white/40">المدينة: </span>{item.shippingAddress.city}</p>
                             </div>
                         </div>

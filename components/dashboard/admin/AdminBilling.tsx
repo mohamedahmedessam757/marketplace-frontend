@@ -46,6 +46,8 @@ import { Landmark, History, Eye } from 'lucide-react';
 import { OrderFinancialDrawer } from './OrderFinancialDrawer';
 import { FinancialToast } from '../../ui/FinancialToast';
 import TransactionTypeFilter from './TransactionTypeFilter';
+import { BlurredSection } from './BlurredSection';
+import { useAdminPermissionsStore } from '../../../stores/useAdminPermissionsStore';
 
 interface AdminBillingProps {
     onNavigate?: (path: string, id: any) => void;
@@ -54,6 +56,8 @@ interface AdminBillingProps {
 export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
+    const isSectionBlurred = useAdminPermissionsStore(s => s.isSectionBlurred);
+    const canViewTab = useAdminPermissionsStore(s => s.canViewTab);
 
     // --- Selective store subscriptions to prevent flicker/re-renders ---
     const currentAdmin = useAdminStore(s => s.currentAdmin);
@@ -127,7 +131,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const typeDropdownRef = React.useRef<HTMLDivElement>(null);
     const roleDropdownRef = React.useRef<HTMLDivElement>(null);
 
-    const isSuperAdmin = currentAdmin?.role === 'SUPER_ADMIN';
+    const isHighLevelAdmin = currentAdmin?.role === 'SUPER_ADMIN' || currentAdmin?.role === 'ADMIN';
 
     useEffect(() => {
         // OVERVIEW Stats
@@ -172,6 +176,27 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [activeTab]);
+
+    // Permissions-based Tab filtering
+    const visibleTabs = useMemo(() => {
+        const allTabs = [
+            { id: 'OVERVIEW', label: t.admin.billing.panels.overview, icon: Activity, permissionKey: 'OVERVIEW' },
+            { id: 'TRANSACTIONS', label: t.admin.billing.panels.ledger, icon: ClipboardCheck, permissionKey: 'TRANSACTIONS' },
+            { id: 'WITHDRAWALS', label: t.admin.billing.panels.pipeline, icon: ArrowRightLeft, permissionKey: 'WITHDRAWALS' }
+        ];
+        return allTabs.map(tab => ({
+            ...tab,
+            isLocked: !canViewTab('BILLING', tab.permissionKey)
+        }));
+    }, [canViewTab, t]);
+
+    // Auto-switch if current tab is restricted
+    useEffect(() => {
+        const firstAllowed = visibleTabs.find(t => !t.isLocked);
+        if (firstAllowed && visibleTabs.find(t => t.id === activeTab)?.isLocked) {
+            setActiveTab(firstAllowed.id as any);
+        }
+    }, [visibleTabs, activeTab]);
 
     const kpis = adminFinancials?.kpis || {
         totalSales: 0, netCommission: 0, shippingProfit: 0, referralEarnings: 0,
@@ -224,7 +249,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                     </div>
                 </div>
                 <div className="mt-4">
-                    <h3 className="text-2xl font-black text-white font-mono tracking-tight">{value}</h3>
+                    <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                        <h3 className="text-2xl font-black text-white font-mono tracking-tight">{value}</h3>
+                    </BlurredSection>
                     {subValue && <p className="text-[10px] font-bold text-white/40 mt-1 uppercase ">{subValue}</p>}
                     {trend && (
                         <div className="mt-3 flex items-center gap-2">
@@ -295,7 +322,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                         >
                             <Download size={20} className="group-hover:scale-110 transition-transform" />
                         </button>
-                        {isSuperAdmin && (
+                        {isHighLevelAdmin && (
                             <button 
                                 onClick={() => setShowPayoutModal(true)} 
                                 className="px-8 py-4 bg-gold-500 hover:bg-gold-400 text-black font-black text-xs uppercase  rounded-2xl shadow-xl shadow-gold-500/20 transition-all flex items-center justify-center gap-3"
@@ -310,11 +337,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
 
             {/* Tab Navigation (Modern Floating Style) */}
             <div className="relative z-30 flex gap-2 sm:gap-4 p-2 bg-[#1A1814] border border-white/5 rounded-3xl w-fit mx-auto lg:mx-0 overflow-x-auto no-scrollbar shadow-2xl">
-                {[
-                    { id: 'OVERVIEW', label: t.admin.billing.panels.overview, icon: Activity },
-                    { id: 'TRANSACTIONS', label: t.admin.billing.panels.ledger, icon: ClipboardCheck },
-                    { id: 'WITHDRAWALS', label: t.admin.billing.panels.pipeline, icon: ArrowRightLeft }
-                ].map(tab => (
+                {visibleTabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
@@ -323,13 +346,23 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 ? 'bg-gold-500 text-black shadow-lg shadow-gold-500/20 scale-105' 
                                 : 'text-white/40 hover:text-white hover:bg-white/5'
                             }
+                            ${tab.isLocked ? 'opacity-70' : ''}
                         `}
                     >
                         <tab.icon size={16} />
                         {tab.label}
+                        {tab.isLocked && <Lock size={12} className={activeTab === tab.id ? 'text-black/50' : 'text-gold-500/50'} />}
                     </button>
                 ))}
             </div>
+
+            <BlurredSection
+                isBlurred={visibleTabs.find(t => t.id === activeTab)?.isLocked}
+                titleAr={`تبويب ${visibleTabs.find(t => t.id === activeTab)?.label} محمي`}
+                titleEn={`${visibleTabs.find(t => t.id === activeTab)?.label} Tab Protected`}
+                descriptionAr="لا تملك صلاحية الوصول لهذا التبويب. يرجى التواصل مع الإدارة العليا لتوسيع نطاق وصولك."
+                descriptionEn="You do not have permission to access this tab. Please contact senior management to expand your access scope."
+            >
 
             {activeTab === 'OVERVIEW' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
@@ -449,7 +482,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                             </div>
 
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[13px] font-black text-white truncate group-hover:text-blue-400 transition-colors">{item.name}</p>
+                                                <BlurredSection isBlurred={isSectionBlurred('customer_name')}>
+                                                    <p className="text-[13px] font-black text-white truncate group-hover:text-blue-400 transition-colors">{item.name}</p>
+                                                </BlurredSection>
                                                 <div className="flex items-center gap-2 text-[9px] text-white/30 font-bold uppercase mt-0.5">
                                                     <Package size={10} />
                                                     <span>{item.ordersCount} {isAr ? 'عمليات' : 'Orders'}</span>
@@ -505,7 +540,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
 
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-0.5">
-                                                    <span className="text-[13px] font-black text-white truncate group-hover:text-gold-400 transition-colors">{item.name}</span>
+                                                    <BlurredSection isBlurred={isSectionBlurred('customer_name')}>
+                                                        <span className="text-[13px] font-black text-white truncate group-hover:text-gold-400 transition-colors">{item.name}</span>
+                                                    </BlurredSection>
                                                     {item.rating > 0 && (
                                                         <div className="flex items-center gap-1 bg-black/20 px-1.5 py-0.5 rounded-full border border-white/5 shrink-0">
                                                             <span className="text-[8px] font-black text-gold-400">{item.rating}</span>
@@ -542,7 +579,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                     </p>
                                 </div>
                                 <div className="text-right">
-                                    <span className="block text-2xl font-bold text-gold-400 font-mono">{kpis.totalSales.toLocaleString()} AED</span>
+                                    <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                                        <span className="block text-2xl font-bold text-gold-400 font-mono">{kpis.totalSales.toLocaleString()} AED</span>
+                                    </BlurredSection>
                                     <span className="block text-[10px] text-white/30 mt-1 uppercase">{t.admin.billing.kpis.totalSales}</span>
                                 </div>
                             </div>
@@ -687,16 +726,20 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                         )}
                                                         <div className="text-[10px] text-white/40 font-bold flex items-center gap-2">
                                                             {item.customerName && (
-                                                                <span className="flex items-center gap-1">
-                                                                    <User size={10} />
-                                                                    {item.customerName}
-                                                                </span>
+                                                                <BlurredSection isBlurred={isSectionBlurred('customer_name')}>
+                                                                    <span className="flex items-center gap-1">
+                                                                        <User size={10} />
+                                                                        {item.customerName}
+                                                                    </span>
+                                                                </BlurredSection>
                                                             )}
                                                             {item.storeName && (
-                                                                <span className="flex items-center gap-1 text-gold-500/50">
-                                                                    <Crown size={10} />
-                                                                    {item.storeName}
-                                                                </span>
+                                                                <BlurredSection isBlurred={isSectionBlurred('customer_name')}>
+                                                                    <span className="flex items-center gap-1 text-gold-500/50">
+                                                                        <Crown size={10} />
+                                                                        {item.storeName}
+                                                                    </span>
+                                                                </BlurredSection>
                                                             )}
                                                         </div>
                                                     </div>
@@ -705,7 +748,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                     <div className={`font-mono text-lg font-black flex items-center justify-center gap-2 ${
                                                         isCredit ? 'text-emerald-400' : isDebit ? 'text-rose-400' : 'text-white/60'
                                                     }`}>
-                                                        {isDebit ? '-' : '+'}{Number(item.amount).toLocaleString()}
+                                                        <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                                                            <span>{isDebit ? '-' : '+'}{Number(item.amount).toLocaleString()}</span>
+                                                        </BlurredSection>
                                                         <span className="text-[10px] opacity-30 font-bold uppercase">{item.currency}</span>
                                                     </div>
                                                 </td>
@@ -792,13 +837,18 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                         {req.store?.name?.[0] || req.user?.name?.[0] || 'U'}
                                                     </div>
                                                     <div>
-                                                        <div className="font-black text-white text-sm">{req.store?.name || req.user?.name}</div>
+                                                        <BlurredSection isBlurred={isSectionBlurred('customer_name')}>
+                                                            <div className="font-black text-white text-sm">{req.store?.name || req.user?.name}</div>
+                                                        </BlurredSection>
                                                         <div className="text-[9px] text-white/30 font-black uppercase  mt-1">{req.role} NODE</div>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 font-mono font-black text-gold-500 text-lg">
-                                                {Number(req.amount).toLocaleString()} <span className="text-[10px] text-white/20 uppercase">AED</span>
+                                                <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                                                    <span>{Number(req.amount).toLocaleString()}</span>
+                                                </BlurredSection>
+                                                <span className="text-[10px] text-white/20 uppercase ml-1">AED</span>
                                             </td>
                                             <td className="px-8 py-6">
                                                 <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[9px] uppercase  border ${
@@ -834,7 +884,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                         <Landmark size={20} className="group-hover/btn:scale-110 transition-transform" />
                                                     </button>
 
-                                                    {req.status === 'PENDING' && isSuperAdmin && (
+                                                    {req.status === 'PENDING' && isHighLevelAdmin && (
                                                         <>
                                                             <button 
                                                                 onClick={() => {
@@ -951,20 +1001,22 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                 )}
                                             </div>
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-[10px] text-white/40 uppercase">{isAr ? 'اسم البنك' : 'Bank Name'}</span>
-                                                <span className="text-sm font-bold text-white">{entity.bankName || '---'}</span>
-                                            </div>
-                                            <div className="flex flex-col gap-1">
                                                 <span className="text-[10px] text-white/40 uppercase">{isAr ? 'اسم صاحب الحساب' : 'Account Holder'}</span>
-                                                <span className="text-sm font-bold text-white">{entity.bankAccountHolder || '---'}</span>
+                                                <BlurredSection isBlurred={isSectionBlurred('merchant_bank_details')}>
+                                                    <span className="text-sm font-bold text-white">{entity.bankAccountHolder || '---'}</span>
+                                                </BlurredSection>
                                             </div>
                                             <div className="flex flex-col gap-1">
                                                 <span className="text-[10px] text-white/40 uppercase">IBAN</span>
-                                                <span className="text-sm font-mono font-bold text-gold-500 break-all">{entity.bankIban || '---'}</span>
+                                                <BlurredSection isBlurred={isSectionBlurred('merchant_bank_details')}>
+                                                    <span className="text-sm font-mono font-bold text-gold-500 break-all">{entity.bankIban || '---'}</span>
+                                                </BlurredSection>
                                             </div>
                                             <div className="flex flex-col gap-1">
                                                 <span className="text-[10px] text-white/40 uppercase">SWIFT Code</span>
-                                                <span className="text-sm font-mono font-bold text-white break-all">{entity.bankSwift || '---'}</span>
+                                                <BlurredSection isBlurred={isSectionBlurred('merchant_bank_details')}>
+                                                    <span className="text-sm font-mono font-bold text-white break-all">{entity.bankSwift || '---'}</span>
+                                                </BlurredSection>
                                             </div>
 
                                             {!entity.bankDetailsVerified && (
@@ -998,6 +1050,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                     </div>
                 </div>
             )}
+            </BlurredSection>
             {/* Phase 4: Financial Audit Drawer */}
             <OrderFinancialDrawer 
                 orderId={selectedOrderIdForTimeline} 

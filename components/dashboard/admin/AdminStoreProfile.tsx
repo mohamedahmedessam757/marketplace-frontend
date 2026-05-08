@@ -22,6 +22,8 @@ import { PrintTemplate } from './PrintTemplate';
 import { printHtml } from '../../../utils/print';
 import { renderToString } from 'react-dom/server';
 import { chatsApi } from '../../../services/api/chats';
+import { BlurredSection } from './BlurredSection';
+import { useAdminPermissionsStore } from '../../../stores/useAdminPermissionsStore';
 import * as XLSX from 'xlsx';
 
 interface AdminStoreProfileProps {
@@ -32,7 +34,14 @@ interface AdminStoreProfileProps {
 
 export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
+    const isAr = language === 'ar';
     const { currentStoreProfile, subscribeToStoreProfile, unsubscribeFromStoreProfile, silentFetchStoreProfile, isLoadingStores } = useAdminStore();
+    const vendor = currentStoreProfile;
+    const isSectionBlurred = useAdminPermissionsStore(s => s.isSectionBlurred);
+    const canViewTab = useAdminPermissionsStore(s => s.canViewTab);
+
+    // Tab State (Defined early to be used in effects)
+    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'reviews' | 'financial' | 'sessions' | 'contract' | 'restrictions'>('overview');
 
     // Local state for modal
     const [selectedDoc, setSelectedDoc] = useState<{ type: string, title: string, url: string } | null>(null);
@@ -42,9 +51,41 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
     const [pendingRestrictionAction, setPendingRestrictionAction] = useState<'UPDATE' | 'CLEAR' | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
     const [adminNotes, setAdminNotes] = useState(currentStoreProfile?.adminNotes || '');
+    
+    React.useEffect(() => {
+        if (currentStoreProfile?.adminNotes) setAdminNotes(currentStoreProfile.adminNotes);
+    }, [currentStoreProfile]);
+
+    // Permissions-based Tab filtering
+    const visibleTabs = React.useMemo(() => {
+        const allTabs = [
+            { id: 'overview', icon: Activity, label: t.admin.storeProfile.tabs.overview, permissionKey: 'OVERVIEW' },
+            { id: 'orders', icon: CreditCard, label: t.admin.storeProfile.tabs.orders, permissionKey: 'ORDERS' },
+            { id: 'disputes', icon: XCircle, label: t.admin.storeProfile.tabs.disputes, permissionKey: 'DISPUTES' },
+            { id: 'reviews', icon: Star, label: t.admin.storeProfile.tabs.reviews, permissionKey: 'REVIEWS' },
+            { id: 'financial', icon: Wallet, label: t.admin.storeProfile.tabs.financial, permissionKey: 'FINANCIAL' },
+            { id: 'sessions', icon: Smartphone, label: t.admin.storeProfile.tabs.sessions, permissionKey: 'SESSIONS' },
+            { id: 'contract', icon: FileText, label: t.admin.storeProfile.tabs.contract, permissionKey: 'CONTRACT' },
+            { id: 'restrictions', icon: ShieldAlert, label: isAr ? 'القيود والتحكم' : 'Restrictions', permissionKey: 'RESTRICTIONS' },
+        ];
+        return allTabs.map(tab => ({
+            ...tab,
+            isLocked: !canViewTab('STORE_PROFILE', tab.permissionKey)
+        }));
+    }, [canViewTab, isAr, t]);
+
+    // Auto-switch logic: Only auto-switch if the user has NO allowed tabs at all
+    // If they have locked tabs, let them see the locked state
+    // Auto-switch logic: Pick the first allowed tab on initial load
+    React.useEffect(() => {
+        const firstAllowed = visibleTabs.find(t => !t.isLocked);
+        if (firstAllowed) {
+             setActiveTab(firstAllowed.id as any);
+        }
+    }, []);
+
     const [banType, setBanType] = useState<'BLOCKED' | 'SUSPENDED'>('SUSPENDED');
     const [suspensionDays, setSuspensionDays] = useState(7);
-    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'reviews' | 'financial' | 'sessions' | 'contract' | 'restrictions'>('overview');
     const [financialStats, setFinancialStats] = useState<{
         available: number;
         pending: number;
@@ -421,8 +462,6 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         printHtml(html, `Contract_${vendor.storeCode}`);
     };
 
-    const vendor = currentStoreProfile;
-    const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronRight : ChevronLeft;
 
     React.useEffect(() => {
@@ -656,10 +695,10 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                             </div>
                         </div>
 
-                        {vendor.owner?.withdrawalFreezeNote && vendor.owner?.withdrawalsFrozen && (
+                        {vendor.withdrawalFreezeNote && vendor.withdrawalsFrozen && (
                             <div className="flex-1 min-w-[200px] bg-white/5 p-3 rounded-xl border border-white/5">
                                 <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">{isAr ? 'سبب التجميد' : 'Freeze Reason'}</p>
-                                <p className="text-xs text-white/80 font-medium italic">"{vendor.owner.withdrawalFreezeNote}"</p>
+                                <p className="text-xs text-white/80 font-medium italic">"{vendor.withdrawalFreezeNote}"</p>
                             </div>
                         )}
 
@@ -719,7 +758,9 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                     </div>
                                     <div className="flex items-center justify-center md:justify-start gap-3 text-white/70 hover:text-white transition-colors">
                                         <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><Phone size={14} className="text-gold-500/70" /></div>
-                                        <span className="text-sm font-medium leading-none tabular-nums" dir="ltr">{vendor.owner?.phone || 'N/A'}</span>
+                                        <BlurredSection isBlurred={isSectionBlurred('customer_phone')}>
+                                            <span className="text-sm font-medium leading-none tabular-nums" dir="ltr">{vendor.owner?.phone || 'N/A'}</span>
+                                        </BlurredSection>
                                     </div>
                                     <div className="flex items-center justify-center md:justify-start gap-3 text-white/70 hover:text-white transition-colors sm:col-span-1">
                                         <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><Calendar size={14} className="text-gold-500/70" /></div>
@@ -888,16 +929,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
 
             {/* Advanced Tabs Navigation */}
             <div className="flex gap-2 p-1.5 bg-white/5 border border-white/10 rounded-2xl overflow-x-auto no-scrollbar scroll-smooth">
-                {[
-                    { id: 'overview', icon: Activity, label: t.admin.storeProfile.tabs.overview },
-                    { id: 'orders', icon: CreditCard, label: t.admin.storeProfile.tabs.orders },
-                    { id: 'disputes', icon: XCircle, label: t.admin.storeProfile.tabs.disputes },
-                    { id: 'reviews', icon: Star, label: t.admin.storeProfile.tabs.reviews },
-                    { id: 'financial', icon: Wallet, label: t.admin.storeProfile.tabs.financial },
-                    { id: 'sessions', icon: Smartphone, label: t.admin.storeProfile.tabs.sessions },
-                    { id: 'contract', icon: FileText, label: t.admin.storeProfile.tabs.contract },
-                    { id: 'restrictions', icon: ShieldAlert, label: isAr ? 'القيود والتحكم' : 'Restrictions' },
-                ].map((tab) => (
+                {visibleTabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
@@ -907,15 +939,34 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                 ? 'bg-gold-500 text-[#0F0E0D] shadow-lg shadow-gold-500/20 active:scale-95' 
                                 : 'text-white/40 hover:text-white hover:bg-white/5'
                             }
+                            ${tab.isLocked ? 'opacity-70' : ''}
                         `}
                     >
                         <tab.icon size={18} />
                         {tab.label}
+                        {tab.isLocked && <Lock size={12} className={activeTab === tab.id ? 'text-[#0F0E0D]/50' : 'text-red-500/50'} />}
                     </button>
                 ))}
             </div>
             
-            {activeTab === 'overview' && (
+            {/* Tab Content Governance Layer */}
+            <div className="relative">
+                <BlurredSection
+                    isBlurred={visibleTabs.find(t => t.id === activeTab)?.isLocked}
+                    titleAr={`تبويب ${visibleTabs.find(t => t.id === activeTab)?.label} محمي`}
+                    titleEn={`${visibleTabs.find(t => t.id === activeTab)?.label} Tab Protected`}
+                    descriptionAr="لا تملك صلاحية الوصول لهذا التبويب. يرجى التواصل مع الإدارة العليا لتوسيع نطاق وصولك."
+                    descriptionEn="You do not have permission to access this tab. Please contact senior management to expand your access scope."
+                >
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeTab}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            {activeTab === 'overview' && (
                 <div className="grid lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {/* Column 1: Merchant Identity & Context */}
                     <div className="lg:col-span-2 space-y-6">
@@ -1129,7 +1180,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                     const translatedTitle = isAr ? (docTypeMap[doc.docType]?.ar || doc.docType) : (docTypeMap[doc.docType]?.en || doc.docType);
 
                                     return (
-                                        <button 
+                                        <div 
                                             key={doc.id}
                                             onClick={() => setSelectedDoc({
                                                 url: doc.fileUrl,
@@ -1137,7 +1188,9 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                                 type: doc.docType,
                                                 status: doc.status
                                             })}
-                                            className="group p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-white/30 transition-all text-left relative overflow-hidden"
+                                            className="group p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-white/30 transition-all text-left relative overflow-hidden cursor-pointer"
+                                            role="button"
+                                            tabIndex={0}
                                         >
                                             <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-30 transition-opacity">
                                                 <FileText size={24} />
@@ -1234,7 +1287,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                                     )}
                                                 </div>
                                             </div>
-                                        </button>
+                                        </div>
                                     );
                                 })}
                                 {(!vendor.documents || vendor.documents.length === 0) && (
@@ -1573,9 +1626,11 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                         <div className="h-8 w-24 bg-white/5 rounded-lg animate-pulse" />
                                     ) : (
                                         <>
-                                            <span className="text-3xl font-black text-white font-mono leading-none">
-                                                {Number(financialStats?.available || 0).toLocaleString()}
-                                            </span>
+                                            <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                                                <span className="text-3xl font-black text-white font-mono leading-none">
+                                                    {Number(financialStats?.available || 0).toLocaleString()}
+                                                </span>
+                                            </BlurredSection>
                                             <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
                                         </>
                                     )}
@@ -1602,9 +1657,11 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                         <div className="h-8 w-24 bg-white/5 rounded-lg animate-pulse" />
                                     ) : (
                                         <>
-                                            <span className="text-3xl font-black text-white font-mono leading-none">
-                                                {Number(financialStats?.pending || 0).toLocaleString()}
-                                            </span>
+                                            <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                                                <span className="text-3xl font-black text-white font-mono leading-none">
+                                                    {Number(financialStats?.pending || 0).toLocaleString()}
+                                                </span>
+                                            </BlurredSection>
                                             <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
                                         </>
                                     )}
@@ -1631,9 +1688,11 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                         <div className="h-8 w-24 bg-white/5 rounded-lg animate-pulse" />
                                     ) : (
                                         <>
-                                            <span className="text-3xl font-black text-white font-mono leading-none">
-                                                {Number(financialStats?.frozen || 0).toLocaleString()}
-                                            </span>
+                                            <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                                                <span className="text-3xl font-black text-white font-mono leading-none">
+                                                    {Number(financialStats?.frozen || 0).toLocaleString()}
+                                                </span>
+                                            </BlurredSection>
                                             <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
                                         </>
                                     )}
@@ -1660,9 +1719,11 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                         <div className="h-8 w-32 bg-white/5 rounded-lg animate-pulse" />
                                     ) : (
                                         <>
-                                            <span className="text-3xl font-black text-white font-mono leading-none">
-                                                {Number(financialStats?.netEarnings || 0).toLocaleString()}
-                                            </span>
+                                            <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                                                <span className="text-3xl font-black text-white font-mono leading-none">
+                                                    {Number(financialStats?.netEarnings || 0).toLocaleString()}
+                                                </span>
+                                            </BlurredSection>
                                             <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
                                         </>
                                     )}
@@ -1688,9 +1749,11 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                         <div className="h-8 w-32 bg-white/5 rounded-lg animate-pulse" />
                                     ) : (
                                         <>
-                                            <span className="text-3xl font-black text-white font-mono leading-none">
-                                                {Number(financialStats?.totalSales || 0).toLocaleString()}
-                                            </span>
+                                            <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
+                                                <span className="text-3xl font-black text-white font-mono leading-none">
+                                                    {Number(financialStats?.totalSales || 0).toLocaleString()}
+                                                </span>
+                                            </BlurredSection>
                                             <span className="text-[10px] font-bold text-white/30 uppercase">AED</span>
                                         </>
                                     )}
@@ -2040,7 +2103,9 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                             </div>
                                             <div className="flex justify-between border-b border-white/5 pb-2">
                                                 <span className="text-white/50 text-sm">{isAr ? 'رقم السجل:' : 'CR Number:'}</span>
-                                                <span className="text-white text-sm">{acceptance.secondPartyData?.crNumber || '-'}</span>
+                                                <BlurredSection isBlurred={isSectionBlurred('merchant_bank_details')}>
+                                                    <span className="text-white text-sm">{acceptance.secondPartyData?.crNumber || '-'}</span>
+                                                </BlurredSection>
                                             </div>
                                             <div className="flex justify-between border-b border-white/5 pb-2">
                                                 <span className="text-white/50 text-sm">{isAr ? 'الرخصة / الانتهاء:' : 'License / Expiry:'}</span>
@@ -2064,9 +2129,11 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                             </div>
                                             <div className="flex justify-between border-b border-white/5 pb-2">
                                                 <span className="text-white/50 text-sm">{isAr ? 'البريد / الهاتف:' : 'Email / Phone:'}</span>
-                                                <span className="text-white text-sm break-all">
-                                                    {acceptance.signatureData?.email || vendor.owner?.email || '-'} / {acceptance.signatureData?.phone || vendor.owner?.phone || '-'}
-                                                </span>
+                                                <BlurredSection isBlurred={isSectionBlurred('customer_phone')}>
+                                                    <span className="text-white text-sm break-all">
+                                                        {acceptance.signatureData?.email || vendor.owner?.email || '-'} / {acceptance.signatureData?.phone || vendor.owner?.phone || '-'}
+                                                    </span>
+                                                </BlurredSection>
                                             </div>
                                             <div className="flex justify-between border-b border-white/5 pb-2">
                                                 <span className="text-white/50 text-sm">{isAr ? 'تاريخ التوقيع:' : 'Signed At:'}</span>
@@ -2271,7 +2338,11 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                         </button>
                     </div>
                 </div>
-            )}
+                                            )}
+                        </motion.div>
+                    </AnimatePresence>
+                </BlurredSection>
+            </div>
 
             <AnimatePresence>
                 {selectedDoc && (

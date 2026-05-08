@@ -669,6 +669,7 @@ function AppContent() {
                       {dashboardPath === 'violations' && <AdminHome subPath="violations" />}
                       {dashboardPath === 'chats' && <AdminChatOversight />}
                       {dashboardPath === 'chat-monitoring' && <AdminChatMonitoring />}
+                      {dashboardPath === 'access-control' && <AdminHome subPath="access-control" />}
                       {dashboardPath === 'profile' && <ProfileView />}
                     </DashboardLayout>
                   )}

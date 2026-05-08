@@ -264,7 +264,11 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
                                                     </div>
                                                     <div className="space-y-1">
                                                         <span className="text-[10px] text-white/30 uppercase font-bold">{isAr ? 'العنوان التفصيلي' : 'Full Address'}</span>
-                                                        <p className="text-xs text-white/60 leading-relaxed bg-black/20 p-2 rounded">{shipment.customerDetails || shipment.shippingAddress}</p>
+                                                        <p className="text-xs text-white/60 leading-relaxed bg-black/20 p-2 rounded">
+                                                            {role === 'merchant' 
+                                                                ? (isAr ? 'بيانات مخفية للخصوصية' : 'Hidden for Privacy') 
+                                                                : (shipment.customerDetails || shipment.shippingAddress)}
+                                                        </p>
                                                     </div>
                                                 </div>
 
@@ -303,7 +307,9 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
                                              <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
                                                  <div className="flex items-center gap-3 text-xs">
                                                      <MapPin size={14} className="text-gold-500 shrink-0" />
-                                                     <span className="text-white/50">{shipment.shippingAddress}</span>
+                                                     <span className="text-white/50">
+                                                         {role === 'merchant' ? (isAr ? 'العنوان محمي من قبل المنصة' : 'Protected by Platform') : shipment.shippingAddress}
+                                                     </span>
                                                  </div>
                                                  <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg border border-white/5">
                                                      <Package size={12} className="text-gold-500" />

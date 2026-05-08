@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { invoicesApi } from './../../../services/api/invoices';
 import { useLanguage } from './../../../contexts/LanguageContext';
 import { useNotificationStore } from './../../../stores/useNotificationStore';
-import { 
+import {
     Receipt, Printer, Download, ShieldAlert,
     X, FileText, ChevronDown, ChevronUp,
     Package, Store, Truck, ShieldCheck,
     Calendar, Hash, MapPin, Phone, Mail, User, Car, Info,
     DollarSign, Percent, TrendingUp, CreditCard
 } from 'lucide-react';
+import { excelApi } from './../../../services/api/excel';
 import { GlassCard } from './../../ui/GlassCard';
 import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from './../../../services/supabase';
@@ -104,6 +106,9 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
     const [activeInvoice, setActiveInvoice] = useState<any | null>(null);
     const [expandedPolicy, setExpandedPolicy] = useState<string | null>(null);
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+    const [isExporting, setIsExporting] = useState<string | null>(null);
+
+    const isMerchant = role === 'MERCHANT';
 
 
     const isSystemAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
@@ -176,6 +181,17 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
         }, 500);
     };
 
+    const handleExportExcel = async (inv: any) => {
+        try {
+            setIsExporting(inv.id);
+            await excelApi.downloadInvoice(inv.orderId || orderId, inv.invoiceNumber);
+        } catch (err) {
+            console.error('Export failed:', err);
+        } finally {
+            setIsExporting(null);
+        }
+    };
+
     if (isLoading) {
         return <div className="text-white/50 text-center py-8">{isAr ? 'جاري التحميل...' : 'Loading...'}</div>;
     }
@@ -239,11 +255,11 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
     ].filter(Boolean);
 
     const InvoiceContentBlock = ({ inv }: { inv: any }) => {
-        const order = inv.order || {};
-        const acceptedOffer = order.offers?.find((o: any) => o.status === 'accepted');
-        const shippingAddr = order.shippingAddresses?.[0] || null;
-        const customer = order.customer || null;
-        const offerStore = acceptedOffer?.store || order.store || null;
+        const order = inv?.order || {};
+        const acceptedOffer = order?.offers?.find((o: any) => o.status === 'accepted' || o.status === 'ACCEPTED');
+        const shippingAddr = order?.shippingAddresses?.[0] || null;
+        const customer = order?.customer || null;
+        const offerStore = acceptedOffer?.store || order?.store || null;
 
         const invoiceNumber = inv.invoiceNumber || `INV-${order.orderNumber}`;
         const orderNumber = order.orderNumber || '--';
@@ -327,9 +343,11 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                     </div>
                     <div className="text-right">
                         <p className="text-[20px] font-black text-gray-800 uppercase tracking-widest inv-value mb-1">
-                            {isAr ? 'فاتورة' : 'INVOICE'}
+                            {isMerchant
+                                ? (isAr ? 'بيان مستحقات التاجر' : 'MERCHANT ENTITLEMENT STATEMENT')
+                                : (isAr ? 'فاتورة ضريبية' : 'TAX INVOICE')}
                         </p>
-                        <p className="text-gray-500 font-mono text-sm inv-label">TRN: 10045678900003</p>
+                        {!isMerchant && <p className="text-gray-500 font-mono text-sm inv-label">TRN: 10045678900003</p>}
                     </div>
                 </div>
 
@@ -395,9 +413,15 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                     <div className="bg-white/5 rounded-xl p-5 border border-white/5 inv-section">
                         <SectionHeader icon={User} titleAr="بيانات العميل (المستلم)" titleEn="Customer (Receiver)" />
                         <div className="space-y-2 text-xs sm:text-sm text-gray-300 mt-4">
-                            <p className="font-bold text-white text-base inv-value mb-2">{customerName}</p>
-                            {customer?.email && <InfoRow icon={Mail} label={isAr ? 'البريد' : 'Email'} value={customer.email} />}
-                            {customer?.phone && <InfoRow icon={Phone} label={isAr ? 'الهاتف' : 'Phone'} value={`${customer.countryCode || ''} ${customer.phone}`} />}
+                            <p className="font-bold text-white text-base inv-value mb-2">
+                                {isMerchant ? (isAr ? 'عميل منصة إي-تشليح' : 'E-Tashleh Customer') : customerName}
+                            </p>
+                            {!isMerchant && (
+                                <>
+                                    {customer?.email && <InfoRow icon={Mail} label={isAr ? 'البريد' : 'Email'} value={customer.email} />}
+                                    {customer?.phone && <InfoRow icon={Phone} label={isAr ? 'الهاتف' : 'Phone'} value={`${customer.countryCode || ''} ${customer.phone}`} />}
+                                </>
+                            )}
                             {(vehicleMake || vehicleModel) && (
                                 <InfoRow icon={Car} label={isAr ? 'السيارة' : 'Vehicle'} value={`${vehicleMake} ${vehicleModel} ${vehicleYear}`} />
                             )}
@@ -407,23 +431,25 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                 </div>
 
                 {/* ═══ SECTION 3: SHIPPING ═══ */}
-                <div className="bg-white/5 rounded-xl p-5 border border-white/5 mt-6 inv-section">
-                    <SectionHeader icon={Truck} titleAr="عنوان التوصيل السريع" titleEn="Express Shipping Address" />
-                    {shippingAddr ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 bg-black/20 p-4 rounded-lg border border-white/5">
-                            <InfoRow icon={User} label={isAr ? 'المستلم' : 'Receiver'} value={shippingAddr.fullName || '--'} />
-                            <InfoRow icon={Phone} label={isAr ? 'رقم التواصل' : 'Contact Number'} value={shippingAddr.phone || '--'} />
-                            {shippingAddr.email && <InfoRow icon={Mail} label={isAr ? 'البريد البديل' : 'Alt Email'} value={shippingAddr.email} />}
-                            <InfoRow icon={MapPin} label={isAr ? 'المدينة' : 'City'} value={shippingAddr.city || '--'} />
-                            <InfoRow icon={MapPin} label={isAr ? 'الدولة' : 'Country'} value={shippingAddr.country || '--'} />
-                            <InfoRow icon={MapPin} label={isAr ? 'العنوان التفصيلي' : 'Detailed Address'} value={shippingAddr.details || '--'} />
-                        </div>
-                    ) : (
-                        <div className="p-4 bg-black/20 rounded-lg border border-white/5">
-                            <p className="text-sm font-medium text-gray-400 italic text-center inv-label">{isAr ? 'لا يوجد عنوان شحن مسجل لهذا الطلب' : 'No shipping address registered for this order'}</p>
-                        </div>
-                    )}
-                </div>
+                {!isMerchant && (
+                    <div className="bg-white/5 rounded-xl p-5 border border-white/5 mt-6 inv-section">
+                        <SectionHeader icon={Truck} titleAr="عنوان التوصيل السريع" titleEn="Express Shipping Address" />
+                        {shippingAddr ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 bg-black/20 p-4 rounded-lg border border-white/5">
+                                <InfoRow icon={User} label={isAr ? 'المستلم' : 'Receiver'} value={shippingAddr.fullName || '--'} />
+                                <InfoRow icon={Phone} label={isAr ? 'رقم التواصل' : 'Contact Number'} value={shippingAddr.phone || '--'} />
+                                {shippingAddr.email && <InfoRow icon={Mail} label={isAr ? 'البريد البديل' : 'Alt Email'} value={shippingAddr.email} />}
+                                <InfoRow icon={MapPin} label={isAr ? 'المدينة' : 'City'} value={shippingAddr.city || '--'} />
+                                <InfoRow icon={MapPin} label={isAr ? 'الدولة' : 'Country'} value={shippingAddr.country || '--'} />
+                                <InfoRow icon={MapPin} label={isAr ? 'العنوان التفصيلي' : 'Detailed Address'} value={shippingAddr.details || '--'} />
+                            </div>
+                        ) : (
+                            <div className="p-4 bg-black/20 rounded-lg border border-white/5">
+                                <p className="text-sm font-medium text-gray-400 italic text-center inv-label">{isAr ? 'لا يوجد عنوان شحن مسجل لهذا الطلب' : 'No shipping address registered for this order'}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* ═══ SECTION 4: CUSTOMER ORDER ═══ */}
                 <div className="bg-white/5 rounded-xl p-5 border border-white/5 mt-6 inv-section">
@@ -490,22 +516,22 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                                 </h4>
                                 <Percent size={14} className="text-gold-500/40" />
                             </div>
-                            
+
                             <div className="divide-y divide-white/5">
                                 <div className="flex justify-between py-2 text-xs">
-                                    <span className="text-gray-400 flex items-center gap-2 inv-label"><Package size={12}/> {isAr ? 'قيمة القطعة' : 'Part Price'}</span>
+                                    <span className="text-gray-400 flex items-center gap-2 inv-label"><Package size={12} /> {isAr ? 'قيمة القطعة' : 'Part Price'}</span>
                                     <span className="text-white font-mono inv-value">{Math.round(subtotal).toLocaleString()} AED</span>
                                 </div>
                                 <div className="flex justify-between py-2 text-xs">
-                                    <span className="text-gray-400 flex items-center gap-2 inv-label"><TrendingUp size={12}/> {isAr ? 'عمولة المنصة المقتطعة' : 'Platform Commission Taken'}</span>
+                                    <span className="text-gray-400 flex items-center gap-2 inv-label"><TrendingUp size={12} /> {isAr ? 'عمولة المنصة المقتطعة' : 'Platform Commission Taken'}</span>
                                     <span className="text-green-400 font-mono inv-value">+{Math.round(commission).toLocaleString()} AED</span>
                                 </div>
                                 <div className="flex justify-between py-2 text-xs">
-                                    <span className="text-gray-400 flex items-center gap-2 inv-label"><Truck size={12}/> {isAr ? 'صافي إيراد الشحن' : 'Net Shipping Revenue'}</span>
+                                    <span className="text-gray-400 flex items-center gap-2 inv-label"><Truck size={12} /> {isAr ? 'صافي إيراد الشحن' : 'Net Shipping Revenue'}</span>
                                     <span className="text-green-400 font-mono inv-value">+{Math.round(shipping).toLocaleString()} AED</span>
                                 </div>
                                 <div className="flex justify-between py-3 text-sm font-bold border-t border-gold-500/20 mt-2">
-                                    <span className="text-gold-500 flex items-center gap-2 inv-label"><CreditCard size={14}/> {isAr ? 'تحويل مستحقات التاجر' : 'Merchant Payout Amount'}</span>
+                                    <span className="text-gold-500 flex items-center gap-2 inv-label"><CreditCard size={14} /> {isAr ? 'تحويل مستحقات التاجر' : 'Merchant Payout Amount'}</span>
                                     <span className="text-red-400 font-mono inv-value">-{Math.round(merchantPayout).toLocaleString()} AED</span>
                                 </div>
                             </div>
@@ -523,28 +549,39 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                 {/* ═══ SECTION 6: FINAL TOTAL ═══ */}
                 <div className="bg-gradient-to-r from-gold-500/20 to-black/40 rounded-xl p-6 sm:p-8 border-2 border-gold-500 mt-8 shadow-[0_0_30px_rgba(184,134,11,0.15)] inv-total-box flex flex-col sm:flex-row items-center justify-between gap-6">
                     <div className="w-full sm:w-1/2 space-y-3">
-                        <div className="flex justify-between text-xs sm:text-sm text-gray-400">
-                            <span>{isAr ? 'قيمة القطعة' : 'Part Price'}</span>
-                            <span className="font-mono text-white">{subtotal.toLocaleString()} AED</span>
-                        </div>
-                        <div className="flex justify-between text-xs sm:text-sm text-gray-400">
-                            <span>{isAr ? 'الشحن والتوصيل' : 'Shipping'}</span>
-                            <span className="font-mono text-white">{shipping.toLocaleString()} AED</span>
-                        </div>
-                        <div className="flex justify-between text-xs sm:text-sm text-gray-400">
-                            <span>{isAr ? 'رسوم الخدمة والقيمة المضافة' : 'Service Fees & VAT'}</span>
-                            <span className="font-mono text-white">{commission.toLocaleString()} AED</span>
-                        </div>
-                        <div className="flex justify-between text-[11px] text-green-500 uppercase font-bold tracking-widest border-t border-white/5 pt-2">
-                            <span>{isAr ? 'مستحقات التاجر' : 'Merchant Dues'}</span>
-                            <span className="font-mono">{Math.round(merchantPayout).toLocaleString()} AED</span>
-                        </div>
+                        {isMerchant ? (
+                            <div className="flex justify-between text-base font-bold text-gold-500 uppercase tracking-widest pt-2">
+                                <span>{isAr ? 'مستحقات التاجر النهائية' : 'Final Merchant Entitlement'}</span>
+                                <span className="font-mono">{Math.round(merchantPayout).toLocaleString()} AED</span>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex justify-between text-xs sm:text-sm text-gray-400">
+                                    <span>{isAr ? 'قيمة القطعة' : 'Part Price'}</span>
+                                    <span className="font-mono text-white">{subtotal.toLocaleString()} AED</span>
+                                </div>
+                                <div className="flex justify-between text-xs sm:text-sm text-gray-400">
+                                    <span>{isAr ? 'الشحن والتوصيل' : 'Shipping'}</span>
+                                    <span className="font-mono text-white">{shipping.toLocaleString()} AED</span>
+                                </div>
+                                <div className="flex justify-between text-xs sm:text-sm text-gray-400">
+                                    <span>{isAr ? 'رسوم الخدمة والقيمة المضافة' : 'Service Fees & VAT'}</span>
+                                    <span className="font-mono text-white">{commission.toLocaleString()} AED</span>
+                                </div>
+                                <div className="flex justify-between text-[11px] text-green-500 uppercase font-bold tracking-widest border-t border-white/5 pt-2">
+                                    <span>{isAr ? 'مستحقات التاجر' : 'Merchant Dues'}</span>
+                                    <span className="font-mono">{Math.round(merchantPayout).toLocaleString()} AED</span>
+                                </div>
+                            </>
+                        )}
                     </div>
-                        
+
                     <div className="w-full sm:w-auto text-center sm:text-right bg-black/40 px-6 py-4 rounded-xl border border-gold-500/30 min-w-[200px]">
-                        <p className="text-[10px] font-black text-gold-500 uppercase tracking-widest mb-1">{isAr ? 'الإجمالي النهائي للعملية' : 'Final Invoice Amount'}</p>
+                        <p className="text-[10px] font-black text-gold-500 uppercase tracking-widest mb-1">
+                            {isMerchant ? (isAr ? 'صافي أرباح التاجر' : 'Net Merchant Earnings') : (isAr ? 'الإجمالي النهائي للعملية' : 'Final Invoice Amount')}
+                        </p>
                         <p className="text-4xl sm:text-5xl font-black text-gold-500 font-mono tracking-tight shadow-gold-500 drop-shadow-md inv-total-amount">
-                            {Math.round(finalTotal).toLocaleString()}
+                            {Math.round(isMerchant ? merchantPayout : finalTotal).toLocaleString()}
                             <span className="text-xl sm:text-2xl font-bold ms-2 text-gold-400">{currency}</span>
                         </p>
                     </div>
@@ -597,8 +634,8 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                         {isAr ? '>> تفضل بمسح الكود للتحقق الأصلي من السجلات <<' : '>> SCAN CODE FOR NATIVE RECORD VERIFICATION <<'}
                     </p>
                     <p className="hidden print:block text-[10px] text-gray-500 mb-4 font-medium inv-label">
-                        {isAr 
-                            ? '(لمراجعة وثيقة الشروط والأحكام وسياسات الإرجاع والشحن كاملة، يرجى مسح الـ QR Code أعلاه)' 
+                        {isAr
+                            ? '(لمراجعة وثيقة الشروط والأحكام وسياسات الإرجاع والشحن كاملة، يرجى مسح الـ QR Code أعلاه)'
                             : '(To review the full Terms, Conditions, Return & Shipping policies, please scan the QR Code above)'}
                     </p>
                     <div className="space-y-1.5 text-xs text-gray-500">
@@ -608,7 +645,7 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                             <p className="text-gray-600 font-mono text-[10px] inv-label tracking-widest">
                                 ELLIPP FZ LLC | {isAr ? 'رخصة تجارية:' : 'L/N:'} 45000927 | {isAr ? 'سجل تجاري:' : 'CR:'} 0000004036902
                             </p>
-                            <p className="text-gray-700 font-mono text-[9px] mt-1 inv-label">Generated: {new Date().toUTCString()} | System Reference: {order.id.slice(0, 8)}</p>
+                            <p className="text-gray-700 font-mono text-[9px] mt-1 inv-label">Generated: {new Date().toUTCString()} | System Reference: {order?.id?.slice(0, 8) || 'N/A'}</p>
                         </div>
                     </div>
                 </div>
@@ -645,14 +682,24 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button 
-                                            onClick={() => handlePrint(inv)} 
+                                        <button
+                                            onClick={() => handleExportExcel(inv)}
+                                            disabled={isExporting === inv.id}
+                                            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white font-bold rounded-lg transition-all border border-white/10 disabled:opacity-50 text-xs"
+                                        >
+                                            {isExporting === inv.id ? (
+                                                <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                            ) : <Download size={14} />}
+                                            <span>{isAr ? 'تصدير Excel' : 'Excel'}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handlePrint(inv)}
                                             className="flex items-center gap-2 px-4 py-2 bg-gold-500 hover:bg-gold-600 text-black font-bold rounded-lg transition-all shadow-lg text-xs"
                                         >
                                             <Printer size={14} />
                                             <span>{isAr ? 'طباعة / PDF' : 'Print / PDF'}</span>
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => toggleCollapse(inv.id)}
                                             className="p-2 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-lg transition-all border border-white/10"
                                         >
@@ -668,7 +715,7 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.02] pointer-events-none w-full flex justify-center">
                                             <img src="/logo.png" alt="" className="w-1/2 h-auto max-w-sm" />
                                         </div>
-                                        
+
                                         <InvoiceContentBlock inv={inv} />
                                     </div>
                                 )}
@@ -678,14 +725,15 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                 </div>
             )}
 
-            {/* Dedicated print structure: only mounts when printing, overrides everything */}
-            {isPrinting && activeInvoice && (
+            {/* Dedicated print structure: Portaled to body to escape Admin Dashboard overflow clipping */}
+            {isPrinting && activeInvoice && typeof document !== 'undefined' && createPortal(
                 <>
                     <PrintStyles />
                     <div id="special-invoice-print-container" dir={isRTL ? 'rtl' : 'ltr'}>
                         <InvoiceContentBlock inv={activeInvoice} />
                     </div>
-                </>
+                </>,
+                document.body
             )}
         </>
     );

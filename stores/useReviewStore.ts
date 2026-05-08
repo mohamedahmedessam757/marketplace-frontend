@@ -12,9 +12,10 @@ export interface Review {
   adminStatus: 'PENDING' | 'PUBLISHED' | 'REJECTED';
   createdAt: string;
   customerCode: string; // From backend transformation
-  store?: { name: string };
+  store?: { name: string; storeName?: string };
   customer?: { id: string; name: string; avatar?: string };
   order?: { orderNumber: string };
+  media?: string[];
 }
 
 export interface RatingImpactRule {

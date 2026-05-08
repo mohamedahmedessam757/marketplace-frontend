@@ -31,6 +31,9 @@ import { AdminSettings } from './AdminSettings';
 import { AdminSupport } from './AdminSupport';
 import { SecurityAudit } from './SecurityAudit'; // NEW
 import { AdminViolations } from './AdminViolations';
+import { AdminAccessControl } from './AdminAccessControl';
+import { FinancialHub } from './FinancialHub';
+import { PermissionGuard } from './PermissionGuard';
 
 interface AdminHomeProps {
     subPath?: string;
@@ -294,23 +297,75 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigat
         return { salesTrend, salesLabels, donutData, barData, salesTrendData };
     }, [dashboardStats, language, t]);
 
-    if (subPath === 'billing' || subPath === 'financials') return <AdminBilling onNavigate={navigate} />;
+    if (subPath === 'billing') {
+        return (
+            <PermissionGuard page="billing" action="view">
+                <AdminBilling onNavigate={navigate} />
+            </PermissionGuard>
+        );
+    }
+    if (subPath === 'financials') {
+        return (
+            <PermissionGuard page="billing" action="view">
+                <FinancialHub />
+            </PermissionGuard>
+        );
+    }
     if (subPath === 'invoice-details' && viewId) return <InvoiceViewer invoiceId={viewId} onBack={() => navigate('billing')} />;
-    if (subPath === 'resolution') return <AdminResolutionPage onNavigate={navigate} />;
-    if (subPath === 'admin-dispute-details' && viewId) return <AdminDisputeDetails caseId={viewId} onBack={() => navigate('resolution')} onNavigate={navigate} />;
-    if (subPath === 'users') return <StoreManagement onNavigate={navigate} />;
-    if (subPath === 'store-profile' && viewId) return <AdminStoreProfile vendorId={viewId} onBack={() => navigate('users')} onNavigate={navigate} />;
-    if (subPath === 'customers') return <CustomerManagement onNavigate={navigate} />;
-    if (subPath === 'customer-profile' && viewId) return <AdminCustomerProfile customerId={viewId} onBack={() => navigate('customers')} onNavigate={navigate} />;
-    if (subPath === 'reviews') return <ReviewsControl />;
-    if (subPath === 'orders-control') return <OrderControl onNavigate={navigate} />;
-    if (subPath === 'admin-order-details' && viewId) return <AdminOrderDetails orderId={viewId} onBack={() => navigate('orders-control')} onNavigate={navigate} />;
-    if (subPath === 'audit-logs') return <AdminAuditLogs />;
-    if (subPath === 'shipping') return <AdminShipping initialSearch={viewId} />;
-    if (subPath === 'settings') return <AdminSettings />;
-    if (subPath === 'support') return <AdminSupport viewId={viewId} />;
-    if (subPath === 'security-audit') return <SecurityAudit />;
-    if (subPath === 'violations') return <AdminViolations />;
+    if (subPath === 'invoice-details' && viewId) return <InvoiceViewer invoiceId={viewId} onBack={() => navigate('billing')} />;
+    
+    if (subPath === 'resolution') {
+        return <PermissionGuard page="resolution" action="view"><AdminResolutionPage onNavigate={navigate} /></PermissionGuard>;
+    }
+    if (subPath === 'admin-dispute-details' && viewId) {
+        return <PermissionGuard page="resolution" action="view"><AdminDisputeDetails caseId={viewId} onBack={() => navigate('resolution')} onNavigate={navigate} /></PermissionGuard>;
+    }
+    if (subPath === 'users') {
+        return <PermissionGuard page="users" action="view"><StoreManagement onNavigate={navigate} /></PermissionGuard>;
+    }
+    if (subPath === 'store-profile' && viewId) {
+        return <PermissionGuard page="users" action="view"><AdminStoreProfile vendorId={viewId} onBack={() => navigate('users')} onNavigate={navigate} /></PermissionGuard>;
+    }
+    if (subPath === 'customers') {
+        return <PermissionGuard page="customers" action="view"><CustomerManagement onNavigate={navigate} /></PermissionGuard>;
+    }
+    if (subPath === 'customer-profile' && viewId) {
+        return <PermissionGuard page="customers" action="view"><AdminCustomerProfile customerId={viewId} onBack={() => navigate('customers')} onNavigate={navigate} /></PermissionGuard>;
+    }
+    if (subPath === 'reviews') {
+        return <PermissionGuard page="reviews" action="view"><ReviewsControl /></PermissionGuard>;
+    }
+    if (subPath === 'orders-control') {
+        return <PermissionGuard page="orders-control" action="view"><OrderControl onNavigate={navigate} /></PermissionGuard>;
+    }
+    if (subPath === 'admin-order-details' && viewId) {
+        return <PermissionGuard page="orders-control" action="view"><AdminOrderDetails orderId={viewId} onBack={() => navigate('orders-control')} onNavigate={navigate} /></PermissionGuard>;
+    }
+    if (subPath === 'audit-logs') {
+        return <PermissionGuard page="audit-logs" action="view"><AdminAuditLogs /></PermissionGuard>;
+    }
+    if (subPath === 'shipping') {
+        return <PermissionGuard page="shipping" action="view"><AdminShipping initialSearch={viewId} /></PermissionGuard>;
+    }
+    if (subPath === 'settings') {
+        return <PermissionGuard page="settings" action="view"><AdminSettings /></PermissionGuard>;
+    }
+    if (subPath === 'support') {
+        return <PermissionGuard page="support" action="view"><AdminSupport viewId={viewId} /></PermissionGuard>;
+    }
+    if (subPath === 'security-audit') {
+        return <PermissionGuard page="security-audit" action="view"><SecurityAudit /></PermissionGuard>;
+    }
+    if (subPath === 'violations') {
+        return <PermissionGuard page="violations" action="view"><AdminViolations /></PermissionGuard>;
+    }
+    if (subPath === 'access-control') {
+        return (
+            <PermissionGuard page="access-control" action="view">
+                <AdminAccessControl />
+            </PermissionGuard>
+        );
+    }
 
     // Simplified: No global skeleton to prevent flickering
     if (!dashboardStats && isLoadingStats) {
@@ -335,7 +390,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigat
                     <p className="text-white/50 text-sm flex items-center gap-2">
                         {t.admin.welcomeSub}
                         <span className="w-1 h-1 rounded-full bg-white/20" />
-                        <span className={`font-mono font-bold ${currentAdmin?.role === 'SUPER_ADMIN' ? 'text-red-400' : 'text-blue-400'}`}>
+                        <span className={`font-mono font-bold ${['SUPER_ADMIN', 'ADMIN'].includes(currentAdmin?.role || '') ? 'text-red-400' : 'text-blue-400'}`}>
                             {currentAdmin?.role}
                         </span>
                     </p>

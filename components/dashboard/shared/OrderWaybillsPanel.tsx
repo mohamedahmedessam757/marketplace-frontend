@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { waybillsApi } from './../../../services/api/waybills';
 import { useLanguage } from './../../../contexts/LanguageContext';
-import { FileText, Printer, ChevronDown, ChevronUp, Truck, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { FileText, Printer, ChevronDown, ChevronUp, Truck, CheckCircle2, ShieldAlert, Download } from 'lucide-react';
+import { excelApi } from './../../../services/api/excel';
 import { GlassCard } from './../../ui/GlassCard';
 import { supabase } from '../../../services/supabase';
 
@@ -25,6 +26,7 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
     const [activeWaybill, setActiveWaybill] = useState<any | null>(null);
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
     const [error, setError] = useState<string | null>(null);
+    const [isExporting, setIsExporting] = useState<string | null>(null);
 
     const fetchWaybills = async () => {
         try {
@@ -101,6 +103,19 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
             setIsPrinting(false);
             setActiveWaybill(null);
         }, 300);
+    };
+
+    const handleExportExcel = async (wb: any) => {
+        try {
+            setIsExporting(wb.id);
+            // We pass the orderId to export all waybills for this order, or we could customize backend for single waybill.
+            // For now, exporting waybills for the order is consistent with the backend logic created.
+            await excelApi.downloadWaybills(orderId);
+        } catch (err) {
+            console.error('Export failed:', err);
+        } finally {
+            setIsExporting(null);
+        }
     };
 
     if (isLoading) {
@@ -203,10 +218,18 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                                 </div>
                             )}
 
-                            <div className={`font-black text-xl tracking-tighter ${isPrint ? 'text-black' : 'text-white'}`}>{wb.recipientName}</div>
-                            <div className={`text-sm font-bold mt-1 font-mono ${isPrint ? 'text-gray-700' : 'text-white/60'}`}>{wb.recipientPhone}</div>
-                            <div className={`text-xs font-black mt-1 uppercase tracking-wider ${isPrint ? 'text-gray-800' : `text-${themeColor}-500`}`}>{wb.recipientCity}, {wb.recipientCountry}</div>
-                            <div className={`text-xs mt-2 leading-relaxed md:ml-auto max-w-xs ${isPrint ? 'text-gray-600' : 'text-white/40'}`}>{wb.recipientAddress}</div>
+                            <div className={`font-black text-xl tracking-tighter ${isPrint ? 'text-black' : 'text-white'}`}>
+                                {role === 'MERCHANT' ? (isAr ? 'عميل منصة إي-تشليح' : 'E-Tashleh Customer') : wb.recipientName}
+                            </div>
+                            <div className={`text-sm font-bold mt-1 font-mono ${isPrint ? 'text-gray-700' : 'text-white/60'}`}>
+                                {role === 'MERCHANT' ? '---' : wb.recipientPhone}
+                            </div>
+                            <div className={`text-xs font-black mt-1 uppercase tracking-wider ${isPrint ? 'text-gray-800' : `text-${themeColor}-500`}`}>
+                                {wb.recipientCity}, {wb.recipientCountry}
+                            </div>
+                            <div className={`text-xs mt-2 leading-relaxed md:ml-auto max-w-xs ${isPrint ? 'text-gray-600' : 'text-white/40'}`}>
+                                {role === 'MERCHANT' ? (isAr ? 'العنوان مخفي للخصوصية' : 'Address Hidden for Privacy') : wb.recipientAddress}
+                            </div>
                             <div className="flex flex-wrap gap-2 mt-4">
                                 {wb.customerCode && (
                                     <div className={`text-[10px] uppercase font-black px-3 py-1 rounded-lg ${isPrint ? 'bg-gray-100 text-gray-700' : 'bg-white/5 text-white/30 border border-white/5'}`}>
@@ -384,6 +407,16 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
+                                                <button 
+                                                    onClick={() => handleExportExcel(wb)}
+                                                    disabled={isExporting === wb.id}
+                                                    className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl transition-all border border-white/10 disabled:opacity-50 text-[10px] uppercase"
+                                                >
+                                                    {isExporting === wb.id ? (
+                                                        <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                    ) : <Download size={14} />}
+                                                    <span>{isAr ? 'تصدير Excel' : 'Excel'}</span>
+                                                </button>
                                                 <button 
                                                     onClick={() => handlePrint(wb)} 
                                                     className={`flex items-center gap-2 px-5 py-2.5 ${wb.waybillNumber?.startsWith('RTN') ? 'bg-cyan-500 hover:bg-cyan-600 shadow-cyan-500/20' : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'} text-black font-black rounded-xl transition-all shadow-lg text-[10px] uppercase`}

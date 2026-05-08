@@ -83,7 +83,9 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                         {/* Navigation Items */}
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-1">
                             {navItems.map((item) => {
-                                const isLocked = role === 'admin' && item.allowed && !item.allowed.includes(adminRole);
+                                // 2026 RBAC: In the new system, we trust the filtered navItems from the layout.
+                                // If an item is in this list, the user has permission.
+                                const isLocked = false; 
 
                                 return (
                                     <button

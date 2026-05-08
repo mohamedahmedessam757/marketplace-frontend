@@ -3,19 +3,23 @@ import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useAdminChatStore } from '../../../stores/useAdminChatStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { Search, MessageSquare, User, CheckCircle2, Send, ChevronRight, ChevronLeft, Loader2, Download, Video, FileText, Image as ImageIcon, Inbox, X, Globe, Paperclip, ShieldCheck, Info, Layers, Store, Package, RefreshCcw, DollarSign, ShieldAlert } from 'lucide-react';
+import { Search, MessageSquare, User, CheckCircle2, Send, ChevronRight, ChevronLeft, Loader2, Download, Video, FileText, Image as ImageIcon, Inbox, X, Globe, Paperclip, ShieldCheck, Info, Layers, Store, Package, RefreshCcw, DollarSign, ShieldAlert, Lock } from 'lucide-react';
+import { useAdminPermissionsStore } from '../../../stores/useAdminPermissionsStore';
 import { supabase } from '../../../services/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BlurredSection } from './BlurredSection';
 
 export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
   const { t, language } = useLanguage();
   const { supportChats, activeChat, fetchChats, fetchChatById, sendMessage, adminAction, isLoading, clearActiveChat, _hasLoadedSupport, initSocket } = useAdminChatStore();
+  const { getTicketCategories, canViewTab } = useAdminPermissionsStore();
 
   const { toggleTranslation } = useAdminChatStore();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [replyText, setReplyText] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'RESOLVED'>('ALL');
+  const [userTypeFilter, setUserTypeFilter] = useState<'CUSTOMER' | 'MERCHANT'>('CUSTOMER');
   const [search, setSearch] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<{ url: string; type: 'image' | 'video' | 'document'; file: File } | null>(null);
@@ -38,14 +42,47 @@ export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
     }
   }, [fetchChats, clearActiveChat, initSocket, viewId, fetchChatById]);
 
+  // Permissions-based Tab filtering for User Types
+  const visibleTabs = React.useMemo(() => {
+    const allTabs = [
+      { id: 'CUSTOMER', label: isAr ? 'العملاء' : 'Customers', icon: User, permissionKey: 'CUSTOMERS' },
+      { id: 'MERCHANT', label: isAr ? 'المتاجر' : 'Merchants', icon: Store, permissionKey: 'MERCHANTS' },
+    ];
+    return allTabs.map(tab => ({
+      ...tab,
+      isLocked: !canViewTab('SUPPORT', tab.permissionKey)
+    }));
+  }, [canViewTab, isAr]);
+
+  // Auto-switch if current user type tab is restricted
+  useEffect(() => {
+    const firstAllowed = visibleTabs.find(t => !t.isLocked);
+    if (firstAllowed && visibleTabs.find(t => t.id === userTypeFilter)?.isLocked) {
+      setUserTypeFilter(firstAllowed.id as any);
+    }
+  }, [visibleTabs, userTypeFilter]);
+
   const filteredTickets = supportChats.filter(chat => {
       const matchesFilter = filter === 'ALL' || (filter === 'OPEN' ? chat.status === 'OPEN' : chat.status === 'CLOSED');
+      
+      const matchesUserType = userTypeFilter === 'MERCHANT' ? !!chat.vendorId : !chat.vendorId;
+
       const searchLower = search.toLowerCase();
       const matchesSearch = 
         chat.customerName?.toLowerCase().includes(searchLower) || 
         chat.guestName?.toLowerCase().includes(searchLower) ||
         chat.lastMessage?.toLowerCase().includes(searchLower);
-      return matchesFilter && matchesSearch;
+      
+      // 2026 Governance: Filter by allowed categories
+      const allowedCategories = getTicketCategories();
+      const isAdmin = localStorage.getItem('admin_role') === 'SUPER_ADMIN';
+      
+      const matchesCategory = isAdmin || 
+                             (allowedCategories.length > 0 && 
+                              !allowedCategories.includes('__NONE__') &&
+                              allowedCategories.includes(chat.category?.toUpperCase()));
+
+      return matchesFilter && matchesUserType && matchesSearch && matchesCategory;
   });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,6 +233,29 @@ export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
             <Inbox className="text-gold-500" />
             {isAr ? 'تذاكر الدعم' : 'Support Tickets'}
           </h2>
+
+          {/* User Type Tabs: Premium 2026 Toggle */}
+          <div className="relative flex p-1 bg-white/5 rounded-2xl mb-6 border border-white/10 shadow-inner overflow-hidden">
+            {visibleTabs.map((tab) => (
+              <button 
+                key={tab.id}
+                onClick={() => setUserTypeFilter(tab.id as any)} 
+                className={`relative flex-1 flex items-center justify-center gap-2.5 py-3 text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-500 z-10 ${userTypeFilter === tab.id ? 'text-[#1A1814]' : 'text-white/40 hover:text-white/70'} ${tab.isLocked ? 'opacity-70' : ''}`}
+              >
+                {userTypeFilter === tab.id && (
+                  <motion.div 
+                    layoutId="activeTab"
+                    className="absolute inset-0 bg-gradient-to-r from-gold-400 via-gold-500 to-gold-600 rounded-xl shadow-[0_0_20px_rgba(212,175,55,0.2)]"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                <tab.icon size={16} className={`relative z-10 ${userTypeFilter === tab.id ? 'animate-pulse' : ''}`} />
+                <span className="relative z-10">{tab.label}</span>
+                {tab.isLocked && <Lock size={12} className={`relative z-10 ${userTypeFilter === tab.id ? 'text-black/50' : 'text-gold-500/50'}`} />}
+              </button>
+            ))}
+          </div>
+
           <div className="flex gap-2 mb-4">
             <button onClick={() => setFilter('ALL')} className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all ${filter === 'ALL' ? 'bg-white/10 border-white/20 text-white' : 'border-transparent text-white/40 hover:text-white'}`}>
                 {isAr ? 'الكل' : 'All'}
@@ -302,6 +362,13 @@ export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
             </div>
         )}
         
+        <BlurredSection
+          isBlurred={visibleTabs.find(t => t.id === userTypeFilter)?.isLocked}
+          titleAr={`قسم ${visibleTabs.find(t => t.id === userTypeFilter)?.label} محمي`}
+          titleEn={`${visibleTabs.find(t => t.id === userTypeFilter)?.label} Support Protected`}
+          descriptionAr="لا تملك صلاحية الوصول لهذا القسم. يرجى التواصل مع الإدارة العليا."
+          descriptionEn="You do not have permission to access this support section."
+        >
         {activeChat ? (
           <>
             {/* Chat Header */}
@@ -514,6 +581,7 @@ export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
             <h3 className="text-lg font-bold text-white/20">{isAr ? 'اختر تذكرة للبدء' : 'Select a ticket to begin resolution'}</h3>
           </div>
         )}
+        </BlurredSection>
       </GlassCard>
 
     </div>

@@ -29,6 +29,10 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import { DisputeChat } from '../resolution/DisputeChat';
+import { useAdminPermissionsStore } from '../../../stores/useAdminPermissionsStore';
+import { BlurredSection } from './BlurredSection';
+import { Lock } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface AdminResolutionPageProps {
   onNavigate?: (path: string, id?: any) => void;
@@ -99,6 +103,28 @@ export const AdminResolutionPage: React.FC<AdminResolutionPageProps> = ({ onNavi
       unsubscribeFromCases();
     };
   }, []);
+
+  const canViewTab = useAdminPermissionsStore(s => s.canViewTab);
+  
+  const visibleTabs = useMemo(() => {
+    const tabs = [
+      { id: 'all', icon: Scale, label: t.admin.disputeManager.tabs.all, permissionKey: 'OVERSIGHT' },
+      { id: 'escrow', icon: RotateCcw, label: t.admin.disputeManager.tabs.escrow, permissionKey: 'WARRANTY' },
+      { id: 'resolved', icon: CheckCircle2, label: t.admin.disputeManager.tabs.closed, permissionKey: 'CLOSED' }
+    ];
+    return tabs.map(tab => ({
+      ...tab,
+      isLocked: !canViewTab('resolution', tab.permissionKey)
+    }));
+  }, [t, canViewTab]);
+
+  // Auto-switch if current tab is restricted
+  useEffect(() => {
+    const firstAllowed = visibleTabs.find(t => !t.isLocked);
+    if (firstAllowed && visibleTabs.find(t => t.id === activeTab)?.isLocked) {
+      setActiveTab(firstAllowed.id as any);
+    }
+  }, [visibleTabs, activeTab]);
 
   const filteredCases = cases.filter(c => {
     const query = searchQuery.toLowerCase();
@@ -182,20 +208,31 @@ export const AdminResolutionPage: React.FC<AdminResolutionPageProps> = ({ onNavi
       {/* STRATEGIC TABS & KPI COMPACT */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-6" dir={isAr ? 'rtl' : 'ltr'}>
         <div className="flex items-center gap-2 p-2 bg-white/5 rounded-2xl border border-white/5 backdrop-blur-md overflow-x-auto no-scrollbar max-w-full">
-          {(['all', 'escrow', 'resolved'] as const).map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-8 py-3 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all duration-500 whitespace-nowrap
-                ${activeTab === tab
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-8 py-3 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all duration-500 whitespace-nowrap flex items-center gap-2
+                ${activeTab === tab.id
                   ? 'bg-gold-500 text-black shadow-[0_0_40px_rgba(212,175,55,0.3)] scale-105'
-                  : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                  : 'text-white/40 hover:text-white hover:bg-white/5'}
+                ${tab.isLocked ? 'opacity-70' : ''}`}
             >
-              {t.admin.disputeManager.tabs[tab === 'all' ? 'all' : tab === 'escrow' ? 'escrow' : 'closed']}
+              <tab.icon size={14} />
+              {tab.label}
+              {tab.isLocked && <Lock size={12} className={activeTab === tab.id ? 'text-black/50' : 'text-gold-500/50'} />}
             </button>
           ))}
         </div>
       </div>
+
+      <BlurredSection
+        isBlurred={visibleTabs.find(t => t.id === activeTab)?.isLocked}
+        titleAr={`تبويب ${visibleTabs.find(t => t.id === activeTab)?.label} محمي`}
+        titleEn={`${visibleTabs.find(t => t.id === activeTab)?.label} Tab Protected`}
+        descriptionAr="لا تملك صلاحية الوصول لهذا التبويب. يرجى التواصل مع الإدارة العليا لتوسيع نطاق وصولك."
+        descriptionEn="You do not have permission to access this tab. Please contact senior management to expand your access scope."
+      >
 
       {/* LUXURY INVESTIGATION GRID */}
       <AnimatePresence mode="popLayout">
@@ -339,6 +376,7 @@ export const AdminResolutionPage: React.FC<AdminResolutionPageProps> = ({ onNavi
           )}
         </div>
       </AnimatePresence>
+      </BlurredSection>
 
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }

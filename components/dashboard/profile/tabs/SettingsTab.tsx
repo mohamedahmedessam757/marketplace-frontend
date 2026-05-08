@@ -3,10 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Trash2, Globe, DollarSign, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { useProfileStore } from '../../../../stores/useProfileStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
+import { usePlatformSettingsStore } from '../../../../stores/usePlatformSettingsStore';
 
 export const SettingsTab: React.FC = () => {
     const { settings, updateSettings, deleteAccount, loading } = useProfileStore();
     const { t, setLanguage, language } = useLanguage();
+    const { isAccountDeletionEnabled, fetchSettings } = usePlatformSettingsStore();
+
+    useEffect(() => {
+        fetchSettings();
+    }, []);
 
     // Local State for Buffering Changes
     const [localSettings, setLocalSettings] = useState(settings);
@@ -175,76 +181,80 @@ export const SettingsTab: React.FC = () => {
             </AnimatePresence>
 
             {/* Danger Zone */}
-            <div className="pt-8 mt-8 border-t border-red-500/10">
-                <div className="p-4 border border-red-500/20 rounded-xl bg-red-500/5 flex items-center justify-between group hover:border-red-500/40 transition-colors">
-                    <div>
-                        <h4 className="font-bold text-red-500">{t.dashboard.profile.settings?.delete || 'Delete Account'}</h4>
-                        <p className="text-xs text-red-400/60 mt-1">{t.dashboard.profile.settings?.dangerDesc || 'Permanently remove account and data'}</p>
+            {isAccountDeletionEnabled && (
+                <>
+                    <div className="pt-8 mt-8 border-t border-red-500/10">
+                        <div className="p-4 border border-red-500/20 rounded-xl bg-red-500/5 flex items-center justify-between group hover:border-red-500/40 transition-colors">
+                            <div>
+                                <h4 className="font-bold text-red-500">{t.dashboard.profile.settings?.delete || 'Delete Account'}</h4>
+                                <p className="text-xs text-red-400/60 mt-1">{t.dashboard.profile.settings?.dangerDesc || 'Permanently remove account and data'}</p>
+                            </div>
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+                            >
+                                <Trash2 size={16} />
+                                {t.dashboard.profile.settings?.cancel || 'Delete'}
+                            </button>
+                        </div>
                     </div>
-                    <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
-                    >
-                        <Trash2 size={16} />
-                        {t.dashboard.profile.settings?.cancel || 'Delete'}
-                    </button>
-                </div>
-            </div>
 
-            {/* Delete Confirmation Modal */}
-            <AnimatePresence>
-                {showDeleteConfirm && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-[#1A1814] border border-red-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl shadow-red-900/20"
-                        >
-                            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 text-red-500">
-                                <AlertTriangle size={32} />
-                            </div>
-
-                            <h3 className="text-xl font-bold text-white text-center mb-2">
-                                {t.dashboard.profile.settings?.deleteConfirm || 'Are you sure?'}
-                            </h3>
-                            <p className="text-white/60 text-center text-sm mb-6">
-                                {t.dashboard.profile.settings?.deleteWarning || 'This action cannot be undone. All your data and invoices will be permanently deleted.'}
-                            </p>
-
-                            <div className="bg-black/40 p-4 rounded-xl border border-white/5 mb-6">
-                                <label className="text-xs text-white/40 uppercase block mb-2">
-                                    {t.dashboard.profile.settings?.typeToConfirm || 'Type "DELETE" to confirm'}
-                                </label>
-                                <input
-                                    type="text"
-                                    value={deleteInput}
-                                    onChange={(e) => setDeleteInput(e.target.value)}
-                                    className="w-full bg-transparent text-white font-bold outline-none border-b border-white/20 focus:border-red-500 pb-2 transition-colors uppercase placeholder-white/10"
-                                    placeholder="DELETE"
-                                />
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowDeleteConfirm(false)}
-                                    className="flex-1 py-3 rounded-xl font-bold text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                    {/* Delete Confirmation Modal */}
+                    <AnimatePresence>
+                        {showDeleteConfirm && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                                <motion.div
+                                    initial={{ scale: 0.9, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.9, opacity: 0 }}
+                                    className="bg-[#1A1814] border border-red-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl shadow-red-900/20"
                                 >
-                                    {t.common?.cancel || 'Cancel'}
-                                </button>
-                                <button
-                                    onClick={handleDeleteAccount}
-                                    disabled={deleteInput !== 'DELETE' || isDeleting}
-                                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
-                                >
-                                    {isDeleting && <Loader2 size={16} className="animate-spin" />}
-                                    {t.dashboard.profile.settings?.delete || 'Delete Account'}
-                                </button>
+                                    <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 text-red-500">
+                                        <AlertTriangle size={32} />
+                                    </div>
+
+                                    <h3 className="text-xl font-bold text-white text-center mb-2">
+                                        {t.dashboard.profile.settings?.deleteConfirm || 'Are you sure?'}
+                                    </h3>
+                                    <p className="text-white/60 text-center text-sm mb-6">
+                                        {t.dashboard.profile.settings?.deleteWarning || 'This action cannot be undone. All your data and invoices will be permanently deleted.'}
+                                    </p>
+
+                                    <div className="bg-black/40 p-4 rounded-xl border border-white/5 mb-6">
+                                        <label className="text-xs text-white/40 uppercase block mb-2">
+                                            {t.dashboard.profile.settings?.typeToConfirm || 'Type "DELETE" to confirm'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={deleteInput}
+                                            onChange={(e) => setDeleteInput(e.target.value)}
+                                            className="w-full bg-transparent text-white font-bold outline-none border-b border-white/20 focus:border-red-500 pb-2 transition-colors uppercase placeholder-white/10"
+                                            placeholder="DELETE"
+                                        />
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowDeleteConfirm(false)}
+                                            className="flex-1 py-3 rounded-xl font-bold text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            {t.common?.cancel || 'Cancel'}
+                                        </button>
+                                        <button
+                                            onClick={handleDeleteAccount}
+                                            disabled={deleteInput !== 'DELETE' || isDeleting}
+                                            className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            {isDeleting && <Loader2 size={16} className="animate-spin" />}
+                                            {t.dashboard.profile.settings?.delete || 'Delete Account'}
+                                        </button>
+                                    </div>
+                                </motion.div>
                             </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                        )}
+                    </AnimatePresence>
+                </>
+            )}
 
         </motion.div>
     );

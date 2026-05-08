@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { MerchantStatus } from './useVendorStore';
 import { supabase } from '../services/supabase';
 import { storesApi } from '../services/api/stores';
+import { useAdminPermissionsStore } from './useAdminPermissionsStore';
 
 // Dynamic API URL - uses environment variable in production
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -357,7 +358,7 @@ export interface AdminState {
   unsubscribeFromFinancials: () => void;
   
   // Backward compatibility / UI state
-  loginAdmin: (email: string) => void;
+  loginAdmin: (user: AdminUser, permissions?: any) => void;
   logoutAdmin: () => void;
   setDashboardFilters: (filters: { startDate?: string; endDate?: string }) => void;
   setCommissionRate: (rate: number) => void;
@@ -517,32 +518,35 @@ export const useAdminStore = create<AdminState>()(
         }
       },
 
-      loginAdmin: (email) => {
-        let role: AdminRole = 'ADMIN';
-        if (email.includes('super')) role = 'SUPER_ADMIN';
-        if (email.includes('support')) role = 'SUPPORT';
+      loginAdmin: (user, permissions) => {
+        // 2026 Defensive Guard: Ensure user object has required shape
+        if (!user || typeof user !== 'object' || !user.id || !user.role) {
+          console.error('[loginAdmin] Invalid user object received:', user);
+          return;
+        }
 
-        const user: AdminUser = {
-          id: 'ADM-' + Date.now(),
-          name: 'Admin User',
-          email,
-          role,
-          avatar: undefined
+        // Coerce email to string to prevent .includes() TypeError downstream
+        const safeUser: AdminUser = {
+          id: String(user.id),
+          name: String(user.name || ''),
+          email: String(user.email || ''),
+          role: user.role as AdminRole,
+          avatar: user.avatar,
         };
 
-        sessionStorage.setItem('admin', JSON.stringify(user));
-        set({ currentAdmin: user });
+        // Clear any stale session data before writing fresh login
+        sessionStorage.removeItem('admin');
+        sessionStorage.removeItem('etashleh-admin-storage');
+
+        sessionStorage.setItem('admin', JSON.stringify(safeUser));
+        localStorage.setItem('admin_role', safeUser.role);
         
-        // Push Mock Log to Backend explicitly to ensure Activity Tracker catches it
-        fetch('http://localhost:3000/system/mock-admin-log', {
-           method: 'PUT',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({
-              email: email,
-              action: 'LOGIN',
-              metadata: { role, note: 'Mock Login bypassing Auth API' }
-           })
-        }).catch(err => console.warn('Mock log failed', err));
+        set({ currentAdmin: safeUser });
+        
+        // Update permissions store if provided
+        if (permissions) {
+          useAdminPermissionsStore.getState().setMyPermissions(permissions);
+        }
 
         get().fetchDashboardStats();
         get().fetchAllStores();
@@ -550,7 +554,12 @@ export const useAdminStore = create<AdminState>()(
 
       logoutAdmin: () => {
         sessionStorage.removeItem('admin');
+        localStorage.removeItem('admin_role');
+        localStorage.removeItem('access_token');
         set({ currentAdmin: null, dashboardStats: null });
+        
+        // Clear permissions store
+        useAdminPermissionsStore.getState().setMyPermissions(null);
       },
 
       setDashboardFilters: (filters) => set({ dashboardFilters: filters }),
@@ -722,9 +731,17 @@ export const useAdminStore = create<AdminState>()(
             },
             body: JSON.stringify({ value, reason })
           });
+
           if (res.ok) {
-            await get().fetchSystemSettings();
-            await get().fetchPublicStatus(); // IMMEDIATE SYNC (2026 Optimization)
+            // 2026 FIX: Only re-fetch full settings for core system keys.
+            // For atomic boolean toggles (like feature flags), Supabase Realtime
+            // handles sync — calling fetchSystemSettings() here would trigger a
+            // useEffect cascade in AdminSettings that re-saves system_config (race condition).
+            const CORE_KEYS = ['system_config', 'system_status', 'withdrawal_limits'];
+            if (CORE_KEYS.includes(key)) {
+              await get().fetchSystemSettings();
+              await get().fetchPublicStatus();
+            }
             return true;
           }
           return false;

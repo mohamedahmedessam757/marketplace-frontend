@@ -1,12 +1,23 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 
+// 2026: Robust boolean parser for Supabase jsonb values
+// Handles: true, 'true', "true", 1, and their false equivalents
+const parseBool = (val: any): boolean => {
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'string') return val.toLowerCase() === 'true';
+    if (typeof val === 'number') return val !== 0;
+    return false;
+};
+
 interface PlatformSettingsState {
     isAttachmentsEnabled: boolean;
+    isAccountDeletionEnabled: boolean;
     isLoading: boolean;
     fetchSettings: () => Promise<void>;
     subscribeToSettings: () => () => void;
     setAttachmentsEnabled: (val: boolean) => void;
+    setAccountDeletionEnabled: (val: boolean) => void;
 }
 
 /**
@@ -14,20 +25,31 @@ interface PlatformSettingsState {
  * Manages global system toggles with Supabase Realtime synchronization.
  */
 export const usePlatformSettingsStore = create<PlatformSettingsState>((set) => ({
-    isAttachmentsEnabled: true, // Default to enabled
+    isAttachmentsEnabled: true, 
+    isAccountDeletionEnabled: true, // Default to enabled
     isLoading: true,
     setAttachmentsEnabled: (val) => set({ isAttachmentsEnabled: val }),
+    setAccountDeletionEnabled: (val) => set({ isAccountDeletionEnabled: val }),
 
     fetchSettings: async () => {
         try {
-            const { data, error } = await supabase
-                .from('platform_settings')
-                .select('setting_value')
-                .eq('setting_key', 'CHAT_ATTACHMENTS_ENABLED')
-                .single();
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const res = await fetch(`${API_URL}/system/feature-flags`);
+            
+            if (res.ok) {
+                const data = await res.json();
+                
+                const attachVal = parseBool(data.CHAT_ATTACHMENTS_ENABLED);
+                const delVal = parseBool(data.ALLOW_CUSTOMER_ACCOUNT_DELETION);
 
-            if (!error && data) {
-                set({ isAttachmentsEnabled: data.setting_value === 'true' || data.setting_value === true });
+                console.log('[PlatformSettingsStore] Fetched via API → Attachments:', attachVal, '| Deletion:', delVal);
+
+                set({ 
+                    isAttachmentsEnabled: attachVal,
+                    isAccountDeletionEnabled: delVal
+                });
+            } else {
+                console.error('[PlatformSettingsStore] API returned error:', res.status);
             }
         } catch (err) {
             console.error('[PlatformSettingsStore] Fetch failed:', err);
@@ -37,26 +59,34 @@ export const usePlatformSettingsStore = create<PlatformSettingsState>((set) => (
     },
 
     subscribeToSettings: () => {
-        // Subscribe to real-time updates for the CHAT_ATTACHMENTS_ENABLED key
+        // 2026 Robust Real-time: Listen to all events to catch first-time INSERTs
         const channel = supabase
             .channel('platform_settings_realtime')
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*', // Listen to INSERT, UPDATE, and DELETE
                     schema: 'public',
                     table: 'platform_settings',
-                    filter: 'setting_key=eq.CHAT_ATTACHMENTS_ENABLED',
                 },
                 (payload) => {
-                    const newValue = payload.new.setting_value === 'true' || payload.new.setting_value === true;
-                    set({ isAttachmentsEnabled: newValue });
-                    console.log(`[PlatformSettingsStore] Attachments toggled to: ${newValue}`);
+                    const data = payload.new as any;
+                    if (!data || !data.setting_key) return;
+
+                    const { setting_key, setting_value } = data;
+                    const boolValue = parseBool(setting_value);
+                    
+                    console.log(`[PlatformSettingsStore] Realtime → key: ${setting_key}, raw: ${setting_value} (${typeof setting_value}), parsed: ${boolValue}`);
+
+                    if (setting_key === 'CHAT_ATTACHMENTS_ENABLED') {
+                        set({ isAttachmentsEnabled: boolValue });
+                    } else if (setting_key === 'ALLOW_CUSTOMER_ACCOUNT_DELETION') {
+                        set({ isAccountDeletionEnabled: boolValue });
+                    }
                 }
             )
             .subscribe();
 
-        // Return cleanup function to be used in useEffect
         return () => {
             supabase.removeChannel(channel);
         };

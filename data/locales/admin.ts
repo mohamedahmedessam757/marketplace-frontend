@@ -11,6 +11,7 @@ export const admin = {
     shipping: 'إدارة الشحن',
     auditLogs: 'سجل العمليات',
     violations: 'المخالفات والعقوبات',
+    accessControl: 'إدارة الوصول والحوكمة',
     automations: {
       active: 'الأتمتة نشطة',
       stopped: 'الأتمتة متوقفة'
@@ -807,6 +808,32 @@ export const admin = {
         fillRequired: 'يرجى ملء كافة الحقول الإلزامية'
       }
     },
+    governance: {
+      title: 'حوكمة الإدارة والوصول',
+      accounts: 'حسابات المسؤولين',
+      matrix: 'مصفوفة الصلاحيات',
+      config: 'الإعدادات المتقدمة',
+      addAdmin: 'إضافة مسؤول جديد',
+      editAdmin: 'تعديل بيانات المسؤول',
+      resetSecurityKey: 'إعادة تعيين مفتاح الأمان',
+      canView: 'صلاحية العرض',
+      canEdit: 'صلاحية التعديل',
+      allowedCategories: 'أقسام الدعم المسموحة',
+      blurredSections: 'الأقسام المموهة (Blur)',
+      stats: {
+        total: 'إجمالي الحسابات',
+        superAdmins: 'مسؤولين خارقين',
+        admins: 'مدراء النظام',
+        support: 'موظفي الدعم'
+      },
+      forms: {
+        name: 'الاسم الكامل',
+        email: 'البريد الإلكتروني',
+        password: 'كلمة المرور',
+        role: 'الدور الوظيفي',
+        isActive: 'الحساب نشط'
+      }
+    },
     violationsPage: {
       title: 'نظام المخالفات والعقوبات',
       subtitle: 'إدارة مخالفات المتاجر والعملاء، ومراجعة الطعون والعقوبات الآلية.',
@@ -911,6 +938,7 @@ export const admin = {
     shipping: 'Shipping Management',
     auditLogs: 'Audit Logs',
     violations: 'Violations & Penalties',
+    accessControl: 'Access Control & Governance',
     automations: {
       active: 'Automations Active',
       stopped: 'Automations Stopped'
@@ -1632,6 +1660,32 @@ export const admin = {
         commissionSuccess: 'Commission rate updated successfully',
         limitsSuccess: 'Withdrawal limits updated successfully',
         fillRequired: 'Please fill all required fields'
+      }
+    },
+    governance: {
+      title: 'Admin Governance & Access',
+      accounts: 'Admin Accounts',
+      matrix: 'Permissions Matrix',
+      config: 'Advanced Configuration',
+      addAdmin: 'Add New Admin',
+      editAdmin: 'Edit Admin Details',
+      resetSecurityKey: 'Reset Security Key',
+      canView: 'Can View',
+      canEdit: 'Can Edit',
+      allowedCategories: 'Allowed Support Categories',
+      blurredSections: 'Blurred UI Sections',
+      stats: {
+        total: 'Total Accounts',
+        superAdmins: 'Super Admins',
+        admins: 'System Admins',
+        support: 'Support Staff'
+      },
+      forms: {
+        name: 'Full Name',
+        email: 'Email Address',
+        password: 'Password',
+        role: 'System Role',
+        isActive: 'Account Active'
       }
     },
     violationsPage: {

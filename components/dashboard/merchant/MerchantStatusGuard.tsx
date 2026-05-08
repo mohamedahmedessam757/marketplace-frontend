@@ -2,7 +2,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { GlassCard } from '../../ui/GlassCard';
-import { ShieldAlert, Lock, Clock, XCircle, ChevronRight, UserPlus } from 'lucide-react';
+import { 
+  ShieldAlert, Lock, Clock, XCircle, ChevronRight, 
+  UserPlus, MessageCircle, Mail, Phone, Info, CheckCircle2 
+} from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -47,6 +50,122 @@ export const MerchantStatusGuard: React.FC<MerchantStatusGuardProps> = ({ childr
       </div>
     );
   }
+
+  const renderPendingReview = () => (
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#0F0E0C]">
+      {/* Blurred Dashboard Content */}
+      <div className="filter blur-[20px] pointer-events-none opacity-30 h-full fixed inset-0">
+        {children}
+      </div>
+
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto custom-scrollbar py-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-2xl"
+        >
+          <GlassCard className="p-6 md:p-10 border-gold-500/20 shadow-2xl relative overflow-hidden bg-black/60 backdrop-blur-xl">
+            {/* Background Aesthetic Glows */}
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-gold-500/5 blur-[100px] rounded-full" />
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-gold-500/5 blur-[100px] rounded-full" />
+
+            <div className="relative z-10">
+              {/* Header */}
+              <div className="flex flex-col items-center mb-8">
+                <div className="w-20 h-20 bg-gold-500/10 rounded-2xl flex items-center justify-center mb-6 border border-gold-500/20 shadow-[0_0_30px_rgba(184,134,11,0.1)]">
+                  <Clock size={40} className="text-gold-500 animate-pulse" />
+                </div>
+                <h2 className="text-2xl md:text-3xl font-black text-white text-center mb-4 tracking-tight">
+                  {isAr ? 'حسابك قيد المراجعة' : 'Account Under Review'}
+                </h2>
+                <div className="h-1 w-20 bg-gradient-to-r from-transparent via-gold-500 to-transparent rounded-full" />
+              </div>
+
+              {/* Core Message */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6 text-center">
+                <p className="text-white/80 text-base md:text-lg leading-relaxed">
+                  {isAr 
+                    ? 'تم استلام بيانات متجرك بنجاح، وجاري الآن تدقيقها من قبل فريق التحقق. نحرص على التأكد من صحة البيانات لضمان جودة وثقة جميع المتاجر داخل المنصة.'
+                    : 'Your store data has been successfully received and is now being audited by our verification team. We ensure data accuracy to maintain quality and trust for all stores on the platform.'
+                  }
+                </p>
+              </div>
+
+              {/* Grid Content: Duration & Alert */}
+              <div className="grid md:grid-cols-2 gap-4 mb-8">
+                {/* Duration */}
+                <div className="bg-white/5 border border-white/5 rounded-xl p-5">
+                   <div className="flex items-center gap-3 mb-3 text-gold-500">
+                      <Clock size={18} />
+                      <span className="font-bold text-sm uppercase tracking-wider">{isAr ? 'مدة المراجعة' : 'Review Duration'}</span>
+                   </div>
+                   <p className="text-white/60 text-sm leading-relaxed">
+                      {isAr 
+                        ? 'عادةً تستغرق المراجعة من 24 إلى 72 ساعة عمل وسيتم إشعارك فور الانتهاء عبر البريد الإلكتروني.'
+                        : 'Review typically takes 24 to 72 business hours. You will be notified via email once complete.'
+                      }
+                   </p>
+                </div>
+
+                {/* Important Alert */}
+                <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-5">
+                   <div className="flex items-center gap-3 mb-3 text-amber-500">
+                      <Info size={18} />
+                      <span className="font-bold text-sm uppercase tracking-wider">{isAr ? 'تنبيه مهم' : 'Important Note'}</span>
+                   </div>
+                   <p className="text-white/60 text-sm leading-relaxed">
+                      {isAr 
+                        ? 'في حال وجود نقص في البيانات، سيتم التواصل معك مباشرة عبر وسائل الاتصال المسجلة بحسابك.'
+                        : 'In case of missing data, you will be contacted directly via the contact details registered on your account.'
+                      }
+                   </p>
+                </div>
+              </div>
+
+              {/* Support Channels */}
+              <div className="border-t border-white/10 pt-8 mb-8">
+                <h4 className="text-white/40 text-xs font-bold uppercase tracking-[0.2em] text-center mb-6">
+                  {isAr ? 'الدعم والتواصل' : 'Support & Contact'}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <a href="https://wa.me/966525700525" target="_blank" className="flex items-center gap-4 p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-gold-500/10 hover:border-gold-500/20 transition-all group">
+                    <div className="w-10 h-10 bg-[#25D366]/10 rounded-xl flex items-center justify-center group-hover:bg-[#25D366]/20 transition-colors">
+                      <MessageCircle size={20} className="text-[#25D366]" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-white/40 font-bold uppercase">{isAr ? 'واتساب الدعم' : 'WhatsApp Support'}</p>
+                      <p className="text-sm text-white font-mono">+966 52 570 0525</p>
+                    </div>
+                  </a>
+
+                  <a href="mailto:cs@e-tashleh.net" className="flex items-center gap-4 p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-gold-500/10 hover:border-gold-500/20 transition-all group">
+                    <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                      <Mail size={20} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-white/40 font-bold uppercase">{isAr ? 'البريد الإلكتروني' : 'Email Support'}</p>
+                      <p className="text-sm text-white font-mono">cs@e-tashleh.net</p>
+                    </div>
+                  </a>
+                </div>
+              </div>
+
+              {/* Closing Message */}
+              <div className="flex items-center justify-center gap-3 text-white/40 italic text-sm text-center">
+                <CheckCircle2 size={16} className="text-gold-500/40" />
+                <p>
+                  {isAr 
+                    ? 'نشكرك على انضمامك لمنصتنا، ونتطلع لبدء شراكة ناجحة معك قريبًا'
+                    : 'Thank you for joining our platform; we look forward to starting a successful partnership with you soon.'
+                  }
+                </p>
+              </div>
+            </div>
+          </GlassCard>
+        </motion.div>
+      </div>
+    </div>
+  );
 
   const renderOverlay = (Icon: any, title: string, desc: string, variant: 'gold' | 'red' = 'gold', fullBlock: boolean = true) => (
     <div className="relative min-h-screen w-full overflow-hidden">
@@ -107,14 +226,7 @@ export const MerchantStatusGuard: React.FC<MerchantStatusGuardProps> = ({ childr
 
   // 1. PENDING_REVIEW / PENDING_DOCUMENTS
   if (vendorStatus === 'PENDING_REVIEW' || vendorStatus === 'PENDING_DOCUMENTS') {
-    return renderOverlay(
-        Clock,
-        isAr ? 'الحساب قيد المراجعة' : 'Account Under Review',
-        isAr 
-          ? 'شكراً لتسجيلك! فريق العمل يقوم حالياً بمراجعة مستنداتك وتفعيل حسابك. يرجى الانتظار.' 
-          : 'Thank you for registering! Our team is currently reviewing your documents and activating your account. Please wait.',
-        "gold"
-    );
+    return renderPendingReview();
   }
 
   // 2. REJECTED

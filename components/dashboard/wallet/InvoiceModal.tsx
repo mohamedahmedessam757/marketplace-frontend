@@ -8,6 +8,9 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
+import { getCurrentUser, mapBackendRoleToFrontend } from '../../../utils/auth';
+import { excelApi } from '../../../services/api/excel';
+import { Download } from 'lucide-react';
 
 /* ─────────────── types ─────────────── */
 interface InvoiceModalProps {
@@ -104,6 +107,11 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
 
     // Track if we are currently printing so we can mount the portal
     const [isPrinting, setIsPrinting] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+
+    const user = getCurrentUser();
+    const userRole = mapBackendRoleToFrontend(user?.role);
+    const isMerchant = userRole === 'merchant';
 
     if (!isOpen || !order) return null;
 
@@ -122,8 +130,15 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
         ? `${new Date(rawDate).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })} | ${new Date(rawDate).toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
         : '--';
 
-    const finalTotal = order.invoiceTotal || Number(acceptedOffer?.unitPrice || acceptedOffer?.unit_price || 0);
-    const currency = order.invoiceCurrency || 'AED';
+    const payment = order.payments?.find((p: any) => p.status === 'SUCCESS') || order.payments?.[0];
+    const escrow = payment?.escrow;
+
+    // For merchants, the "Total" is their earnings
+    const merchantEarnings = Number(escrow?.merchantAmount || payment?.unitPrice || acceptedOffer?.unitPrice || acceptedOffer?.unit_price || 0);
+    const finalTotal = isMerchant 
+        ? merchantEarnings 
+        : (order.invoiceTotal || Number(payment?.totalAmount || acceptedOffer?.unitPrice || acceptedOffer?.unit_price || 0));
+    const currency = order.invoiceCurrency || payment?.currency || 'AED';
 
     /* ── translation maps ── */
     const conditionMap: Record<string, string> = {
@@ -196,6 +211,24 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
         }, 300); // give React time to render the print tree
     };
 
+    const handleExportExcel = async () => {
+        try {
+            setIsExporting(true);
+            await excelApi.downloadInvoice(order.id, orderNumber);
+            addNotification({
+                titleAr: 'تم تصدير ملف Excel',
+                titleEn: 'Excel Exported',
+                messageAr: `تم تصدير بيانات الفاتورة ${invoiceNumber} إلى ملف Excel بنجاح.`,
+                messageEn: `Invoice ${invoiceNumber} data was successfully exported to Excel.`,
+                type: 'SYSTEM'
+            });
+        } catch (error) {
+            console.error('Export failed:', error);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     /* ── helper: image card ── */
     const ImageCard: React.FC<{ src: string; label: string; printQr?: boolean }> = ({ src, label, printQr }) => (
         <div className="relative group">
@@ -260,9 +293,11 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
                 </div>
                 <div className="text-right">
                     <p className="text-[20px] font-black text-gray-800 uppercase tracking-widest inv-value mb-1">
-                        {language === 'ar' ? 'فاتورة ضريبية' : 'TAX INVOICE'}
+                        {isMerchant 
+                            ? (language === 'ar' ? 'بيان مستحقات التاجر' : 'MERCHANT ENTITLEMENT STATEMENT')
+                            : (language === 'ar' ? 'فاتورة ضريبية' : 'TAX INVOICE')}
                     </p>
-                    <p className="text-gray-500 font-mono text-sm inv-label">TRN: 10045678900003</p>
+                    {!isMerchant && <p className="text-gray-500 font-mono text-sm inv-label">TRN: 10045678900003</p>}
                 </div>
             </div>
 
@@ -328,9 +363,15 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
                 <div className="bg-white/5 rounded-xl p-5 border border-white/5 inv-section">
                     <SectionHeader icon={User} titleAr="بيانات العميل (المستلم)" titleEn="Customer (Receiver)" />
                     <div className="space-y-2 text-xs sm:text-sm text-gray-300 mt-4">
-                        <p className="font-bold text-white text-base inv-value mb-2">{customerName}</p>
-                        {customer?.email && <InfoRow icon={Mail} label={language === 'ar' ? 'البريد' : 'Email'} value={customer.email} />}
-                        {customer?.phone && <InfoRow icon={Phone} label={language === 'ar' ? 'الهاتف' : 'Phone'} value={`${customer.countryCode || ''} ${customer.phone}`} />}
+                        <p className="font-bold text-white text-base inv-value mb-2">
+                            {isMerchant ? (language === 'ar' ? 'عميل منصة إي-تشليح' : 'E-Tashleh Customer') : customerName}
+                        </p>
+                        {!isMerchant && (
+                            <>
+                                {customer?.email && <InfoRow icon={Mail} label={language === 'ar' ? 'البريد' : 'Email'} value={customer.email} />}
+                                {customer?.phone && <InfoRow icon={Phone} label={language === 'ar' ? 'الهاتف' : 'Phone'} value={`${customer.countryCode || ''} ${customer.phone}`} />}
+                            </>
+                        )}
                         {(vehicleMake || vehicleModel) && (
                             <InfoRow icon={Car} label={language === 'ar' ? 'السيارة' : 'Vehicle'} value={`${vehicleMake} ${vehicleModel} ${vehicleYear}`} />
                         )}
@@ -340,23 +381,25 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
             </div>
 
             {/* ═══ SECTION 3: SHIPPING ═══ */}
-            <div className="bg-white/5 rounded-xl p-5 border border-white/5 mt-6 inv-section">
-                <SectionHeader icon={Truck} titleAr="عنوان التوصيل السريع" titleEn="Express Shipping Address" />
-                {shippingAddr ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 bg-black/20 p-4 rounded-lg border border-white/5">
-                        <InfoRow icon={User} label={language === 'ar' ? 'المستلم' : 'Receiver'} value={shippingAddr.fullName || shippingAddr.full_name || '--'} />
-                        <InfoRow icon={Phone} label={language === 'ar' ? 'رقم التواصل' : 'Contact Number'} value={shippingAddr.phone || '--'} />
-                        {shippingAddr.email && <InfoRow icon={Mail} label={language === 'ar' ? 'البريد البديل' : 'Alt Email'} value={shippingAddr.email} />}
-                        <InfoRow icon={MapPin} label={language === 'ar' ? 'المدينة' : 'City'} value={shippingAddr.city || '--'} />
-                        <InfoRow icon={MapPin} label={language === 'ar' ? 'الدولة' : 'Country'} value={shippingAddr.country || '--'} />
-                        <InfoRow icon={MapPin} label={language === 'ar' ? 'العنوان التفصيلي' : 'Detailed Address'} value={shippingAddr.details || '--'} />
-                    </div>
-                ) : (
-                    <div className="p-4 bg-black/20 rounded-lg border border-white/5">
-                        <p className="text-sm font-medium text-gray-400 italic text-center inv-label">{language === 'ar' ? 'لا يوجد عنوان شحن مسجل لهذا الطلب' : 'No shipping address registered for this order'}</p>
-                    </div>
-                )}
-            </div>
+            {!isMerchant && (
+                <div className="bg-white/5 rounded-xl p-5 border border-white/5 mt-6 inv-section">
+                    <SectionHeader icon={Truck} titleAr="عنوان التوصيل السريع" titleEn="Express Shipping Address" />
+                    {shippingAddr ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 bg-black/20 p-4 rounded-lg border border-white/5">
+                            <InfoRow icon={User} label={language === 'ar' ? 'المستلم' : 'Receiver'} value={shippingAddr.fullName || shippingAddr.full_name || '--'} />
+                            <InfoRow icon={Phone} label={language === 'ar' ? 'رقم التواصل' : 'Contact Number'} value={shippingAddr.phone || '--'} />
+                            {shippingAddr.email && <InfoRow icon={Mail} label={language === 'ar' ? 'البريد البديل' : 'Alt Email'} value={shippingAddr.email} />}
+                            <InfoRow icon={MapPin} label={language === 'ar' ? 'المدينة' : 'City'} value={shippingAddr.city || '--'} />
+                            <InfoRow icon={MapPin} label={language === 'ar' ? 'الدولة' : 'Country'} value={shippingAddr.country || '--'} />
+                            <InfoRow icon={MapPin} label={language === 'ar' ? 'العنوان التفصيلي' : 'Detailed Address'} value={shippingAddr.details || '--'} />
+                        </div>
+                    ) : (
+                        <div className="p-4 bg-black/20 rounded-lg border border-white/5">
+                            <p className="text-sm font-medium text-gray-400 italic text-center inv-label">{language === 'ar' ? 'لا يوجد عنوان شحن مسجل لهذا الطلب' : 'No shipping address registered for this order'}</p>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ═══ SECTION 4: CUSTOMER ORDER ═══ */}
             <div className="bg-white/5 rounded-xl p-5 border border-white/5 mt-6 inv-section">
@@ -424,7 +467,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
                     <div>
                         <p className="text-sm sm:text-base font-bold text-gray-300 inv-label uppercase tracking-widest">
-                            {language === 'ar' ? 'المبلغ النهائي والمستحق' : 'Final Amount Due'}
+                            {isMerchant 
+                                ? (language === 'ar' ? 'مستحقات التاجر النهائية' : 'Final Merchant Entitlement')
+                                : (language === 'ar' ? 'المبلغ النهائي والمستحق' : 'Final Amount Due')}
                         </p>
                         <p className="text-xs font-medium text-gold-500 mt-2 inv-label bg-gold-500/10 inline-block px-3 py-1 rounded-full border border-gold-500/20">
                             {language === 'ar' ? '✅ مدفوع بالكامل ' : '✅ Fully Paid '}
@@ -518,6 +563,16 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
                                 {language === 'ar' ? 'الوثيقة الضريبية الرسمية' : 'Official Tax Invoice'}
                             </h2>
                             <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={handleExportExcel} 
+                                    disabled={isExporting}
+                                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white font-bold rounded-lg transition-colors border border-white/10 disabled:opacity-50"
+                                >
+                                    {isExporting ? (
+                                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                    ) : <Download className="w-4 h-4" />}
+                                    <span className="hidden sm:inline">{language === 'ar' ? 'تصدير Excel' : 'Export Excel'}</span>
+                                </button>
                                 <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-gold-500 hover:bg-gold-600 text-black font-bold rounded-lg transition-colors shadow-[0_0_15px_rgba(184,134,11,0.4)]">
                                     <Printer className="w-4 h-4" />
                                     <span className="hidden sm:inline">{language === 'ar' ? 'طباعة / PDF' : 'Print / PDF'}</span>

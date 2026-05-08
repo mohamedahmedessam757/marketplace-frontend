@@ -12,6 +12,7 @@ import { useBillingStore } from '../../stores/useBillingStore';
 import { useMerchantWalletStore } from '../../stores/useMerchantWalletStore';
 import { useResolutionStore } from '../../stores/useResolutionStore';
 import { useCustomerWalletStore, subscribeToWalletUpdates } from '../../stores/useCustomerWalletStore';
+import { useAdminPermissionsStore } from '../../stores/useAdminPermissionsStore';
 import { NotificationDrawer } from './notifications/NotificationDrawer';
 import { NavigationDrawer } from './NavigationDrawer';
 import { VerdictPopUp } from './resolution/VerdictPopUp';
@@ -54,8 +55,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const { fetchWallet } = useMerchantWalletStore();
   const { user, fetchProfile, subscribeToProfile } = useProfileStore();
   const { subscribeToCases, unsubscribeFromCases } = useResolutionStore();
+  const { canView, myPermissions } = useAdminPermissionsStore();
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const walletSubRef = useRef<{ unsubscribe: () => void } | null>(null);
+  const permissionsUnsubRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let profileUnsub: (() => void) | undefined;
@@ -85,6 +88,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         walletSubRef.current = subscribeToWalletUpdates();
       }
 
+      // 4. Admin Permissions Real-time Sync (2026 RBAC)
+      if (role === 'admin' || currentAdmin?.role === 'SUPER_ADMIN' || currentAdmin?.role === 'SUPPORT') {
+          useAdminPermissionsStore.getState().fetchMyPermissions();
+          permissionsUnsubRef.current = useAdminPermissionsStore.getState().subscribeToPermissions(userId);
+      }
+
       // 2. Global Pre-fetching (Zero-Loading Architecture)
       // We pull background data based on role so navigating to /wallet or /billing is 0ms
       Promise.all([
@@ -98,6 +107,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       unsubscribeFromNotifications();
       unsubscribeFromCases();
       if (profileUnsub) profileUnsub();
+      stopRealtime();
       if (role === 'merchant') {
         useVendorStore.getState().unsubscribeFromVendorProfile();
       }
@@ -248,12 +258,30 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
     // Settings: Super Admin Only
     { id: 'settings', icon: Settings, label: t.admin.settings, allowed: ['SUPER_ADMIN'] },
+    { id: 'access-control', icon: ShieldCheck, label: language === 'ar' ? 'إدارة الوصول' : 'Access Control', allowed: ['SUPER_ADMIN'] },
   ];
 
   const getNavItems = () => {
     switch (role) {
       case 'merchant': return merchantNavItems;
-      case 'admin': return adminNavItems;
+      case 'admin': 
+          // 2026 RBAC: Filter items based on granular permissions if not Super Admin
+          return adminNavItems.filter(item => {
+            if (adminRole === 'SUPER_ADMIN') return true;
+            
+            // New granular check: Strictly follow permissions if available
+            // If the permission record doesn't exist, we fallback to role check for backward compatibility
+            // but for 2026 we prefer explicit permission guards.
+            const isPermissionAllowed = canView(item.id);
+            
+            // If the store has permissions, we use THEM as the source of truth.
+            // If the store is empty (user just logged in or no record), we use role.
+            if (myPermissions) {
+              return isPermissionAllowed;
+            }
+            
+            return item.allowed ? item.allowed.includes(adminRole) : true;
+          });
       default: return customerNavItems;
     }
   };

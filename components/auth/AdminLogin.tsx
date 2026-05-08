@@ -25,6 +25,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fingerprint, setFingerprint] = useState<string | null>(null);
+  const [loginData, setLoginData] = useState<any>(null);
 
   // Initialize FingerprintJS on mount for 2026 security standards
   React.useEffect(() => {
@@ -59,6 +60,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         // Store Admin Details
         setUserName(data.user.name || 'Admin');
         setUserPhone(data.user.phone || '');
+        setLoginData(data);
 
         // 2. Trigger OTP
         // In real backend, login might return "OTP_REQUIRED" status
@@ -88,12 +90,21 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
       // await authApi.verifyOTP(email, code); 
       console.log('DEV MODE: OTP Bypassed with code', code);
 
+      // Validate login data before proceeding
+      if (!loginData?.user || !loginData.user.id || !loginData.user.role) {
+        console.error('[handleVerifyOTP] Invalid loginData:', loginData);
+        setError(t.auth.errors?.invalidCredentials || 'Login session expired. Please try again.');
+        setOtpStep('none');
+        return;
+      }
+
       // Only login to store after full verification
-      loginAdmin(email);
+      loginAdmin(loginData.user, loginData.permissions);
       onLoginSuccess();
     } catch (err) {
       console.error('OTP Verification Failed', err);
-      // alert(t.auth.otp.invalidCode); 
+      setError(t.auth.errors?.invalidCredentials || 'Verification failed. Please try again.');
+      setOtpStep('none');
     }
   };
 
