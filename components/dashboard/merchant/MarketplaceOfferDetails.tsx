@@ -1047,6 +1047,15 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                                     <span className="text-sm font-bold text-white">{getWarrantyText(partOffer.warranty)}</span>
                                                                 </div>
                                                             )}
+                                                            {['READY_FOR_SHIPPING', 'VERIFICATION_SUCCESS'].includes(order.status) && !partOffer.shippingRequested && partOffer.status === 'accepted' && (
+                                                                <div className="bg-gold-500/10 rounded-lg px-2 py-1.5 border border-gold-500/20 flex flex-col justify-center animate-in zoom-in duration-500">
+                                                                    <span className="text-[10px] text-gold-400 block font-bold uppercase tracking-tighter">{isAr ? 'حالة اللوجستيات' : 'Logistics'}</span>
+                                                                    <span className="text-[11px] font-black text-white flex items-center gap-1">
+                                                                        <Box size={10} className="text-gold-400 animate-pulse" />
+                                                                        {isAr ? 'في سلة الشحن' : 'In Shipping Cart'}
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         {/* 2026 Governance: Edit/Withdraw Logic */}

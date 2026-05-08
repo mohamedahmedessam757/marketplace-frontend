@@ -27,7 +27,14 @@ import {
     Star,
     Share2,
     ShieldAlert,
-    Lock
+    Lock,
+    Scale,
+    AlertTriangle,
+    Gavel,
+    Trophy,
+    PlusCircle,
+    Truck,
+    AlertOctagon
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useCustomerWalletStore, subscribeToWalletUpdates } from '../../../stores/useCustomerWalletStore';
@@ -873,16 +880,30 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                                         {(() => {
                                                             const type = tx.transactionType?.toUpperCase() || 'PAYMENT';
                                                             const typeLabels = t.dashboard.profile.wallet.transactionTypes;
-                                                            const iconStyle = type === 'ORDER_PROFIT' ? 'text-gold-500' : 
-                                                                             type === 'REFERRAL_PROFIT' ? 'text-blue-400' : 
-                                                                             type === 'REFUND' ? 'text-rose-400' : 'text-white/40';
+                                                            
+                                                            const iconConfig: Record<string, { icon: any, color: string }> = {
+                                                                'ORDER_PROFIT': { icon: Star, color: 'text-gold-500' },
+                                                                'REFERRAL_PROFIT': { icon: LinkIcon, color: 'text-blue-400' },
+                                                                'PAYMENT': { icon: CreditCard, color: 'text-indigo-400' },
+                                                                'WITHDRAWAL': { icon: ArrowUpRight, color: 'text-orange-400' },
+                                                                'REFUND': { icon: RotateCcw, color: 'text-rose-400' },
+                                                                'COMMISSION': { icon: Scale, color: 'text-slate-400' },
+                                                                'PENALTY': { icon: AlertTriangle, color: 'text-red-500' },
+                                                                'DISPUTE': { icon: Gavel, color: 'text-purple-400' },
+                                                                'LOYALTY_BONUS': { icon: Trophy, color: 'text-amber-400' },
+                                                                'WALLET_TOPUP': { icon: PlusCircle, color: 'text-emerald-400' },
+                                                                'GATEWAY_FEE': { icon: ShieldAlert, color: 'text-orange-400' },
+                                                                'REFUND_FEE': { icon: RotateCcw, color: 'text-rose-400' },
+                                                                'SHIPPING_FEE': { icon: Truck, color: 'text-cyan-400' },
+                                                                'FRAUD_PENALTY': { icon: AlertOctagon, color: 'text-red-600' }
+                                                            };
+
+                                                            const config = iconConfig[type] || { icon: AlertCircle, color: 'text-white/40' };
+                                                            const Icon = config.icon;
                                                             
                                                             return (
-                                                                <div className={`flex items-center gap-1.5 ${iconStyle}`}>
-                                                                    {type === 'ORDER_PROFIT' && <Star size={10} />}
-                                                                    {type === 'REFERRAL_PROFIT' && <LinkIcon size={10} />}
-                                                                    {type === 'REFUND' && <RotateCcw size={10} />}
-                                                                    {type === 'PAYMENT' && <CreditCard size={10} />}
+                                                                <div className={`flex items-center gap-1.5 ${config.color}`}>
+                                                                    <Icon size={12} className={type === 'LOYALTY_BONUS' ? 'animate-bounce' : ''} />
                                                                     <span>{typeLabels[type] || type}</span>
                                                                 </div>
                                                             );

@@ -33,6 +33,7 @@ export type OrderStatus =
   | 'PREPARATION'
   | 'PREPARED'
   | 'DELAYED_PREPARATION'
+  | 'PARTIALLY_SHIPPED'
   | 'SHIPPED'
   | 'DELIVERED'
   | 'COMPLETED'
@@ -112,6 +113,12 @@ export interface Offer {
   notes?: string;
   offerImage?: string;
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
+  
+  // Partial Shipping from Assembly Cart (2026)
+  shippedFromCart?: boolean;
+  shippedFromCartAt?: string;
+  cartShipmentId?: string;
+
   createdAt: string;
 
   // Computed/Joined

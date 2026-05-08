@@ -34,6 +34,7 @@ import { AdminViolations } from './AdminViolations';
 import { AdminAccessControl } from './AdminAccessControl';
 import { FinancialHub } from './FinancialHub';
 import { PermissionGuard } from './PermissionGuard';
+import { AdminShippingCarts } from './AdminShippingCarts';
 
 interface AdminHomeProps {
     subPath?: string;
@@ -346,6 +347,9 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigat
     }
     if (subPath === 'shipping') {
         return <PermissionGuard page="shipping" action="view"><AdminShipping initialSearch={viewId} /></PermissionGuard>;
+    }
+    if (subPath === 'shipping-carts') {
+        return <PermissionGuard page="shipping-carts" action="view"><AdminShippingCarts /></PermissionGuard>;
     }
     if (subPath === 'settings') {
         return <PermissionGuard page="settings" action="view"><AdminSettings /></PermissionGuard>;

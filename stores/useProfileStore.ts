@@ -117,7 +117,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      console.log('[useProfileStore] Fetching data for userId:', userId);
+
 
       // 1. Fetch user data
       const { data: userData, error: userError } = await supabase
@@ -232,7 +232,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         settings: currentSettings,
         loading: false
       });
-      console.log('[useProfileStore] Profile loaded successfully:', userData.name);
+
 
     } catch (err: any) {
       console.error('[useProfileStore] Failed to fetch profile:', err);

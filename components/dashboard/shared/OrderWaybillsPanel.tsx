@@ -407,15 +407,28 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
+                                                {wb.shipments?.[0] && (
+                                                    <div className="mr-4 flex flex-col items-end">
+                                                        <span className="text-[8px] text-cyan-500 font-black uppercase tracking-widest">{isAr ? 'دفعة الشحن' : 'Shipping Batch'}</span>
+                                                        <span className="text-[10px] text-white/50 font-mono">#{wb.shipments[0].id.substring(0, 8)}</span>
+                                                    </div>
+                                                )}
                                                 <button 
-                                                    onClick={() => handleExportExcel(wb)}
+                                                    onClick={() => {
+                                                        const shipmentId = wb.shipments?.[0]?.id;
+                                                        if (shipmentId) {
+                                                            excelApi.downloadWaybills(orderId, shipmentId);
+                                                        } else {
+                                                            handleExportExcel(wb);
+                                                        }
+                                                    }}
                                                     disabled={isExporting === wb.id}
                                                     className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl transition-all border border-white/10 disabled:opacity-50 text-[10px] uppercase"
                                                 >
                                                     {isExporting === wb.id ? (
                                                         <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                                                     ) : <Download size={14} />}
-                                                    <span>{isAr ? 'تصدير Excel' : 'Excel'}</span>
+                                                    <span>{wb.shipments?.[0] ? (isAr ? 'تصدير الدفعة' : 'Export Batch') : (isAr ? 'تصدير Excel' : 'Excel')}</span>
                                                 </button>
                                                 <button 
                                                     onClick={() => handlePrint(wb)} 

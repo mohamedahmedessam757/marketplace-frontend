@@ -32,9 +32,11 @@ const warrantyMap: Record<string, string> = {
 
 interface CartItemProps {
     item: CartItemType;
+    isSelected: boolean;
+    onSelect: (offerId: string) => void;
 }
 
-export const CartItem: React.FC<CartItemProps> = ({ item }) => {
+export const CartItem: React.FC<CartItemProps> = ({ item, isSelected, onSelect }) => {
     const { t } = useLanguage();
 
     // Arabic literals as requested by the user
@@ -50,18 +52,36 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
 
 
     return (
-        <GlassCard className="p-0 overflow-hidden group hover:border-gold-500/30 transition-colors">
+        <GlassCard className={`p-0 overflow-hidden group transition-all duration-300 ${isSelected ? 'border-gold-500 ring-1 ring-gold-500/20 bg-gold-500/5' : 'hover:border-gold-500/30'}`}>
             {/* Header Strip */}
-            <div className="bg-white/5 px-5 py-3 border-b border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 text-xs font-mono font-medium flex items-center gap-1">
-                        <Hash size={12} />
-                        {item.orderNumber}
-                    </span>
-                    <span className="text-sm font-medium text-white/80 flex items-center gap-2">
-                        <Store size={14} className="text-gold-500" />
-                        {item.storeName}
-                    </span>
+            <div className={`px-5 py-3 border-b transition-colors flex items-center justify-between ${isSelected ? 'bg-gold-500/10 border-gold-500/20' : 'bg-white/5 border-white/5'}`}>
+                <div className="flex items-center gap-4">
+                    {/* Selection Checkbox */}
+                    <div 
+                        onClick={() => onSelect(item.offerId)}
+                        className={`w-5 h-5 rounded border cursor-pointer flex items-center justify-center transition-all ${
+                            isSelected 
+                            ? 'bg-gold-500 border-gold-500 text-black' 
+                            : 'border-white/20 hover:border-gold-500/50 bg-black/20'
+                        }`}
+                    >
+                        {isSelected && (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 text-xs font-mono font-medium flex items-center gap-1">
+                            <Hash size={12} />
+                            {item.orderNumber}
+                        </span>
+                        <span className="text-sm font-medium text-white/80 flex items-center gap-2">
+                            <Store size={14} className="text-gold-500" />
+                            {item.storeName}
+                        </span>
+                    </div>
                 </div>
                 {item.hasWarranty && (
                     <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-xs font-medium flex items-center gap-1">

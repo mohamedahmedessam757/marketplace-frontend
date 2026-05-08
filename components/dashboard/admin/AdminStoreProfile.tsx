@@ -9,7 +9,8 @@ import {
     Star, Eye, X, ExternalLink, Mail, Phone, Calendar, Hash, MapPin, CreditCard, 
     Wallet, Smartphone, Tablet, Monitor, Verified, Shield, Award, TrendingUp,
     Clock, ShieldAlert, ShoppingCart, Package, Sliders, Loader2, Lock, RotateCcw,
-    MessageSquare
+    MessageSquare, Truck, AlertOctagon, Scale, Gavel, Trophy, PlusCircle, AlertTriangle,
+    Link as LinkIcon, ArrowUpRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storesApi } from '../../../services/api/stores';
@@ -1861,10 +1862,39 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                                             </td>
                                                             <td className="p-4">
                                                                 <div className="flex items-center gap-2">
-                                                                    <Activity size={10} className="text-white/20" />
-                                                                    <span className="text-[10px] font-bold text-white/60 uppercase tracking-wide">
-                                                                        {tx.transactionType === 'withdrawal' ? (isAr ? 'سحب' : 'Withdrawal') : tx.type === 'CREDIT' ? t.admin.storeProfile.financial.sales : t.admin.storeProfile.financial.withdrawal}
-                                                                    </span>
+                                                                    {(() => {
+                                                                        const type = tx.transactionType?.toUpperCase() || (tx.type === 'CREDIT' ? 'ORDER_PROFIT' : 'WITHDRAWAL');
+                                                                        const typeLabels = t.admin.storeProfile.financial.types;
+                                                                        
+                                                                        const iconConfig: Record<string, { icon: any, color: string }> = {
+                                                                            'ORDER_PROFIT': { icon: Star, color: 'text-gold-500' },
+                                                                            'REFERRAL_PROFIT': { icon: LinkIcon, color: 'text-blue-400' },
+                                                                            'PAYMENT': { icon: CreditCard, color: 'text-indigo-400' },
+                                                                            'WITHDRAWAL': { icon: ArrowUpRight, color: 'text-orange-400' },
+                                                                            'REFUND': { icon: RotateCcw, color: 'text-rose-400' },
+                                                                            'COMMISSION': { icon: Scale, color: 'text-slate-400' },
+                                                                            'PENALTY': { icon: AlertTriangle, color: 'text-red-500' },
+                                                                            'DISPUTE': { icon: Gavel, color: 'text-purple-400' },
+                                                                            'LOYALTY_BONUS': { icon: Trophy, color: 'text-amber-400' },
+                                                                            'WALLET_TOPUP': { icon: PlusCircle, color: 'text-emerald-400' },
+                                                                            'GATEWAY_FEE': { icon: ShieldAlert, color: 'text-orange-400' },
+                                                                            'REFUND_FEE': { icon: RotateCcw, color: 'text-rose-400' },
+                                                                            'SHIPPING_FEE': { icon: Truck, color: 'text-cyan-400' },
+                                                                            'FRAUD_PENALTY': { icon: AlertOctagon, color: 'text-red-600' }
+                                                                        };
+
+                                                                        const config = iconConfig[type] || { icon: Activity, color: 'text-white/40' };
+                                                                        const Icon = config.icon;
+
+                                                                        return (
+                                                                            <div className={`flex items-center gap-1.5 ${config.color}`}>
+                                                                                <Icon size={12} className={type === 'LOYALTY_BONUS' ? 'animate-bounce' : ''} />
+                                                                                <span className="text-[10px] font-black uppercase tracking-wide">
+                                                                                    {typeLabels[type] || type}
+                                                                                </span>
+                                                                            </div>
+                                                                        );
+                                                                    })()}
                                                                 </div>
                                                             </td>
                                                             <td className="p-4 text-center">

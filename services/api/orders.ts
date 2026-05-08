@@ -38,9 +38,15 @@ export const ordersApi = {
         return response.data;
     },
 
-    // Request shipping for specific orders
-    requestShipping: async (orderIds: string[]) => {
-        const response = await client.post('/orders/request-shipping', { orderIds });
+    // Request shipping for specific orders or specific offers (partial shipping)
+    requestShipping: async (orderIds?: string[], offerIds?: string[], customerId?: string) => {
+        const response = await client.post('/orders/request-shipping', { orderIds, offerIds, customerId });
+        return response.data;
+    },
+
+    // Admin: Get all active shipping carts
+    getAdminShippingCarts: async () => {
+        const response = await client.get('/orders/admin/shipping-carts');
         return response.data;
     },
 

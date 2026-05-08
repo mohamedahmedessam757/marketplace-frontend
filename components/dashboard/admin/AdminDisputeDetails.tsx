@@ -25,7 +25,13 @@ import {
   Zap,
   ArrowUpRight,
   Users,
-  Loader2
+  Loader2,
+  AlertOctagon,
+  CreditCard,
+  RotateCcw,
+  MinusCircle,
+  PlusCircle,
+  Calculator
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useResolutionStore, ReturnPhase } from '../../../stores/useResolutionStore';
@@ -35,6 +41,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import { ShippingPaymentCard } from '../resolution/ShippingPaymentCard';
+import { storesApi } from '../../../services/api/stores';
 
 interface AdminDisputeDetailsProps {
     caseId: string;
@@ -61,9 +68,17 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
     const [isExecuting, setIsExecuting] = useState(false);
 
     const [adminNotes, setAdminNotes] = useState('');
-    const [verdictType, setVerdictType] = useState<'REFUND' | 'RELEASE_FUNDS' | 'DENY' | null>(null);
     const [faultParty, setFaultParty] = useState<'CUSTOMER' | 'MERCHANT' | 'BOTH' | 'SHIPPING_COMPANY' | 'PLATFORM' | 'NO_FAULT'>('MERCHANT');
     const [shippingRefund, setShippingRefund] = useState<number>(0);
+    
+    // 2026 Phase 5: Financial Adjudication States
+    const [gatewayFeePct, setGatewayFeePct] = useState<number>(3.00);
+    const [refundFeePct, setRefundFeePct] = useState<number>(1.50);
+    const [shippingRoundtrip, setShippingRoundtrip] = useState<number>(0);
+    const [penaltyType, setPenaltyType] = useState<'FRAUD' | 'NEGLIGENCE' | null>(null);
+    const [penaltyAmount, setPenaltyAmount] = useState<number>(50000);
+    const [merchantBalance, setMerchantBalance] = useState<number | null>(null);
+    
     const [selectedEvidence, setSelectedEvidence] = useState<string | null>(null);
 
     const dispute = getCaseById(caseId);
@@ -90,11 +105,17 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
             }
         }
 
+        if (dispute?.merchantStoreId && merchantBalance === null) {
+            storesApi.getStoreProfile(dispute.merchantStoreId).then(res => {
+                setMerchantBalance(Number(res.balance || 0));
+            }).catch(err => console.error("Balance fetch failed", err));
+        }
+
         return () => {
             // Only unsubscribe if we are leaving the resolution context entirely (optional but safer)
             // useResolutionStore.getState().unsubscribeFromCases(); 
         };
-    }, [dispute, order, caseId]);
+    }, [dispute, order, caseId, merchantBalance]);
 
     if (!dispute) {
         return (
@@ -128,17 +149,28 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
     const confirmVerdict = async () => {
         if (!adminApproval || isExecuting) return;
 
+        const price = Number(order?.price || 0);
+        const fixedFees = ((price * (gatewayFeePct + refundFeePct)) / 100);
+        let calculatedNetRefund = price - fixedFees;
+        if (faultParty === 'CUSTOMER') calculatedNetRefund -= shippingRoundtrip;
+        calculatedNetRefund = Math.max(0, calculatedNetRefund);
+
         const extra = {
             faultParty,
             shippingRefund: adminApproval === 'APPROVED' ? shippingRefund : 0,
-            stripeFee: 0,
+            gatewayFeePct,
+            refundFeePct,
+            shippingRoundtrip,
+            penaltyType,
+            penaltyAmount: penaltyType ? penaltyAmount : 0,
             adminApproval,
             adminApprovalReason,
             adminEvidence,
             adminName,
             adminEmail,
             adminSignature,
-            verdictIssuedAt: new Date()
+            verdictIssuedAt: new Date(),
+            calculatedNetRefund
         };
 
         const finalVerdictType = adminApproval === 'APPROVED' ? 'REFUND' : 'DENY';
@@ -152,13 +184,11 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                 await adminVerdict(dispute.id, dispute.type, finalVerdictType, adminApprovalReason || '', extra);
             }
 
-            // Real-time local state synchronization (Spec §14)
             const store = useResolutionStore.getState();
             if (store.updateCaseStatus) {
                 store.updateCaseStatus(dispute.id, 'RESOLVED');
             }
 
-            // Immediate Navigation for Snappy Feel
             onBack();
             
             addNotification({
@@ -618,17 +648,158 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                                          </div>
 
                                          <div className="space-y-6">
-                                             <div className="p-8 bg-gold-500/5 rounded-[40px] border border-gold-500/20 flex flex-col items-center justify-center text-center gap-4">
-                                                 <div className="w-16 h-16 rounded-full bg-gold-500/10 flex items-center justify-center border border-gold-500/20">
-                                                     <Zap size={32} className="text-gold-500" />
+                                         <div className="space-y-6">
+                                             <div className="p-8 bg-black/40 rounded-[40px] border border-white/5 space-y-6">
+                                                 <div className="flex items-center justify-between">
+                                                     <div className="flex items-center gap-3">
+                                                         <Calculator size={18} className="text-gold-500" />
+                                                         <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">{isAr ? 'حاسبة الرسوم المالية' : 'FINANCIAL FEE CALCULATOR'}</span>
+                                                     </div>
+                                                     <Badge variant="outline" className="text-[9px] border-gold-500/20 text-gold-500">v4.1 CALC</Badge>
                                                  </div>
-                                                 <div className="space-y-1">
-                                                     <p className="text-sm font-black text-white uppercase tracking-widest">{isAr ? 'حساب تلقائي' : 'AUTOMATED CALCULATION'}</p>
-                                                     <p className="text-[10px] text-white/40 font-bold max-w-[200px]">
-                                                         {isAr ? 'سيقوم النظام بحساب التكاليف المالية تلقائياً بناءً على سياسات المتجر واللوجستيات.' : 'The system will automatically calculate financial costs based on store policies and logistics.'}
-                                                     </p>
+
+                                                 <div className="space-y-4">
+                                                     {/* Fee Percentage Controls */}
+                                                     <div className="grid grid-cols-2 gap-4">
+                                                         <div className="space-y-2">
+                                                             <label className="text-[9px] font-bold text-white/20 uppercase tracking-widest">{isAr ? 'رسوم البوابة (%)' : 'GATEWAY FEE (%)'}</label>
+                                                             <div className="flex items-center gap-3 bg-white/5 p-2 rounded-xl border border-white/10">
+                                                                 <button onClick={() => setGatewayFeePct(Math.max(0, gatewayFeePct - 0.5))} className="p-1 hover:bg-white/10 rounded-md text-white/40"><MinusCircle size={14} /></button>
+                                                                 <span className="flex-1 text-center font-mono text-xs text-white">{gatewayFeePct.toFixed(1)}%</span>
+                                                                 <button onClick={() => setGatewayFeePct(gatewayFeePct + 0.5)} className="p-1 hover:bg-white/10 rounded-md text-white/40"><PlusCircle size={14} /></button>
+                                                             </div>
+                                                         </div>
+                                                         <div className="space-y-2">
+                                                             <label className="text-[9px] font-bold text-white/20 uppercase tracking-widest">{isAr ? 'رسوم الاسترداد (%)' : 'REFUND FEE (%)'}</label>
+                                                             <div className="flex items-center gap-3 bg-white/5 p-2 rounded-xl border border-white/10">
+                                                                 <button onClick={() => setRefundFeePct(Math.max(0, refundFeePct - 0.5))} className="p-1 hover:bg-white/10 rounded-md text-white/40"><MinusCircle size={14} /></button>
+                                                                 <span className="flex-1 text-center font-mono text-xs text-white">{refundFeePct.toFixed(1)}%</span>
+                                                                 <button onClick={() => setRefundFeePct(refundFeePct + 0.5)} className="p-1 hover:bg-white/10 rounded-md text-white/40"><PlusCircle size={14} /></button>
+                                                             </div>
+                                                         </div>
+                                                     </div>
+
+                                                     {/* Round-trip Shipping Control */}
+                                                     <div className="space-y-2">
+                                                         <label className="text-[9px] font-bold text-white/20 uppercase tracking-widest">{isAr ? 'تكاليف الشحن ذهاباً وإياباً' : 'ROUND-TRIP SHIPPING COST'}</label>
+                                                         <div className="relative group">
+                                                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20"><Truck size={14} /></div>
+                                                             <input 
+                                                                 type="number"
+                                                                 value={shippingRoundtrip}
+                                                                 onChange={(e) => setShippingRoundtrip(Number(e.target.value))}
+                                                                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-10 pr-4 text-sm font-mono text-white focus:border-gold-500/50 outline-none transition-all"
+                                                                 placeholder="0.00"
+                                                             />
+                                                             <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-white/20">AED</div>
+                                                         </div>
+                                                     </div>
+
+                                                     {/* Financial Breakdown Table */}
+                                                     <div className="mt-6 pt-6 border-t border-white/5 space-y-3">
+                                                         <div className="flex justify-between text-[10px]">
+                                                             <span className="text-white/40">{isAr ? 'إجمالي المدفوع' : 'Total Paid'}</span>
+                                                             <span className="text-white font-mono">{Number(order?.price || 0).toLocaleString()} AED</span>
+                                                         </div>
+                                                         
+                                                         {/* Responsibility Indicator */}
+                                                         <div className={`p-3 rounded-xl border mb-4 ${faultParty === 'MERCHANT' ? 'bg-orange-500/5 border-orange-500/20' : 'bg-cyan-500/5 border-cyan-500/20'}`}>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <Scale size={12} className={faultParty === 'MERCHANT' ? 'text-orange-400' : 'text-cyan-400'} />
+                                                                <span className="text-[9px] font-black uppercase text-white/60">
+                                                                    {isAr ? 'حوكمة الرسوم' : 'FEE GOVERNANCE'}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[9px] font-bold text-white leading-tight">
+                                                                {isAr 
+                                                                    ? 'يتم خصم (4.5%) من مبلغ الطلب كرسوم ثابتة. تكاليف الشحن يتحملها المخطئ.' 
+                                                                    : 'Fixed fees (4.5%) deducted from order pool. Shipping cost assigned to guilty party.'}
+                                                            </p>
+                                                         </div>
+
+                                                         <div className="flex justify-between text-[10px]">
+                                                             <span className="text-red-400/60 flex items-center gap-2"><CreditCard size={10} /> {isAr ? 'رسوم بوابة الدفع (تخصم من الطلب)' : 'Gateway Fee (Pool)'} ({gatewayFeePct}%)</span>
+                                                             <span className="text-red-400 font-mono">-{((Number(order?.price || 0) * gatewayFeePct) / 100).toFixed(2)} AED</span>
+                                                         </div>
+                                                         <div className="flex justify-between text-[10px]">
+                                                             <span className="text-red-400/60 flex items-center gap-2"><RotateCcw size={10} /> {isAr ? 'رسوم الاسترداد (تخصم من الطلب)' : 'Refund Fee (Pool)'} ({refundFeePct}%)</span>
+                                                             <span className="text-red-400 font-mono">-{((Number(order?.price || 0) * refundFeePct) / 100).toFixed(2)} AED</span>
+                                                         </div>
+                                                         {shippingRoundtrip > 0 && (
+                                                            <div className="flex justify-between text-[10px]">
+                                                                <span className="text-orange-400/60 flex items-center gap-2"><Truck size={10} /> {isAr ? 'تكاليف الشحن (على المسؤول)' : 'Shipping Cost (on Guilty)'}</span>
+                                                                <span className="text-orange-400 font-mono">-{shippingRoundtrip.toFixed(2)} AED</span>
+                                                            </div>
+                                                         )}
+
+                                                         {/* Merchant Balance Warning (For Shipping ONLY) */}
+                                                         {faultParty === 'MERCHANT' && merchantBalance !== null && shippingRoundtrip > 0 && (
+                                                            <div className={`mt-4 p-3 rounded-xl border ${merchantBalance < shippingRoundtrip ? 'bg-red-500/10 border-red-500/30' : 'bg-green-500/5 border-green-500/10'}`}>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">{isAr ? 'رصيد المتجر (للشحن)' : 'MERCHANT BALANCE (FOR SHIPPING)'}</span>
+                                                                    <span className={`text-[10px] font-mono ${merchantBalance < shippingRoundtrip ? 'text-red-500 animate-pulse' : 'text-green-400'}`}>
+                                                                        {merchantBalance.toFixed(2)} AED
+                                                                    </span>
+                                                                </div>
+                                                                {merchantBalance < shippingRoundtrip && (
+                                                                    <p className="text-[8px] text-red-500 font-bold mt-1">
+                                                                        {isAr ? '⚠️ تنبيه: رصيد المتجر غير كافٍ لتغطية الشحن. سيخصم بالسالب.' : '⚠️ WARNING: Insufficient funds for shipping. Will go negative.'}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                         )}
+
+                                                         <div className="flex justify-between items-center pt-3 border-t border-white/5">
+                                                             <span className="text-xs font-black text-white uppercase">{isAr ? 'صافي المبلغ المسترد' : 'NET REFUND'}</span>
+                                                             <div className="text-right">
+                                                                <span className="text-lg font-black text-green-400 font-mono leading-none">
+                                                                    {(() => {
+                                                                        const price = Number(order?.price || 0);
+                                                                        const fixedFees = ((price * (gatewayFeePct + refundFeePct)) / 100);
+                                                                        let net = price - fixedFees;
+                                                                        if (faultParty === 'CUSTOMER') net -= shippingRoundtrip;
+                                                                        return Math.max(0, net).toFixed(2);
+                                                                    })()}
+                                                                </span>
+                                                                <span className="text-[10px] text-green-400/40 font-black ml-1 uppercase">AED</span>
+                                                             </div>
+                                                         </div>
+                                                     </div>
                                                  </div>
                                              </div>
+
+                                             {/* 2026 Fraud Control Module */}
+                                             <div className={`p-6 rounded-[32px] border transition-all ${penaltyType === 'FRAUD' ? 'bg-red-500/10 border-red-500/50' : 'bg-white/5 border-white/5'}`}>
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <AlertOctagon size={18} className={penaltyType === 'FRAUD' ? 'text-red-500' : 'text-white/20'} />
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest ${penaltyType === 'FRAUD' ? 'text-red-500' : 'text-white/20'}`}>{isAr ? 'الكشف عن احتيال' : 'FRAUD DETECTION'}</span>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => setPenaltyType(penaltyType === 'FRAUD' ? null : 'FRAUD')}
+                                                        className={`w-12 h-6 rounded-full relative transition-all ${penaltyType === 'FRAUD' ? 'bg-red-500' : 'bg-white/10'}`}
+                                                    >
+                                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isAr ? (penaltyType === 'FRAUD' ? 'left-1' : 'right-1') : (penaltyType === 'FRAUD' ? 'right-1' : 'left-1')}`} />
+                                                    </button>
+                                                </div>
+                                                {penaltyType === 'FRAUD' && (
+                                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
+                                                        <p className="text-[9px] text-red-500/60 font-bold leading-relaxed">
+                                                            {isAr ? '⚠️ تفعيل هذا الخيار سيؤدي إلى تعليق حساب الطرف المسؤول وتجميد جميع أرصدته وخصم الغرامة المحددة.' : '⚠️ Enabling this will suspend the guilty party\'s account, freeze all balances, and deduct the specified fine.'}
+                                                        </p>
+                                                        <div className="relative">
+                                                            <input 
+                                                                type="number"
+                                                                value={penaltyAmount}
+                                                                onChange={(e) => setPenaltyAmount(Number(e.target.value))}
+                                                                className="w-full bg-red-500/5 border border-red-500/20 rounded-xl py-2 px-4 text-xs font-mono text-red-500 outline-none"
+                                                            />
+                                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-red-500/40">AED FINE</div>
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                             </div>
+                                         </div>
                                          </div>
                                      </div>
 
@@ -795,12 +966,39 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                                       <div className="space-y-4 border-b border-white/5 pb-6">
                                          <span className="text-[9px] font-black text-white/20 uppercase tracking-widest block">{isAr ? 'التسوية المالية' : 'FINANCIAL SETTLEMENT'}</span>
                                          <div className="grid grid-cols-1 gap-3">
-                                            {dispute.shippingRefund > 0 && (
+                                            {(dispute.shippingRefund ?? 0) > 0 && (
                                                 <div className="flex justify-between items-center p-3 bg-cyan-500/5 rounded-2xl border border-cyan-500/10">
                                                    <span className="text-[10px] text-cyan-400/60 font-bold uppercase">{isAr ? 'شحن ذهاباً وإياباً' : 'Round-trip Shipping'}</span>
                                                    <span className="text-sm font-black text-cyan-400 font-mono">{Number(dispute.shippingRefund).toLocaleString()} AED</span>
                                                 </div>
                                             )}
+                                            
+                                            {/* 2026 Detailed Fee Breakdown Display */}
+                                            {(dispute.gatewayFeeAmount ?? 0) > 0 && (
+                                                <div className="flex justify-between items-center p-3 bg-red-500/5 rounded-2xl border border-red-500/10">
+                                                   <span className="text-[10px] text-red-400/60 font-bold uppercase">{isAr ? 'رسوم البوابة (3%)' : 'Gateway Fee (3%)'}</span>
+                                                   <span className="text-sm font-black text-red-400 font-mono">{Number(dispute.gatewayFeeAmount).toLocaleString()} AED</span>
+                                                </div>
+                                            )}
+                                            
+                                            {(dispute.refundFeeAmount ?? 0) > 0 && (
+                                                <div className="flex justify-between items-center p-3 bg-red-500/5 rounded-2xl border border-red-500/10">
+                                                   <span className="text-[10px] text-red-400/60 font-bold uppercase">{isAr ? 'رسوم الاسترداد (1.5%)' : 'Refund Fee (1.5%)'}</span>
+                                                   <span className="text-sm font-black text-red-400 font-mono">{Number(dispute.refundFeeAmount).toLocaleString()} AED</span>
+                                                </div>
+                                            )}
+
+                                            {(dispute.penaltyAmount ?? 0) > 0 && (
+                                                <div className="flex justify-between items-center p-3 bg-red-600/10 rounded-2xl border border-red-600/20">
+                                                   <span className="text-[10px] text-red-600 font-black uppercase flex items-center gap-2"><AlertOctagon size={12} /> {isAr ? 'غرامة احتيال' : 'FRAUD PENALTY'}</span>
+                                                   <span className="text-sm font-black text-red-600 font-mono">{Number(dispute.penaltyAmount).toLocaleString()} AED</span>
+                                                </div>
+                                            )}
+
+                                            <div className="pt-2 flex justify-between items-center border-t border-white/5 mt-1">
+                                                <span className="text-[10px] font-black text-white uppercase">{isAr ? 'الصافي المسترد' : 'NET REFUNDED'}</span>
+                                                <span className="text-xl font-black text-green-400 font-mono">{Number(dispute.netRefundAmount ?? dispute.refundAmount ?? 0).toLocaleString()} AED</span>
+                                            </div>
                                          </div>
                                       </div>
 

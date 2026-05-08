@@ -199,9 +199,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     }, [visibleTabs, activeTab]);
 
     const kpis = adminFinancials?.kpis || {
-        totalSales: 0, netCommission: 0, shippingProfit: 0, referralEarnings: 0,
+        totalSales: 0, netCommission: 0, netPlatformPosition: 0, shippingProfit: 0, referralEarnings: 0,
         referralCount: 0, pendingWithdrawals: 0, pendingWithdrawalsCount: 0,
-        frozenFunds: 0, todayTransactionsCount: 0, overallLiquidity: 0,
+        frozenFunds: 0, todayTransactionsCount: 0,
         totalRefunds: 0, gatewayFees: 0, pendingLiabilities: 0
     };
 
@@ -408,10 +408,10 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             color="#ef4444"
                         />
                         <StatCard 
-                            label={isAr ? 'السيولة الكلية' : (t.admin.billing.kpis.overallLiquidity || 'Overall Liquidity')}
-                            value={`${kpis.overallLiquidity?.toLocaleString() || 0} AED`}
-                            subValue={isAr ? 'احتياطيات المنصة' : (t.admin.billing.kpis.platformReserves || 'Platform Reserves')}
-                            icon={Wallet}
+                            label={isAr ? 'صافي ربح المنصة (بعد الاسترداد)' : 'Net Platform Position (After Refunds)'}
+                            value={`${(kpis.netPlatformPosition || 0).toLocaleString()} AED`}
+                            subValue={isAr ? 'الربح الفعلي المحقق بعد جميع المصاريف' : 'Actual realized profit after all expenses'}
+                            icon={ShieldCheck}
                             color="#22d3ee"
                         />
                         <StatCard 

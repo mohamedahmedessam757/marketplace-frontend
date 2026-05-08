@@ -29,9 +29,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         set({ loading: true, error: null });
         try {
             const userId = getCurrentUserId();
-            console.log('[useOrdersStore] getCurrentUserId returned:', userId);
+
             if (!userId) {
-                console.log('[useOrdersStore] No user ID, returning empty orders');
+
                 set({ orders: [], loading: false });
                 return;
             }
@@ -49,7 +49,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
             if (error) throw error;
 
-            console.log('[useOrdersStore] Query returned', data?.length, 'orders:', data);
+
 
             // Transform data if needed to match interface strictly
             const mappedOrders = (data || []).map(order => ({

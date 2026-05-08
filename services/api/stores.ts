@@ -16,6 +16,11 @@ export const storesApi = {
         return response.data;
     },
 
+    getStoreProfile: async (id: string) => {
+        const response = await client.get(`/stores/${id}`);
+        return response.data;
+    },
+
     uploadDocument: async (file: File, type: string) => {
         // Implement if needed for separate upload
         // Placeholder for future logic

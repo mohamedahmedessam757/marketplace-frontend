@@ -82,6 +82,14 @@ export const customer = {
       empty: 'سلة التجميع فارغة',
       emptyDesc: 'ستظهر القطع التي تتطلب تجميع هنا بعد الدفع. الطلبات المكونة من قطعة واحدة تذهب مباشرة إلى الشحنات.',
       store: 'المتجر',
+      partialShipping: 'شحن جزئي',
+      shipSelected: 'شحن العناصر المختارة',
+      selectItems: 'اختر العناصر التي ترغب في شحنها الآن',
+      alreadyShipped: 'تم شحنها',
+      readyToShip: 'جاهز للشحن',
+      consolidationWarning: 'يمكنك شحن بعض العناصر الآن وترك الباقي في السلة. ملاحظة: قد تختلف تكلفة الشحن عند تقسيم الطلبات.',
+      batchTotal: 'إجمالي الشحنة الحالية',
+      itemsCount: 'عدد القطع المختارة',
       modes: {
         title: 'نوع الشحن',
         faster: 'أسرع',
@@ -385,7 +393,16 @@ export const customer = {
           REFERRAL_PROFIT: 'أرباح الإحالات 🔗',
           PAYMENT: 'عملية دفع 💳',
           WITHDRAWAL: 'سحب رصيد 🏦',
-          REFUND: 'استرداد مبلغ 💸'
+          REFUND: 'استرداد مبلغ 💸',
+          COMMISSION: 'عمولة المنصة ⚖️',
+          PENALTY: 'جزاء / مخالفة ⚠️',
+          DISPUTE: 'نزاع مالي 🛡️',
+          LOYALTY_BONUS: 'مكافأة ولاء 🏆',
+          WALLET_TOPUP: 'شحن محفظة 💰',
+          GATEWAY_FEE: 'رسوم بوابة الدفع 💳',
+          REFUND_FEE: 'رسوم الاسترداد 🔄',
+          SHIPPING_FEE: 'تكاليف الشحن 🚚',
+          FRAUD_PENALTY: 'غرامة احتيال 🚫'
         }
       },
       settings: {
@@ -934,6 +951,14 @@ export const customer = {
       empty: 'Your assembly cart is empty',
       emptyDesc: 'Items requiring assembly will appear here after payment. Single-part orders go directly to Shipments.',
       store: 'Store',
+      partialShipping: 'Partial Shipping',
+      shipSelected: 'Ship Selected Items',
+      selectItems: 'Select items you want to ship now',
+      alreadyShipped: 'Shipped',
+      readyToShip: 'Ready to Ship',
+      consolidationWarning: 'You can ship selected items now and leave others in the cart. Note: Shipping costs may vary for separate shipments.',
+      batchTotal: 'Current Shipment Total',
+      itemsCount: 'Selected Items Count',
       modes: {
         title: 'Shipping Mode',
         faster: 'Faster',
@@ -1240,7 +1265,16 @@ export const customer = {
           REFERRAL_PROFIT: 'Referral Profits 🔗',
           PAYMENT: 'Payment 💳',
           WITHDRAWAL: 'Withdrawal 🏦',
-          REFUND: 'Refund 💸'
+          REFUND: 'Refund 💸',
+          COMMISSION: 'Commission ⚖️',
+          PENALTY: 'Penalty ⚠️',
+          DISPUTE: 'Dispute 🛡️',
+          LOYALTY_BONUS: 'Loyalty Bonus 🏆',
+          WALLET_TOPUP: 'Wallet Top-up 💰',
+          GATEWAY_FEE: 'Gateway Fee 💳',
+          REFUND_FEE: 'Refund Processing Fee 🔄',
+          SHIPPING_FEE: 'Shipping Cost 🚚',
+          FRAUD_PENALTY: 'Fraud Penalty 🚫'
         }
       },
       settings: {

@@ -16,11 +16,12 @@ const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     AWAITING_SELECTION: ['AWAITING_PAYMENT', 'CANCELLED'],
     AWAITING_OFFERS: ['AWAITING_PAYMENT', 'CANCELLED'],
     AWAITING_PAYMENT: ['PREPARATION', 'CANCELLED'],
-    PREPARATION: ['PREPARED', 'DELAYED_PREPARATION', 'CANCELLED'],
+    PREPARATION: ['PREPARED', 'DELAYED_PREPARATION', 'PARTIALLY_SHIPPED', 'CANCELLED'],
     PREPARED: ['VERIFICATION', 'SHIPPED', 'CANCELLED'],
     VERIFICATION: ['VERIFICATION_SUCCESS', 'NON_MATCHING', 'CANCELLED'],
     VERIFICATION_SUCCESS: ['READY_FOR_SHIPPING', 'CANCELLED'],
-    READY_FOR_SHIPPING: ['SHIPPED', 'CANCELLED'],
+    READY_FOR_SHIPPING: ['SHIPPED', 'PARTIALLY_SHIPPED', 'CANCELLED'],
+    PARTIALLY_SHIPPED: ['PARTIALLY_SHIPPED', 'SHIPPED', 'CANCELLED'],
     NON_MATCHING: ['CORRECTION_PERIOD', 'CANCELLED'],
     CORRECTION_PERIOD: ['CORRECTION_SUBMITTED', 'CANCELLED'],
     CORRECTION_SUBMITTED: ['VERIFICATION_SUCCESS', 'NON_MATCHING', 'CANCELLED'],
@@ -102,6 +103,11 @@ export interface OrderOffer {
     partName?: string; // Part name for display
     canEditUntil?: string; // 2026 Governance Timer
     isWithdrawn?: boolean; // 2026 Governance State
+    
+    // Partial Shipping from Assembly Cart (2026)
+    shippedFromCart?: boolean;
+    shippedFromCartAt?: string;
+    cartShipmentId?: string;
 }
 
 export interface Order {
@@ -516,7 +522,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     orderPartId: offer.orderPartId || offer.order_part_id || null,
                     cylinders: offer.cylinders,
                     canEditUntil: offer.canEditUntil,
-                    isWithdrawn: !!offer.isWithdrawn
+                    isWithdrawn: !!offer.isWithdrawn,
+                    shippedFromCart: !!offer.shippedFromCart,
+                    shippedFromCartAt: offer.shippedFromCartAt,
+                    cartShipmentId: offer.cartShipmentId
                 })) : [],
                 createdAt: o.createdAt,
                 updatedAt: o.updatedAt,

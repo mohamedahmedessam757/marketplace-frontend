@@ -33,6 +33,7 @@ export const PERMISSION_PAGES = {
   CUSTOMERS: 'customers',
   CUSTOMER_PROFILE: 'CUSTOMER_PROFILE',
   ORDERS: 'orders-control',
+  SHIPPING_CARTS: 'shipping-carts',
   BILLING: 'billing',
   AUDIT: 'audit-logs',
   SECURITY: 'security-audit',
@@ -77,6 +78,10 @@ export const GRANULAR_PERMISSIONS: Record<string, { fields: string[], actions: s
   'orders-control': {
     fields: ['ORDER_COST', 'VENDOR_REVENUE', 'PROFIT_MARGIN', 'PLATFORM_FEES'],
     actions: ['CANCEL_ORDER', 'MARK_AS_PAID', 'UPDATE_SHIPMENT', 'FORCE_REFUND']
+  },
+  'shipping-carts': {
+    fields: ['SENSITIVE_DATA'],
+    actions: ['FORCE_SHIP_ALL', 'REQUEST_PARTIAL_SHIPMENT']
   },
   'billing': {
     fields: ['BANK_DETAILS', 'TAX_RECORDS', 'PROFIT_STATS', 'PAYOUT_QUEUE'],

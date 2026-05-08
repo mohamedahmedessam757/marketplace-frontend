@@ -50,6 +50,7 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus })
       case 'PACKAGED_FOR_SHIPPING':
       case 'AWAITING_CARRIER_PICKUP':
       case 'READY_FOR_SHIPPING':
+      case 'PARTIALLY_SHIPPED':
       case 'SHIPPED': 
       case 'PICKED_UP_BY_CARRIER':
       case 'IN_TRANSIT_TO_DESTINATION':

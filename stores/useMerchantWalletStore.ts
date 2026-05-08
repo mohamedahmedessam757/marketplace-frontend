@@ -235,7 +235,7 @@ export const subscribeToMerchantWalletUpdates = (userId: string, storeId?: strin
             'postgres_changes',
             { event: '*', schema: 'public', table: 'wallet_transactions', filter: `user_id=eq.${userId}` },
             payload => {
-                console.log('Real-time wallet transaction update:', payload);
+
                 useMerchantWalletStore.getState().fetchWallet();
             }
         )
@@ -243,7 +243,7 @@ export const subscribeToMerchantWalletUpdates = (userId: string, storeId?: strin
             'postgres_changes',
             { event: '*', schema: 'public', table: 'stores', filter: `owner_id=eq.${userId}` },
             payload => {
-                console.log('Real-time store balance update:', payload);
+
                 useMerchantWalletStore.getState().fetchWallet();
             }
         );
@@ -253,7 +253,7 @@ export const subscribeToMerchantWalletUpdates = (userId: string, storeId?: strin
             'postgres_changes',
             { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
             payload => {
-                console.log('Real-time order update for merchant:', payload);
+
                 useMerchantWalletStore.getState().fetchWallet();
             }
         )
@@ -261,7 +261,7 @@ export const subscribeToMerchantWalletUpdates = (userId: string, storeId?: strin
             'postgres_changes',
             { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `store_id=eq.${storeId}` },
             payload => {
-                console.log('Real-time withdrawal update:', payload);
+
                 useMerchantWalletStore.getState().fetchWithdrawalData();
                 useMerchantWalletStore.getState().fetchWallet();
             }

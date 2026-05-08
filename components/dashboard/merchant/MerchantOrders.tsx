@@ -102,16 +102,16 @@ const WarrantyProgress = ({ deliveredAt, durationStr, isAr }: { deliveredAt: str
                 const minsLeft = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
 
                 if (daysLeft > 0) {
-                    setStatusText(isAr 
-                        ? `${daysLeft} يوم و ${hoursLeft} ساعة متبقية` 
+                    setStatusText(isAr
+                        ? `${daysLeft} يوم و ${hoursLeft} ساعة متبقية`
                         : `${daysLeft}d ${hoursLeft}h left`);
                 } else if (hoursLeft > 0) {
-                    setStatusText(isAr 
-                        ? `${hoursLeft} ساعة و ${minsLeft} دقيقة` 
+                    setStatusText(isAr
+                        ? `${hoursLeft} ساعة و ${minsLeft} دقيقة`
                         : `${hoursLeft}h ${minsLeft}m left`);
                 } else {
-                    setStatusText(isAr 
-                        ? `${minsLeft} دقيقة متبقية` 
+                    setStatusText(isAr
+                        ? `${minsLeft} دقيقة متبقية`
                         : `${minsLeft}m left`);
                 }
             }
@@ -150,18 +150,18 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
 
     // Using strictly filtered orders that are in active transit or resolution states.
     const myStoreId = localStorage.getItem('merchant_store_id') || '';
-    
+
     // Status groups for 2026 workflow
     const prepStatuses = [
-        'PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 
-        'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 
+        'PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS',
+        'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD',
         'CORRECTION_SUBMITTED', 'DELAYED_PREPARATION'
     ];
     const resolutionStatuses = [
         'DISPUTED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'REFUNDED', 'WARRANTY_DISPUTED'
     ];
 
-    const activeOrders = orders.filter(o => 
+    const activeOrders = orders.filter(o =>
         [...prepStatuses, 'SHIPPED', 'DELIVERED', 'WARRANTY_ACTIVE', 'COMPLETED', 'COLLECTING_OFFERS', 'AWAITING_OFFERS', ...resolutionStatuses].includes(o.status) &&
         myStoreId && o.offers?.some(off => off.storeId === myStoreId && off.status === 'accepted')
     );
@@ -222,6 +222,7 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
             READY_FOR_SHIPPING: { color: 'text-blue-400', bg: 'bg-blue-500/10', label: isAr ? 'جاهز للشحن' : 'Ready' },
             NON_MATCHING: { color: 'text-red-400', bg: 'bg-red-500/10', label: isAr ? 'غير مطابق' : 'Non-Matching' },
             CORRECTION_PERIOD: { color: 'text-orange-400', bg: 'bg-orange-500/10', label: isAr ? 'فترة تصحيح' : 'Correction' },
+            PARTIALLY_SHIPPED: { color: 'text-blue-300', bg: 'bg-blue-500/10', label: isAr ? 'شحن جزئي' : 'Partially Shipped' },
             SHIPPED: { color: 'text-purple-400', bg: 'bg-purple-500/10', label: isAr ? 'جاري التوصيل' : 'In Transit' },
             DELIVERED: { color: 'text-green-400', bg: 'bg-green-500/10', label: isAr ? 'تم التسليم' : 'Delivered' },
             DISPUTED: { color: 'text-red-400', bg: 'bg-red-500/10', label: isAr ? 'نزاع نشط' : 'Disputed' },
@@ -240,19 +241,38 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
         );
     };
 
+    const InCartBadge = ({ order, isAr }: { order: any, isAr: boolean }) => {
+        const myStoreId = localStorage.getItem('merchant_store_id') || '';
+        const inCart = order.offers?.some((off: any) =>
+            off.storeId === myStoreId &&
+            off.status === 'accepted' &&
+            !off.shippedFromCart &&
+            ['READY_FOR_SHIPPING', 'VERIFICATION_SUCCESS', 'PARTIALLY_SHIPPED', 'PREPARATION'].includes(order.status)
+        );
+
+        if (!inCart) return null;
+
+        return (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gold-500/10 text-gold-400 text-[10px] font-bold uppercase tracking-wider border border-gold-500/20 shadow-[0_0_10px_rgba(234,179,8,0.1)]">
+                <Box size={10} className="animate-pulse" />
+                {isAr ? 'في سلة الشحن' : 'In Shipping Cart'}
+            </div>
+        );
+    };
+
     const renderCard = (order: any, tabId: string) => {
         const info = extractOrderInfo(order);
         const accentColor = tabId === 'PREPARATION' ? 'blue' : tabId === 'SHIPPED' ? 'purple' : 'green';
-        
+
         return (
             <motion.div layout initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} key={order.id} className="relative group">
-                <GlassCard 
+                <GlassCard
                     onClick={() => onNavigate?.('explore-offer', order.id)}
                     className={`p-6 border border-white/5 hover:border-${accentColor}-500/30 transition-all duration-500 group overflow-hidden relative cursor-pointer h-full flex flex-col`}
                 >
                     <div className={`absolute top-0 right-0 w-32 h-32 bg-${accentColor}-500/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none group-hover:bg-${accentColor}-500/10 transition-colors`} />
                     <div className={`absolute top-0 left-0 w-1 h-0 group-hover:h-full bg-gradient-to-b from-${accentColor}-500 to-transparent transition-all duration-500`} />
-                    
+
                     <div className="flex justify-between items-start mb-5">
                         <div className="flex items-center gap-3">
                             <div className={`w-12 h-12 rounded-2xl bg-${accentColor}-500/10 border border-${accentColor}-500/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-500`}>
@@ -262,6 +282,7 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                                 <span className="text-gold-400 font-mono font-bold text-sm block leading-none mb-1">#{order.orderNumber || order.id}</span>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <StatusIndicator status={order.status} />
+                                    <InCartBadge order={order} isAr={isAr} />
                                     {order.shipments?.[0] && !['CANCELLED', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && (
                                         <Badge status={order.shipments[0].status as StatusType} className="scale-75 origin-left animate-in fade-in zoom-in duration-500" />
                                     )}
@@ -299,11 +320,11 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                                     </span>
                                 </div>
                                 <div className="w-full bg-white/5 rounded-full h-1 overflow-hidden">
-                                    <motion.div 
+                                    <motion.div
                                         initial={{ x: '-100%' }}
                                         animate={{ x: '100%' }}
                                         transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                                        className="h-full bg-gradient-to-r from-transparent via-purple-500 to-transparent w-1/2" 
+                                        className="h-full bg-gradient-to-r from-transparent via-purple-500 to-transparent w-1/2"
                                     />
                                 </div>
                             </div>
@@ -319,8 +340,8 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                                 </div>
                                 {order.warranty_end_at ? (
                                     <div className="flex justify-center mt-2">
-                                        <WarrantyProtectionCard 
-                                            order={order} 
+                                        <WarrantyProtectionCard
+                                            order={order}
                                             variant="compact"
                                             role="merchant"
                                         />
@@ -419,10 +440,10 @@ export const MerchantOrders: React.FC<MerchantOrdersProps> = ({ onNavigate }) =>
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 >
-                    {((activeTab === 'PREPARATION' && preparation.length === 0) || 
-                      (activeTab === 'SHIPPED' && shipped.length === 0) || 
-                      (activeTab === 'DELIVERED' && delivered.length === 0) ||
-                      (activeTab === 'RESOLUTION' && resolution.length === 0)) ? (
+                    {((activeTab === 'PREPARATION' && preparation.length === 0) ||
+                        (activeTab === 'SHIPPED' && shipped.length === 0) ||
+                        (activeTab === 'DELIVERED' && delivered.length === 0) ||
+                        (activeTab === 'RESOLUTION' && resolution.length === 0)) ? (
                         renderEmptyState(activeTab)
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-fr">

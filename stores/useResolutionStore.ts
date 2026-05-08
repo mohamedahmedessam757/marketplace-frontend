@@ -62,10 +62,20 @@ export interface ResolutionCase {
     invoiceId?: string; // Phase 4 Traceability
     shipmentId?: string; // Phase 4 Traceability
     stripeFee?: number; // Phase 4 Governance
+
+    // 2026 Financial Fee Enforcement (Phase 5)
+    gatewayFeePct?: number;
+    refundFeePct?: number;
+    gatewayFeeAmount?: number;
+    refundFeeAmount?: number;
+    shippingRoundtrip?: number;
+    penaltyAmount?: number;
+    penaltyType?: string;
+    netRefundAmount?: number;
     
     // Phase 4 Shipping Payment (New 2026 Logistics)
     shippingPayee?: 'MERCHANT' | 'CUSTOMER';
-    shippingPaymentStatus?: 'PENDING' | 'PAID' | 'FAILED';
+    shippingPaymentStatus?: 'PENDING' | 'PAID' | 'FAILED' | 'INSUFFICIENT_FUNDS';
     shippingPaymentMethod?: 'STRIPE' | 'WALLET';
     shippingStripeId?: string;
 
@@ -190,6 +200,15 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (r as any).adminName,
                 adminEmail: (r as any).adminEmail,
                 adminSignature: (r as any).adminSignature,
+                // 2026 Financial Fee Fields
+                gatewayFeePct: (r as any).gatewayFeePct ? Number((r as any).gatewayFeePct) : undefined,
+                refundFeePct: (r as any).refundFeePct ? Number((r as any).refundFeePct) : undefined,
+                gatewayFeeAmount: (r as any).gatewayFeeAmount ? Number((r as any).gatewayFeeAmount) : undefined,
+                refundFeeAmount: (r as any).refundFeeAmount ? Number((r as any).refundFeeAmount) : undefined,
+                shippingRoundtrip: (r as any).shippingRoundtrip ? Number((r as any).shippingRoundtrip) : undefined,
+                penaltyAmount: (r as any).penaltyAmount ? Number((r as any).penaltyAmount) : undefined,
+                penaltyType: (r as any).penaltyType,
+                netRefundAmount: (r as any).netRefundAmount ? Number((r as any).netRefundAmount) : undefined,
                 // Shipping Payment Flow (Phase 4)
                 shippingPayee: (r as any).shippingPayee,
                 shippingPaymentStatus: (r as any).shippingPaymentStatus,
@@ -240,6 +259,15 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (d as any).adminName,
                 adminEmail: (d as any).adminEmail,
                 adminSignature: (d as any).adminSignature,
+                // 2026 Financial Fee Fields
+                gatewayFeePct: (d as any).gatewayFeePct ? Number((d as any).gatewayFeePct) : undefined,
+                refundFeePct: (d as any).refundFeePct ? Number((d as any).refundFeePct) : undefined,
+                gatewayFeeAmount: (d as any).gatewayFeeAmount ? Number((d as any).gatewayFeeAmount) : undefined,
+                refundFeeAmount: (d as any).refundFeeAmount ? Number((d as any).refundFeeAmount) : undefined,
+                shippingRoundtrip: (d as any).shippingRoundtrip ? Number((d as any).shippingRoundtrip) : undefined,
+                penaltyAmount: (d as any).penaltyAmount ? Number((d as any).penaltyAmount) : undefined,
+                penaltyType: (d as any).penaltyType,
+                netRefundAmount: (d as any).netRefundAmount ? Number((d as any).netRefundAmount) : undefined,
                 // Shipping Payment Flow (Phase 4)
                 shippingPayee: (d as any).shippingPayee,
                 shippingPaymentStatus: (d as any).shippingPaymentStatus,
@@ -302,6 +330,15 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (r as any).adminName,
                 adminEmail: (r as any).adminEmail,
                 adminSignature: (r as any).adminSignature,
+                // 2026 Financial Fee Fields
+                gatewayFeePct: (r as any).gatewayFeePct ? Number((r as any).gatewayFeePct) : undefined,
+                refundFeePct: (r as any).refundFeePct ? Number((r as any).refundFeePct) : undefined,
+                gatewayFeeAmount: (r as any).gatewayFeeAmount ? Number((r as any).gatewayFeeAmount) : undefined,
+                refundFeeAmount: (r as any).refundFeeAmount ? Number((r as any).refundFeeAmount) : undefined,
+                shippingRoundtrip: (r as any).shippingRoundtrip ? Number((r as any).shippingRoundtrip) : undefined,
+                penaltyAmount: (r as any).penaltyAmount ? Number((r as any).penaltyAmount) : undefined,
+                penaltyType: (r as any).penaltyType,
+                netRefundAmount: (r as any).netRefundAmount ? Number((r as any).netRefundAmount) : undefined,
                 // Shipping Payment Flow (Phase 4)
                 shippingPayee: (r as any).shippingPayee,
                 shippingPaymentStatus: (r as any).shippingPaymentStatus,
@@ -348,6 +385,15 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (d as any).adminName,
                 adminEmail: (d as any).adminEmail,
                 adminSignature: (d as any).adminSignature,
+                // 2026 Financial Fee Fields
+                gatewayFeePct: d.gatewayFeePct ? Number(d.gatewayFeePct) : undefined,
+                refundFeePct: d.refundFeePct ? Number(d.refundFeePct) : undefined,
+                gatewayFeeAmount: d.gatewayFeeAmount ? Number(d.gatewayFeeAmount) : undefined,
+                refundFeeAmount: d.refundFeeAmount ? Number(d.refundFeeAmount) : undefined,
+                shippingRoundtrip: d.shippingRoundtrip ? Number(d.shippingRoundtrip) : undefined,
+                penaltyAmount: d.penaltyAmount ? Number(d.penaltyAmount) : undefined,
+                penaltyType: (d as any).penaltyType,
+                netRefundAmount: d.netRefundAmount ? Number(d.netRefundAmount) : undefined,
                 // Shipping Payment Flow (Phase 4)
                 shippingPayee: (d as any).shippingPayee,
                 shippingPaymentStatus: (d as any).shippingPaymentStatus,
@@ -410,6 +456,15 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (r as any).adminName,
                 adminEmail: (r as any).adminEmail,
                 adminSignature: (r as any).adminSignature,
+                // 2026 Financial Fee Fields
+                gatewayFeePct: (r as any).gatewayFeePct ? Number((r as any).gatewayFeePct) : undefined,
+                refundFeePct: (r as any).refundFeePct ? Number((r as any).refundFeePct) : undefined,
+                gatewayFeeAmount: (r as any).gatewayFeeAmount ? Number((r as any).gatewayFeeAmount) : undefined,
+                refundFeeAmount: (r as any).refundFeeAmount ? Number((r as any).refundFeeAmount) : undefined,
+                shippingRoundtrip: (r as any).shippingRoundtrip ? Number((r as any).shippingRoundtrip) : undefined,
+                penaltyAmount: (r as any).penaltyAmount ? Number((r as any).penaltyAmount) : undefined,
+                penaltyType: (r as any).penaltyType,
+                netRefundAmount: (r as any).netRefundAmount ? Number((r as any).netRefundAmount) : undefined,
                 // Shipping Payment Flow (Phase 4)
                 shippingPayee: (r as any).shippingPayee,
                 shippingPaymentStatus: (r as any).shippingPaymentStatus,
@@ -460,6 +515,15 @@ export const useResolutionStore = create<ResolutionState>((set, get) => ({
                 adminName: (d as any).adminName,
                 adminEmail: (d as any).adminEmail,
                 adminSignature: (d as any).adminSignature,
+                // 2026 Financial Fee Fields
+                gatewayFeePct: (d as any).gatewayFeePct ? Number((d as any).gatewayFeePct) : undefined,
+                refundFeePct: (d as any).refundFeePct ? Number((d as any).refundFeePct) : undefined,
+                gatewayFeeAmount: (d as any).gatewayFeeAmount ? Number((d as any).gatewayFeeAmount) : undefined,
+                refundFeeAmount: (d as any).refundFeeAmount ? Number((d as any).refundFeeAmount) : undefined,
+                shippingRoundtrip: (d as any).shippingRoundtrip ? Number((d as any).shippingRoundtrip) : undefined,
+                penaltyAmount: (d as any).penaltyAmount ? Number((d as any).penaltyAmount) : undefined,
+                penaltyType: (d as any).penaltyType,
+                netRefundAmount: (d as any).netRefundAmount ? Number((d as any).netRefundAmount) : undefined,
                 // Shipping Payment Flow (Phase 4)
                 shippingPayee: (d as any).shippingPayee,
                 shippingPaymentStatus: (d as any).shippingPaymentStatus,

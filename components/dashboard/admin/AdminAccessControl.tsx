@@ -241,6 +241,7 @@ export const AdminAccessControl: React.FC = () => {
     'DELETE_VENDOR': 'حذف المتجر', 'SUSPEND_VENDOR': 'إيقاف المتجر', 'UPDATE_LICENSE': 'تحديث الرخصة', 'APPROVE_DOCUMENTS': 'اعتماد المستندات', 'EDIT_COMMISSION': 'تعديل العمولة',
     'DELETE_CUSTOMER': 'حذف العميل', 'SUSPEND_CUSTOMER': 'حظر العميل', 'ADJUST_BALANCE': 'تعديل الرصيد', 'RESET_PASSWORD': 'إعادة تعيين كلمة المرور',
     'CANCEL_ORDER': 'إلغاء الطلب', 'MARK_AS_PAID': 'تأكيد الدفع', 'UPDATE_SHIPMENT': 'تحديث الشحنة', 'FORCE_REFUND': 'إرجاع إجباري',
+    'FORCE_SHIP_ALL': 'شحن الكل إجبارياً', 'REQUEST_PARTIAL_SHIPMENT': 'طلب شحن جزئي',
     'APPROVE_WITHDRAWAL': 'اعتماد السحب', 'REJECT_WITHDRAWAL': 'رفض السحب', 'GENERATE_INVOICE': 'إصدار فاتورة', 'EXPORT_FINANCIALS': 'تصدير بيانات مالية', 'EXPORT_REPORTS': 'تصدير تقارير', 'EXPORT_REPORT': 'تصدير تقرير', 'REFRESH_STATS': 'تحديث الإحصائيات',
     'CANCEL_WAYBILL': 'إلغاء بوليصة', 'PRINT_WAYBILL': 'طباعة بوليصة', 'REASSIGN_CARRIER': 'تغيير شركة الشحن', 'FORCE_UPDATE_STATUS': 'تحديث حالة إجباري',
     'DELETE_CHAT': 'حذف المحادثة', 'EXPORT_CHAT_LOG': 'تصدير سجل الدردشة',
@@ -281,6 +282,7 @@ export const AdminAccessControl: React.FC = () => {
       case 'customers': return t.admin.customers;
       case 'CUSTOMER_PROFILE': return isAr ? 'ملف العميل (داخلي)' : 'Customer Profile (Internal)';
       case 'orders-control': return t.admin.orders;
+      case 'shipping-carts': return isAr ? 'سلال التجميع (Assembly)' : 'Assembly Carts';
       case 'shipping': return t.admin.shipping;
       case 'reviews': return t.admin.reviews;
       case 'resolution': return t.admin.disputes;

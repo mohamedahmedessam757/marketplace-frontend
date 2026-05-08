@@ -17,6 +17,7 @@ export type StatusType =
   | 'CORRECTION_PERIOD'
   | 'CORRECTION_SUBMITTED'
   | 'DELAYED_PREPARATION'
+  | 'PARTIALLY_SHIPPED'
   | 'SHIPPED'
   | 'DELIVERED'
   | 'COMPLETED'
@@ -89,6 +90,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, 
     NON_MATCHING: "bg-red-500/10 text-red-400 border-red-500/30", 
     CORRECTION_PERIOD: "bg-orange-500/10 text-orange-400 border-orange-500/30 animate-pulse", 
     CORRECTION_SUBMITTED: "bg-blue-500/10 text-blue-400 border-blue-500/30 animate-pulse",
+    PARTIALLY_SHIPPED: "bg-blue-400/10 text-blue-300 border-blue-400/20 shadow-[0_0_10px_rgba(59,130,246,0.1)] animate-pulse",
     SHIPPED: "bg-purple-500/10 text-purple-400 border-purple-500/20",
     DELIVERED: "bg-teal-500/10 text-teal-400 border-teal-500/20",
     COMPLETED: "bg-green-500/10 text-green-400 border-green-500/20",

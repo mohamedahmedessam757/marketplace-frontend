@@ -25,17 +25,18 @@ export const excelApi = {
     /**
      * Download Waybills Excel for a specific order
      */
-    async downloadWaybills(orderId: string) {
+    async downloadWaybills(orderId: string, shipmentId?: string) {
         const token = localStorage.getItem('access_token');
-        const response = await axios.get(`${API_URL}/orders/${orderId}/waybills/export-excel`, {
+        const urlParams = shipmentId ? `?shipmentId=${shipmentId}` : '';
+        const response = await axios.get(`${API_URL}/orders/${orderId}/waybills/export-excel${urlParams}`, {
             headers: { Authorization: `Bearer ${token}` },
             responseType: 'blob'
         });
 
-        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `Waybills_${orderId}.xlsx`);
+        link.href = blobUrl;
+        link.setAttribute('download', `Waybills_${orderId}${shipmentId ? `_batch_${shipmentId.substring(0, 8)}` : ''}.xlsx`);
         document.body.appendChild(link);
         link.click();
         link.remove();

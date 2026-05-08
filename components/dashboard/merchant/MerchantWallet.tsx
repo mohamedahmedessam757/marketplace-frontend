@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    Wallet, 
-    TrendingUp, 
-    Clock, 
-    AlertCircle, 
-    ArrowDownLeft, 
-    ArrowUpRight, 
-    Download, 
-    Calendar, 
+import {
+    Wallet,
+    TrendingUp,
+    Clock,
+    AlertCircle,
+    ArrowDownLeft,
+    ArrowUpRight,
+    Download,
+    Calendar,
     Search,
     ChevronRight,
     FileText,
@@ -34,7 +34,14 @@ import {
     ArrowRightLeft,
     ClipboardCheck,
     ShieldAlert,
-    Lock
+    Lock,
+    Scale,
+    AlertTriangle,
+    Gavel,
+    Trophy,
+    PlusCircle,
+    Truck,
+    AlertOctagon,
 } from 'lucide-react';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { GlassCard } from '../../ui/GlassCard';
@@ -50,7 +57,7 @@ interface MerchantWalletProps {
 
 // NEW 2026: Restriction Banner Component for Wallet
 const RestrictionBanner = ({ message, isAr }: { message?: string, isAr: boolean }) => (
-    <motion.div 
+    <motion.div
         initial={{ height: 0, opacity: 0 }}
         animate={{ height: 'auto', opacity: 1 }}
         className="mb-8 p-6 rounded-[2rem] bg-red-500/10 border border-red-500/20 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative"
@@ -80,19 +87,19 @@ const RestrictionBanner = ({ message, isAr }: { message?: string, isAr: boolean 
 // ═══════════════════════════════════════════════════════
 // NEW: Bank Details Modal (Center Overlay 2026 Style)
 // ═══════════════════════════════════════════════════════
-const BankDetailsModal = ({ 
-    isOpen, 
-    onClose, 
-    form, 
-    onChange, 
-    onSave, 
+const BankDetailsModal = ({
+    isOpen,
+    onClose,
+    form,
+    onChange,
+    onSave,
     isLoading,
-    isAr 
-}: { 
-    isOpen: boolean, 
-    onClose: () => void, 
-    form: any, 
-    onChange: (data: any) => void, 
+    isAr
+}: {
+    isOpen: boolean,
+    onClose: () => void,
+    form: any,
+    onChange: (data: any) => void,
     onSave: () => void,
     isLoading: boolean,
     isAr: boolean
@@ -101,7 +108,7 @@ const BankDetailsModal = ({
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4 overflow-y-auto">
-            <motion.div 
+            <motion.div
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -122,7 +129,7 @@ const BankDetailsModal = ({
                             </p>
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={onClose}
                         className="p-3 bg-white/5 hover:bg-red-500/20 text-white/30 hover:text-red-500 rounded-2xl transition-all"
                     >
@@ -142,7 +149,7 @@ const BankDetailsModal = ({
                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                                     <ShoppingBag size={18} className="text-gold-500/30 group-focus-within:text-gold-500 transition-colors" />
                                 </div>
-                                <input 
+                                <input
                                     type="text"
                                     value={form.bankName}
                                     onChange={(e) => onChange({ ...form, bankName: e.target.value })}
@@ -161,7 +168,7 @@ const BankDetailsModal = ({
                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                                     <CreditCard size={18} className="text-gold-500/30 group-focus-within:text-gold-500 transition-colors" />
                                 </div>
-                                <input 
+                                <input
                                     type="text"
                                     value={form.accountHolder}
                                     onChange={(e) => onChange({ ...form, accountHolder: e.target.value })}
@@ -180,7 +187,7 @@ const BankDetailsModal = ({
                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gold-500/30 font-black text-[10px] group-focus-within:text-gold-500 transition-colors">
                                     AE/SA
                                 </div>
-                                <input 
+                                <input
                                     type="text"
                                     value={form.iban}
                                     onChange={(e) => onChange({ ...form, iban: e.target.value })}
@@ -199,7 +206,7 @@ const BankDetailsModal = ({
                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                                     <ShieldCheck size={18} className="text-gold-500/30 group-focus-within:text-gold-500 transition-colors" />
                                 </div>
-                                <input 
+                                <input
                                     type="text"
                                     value={form.swift}
                                     onChange={(e) => onChange({ ...form, swift: e.target.value })}
@@ -213,13 +220,13 @@ const BankDetailsModal = ({
 
                 {/* Footer Actions */}
                 <div className="p-8 border-t border-white/5 bg-black/20 flex gap-4">
-                    <button 
+                    <button
                         onClick={onClose}
                         className="flex-1 py-4 px-6 rounded-2xl border border-white/10 text-white/60 font-black uppercase tracking-widest hover:bg-white/5 transition-all text-xs"
                     >
                         {isAr ? 'إلغاء' : 'Cancel'}
                     </button>
-                    <button 
+                    <button
                         onClick={onSave}
                         disabled={isLoading || !form.bankName || !form.iban}
                         className="flex-1 py-4 px-6 rounded-2xl bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-black font-black uppercase tracking-[2px] transition-all shadow-xl shadow-gold-500/10 flex items-center justify-center gap-2 text-xs"
@@ -235,21 +242,21 @@ const BankDetailsModal = ({
 
 export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
-    const { 
-        stats, 
-        transactions, 
-        notifications, 
+    const {
+        stats,
+        transactions,
+        notifications,
         withdrawalRequests,
         withdrawalLimits,
         bankDetails,
-        fetchWallet, 
+        fetchWallet,
         fetchWithdrawalData,
         fetchBankDetails,
         saveBankDetails,
         requestWithdrawal,
         getStripeOnboardingUrl,
         refreshStripeStatus,
-        isLoading 
+        isLoading
     } = useMerchantWalletStore();
     const { withdrawalsFrozen, withdrawalFreezeNote } = useVendorStore();
     const [searchQuery, setSearchQuery] = useState('');
@@ -257,7 +264,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
     const [filter, setFilter] = useState<'ALL' | 'DONE' | 'PENDING'>('ALL');
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     const [copied, setCopied] = useState(false);
-    
+
     // Withdrawal Form State
     const [withdrawAmount, setWithdrawAmount] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -265,21 +272,21 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
     const [withdrawSuccess, setWithdrawSuccess] = useState(false);
     const [isOnboarding, setIsOnboarding] = useState(false);
     const [payoutMethod, setPayoutMethod] = useState<'BANK_TRANSFER' | 'STRIPE'>('BANK_TRANSFER');
-    
+
     // Bank Details Form State
     const [bankForm, setBankForm] = useState({ bankName: '', accountHolder: '', iban: '', swift: '' });
     const [isSavingBank, setIsSavingBank] = useState(false);
     const [showBankForm, setShowBankForm] = useState(false);
     const [stripeSuccess, setStripeSuccess] = useState(false);
-    
+
     const isAr = language === 'ar';
     const currentUser = getCurrentUser();
 
     useEffect(() => {
         // Trigger fetch with filters for real-time reactive stats
-        fetchWallet({ 
-            startDate: dateRange.start || undefined, 
-            endDate: dateRange.end || undefined 
+        fetchWallet({
+            startDate: dateRange.start || undefined,
+            endDate: dateRange.end || undefined
         });
         fetchWithdrawalData();
         fetchBankDetails();
@@ -309,8 +316,8 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                         setStripeSuccess(false);
                         alert(
                             isAr
-                            ? '⚠️ يبدو أن عملية الربط لم تكتمل في Stripe. يرجى التأكد من إدخال كافة البيانات.'
-                            : '⚠️ Onboarding seems incomplete. Please ensure all data is entered in Stripe.'
+                                ? '⚠️ يبدو أن عملية الربط لم تكتمل في Stripe. يرجى التأكد من إدخال كافة البيانات.'
+                                : '⚠️ Onboarding seems incomplete. Please ensure all data is entered in Stripe.'
                         );
                     }
                 } catch (error) {
@@ -328,8 +335,8 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
         } else if (stripeStatus === 'refresh') {
             alert(
                 isAr
-                ? 'تم تحديث صفحة الربط. يرجى المتابعة.'
-                : 'Onboarding session refreshed. Please continue.'
+                    ? 'تم تحديث صفحة الربط. يرجى المتابعة.'
+                    : 'Onboarding session refreshed. Please continue.'
             );
             // Clean URL
             const url = new URL(window.location.href);
@@ -343,9 +350,9 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
             alert(isAr ? 'جاري تجهيز كود الإحالة الخاص بك... يرجى المحاولة بعد قليل.' : 'Referral code is being generated... please try again in a moment.');
             return;
         }
-        
+
         const url = `${window.location.origin}/register?ref=${stats.referralCode}`;
-        
+
         const performCopy = (text: string) => {
             if (navigator.clipboard) {
                 return navigator.clipboard.writeText(text);
@@ -387,14 +394,14 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
         } catch (error: any) {
             console.error('Stripe Connect Error:', error);
             const msg = error.response?.data?.message || error.message || '';
-            
+
             if (msg.includes('Stripe Connect is not enabled') || msg.includes('signed up for Connect')) {
-                alert(isAr 
+                alert(isAr
                     ? 'خدمة Stripe Connect غير مفعلة حالياً. يرجى التواصل مع الإدارة.'
                     : 'Stripe Connect is not enabled on this platform. Please contact support.');
             } else {
-                alert(isAr 
-                    ? `فشل بدء عملية الربط: ${msg}` 
+                alert(isAr
+                    ? `فشل بدء عملية الربط: ${msg}`
                     : `Failed to start onboarding: ${msg}`);
             }
             setIsOnboarding(false);
@@ -488,8 +495,8 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
 
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
-            result = result.filter(tx => 
-                (tx.id && tx.id.toLowerCase().includes(q)) || 
+            result = result.filter(tx =>
+                (tx.id && tx.id.toLowerCase().includes(q)) ||
                 (tx.orderId && tx.orderId.toLowerCase().includes(q)) ||
                 (tx.payment?.order?.orderNumber && tx.payment.order.orderNumber.toLowerCase().includes(q)) ||
                 (tx.amount?.toString().includes(q))
@@ -515,7 +522,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
             const date = new Date().toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
             const startStr = dateRange.start || '---';
             const endStr = dateRange.end || '---';
-            
+
             const html = `
                 <div style="padding: 50px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1a1a1a; background: white; min-height: 100vh; line-height: 1.6; position: relative;" dir="${isAr ? 'rtl' : 'ltr'}">
                     
@@ -663,7 +670,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
 
     return (
         <div dir={isAr ? 'rtl' : 'ltr'} className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-            
+
             {/* 0. Governance Alerts (2026 Admin Transparency) */}
 
             {/* 1. Header Navigation & Dashboard Controls */}
@@ -686,25 +693,25 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                         <div className="relative group flex-1 md:flex-initial">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-gold-500 transition-colors" size={14} />
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder={isAr ? 'بحث برقم الطلب...' : 'Search Order Number...'} 
+                                placeholder={isAr ? 'بحث برقم الطلب...' : 'Search Order Number...'}
                                 className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-xs outline-none focus:border-gold-500/50 transition-all w-full md:w-56"
                             />
                         </div>
                         <div className="relative group">
                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
-                            <input 
-                                type="date" 
+                            <input
+                                type="date"
                                 value={dateRange.start}
                                 onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
                                 className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-2 py-2 text-[10px] outline-none focus:border-gold-500/50 transition-all w-40 text-white/70"
                             />
                         </div>
                     </div>
-                    <button 
+                    <button
                         disabled={isGeneratingReport}
                         onClick={handleDownloadReport}
                         className="p-2.5 bg-white/5 border border-white/10 rounded-lg hover:bg-gold-500/20 hover:border-gold-500/40 transition-all text-white/70 hover:text-gold-500 disabled:opacity-50"
@@ -716,7 +723,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
 
             {/* 2. Primary Stat Cards (Legacy Stats Restored) */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-                <StatCard 
+                <StatCard
                     label={isAr ? 'الرصيد المستحق' : 'Available Balance'}
                     value={stats.available}
                     unit="AED"
@@ -725,7 +732,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     bgClass="bg-emerald-500/10"
                     borderClass="border-emerald-500/10"
                 />
-                <StatCard 
+                <StatCard
                     label={isAr ? 'الرصيد المعلق' : 'Pending Balance'}
                     value={stats.pending}
                     unit="AED"
@@ -734,7 +741,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     bgClass="bg-amber-500/10"
                     borderClass="border-amber-500/10"
                 />
-                <StatCard 
+                <StatCard
                     label={isAr ? 'أرصدة مجمدة' : 'Frozen Funds'}
                     value={stats.frozen}
                     unit="AED"
@@ -743,7 +750,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     bgClass="bg-rose-500/10"
                     borderClass="border-rose-500/10"
                 />
-                <StatCard 
+                <StatCard
                     label={isAr ? 'إجمالي المبيعات' : 'Total Sales'}
                     value={stats.totalSales}
                     unit="AED"
@@ -752,7 +759,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     bgClass="bg-blue-500/10"
                     borderClass="border-blue-500/10"
                 />
-                <StatCard 
+                <StatCard
                     label={isAr ? 'صافي الأرباح' : 'Net Earnings'}
                     value={stats.netEarnings}
                     unit="AED"
@@ -761,7 +768,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     bgClass="bg-purple-500/10"
                     borderClass="border-purple-500/10"
                 />
-                <StatCard 
+                <StatCard
                     label={isAr ? 'الطلبات الناجحة' : 'Successful Orders'}
                     value={stats.completedOrders}
                     unit={isAr ? 'طلب' : 'Orders'}
@@ -822,7 +829,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
 
             {/* 4. Main Dashboard Row */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 sm:gap-8">
-                
+
                 {/* 4a. Transaction Records Table */}
                 <div className="lg:col-span-3 space-y-6">
                     <GlassCard className="p-0 overflow-hidden relative border-white/5">
@@ -832,7 +839,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                             </h3>
                             <div className="flex p-1 bg-black/40 rounded-xl border border-white/5">
                                 {['ALL', 'DONE', 'PENDING'].map((f) => (
-                                    <button 
+                                    <button
                                         key={f}
                                         onClick={() => setFilter(f as any)}
                                         className={`px-3 sm:px-4 py-1.5 text-[10px] sm:text-xs font-black rounded-lg transition-all ${filter === f ? 'bg-gold-500 text-black shadow-lg shadow-gold-500/20' : 'text-white/40 hover:text-white'}`}
@@ -885,11 +892,41 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                                 </span>
                                             </td>
                                             <td className="px-4 py-4">
-                                                <div className="flex items-center justify-center gap-2 text-[9px] font-black text-white/40">
-                                                    {tx.transactionType === 'REFERRAL_PROFIT' ? <Star size={10} className="text-gold-500" /> : tx.transactionType === 'WITHDRAWAL' ? <ArrowDownLeft size={10} className="text-rose-400" /> : <CreditCard size={10} />}
-                                                    <span>{tx.transactionType === 'REFERRAL_PROFIT' ? (isAr ? 'ربح إحالة' : 'REF PROFIT') : tx.transactionType === 'WITHDRAWAL' ? (isAr ? 'سحب' : 'WITHDRAW') : (isAr ? 'مبيعات' : 'SALES')}</span>
+                                                <div className="flex items-center justify-center gap-2 text-[9px] font-black uppercase whitespace-nowrap">
+                                                    {(() => {
+                                                        const type = tx.transactionType?.toUpperCase() || 'PAYMENT';
+                                                        const typeLabels = t.dashboard.profile.wallet.transactionTypes;
+
+                                                        const iconConfig: Record<string, { icon: any, color: string }> = {
+                                                            'ORDER_PROFIT': { icon: Star, color: 'text-gold-500' },
+                                                            'REFERRAL_PROFIT': { icon: LinkIcon, color: 'text-blue-400' },
+                                                            'PAYMENT': { icon: CreditCard, color: 'text-indigo-400' },
+                                                            'WITHDRAWAL': { icon: ArrowDownLeft, color: 'text-rose-400' },
+                                                            'REFUND': { icon: RotateCcw, color: 'text-rose-400' },
+                                                            'COMMISSION': { icon: Scale, color: 'text-slate-400' },
+                                                            'PENALTY': { icon: AlertTriangle, color: 'text-red-500' },
+                                                            'DISPUTE': { icon: Gavel, color: 'text-purple-400' },
+                                                            'LOYALTY_BONUS': { icon: Trophy, color: 'text-amber-400' },
+                                                            'WALLET_TOPUP': { icon: PlusCircle, color: 'text-emerald-400' },
+                                                            'GATEWAY_FEE': { icon: ShieldAlert, color: 'text-orange-400' },
+                                                            'REFUND_FEE': { icon: RotateCcw, color: 'text-rose-400' },
+                                                            'SHIPPING_FEE': { icon: Truck, color: 'text-cyan-400' },
+                                                            'FRAUD_PENALTY': { icon: AlertOctagon, color: 'text-red-600' }
+                                                        };
+
+                                                        const config = iconConfig[type] || { icon: AlertCircle, color: 'text-white/40' };
+                                                        const Icon = config.icon;
+
+                                                        return (
+                                                            <div className={`flex items-center gap-1.5 ${config.color}`}>
+                                                                <Icon size={12} className={type === 'LOYALTY_BONUS' ? 'animate-bounce' : ''} />
+                                                                <span>{typeLabels[type] || type}</span>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </td>
+
                                             <td className="px-4 py-4">
                                                 <button onClick={() => tx.payment?.order?.id && onNavigate?.('explore-offer', tx.payment.order.id)} className="p-2 rounded bg-white/5 hover:bg-gold-500 hover:text-black transition-all border border-white/10"><FileText size={12} /></button>
                                             </td>
@@ -958,7 +995,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     <GlassCard className="p-0 border-gold-500/10 bg-gradient-to-br from-gold-500/[0.03] to-transparent relative overflow-hidden">
                         {withdrawalsFrozen && (
                             <div className="absolute inset-0 z-20 backdrop-blur-md bg-black/40 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
-                                <motion.div 
+                                <motion.div
                                     initial={{ scale: 0.8, opacity: 0 }}
                                     animate={{ scale: 1, opacity: 1 }}
                                     className="w-20 h-20 bg-red-500/20 rounded-3xl flex items-center justify-center border border-red-500/30 mb-4 shadow-2xl shadow-red-500/20"
@@ -969,7 +1006,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                     {isAr ? 'العمليات المالية مقيدة' : 'Financial Payouts Restricted'}
                                 </h4>
                                 <p className="text-white/60 text-xs max-w-xs leading-relaxed font-medium">
-                                    {isAr 
+                                    {isAr
                                         ? `تم تجميد عمليات السحب لهذا الحساب مؤقتاً. السبب: ${withdrawalFreezeNote || 'مراجعة أمنية'}`
                                         : `Payout capabilities are currently restricted for this account. Reason: ${withdrawalFreezeNote || 'Security Review'}`}
                                 </p>
@@ -988,13 +1025,13 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                     </p>
                                 </div>
                                 <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 shrink-0">
-                                    <button 
+                                    <button
                                         onClick={() => setPayoutMethod('BANK_TRANSFER')}
                                         className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${payoutMethod === 'BANK_TRANSFER' ? 'bg-gold-500 text-black' : 'text-white/40'}`}
                                     >
                                         {isAr ? 'تحويل بنكي' : 'Bank Transfer'}
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => setPayoutMethod('STRIPE')}
                                         className={`px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${payoutMethod === 'STRIPE' ? 'bg-[#635BFF] text-white' : 'text-white/40'}`}
                                     >
@@ -1011,7 +1048,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                         <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                                             <Wallet size={18} className="text-gold-500/50 group-focus-within:text-gold-500 transition-colors" />
                                         </div>
-                                        <input 
+                                        <input
                                             type="number"
                                             value={withdrawAmount}
                                             onChange={(e) => setWithdrawAmount(e.target.value)}
@@ -1033,7 +1070,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                             <CheckCircle2 size={14} /> {isAr ? 'تم تقديم طلب السحب!' : 'Withdrawal request submitted!'}
                                         </div>
                                     )}
-                                    <button 
+                                    <button
                                         onClick={(e) => { e.preventDefault(); handleSubmitWithdrawal(e as any); }}
                                         disabled={isSubmitting || withdrawalsFrozen || !withdrawAmount || Number(withdrawAmount) <= 0}
                                         className="w-full py-4 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-black font-black uppercase tracking-[3px] text-xs rounded-2xl transition-all shadow-xl shadow-gold-500/10 flex items-center justify-center gap-2"
@@ -1068,48 +1105,48 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                             )}
                                         </GlassCard>
                                     ) : (
-                                    <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 h-full flex flex-col">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <h4 className="text-white font-bold text-sm">{isAr ? 'الحساب البنكي المعتمد' : 'Authorized Bank Account'}</h4>
-                                                {bankDetails?.iban ? (
-                                                    <div className="font-mono text-emerald-400 text-xs tracking-[3px] mt-1">
-                                                        **** {bankDetails.iban.slice(-4)}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-white/30 text-[10px] uppercase font-black mt-1">{isAr ? 'لا يوجد حساب' : 'No Account'}</p>
-                                                )}
+                                        <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 h-full flex flex-col">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <h4 className="text-white font-bold text-sm">{isAr ? 'الحساب البنكي المعتمد' : 'Authorized Bank Account'}</h4>
+                                                    {bankDetails?.iban ? (
+                                                        <div className="font-mono text-emerald-400 text-xs tracking-[3px] mt-1">
+                                                            **** {bankDetails.iban.slice(-4)}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-white/30 text-[10px] uppercase font-black mt-1">{isAr ? 'لا يوجد حساب' : 'No Account'}</p>
+                                                    )}
+                                                </div>
+                                                <button onClick={() => setShowBankForm(true)}
+                                                    className="p-2.5 bg-gold-500/10 hover:bg-gold-500 text-gold-500 hover:text-black rounded-2xl border border-gold-500/20 transition-all"
+                                                >
+                                                    <Settings size={15} />
+                                                </button>
                                             </div>
+                                            {bankDetails?.iban ? (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div><p className="text-white/20 text-[8px] uppercase font-black">{isAr ? 'المصرف' : 'Bank'}</p><p className="text-white/80 font-bold text-[11px] truncate mt-0.5">{bankDetails.bankName}</p></div>
+                                                    <div><p className="text-white/20 text-[8px] uppercase font-black">{isAr ? 'المستفيد' : 'Holder'}</p><p className="text-white/80 font-bold text-[11px] truncate mt-0.5">{bankDetails.accountHolder}</p></div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex-1 flex flex-col items-center justify-center text-center py-4">
+                                                    <AlertCircle size={22} className="text-amber-500/30 mb-2" />
+                                                    <p className="text-[10px] text-white/30 font-bold leading-relaxed">
+                                                        {isAr ? 'يجب إضافة حساب بنكي أولاً.' : 'Add a bank account to enable withdrawals.'}
+                                                    </p>
+                                                </div>
+                                            )}
                                             <button onClick={() => setShowBankForm(true)}
-                                                className="p-2.5 bg-gold-500/10 hover:bg-gold-500 text-gold-500 hover:text-black rounded-2xl border border-gold-500/20 transition-all"
+                                                className="w-full mt-auto pt-3 py-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-gold-500 text-[10px] font-black uppercase tracking-widest rounded-2xl border border-white/5 hover:border-gold-500/20 transition-all"
                                             >
-                                                <Settings size={15} />
+                                                {bankDetails?.iban ? (isAr ? 'تحديث البيانات' : 'Update Details') : (isAr ? 'إضافة بيانات البنك' : 'Add Bank Info')}
                                             </button>
                                         </div>
-                                        {bankDetails?.iban ? (
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div><p className="text-white/20 text-[8px] uppercase font-black">{isAr ? 'المصرف' : 'Bank'}</p><p className="text-white/80 font-bold text-[11px] truncate mt-0.5">{bankDetails.bankName}</p></div>
-                                                <div><p className="text-white/20 text-[8px] uppercase font-black">{isAr ? 'المستفيد' : 'Holder'}</p><p className="text-white/80 font-bold text-[11px] truncate mt-0.5">{bankDetails.accountHolder}</p></div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex-1 flex flex-col items-center justify-center text-center py-4">
-                                                <AlertCircle size={22} className="text-amber-500/30 mb-2" />
-                                                <p className="text-[10px] text-white/30 font-bold leading-relaxed">
-                                                    {isAr ? 'يجب إضافة حساب بنكي أولاً.' : 'Add a bank account to enable withdrawals.'}
-                                                </p>
-                                            </div>
-                                        )}
-                                        <button onClick={() => setShowBankForm(true)}
-                                            className="w-full mt-auto pt-3 py-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-gold-500 text-[10px] font-black uppercase tracking-widest rounded-2xl border border-white/5 hover:border-gold-500/20 transition-all"
-                                        >
-                                            {bankDetails?.iban ? (isAr ? 'تحديث البيانات' : 'Update Details') : (isAr ? 'إضافة بيانات البنك' : 'Add Bank Info')}
-                                        </button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </GlassCard>
+                    </GlassCard>
 
                     {/* Withdrawal History Table */}
                     <GlassCard className="p-0 overflow-hidden border-white/5 bg-black/20">
@@ -1152,11 +1189,10 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                                     <span className="text-[9px] text-gold-500/50 ml-1">AED</span>
                                                 </td>
                                                 <td className="px-4 py-4">
-                                                    <div className={`inline-flex items-center px-3 py-1 rounded-full border text-[9px] font-black uppercase ${
-                                                        req.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                    <div className={`inline-flex items-center px-3 py-1 rounded-full border text-[9px] font-black uppercase ${req.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                                                         req.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                                        'bg-red-500/10 text-red-400 border-red-500/20'
-                                                    }`}>
+                                                            'bg-red-500/10 text-red-400 border-red-500/20'
+                                                        }`}>
                                                         <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${req.status === 'COMPLETED' ? 'bg-emerald-400' : req.status === 'PENDING' ? 'bg-amber-400 animate-pulse' : 'bg-red-400'}`} />
                                                         {isAr ? (req.status === 'COMPLETED' ? 'تم التحويل' : req.status === 'PENDING' ? 'قيد المراجعة' : 'مرفوض') : req.status}
                                                     </div>
@@ -1233,7 +1269,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                 <div className="relative group/input">
                                     <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/50 to-purple-500/50 rounded-xl opacity-20 group-hover/input:opacity-40 transition-opacity blur" />
                                     <div className="relative flex items-center bg-black/60 border border-white/10 rounded-xl overflow-hidden">
-                                         <input readOnly value={stats.referralCode ? `${window.location.origin}/register?ref=${stats.referralCode}` : '---'} className="flex-1 bg-transparent px-4 py-3.5 text-[10px] font-mono font-bold text-blue-400 outline-none truncate" />
+                                        <input readOnly value={stats.referralCode ? `${window.location.origin}/register?ref=${stats.referralCode}` : '---'} className="flex-1 bg-transparent px-4 py-3.5 text-[10px] font-mono font-bold text-blue-400 outline-none truncate" />
                                         <button onClick={handleCopyReferral} className="p-3.5 bg-white/5 hover:bg-white/10 text-white/30 hover:text-blue-400 transition-all border-l border-white/10">
                                             <AnimatePresence mode="wait">
                                                 {copied ? <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} key="check"><CheckCircle2 size={16} className="text-blue-400" /></motion.div> : <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} key="copy"><Copy size={16} /></motion.div>}
@@ -1245,28 +1281,28 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                     {copied ? <CheckCircle2 size={16} /> : <Share2 size={16} />}
                                     {copied ? (isAr ? 'تم نسخ الرابط!' : 'LINK COPIED!') : (isAr ? 'دعوة صديق الآن' : 'INVITE PARTNER')}
                                 </button>
-                                
+
                                 {/* Encouraging dynamic CTA [NEW 2026] */}
                                 <div className="mt-4 p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 text-center relative overflow-hidden group/cta">
                                     <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/30" />
                                     <p className="text-[10px] text-blue-400 font-black mb-1.5 leading-snug tracking-tight">
-                                        {isAr 
-                                            ? `اربح عوائد نقدية بنسبة ${stats.profitPercentage}% على كل طلب إحالة ناجح!` 
+                                        {isAr
+                                            ? `اربح عوائد نقدية بنسبة ${stats.profitPercentage}% على كل طلب إحالة ناجح!`
                                             : `Earn ${stats.profitPercentage}% cashback on every successful referral order!`}
                                     </p>
                                     <p className="text-[9px] text-white/30 font-medium leading-relaxed px-2">
-                                        {isAr 
-                                            ? 'رؤيتك وشركاؤك هم قيمة متجرك الحقيقية. ابدأ في بناء شبكتك العالمية اليوم.' 
+                                        {isAr
+                                            ? 'رؤيتك وشركاؤك هم قيمة متجرك الحقيقية. ابدأ في بناء شبكتك العالمية اليوم.'
                                             : 'Your vision and partners are your store\'s true value. Start building your global network today.'}
                                     </p>
                                 </div>
-                                
+
                                 <div className="relative pt-6 pb-2">
                                     <div className="absolute top-[38px] left-[15%] right-[15%] h-[2px] bg-white/5 z-0">
                                         <motion.div initial={{ width: 0 }} animate={{ width: stats.referralCount > 0 ? (stats.referralCount > 5 ? '100%' : '50%') : '0%' }} transition={{ duration: 1.5, delay: 0.5 }} className="h-full bg-gradient-to-r from-blue-600 to-purple-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]" />
                                     </div>
                                     <div className="relative z-10 flex justify-between">
-                                        {[ { icon: Share2, label: isAr ? 'شارك' : 'Share', act: true }, { icon: UserPlus, label: isAr ? 'انضمام' : 'Join', act: stats.referralCount > 0 }, { icon: Star, label: isAr ? 'اربح' : 'Earn', act: stats.referralCount > 5 } ].map((step, idx) => (
+                                        {[{ icon: Share2, label: isAr ? 'شارك' : 'Share', act: true }, { icon: UserPlus, label: isAr ? 'انضمام' : 'Join', act: stats.referralCount > 0 }, { icon: Star, label: isAr ? 'اربح' : 'Earn', act: stats.referralCount > 5 }].map((step, idx) => (
                                             <div key={idx} className="flex flex-col items-center gap-3 w-1/3">
                                                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all border-2 ${step.act ? 'bg-blue-600 border-blue-400 text-white shadow-xl scale-110' : 'bg-black border-white/5 text-white/20'}`}><step.icon size={16} /></div>
                                                 <span className={`text-[9px] font-black uppercase tracking-tight ${step.act ? 'text-blue-400' : 'text-white/20'}`}>{step.label}</span>
@@ -1304,7 +1340,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                             <p className="text-[9px] text-white/20 italic font-medium leading-tight">
                                 {isAr ? 'هذا المبلغ يمثل أرباحك الصافية من نظام الإحالات الاجتماعي فقط.' : 'This amount represents your net earnings from the social referral hub only.'}
                             </p>
-                            
+
                             <div className="pt-2">
                                 <div className="px-3 py-2 bg-white/5 rounded-xl border border-white/5 flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1322,7 +1358,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
             {/* Bank Details Modal Integration */}
             <AnimatePresence>
                 {showBankForm && (
-                    <BankDetailsModal 
+                    <BankDetailsModal
                         isOpen={showBankForm}
                         onClose={() => setShowBankForm(false)}
                         isAr={isAr}
@@ -1333,12 +1369,12 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     />
                 )}
             </AnimatePresence>
-            
+
             {/* Stripe Success Celebration Modal */}
             <AnimatePresence>
                 {stripeSuccess && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
@@ -1360,16 +1396,16 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                     <ShieldCheck className="text-black" size={48} />
                                 </motion.div>
                             </div>
-                            
+
                             <h2 className="text-3xl font-black text-white mb-4 leading-tight">
                                 {isAr ? 'تهانينا! تم الربط بنجاح' : 'Congratulations! Connected Successfully'}
                             </h2>
                             <p className="text-white/50 mb-10 leading-relaxed font-bold">
-                                {isAr 
-                                    ? 'تم تفعيل مدفوعات Stripe الفورية لمتجرك. يمكنك الآن استلام أرباحك مباشرة وبكل سهولة.' 
+                                {isAr
+                                    ? 'تم تفعيل مدفوعات Stripe الفورية لمتجرك. يمكنك الآن استلام أرباحك مباشرة وبكل سهولة.'
                                     : 'Stripe instant payouts are now enabled for your store. You can now receive your earnings directly and easily.'}
                             </p>
-                            
+
                             <button
                                 onClick={() => setStripeSuccess(false)}
                                 className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-black font-black uppercase tracking-[3px] rounded-2xl transition-all shadow-xl shadow-gold-500/20"

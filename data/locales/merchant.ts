@@ -23,7 +23,9 @@ export const merchant = {
       empty: 'لا توجد قطع حالياً في سلال تجميع العملاء.',
       emptyDesc: 'عندما يقوم عميل بشراء قطع متعددة، ستظهر عروضك المقبولة هنا أثناء فترة تجميع العميل للشحنات.',
       readOnlyNote: 'ملاحظة للتاجر: هذه الصفحة للعرض فقط لمتابعة حالة تجميع العميل لطلباته.',
-      dataMaskingNote: 'يتم إخفاء بيانات المتاجر المنافسة وأسعارها للحفاظ على خصوصيتك وخصوصية الآخرين.'
+      dataMaskingNote: 'يتم إخفاء بيانات المتاجر المنافسة وأسعارها للحفاظ على خصوصيتك وخصوصية الآخرين.',
+      partialShippingNote: 'ملاحظة: يدعم هذا الطلب الشحن الجزئي. قد يتم شحن بعض قطعك قبل غيرها.',
+      shippedFromCart: 'تم شحنها من سلة التجميع'
     },
     tabs: {
       details: 'التفاصيل',
@@ -673,7 +675,9 @@ export const merchant = {
       empty: 'No parts currently in customer assembly carts.',
       emptyDesc: 'When a customer purchases multiple parts, your accepted offers will appear here during the consolidation period.',
       readOnlyNote: 'Merchant Note: This page is read-only for monitoring customer consolidation status.',
-      dataMaskingNote: 'Competitor store data and prices are masked to maintain privacy for all parties.'
+      dataMaskingNote: 'Competitor store data and prices are masked to maintain privacy for all parties.',
+      partialShippingNote: 'Note: This order supports partial shipping. Some of your items may be shipped before others.',
+      shippedFromCart: 'Shipped from Cart'
     },
     tabs: {
       details: 'Details',

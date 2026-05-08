@@ -986,6 +986,49 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     {/* OVERVIEW CONTENT */}
                     <div className={activeTab === 'overview' ? 'space-y-6' : 'hidden'}>
 
+                    {/* Partial Shipping Progress (2026 Premium) */}
+                    {order.status === 'PARTIALLY_SHIPPED' && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20 rounded-2xl p-6"
+                        >
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                                        <Truck size={18} className="text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-white font-bold text-sm">{language === 'ar' ? 'تقدم الشحن الجزئي' : 'Partial Shipping Progress'}</h4>
+                                        <p className="text-white/40 text-[10px] uppercase tracking-wider">{language === 'ar' ? 'يتم شحن طلبك على دفعات' : 'Your order is being shipped in batches'}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-blue-400 font-bold text-lg">
+                                        {Math.round(((order.offers?.filter(o => o.status === 'accepted' && o.shippedFromCart).length || 0) / (order.offers?.filter(o => o.status === 'accepted').length || 1)) * 100)}%
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
+                                <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${((order.offers?.filter(o => o.status === 'accepted' && o.shippedFromCart).length || 0) / (order.offers?.filter(o => o.status === 'accepted').length || 1)) * 100}%` }}
+                                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-600 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                                />
+                            </div>
+                            
+                            <div className="flex justify-between mt-3">
+                                <span className="text-[10px] text-white/30 font-bold uppercase">
+                                    {order.offers?.filter(o => o.status === 'accepted' && o.shippedFromCart).length || 0} {language === 'ar' ? 'قطعة تم شحنها' : 'Shipped'}
+                                </span>
+                                <span className="text-[10px] text-white/30 font-bold uppercase">
+                                    {(order.offers?.filter(o => o.status === 'accepted').length || 0) - (order.offers?.filter(o => o.status === 'accepted' && o.shippedFromCart).length || 0)} {language === 'ar' ? 'متبقي في السلة' : 'Remaining'}
+                                </span>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* STATE: COLLECTING OFFERS (2026 Reveal Buffer) */}
                     {order.status === 'COLLECTING_OFFERS' && (
                         <GlassCard className="flex flex-col items-center justify-center text-center py-16 border-dashed border-gold-500/20 bg-gold-500/5">

@@ -36,7 +36,7 @@ interface CartState {
     requestingShipping: boolean;
     fetchCartItems: () => Promise<void>;
     fetchMerchantCartItems: () => Promise<void>;
-    requestShipping: (orderIds: string[]) => Promise<boolean>;
+    requestShipping: (orderIds?: string[], offerIds?: string[]) => Promise<boolean>;
     subscription: any;
     subscribeToRealtime: (userId?: string) => void;
     unsubscribeFromRealtime: () => void;
@@ -121,20 +121,22 @@ export const useCartStore = create<CartState>((set, get) => ({
         }
     },
 
-    requestShipping: async (orderIds: string[]) => {
+    requestShipping: async (orderIds?: string[], offerIds?: string[]) => {
         set({ requestingShipping: true, error: null });
         try {
-            const result = await ordersApi.requestShipping(orderIds);
+            const result = await ordersApi.requestShipping(orderIds, offerIds);
 
             if (result.success) {
-                // Remove requested items from the cart
-                set((state) => ({
-                    items: state.items.filter(item => !orderIds.includes(item.id)),
-                    requestingShipping: false
-                }));
+                // Refresh cart items to accurately reflect partial shipping state
+                if (window.location.hash.includes('merchant')) {
+                    await get().fetchMerchantCartItems();
+                } else {
+                    await get().fetchCartItems();
+                }
+                set({ requestingShipping: false });
                 return true;
             } else {
-                set({ error: 'Failed to request shipping for some orders', requestingShipping: false });
+                set({ error: result.reason || result.message || 'Failed to request shipping', requestingShipping: false });
                 return false;
             }
         } catch (err: any) {

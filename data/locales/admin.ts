@@ -9,6 +9,7 @@ export const admin = {
     settings: 'إعدادات النظام',
     disputes: 'مركز الارجاع والنزاعات',
     shipping: 'إدارة الشحن',
+    shippingCarts: 'سلال التجميع',
     auditLogs: 'سجل العمليات',
     violations: 'المخالفات والعقوبات',
     accessControl: 'إدارة الوصول والحوكمة',
@@ -338,7 +339,11 @@ export const admin = {
         noWithdrawals: 'لا توجد طلبات سحب سابقة',
         types: {
             CREDIT: 'إيداع (له)',
-            DEBIT: 'سحب (عليه)'
+            DEBIT: 'سحب (عليه)',
+            GATEWAY_FEE: 'رسوم بوابة الدفع 💳',
+            REFUND_FEE: 'رسوم الاسترداد 🔄',
+            SHIPPING_FEE: 'تكاليف الشحن 🚚',
+            FRAUD_PENALTY: 'غرامة احتيال 🚫'
         },
         withdrawStatus: {
             COMPLETED: 'مكتمل',
@@ -1241,7 +1246,11 @@ export const admin = {
         noWithdrawals: 'No withdrawal history found',
         types: {
             CREDIT: 'Credit (+)',
-            DEBIT: 'Debit (-)'
+            DEBIT: 'Debit (-)',
+            GATEWAY_FEE: 'Gateway Fee 💳',
+            REFUND_FEE: 'Refund Fee 🔄',
+            SHIPPING_FEE: 'Shipping Fee 🚚',
+            FRAUD_PENALTY: 'Fraud Penalty 🚫'
         },
         withdrawStatus: {
             COMPLETED: 'Completed',
