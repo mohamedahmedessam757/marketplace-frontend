@@ -40,7 +40,7 @@ export interface Customer {
   // 2026 Enhanced Fields
   customerBalance?: number;
   totalSpent?: number;
-  loyaltyTier?: 'BASIC' | 'SILVER' | 'GOLD' | 'VIP' | 'BRONZE' | 'PLATINUM';
+  loyaltyTier?: 'BASIC' | 'SILVER' | 'GOLD' | 'VIP' | 'ELITE';
   loyaltyPoints?: number;
   referralCode?: string;
   referralCount?: number;

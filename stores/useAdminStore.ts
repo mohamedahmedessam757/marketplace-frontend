@@ -128,7 +128,7 @@ export interface Vendor {
   };
   owner?: { name: string; email: string };
   createdAt?: string;
-  loyaltyTier?: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  loyaltyTier?: 'BASIC' | 'SILVER' | 'GOLD' | 'VIP' | 'ELITE';
   performanceScore?: number;
   lifetimeEarnings?: number;
   adminNotes?: string;

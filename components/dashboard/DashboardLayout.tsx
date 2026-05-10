@@ -226,6 +226,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'chats', icon: MessageSquare, label: t.dashboard.merchant.menu.chats },
     { id: 'support', icon: Headset, label: t.dashboard.merchant.support.title },
     { id: 'notifications', icon: Bell, label: t.dashboard.merchant.menu.prefsAndNotifications },
+    { id: 'performance', icon: Award, label: t.dashboard.merchant.menu.performance },
     { id: 'profile', icon: Store, label: t.dashboard.merchant.menu.profile },
     { id: 'settings', icon: Settings, label: t.dashboard.merchant.menu.settings },
   ];

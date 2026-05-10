@@ -18,6 +18,17 @@ export const merchant = {
       trackingDashboard: 'لوحة التتبع والتحليل',
       trackingDesc: 'متابعة حية لحالة شحناتك وضمانات القطع المسلمة.'
     },
+    performancePage: {
+      title: 'مركز الأداء والمزايا',
+      subtitle: 'مستوى المتجر، الترتيب، الإحالات، والمخالفات — بيانات مباشرة من المنصة.',
+      avgRating: 'متوسط التقييم',
+      rankingScore: 'درجة الترتيب الشاملة',
+      responseSpeed: 'سرعة الاستجابة',
+      responseProxy: 'تقدير من التقييم حتى يُفعَّل قياس الشات',
+      totalEarnings: 'إجمالي الأرباح المسجلة',
+      ordersDone: 'الطلبات المكتملة',
+      nextTierProgress: 'التقدم نحو المستوى التالي'
+    },
     shippingCart: {
       subtitle: 'عرض مرآة لسلة تجميع العميل للقطع المباعة والمستعدة للتجميع.',
       empty: 'لا توجد قطع حالياً في سلال تجميع العملاء.',
@@ -407,7 +418,8 @@ export const merchant = {
       shipments: 'الشحنات',
       violations: 'المخالفات والعقوبات',
       notifications: 'الإشعارات',
-      prefsAndNotifications: 'التفضيلات والإشعارات'
+      prefsAndNotifications: 'التفضيلات والإشعارات',
+      performance: 'مركز الأداء والمزايا'
     },
     headers: {
       welcome: 'مرحباً،',
@@ -649,6 +661,32 @@ export const merchant = {
               action: 'الإجراء الإداري',
               duration: 'مدة الإيقاف'
           }
+      },
+      codes: {
+        LATE_OFFER: 'تأخر إرسال عرض',
+        LATE_CHAT_REPLY: 'تأخر الرد فى الشات',
+        LATE_SHIPPING: 'تأخر تجهيز/شحن الطلب',
+        NOT_MATCH: 'عدم مطابقة المنتج',
+        LATE_CORRECTION: 'تأخر فى التصحيح خلال 48 ساعة',
+        NO_REPLACEMENT_SENT: 'لم يُرسل بديلاً',
+        REPEAT_NOT_MATCH: 'تكرار عدم المطابقة',
+        LATE_DISPUTE_RESPONSE: 'تأخر الرد على نزاع',
+        DISPUTE_IGNORED: 'تجاهل نزاع',
+        DISPUTE_LOST_MERCHANT: 'خسارة نزاع — التاجر مخطئ',
+        REFUND_MERCHANT_FAULT: 'استرجاع بسبب خطأ التاجر',
+        LATE_RETURN_PROCESSING: 'تأخر معالجة الإرجاع',
+        WRONG_RETURN_REJECTION: 'رفض إرجاع خاطئ',
+        WARRANTY_LATE_RESPONSE: 'تأخر الرد على ضمان',
+        WARRANTY_REPLACEMENT_DELAY: 'تأخر استبدال الضمان',
+        LATE_PREPARATION_AUTO_CANCEL: 'إلغاء طلب لتأخر التجهيز',
+        COUNTERFEIT_BANNED_PRODUCT: 'منتج مقلد أو محظور',
+        LOW_OFFER_QUALITY: 'جودة منخفضة فى العروض'
+      },
+      penaltyActions: {
+        WARNING: 'تنبيه رسمي',
+        TEMPORARY_SUSPENSION: 'إيقاف مؤقت',
+        FREEZE_BALANCE: 'إيقاف وحجز رصيد',
+        PERMANENT_BAN: 'حظر نهائي'
       }
     }
   },
@@ -669,6 +707,17 @@ export const merchant = {
       expiresIn: 'Expires in',
       trackingDashboard: 'Tracking & Analytics Dashboard',
       trackingDesc: 'Live monitoring of your shipments and delivered item warranties.'
+    },
+    performancePage: {
+      title: 'Performance & Benefits Hub',
+      subtitle: 'Store tier, ranking score, referrals, and violations — live data from the platform.',
+      avgRating: 'Average rating',
+      rankingScore: 'Overall ranking score',
+      responseSpeed: 'Response speed',
+      responseProxy: 'Estimated from rating until chat metrics are enabled',
+      totalEarnings: 'Recorded lifetime earnings',
+      ordersDone: 'Completed orders',
+      nextTierProgress: 'Progress toward next tier'
     },
     shippingCart: {
       subtitle: 'Mirror view of customer assembly carts for sold parts awaiting consolidation.',
@@ -1062,7 +1111,8 @@ export const merchant = {
       shipments: 'Shipments',
       violations: 'Violations & Penalties',
       notifications: 'Notifications',
-      prefsAndNotifications: 'Preferences & Notifications'
+      prefsAndNotifications: 'Preferences & Notifications',
+      performance: 'Performance & Benefits Hub'
     },
     headers: {
       welcome: 'Welcome,',
@@ -1282,6 +1332,32 @@ export const merchant = {
               action: 'Administrative Action',
               duration: 'Suspension Duration'
           }
+      },
+      codes: {
+        LATE_OFFER: 'Late offer submission',
+        LATE_CHAT_REPLY: 'Late chat reply',
+        LATE_SHIPPING: 'Late shipping / preparation',
+        NOT_MATCH: 'Product not matching',
+        LATE_CORRECTION: 'Late correction (48h window)',
+        NO_REPLACEMENT_SENT: 'No replacement sent',
+        REPEAT_NOT_MATCH: 'Repeated non-match',
+        LATE_DISPUTE_RESPONSE: 'Late dispute response',
+        DISPUTE_IGNORED: 'Dispute ignored',
+        DISPUTE_LOST_MERCHANT: 'Dispute lost — merchant fault',
+        REFUND_MERCHANT_FAULT: 'Refund — merchant fault',
+        LATE_RETURN_PROCESSING: 'Late return processing',
+        WRONG_RETURN_REJECTION: 'Wrong return rejection',
+        WARRANTY_LATE_RESPONSE: 'Warranty late response',
+        WARRANTY_REPLACEMENT_DELAY: 'Warranty replacement delay',
+        LATE_PREPARATION_AUTO_CANCEL: 'Auto-cancellation for late preparation',
+        COUNTERFEIT_BANNED_PRODUCT: 'Counterfeit or banned product',
+        LOW_OFFER_QUALITY: 'Low offer quality'
+      },
+      penaltyActions: {
+        WARNING: 'Official Warning',
+        TEMPORARY_SUSPENSION: 'Temporary Suspension',
+        FREEZE_BALANCE: 'Suspend & Freeze Balance',
+        PERMANENT_BAN: 'Permanent Ban'
       }
     }
   }

@@ -27,8 +27,8 @@ export const MerchantLoyalty: React.FC = () => {
 
     // Real data from store
     const storeStats = {
-        tier: (performance as any).loyaltyTier || 'BRONZE',
-        performanceScore: performance.acceptanceRate || 0,
+        tier: (performance as any).loyaltyTier || 'BASIC',
+        performanceScore: (performance as any).performanceScore ?? performance.acceptanceRate ?? 0,
         lifetimeEarnings: (performance as any).lifetimeEarnings || 0,
         completedOrders: (performance as any).completedOrdersCount || 0,
         avgRating: performance.rating || 0,
@@ -37,14 +37,15 @@ export const MerchantLoyalty: React.FC = () => {
         remainingAmount: 4800 
     };
 
-    const tiers = {
-        BRONZE: { label: language === 'ar' ? 'برونزي' : 'Bronze', color: 'text-orange-400', bg: 'bg-orange-400/10', icon: Award },
+    const tiers: Record<string, { label: string; color: string; bg: string; icon: typeof Award }> = {
+        BASIC: { label: language === 'ar' ? 'أساسي' : 'Basic', color: 'text-orange-400', bg: 'bg-orange-400/10', icon: Award },
         SILVER: { label: language === 'ar' ? 'فضي' : 'Silver', color: 'text-slate-300', bg: 'bg-slate-300/10', icon: ShieldCheck },
         GOLD: { label: language === 'ar' ? 'ذهبي' : 'Gold', color: 'text-gold-500', bg: 'bg-gold-500/10', icon: Zap },
-        PLATINUM: { label: language === 'ar' ? 'بلاتيني' : 'Platinum', color: 'text-cyan-400', bg: 'bg-cyan-400/10', icon: Target }
+        VIP: { label: 'VIP', color: 'text-cyan-400', bg: 'bg-cyan-400/10', icon: Target },
+        ELITE: { label: language === 'ar' ? 'نخبة' : 'Elite', color: 'text-amber-300', bg: 'bg-amber-300/10', icon: Target },
     };
 
-    const currentTierInfo = tiers[storeStats.tier];
+    const currentTierInfo = tiers[storeStats.tier] || tiers.BASIC;
 
     return (
         <div className="space-y-8 min-h-screen pb-20">
@@ -184,7 +185,7 @@ export const MerchantLoyalty: React.FC = () => {
                         title: language === 'ar' ? 'عمولة مخفضة' : 'Lower Commission', 
                         desc: language === 'ar' ? 'خصم 5% على عمولة المنصة للمستوى الذهبي' : '5% discount on fees for Gold tier',
                         icon: Percent, 
-                        status: storeStats.tier === 'GOLD' || storeStats.tier === 'PLATINUM' ? 'active' : 'locked' 
+                        status: storeStats.tier === 'GOLD' || storeStats.tier === 'VIP' || storeStats.tier === 'ELITE' ? 'active' : 'locked' 
                     },
                     { 
                         title: language === 'ar' ? 'أولوية الظهور' : 'Search Priority', 
@@ -202,7 +203,7 @@ export const MerchantLoyalty: React.FC = () => {
                         title: language === 'ar' ? 'مدير حساب خاص' : 'Direct Support', 
                         desc: language === 'ar' ? 'خط دعم مباشر مع فريق الإدارة للمستوى البلاتيني' : 'Direct line with management for Platinum tier',
                         icon: MessageCircle, 
-                        status: storeStats.tier === 'PLATINUM' ? 'active' : 'locked' 
+                        status: storeStats.tier === 'VIP' || storeStats.tier === 'ELITE' ? 'active' : 'locked' 
                     },
                 ].map((benefit, i) => (
                     <GlassCard key={i} className={`p-6 border-l-4 ${benefit.status === 'active' ? 'border-emerald-500 bg-emerald-500/5' : 'border-white/5 opacity-50 grayscale'} transition-all`}>

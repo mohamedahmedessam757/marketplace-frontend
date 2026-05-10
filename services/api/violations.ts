@@ -104,5 +104,26 @@ export const violationsApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;
+  },
+
+  // 2026 Loyalty Review Alerts (admin-gated rewards cancellation)
+  getLoyaltyAlerts: async (status?: string) => {
+    const params = status ? { status } : {};
+    const response = await client.get('/violations/admin/loyalty-alerts', { params });
+    return response.data;
+  },
+
+  decideLoyaltyAlert: async (
+    id: string,
+    data: { decision: 'CANCEL_REWARDS' | 'KEEP_REWARDS'; adminNotes?: string }
+  ) => {
+    const response = await client.patch(`/violations/admin/loyalty-alerts/${id}/decide`, data);
+    return response.data;
+  },
+
+  // Admin: drop a violation directly (without an appeal)
+  dropViolation: async (id: string, reason: string) => {
+    const response = await client.patch(`/violations/admin/${id}/drop`, { reason });
+    return response.data;
   }
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { useViolationStore, Violation } from '../../stores/useViolationStore';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { getCurrentUserId } from '../../utils/auth';
 import { 
   ShieldAlert, 
   Scale, 
@@ -47,7 +48,7 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
         uploadAppealFile,
         fetchThresholds,
         fetchViolationTypes,
-        subscribeToViolations
+        subscribeForUser
     } = useViolationStore();
 
     const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
@@ -69,7 +70,9 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
         fetchThresholds(role.toUpperCase());
         fetchViolationTypes(role.toUpperCase());
 
-        const unsubscribe = subscribeToViolations();
+        // 2026 Realtime: scoped per-user subscription (avoids hitting admin endpoints)
+        const userId = getCurrentUserId();
+        const unsubscribe = userId ? subscribeForUser(userId) : () => {};
         return () => unsubscribe();
     }, []);
 

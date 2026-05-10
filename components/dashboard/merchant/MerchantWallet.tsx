@@ -558,7 +558,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                 </div>
                                 <div>
                                     <p style="margin: 0; font-size: 11px; color: #6B7280;"><strong>STORE ID:</strong> ${stats.storeId || '---'}</p>
-                                    <p style="margin: 4px 0 0; font-size: 11px; color: #6B7280;"><strong>${isAr ? 'المستوى' : 'Tier'}:</strong> ${stats.loyaltyTier || 'BRONZE'}</p>
+                                    <p style="margin: 4px 0 0; font-size: 11px; color: #6B7280;"><strong>${isAr ? 'المستوى' : 'Tier'}:</strong> ${stats.loyaltyTier || 'BASIC'}</p>
                                 </div>
                             </div>
                         </div>
@@ -954,7 +954,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                     {isAr ? 'تطور مستوى العضوية المستحقة' : 'Merchant Tier Progression'}
                                 </h3>
                                 {(() => {
-                                    const nextMap: Record<string, number> = { BRONZE: 5000, SILVER: 20000, GOLD: 100000 };
+                                    const nextMap: Record<string, number> = { BASIC: 5000, SILVER: 20000, GOLD: 100000, VIP: 200000, ELITE: 500000 };
                                     const nextLimit = nextMap[stats.loyaltyTier] || 1000000;
                                     const progress = Math.min((stats.totalSales / nextLimit) * 100, 100);
                                     return (

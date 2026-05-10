@@ -866,6 +866,22 @@ export const customer = {
                 action: 'الإجراء الإداري',
                 duration: 'مدة الإيقاف'
             }
+        },
+        codes: {
+            ACCEPT_OFFER_NO_PAYMENT: 'قبول عرض بدون دفع',
+            FAKE_REQUEST: 'طلب وهمى',
+            FREQUENT_RETURNS: 'كثرة الإرجاع',
+            EXCEEDED_RETURN_RATE: 'تجاوز نسبة الإرجاع المسموحة',
+            FAKE_DISPUTE: 'نزاع كيدى',
+            LATE_RETURN_HANDOVER: 'تأخر تسليم القطعة المُرجعة',
+            FAKE_COMPLAINT: 'شكوى كاذبة',
+            ABUSE: 'إساءة',
+            SHARE_CONTACT_OFF_PLATFORM: 'مشاركة رقم/تواصل خارج المنصة'
+        },
+        penaltyActions: {
+            WARNING: 'تنبيه رسمي',
+            RESTRICT_PURCHASE: 'منع الشراء',
+            PERMANENT_BAN: 'حظر نهائي'
         }
       },
     rewards: {
@@ -1690,6 +1706,22 @@ export const customer = {
                 action: 'Administrative Action',
                 duration: 'Suspension Duration'
             }
+        },
+        codes: {
+            ACCEPT_OFFER_NO_PAYMENT: 'Accepted offer without payment',
+            FAKE_REQUEST: 'Fake order request',
+            FREQUENT_RETURNS: 'Frequent returns',
+            EXCEEDED_RETURN_RATE: 'Exceeded allowed return rate',
+            FAKE_DISPUTE: 'Fake / malicious dispute',
+            LATE_RETURN_HANDOVER: 'Late return handover',
+            FAKE_COMPLAINT: 'Fake complaint',
+            ABUSE: 'Abuse',
+            SHARE_CONTACT_OFF_PLATFORM: 'Sharing contact info off-platform'
+        },
+        penaltyActions: {
+            WARNING: 'Official Warning',
+            RESTRICT_PURCHASE: 'Restrict Purchase',
+            PERMANENT_BAN: 'Permanent Ban'
         }
     },
     support: {

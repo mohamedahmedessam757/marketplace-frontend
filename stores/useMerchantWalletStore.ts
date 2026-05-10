@@ -83,7 +83,7 @@ export const useMerchantWalletStore = create<MerchantWalletState>((set, get) => 
     totalSales: 0,
     netEarnings: 0,
     completedOrders: 0,
-    loyaltyTier: 'BRONZE',
+    loyaltyTier: 'BASIC',
     performanceScore: 0,
     rating: 0,
     storeName: '',

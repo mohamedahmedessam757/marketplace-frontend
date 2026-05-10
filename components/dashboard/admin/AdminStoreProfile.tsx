@@ -1039,13 +1039,15 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                             <Award size={14} className="text-gold-500/50" />
                                         </div>
                                         <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all hover:scale-[1.02] ${
-                                            vendor.loyaltyTier === 'PLATINUM' ? 'bg-purple-500/5 border-purple-500/20' :
+                                            vendor.loyaltyTier === 'ELITE' ? 'bg-amber-500/5 border-amber-500/20' :
+                                            vendor.loyaltyTier === 'VIP' ? 'bg-purple-500/5 border-purple-500/20' :
                                             vendor.loyaltyTier === 'GOLD' ? 'bg-gold-500/5 border-gold-500/20' :
                                             vendor.loyaltyTier === 'SILVER' ? 'bg-slate-400/5 border-slate-400/10' :
                                             'bg-orange-500/5 border-orange-500/10'
                                         }`}>
                                             <div className={`p-3 rounded-xl ${
-                                                vendor.loyaltyTier === 'PLATINUM' ? 'bg-purple-500/20 text-purple-400' :
+                                                vendor.loyaltyTier === 'ELITE' ? 'bg-amber-500/20 text-amber-300' :
+                                                vendor.loyaltyTier === 'VIP' ? 'bg-purple-500/20 text-purple-400' :
                                                 vendor.loyaltyTier === 'GOLD' ? 'bg-gold-500/20 text-gold-500' :
                                                 vendor.loyaltyTier === 'SILVER' ? 'bg-slate-400/20 text-slate-300' :
                                                 'bg-orange-500/20 text-orange-400'
@@ -1054,12 +1056,13 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                             </div>
                                             <div>
                                                 <p className={`text-xs font-black uppercase tracking-wide mb-0.5 ${
-                                                    vendor.loyaltyTier === 'PLATINUM' ? 'text-purple-400' :
+                                                    vendor.loyaltyTier === 'ELITE' ? 'text-amber-300' :
+                                                    vendor.loyaltyTier === 'VIP' ? 'text-purple-400' :
                                                     vendor.loyaltyTier === 'GOLD' ? 'text-gold-500' :
                                                     vendor.loyaltyTier === 'SILVER' ? 'text-slate-300' :
                                                     'text-orange-400'
                                                 }`}>
-                                                    {vendor.loyaltyTier || 'BRONZE'}
+                                                    {vendor.loyaltyTier || 'BASIC'}
                                                 </p>
                                                 <p className="text-[10px] text-white/30 italic">
                                                     {isAr ? 'عضوية النشاط التجاري المعتمد' : 'Certified Business Membership'}

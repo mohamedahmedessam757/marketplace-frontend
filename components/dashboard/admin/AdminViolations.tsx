@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
-import { useViolationStore, Violation, ViolationType, PenaltyThreshold, ViolationAppeal, PenaltyAction } from '../../../stores/useViolationStore';
+import { useViolationStore, Violation, ViolationType, PenaltyThreshold, ViolationAppeal, PenaltyAction, LoyaltyReviewAlert } from '../../../stores/useViolationStore';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useCustomerStore } from '../../../stores/useCustomerStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -26,7 +26,11 @@ import {
     ArrowRight,
     Loader2,
     ShieldCheck,
-    Lock
+    Lock,
+    Heart,
+    Gem,
+    Ban,
+    ShieldOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAdminPermissionsStore } from '../../../stores/useAdminPermissionsStore';
@@ -52,6 +56,10 @@ export const AdminViolations: React.FC = () => {
         riskAlerts,
         fetchRiskAlerts,
         resolveRiskAlert,
+        loyaltyAlerts,
+        fetchLoyaltyAlerts,
+        decideLoyaltyAlert,
+        dropViolation,
         issueViolation,
         reviewAppeal,
         reviewPenalty,
@@ -62,7 +70,7 @@ export const AdminViolations: React.FC = () => {
         subscribeToViolations
     } = useViolationStore();
 
-    const [activeTab, setActiveTab] = useState<'violations' | 'appeals' | 'penalties' | 'risk_alerts' | 'types' | 'thresholds'>('violations');
+    const [activeTab, setActiveTab] = useState<'violations' | 'appeals' | 'penalties' | 'risk_alerts' | 'loyalty_reviews' | 'types' | 'thresholds'>('violations');
     const [search, setSearch] = useState('');
     const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
     const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
@@ -76,6 +84,17 @@ export const AdminViolations: React.FC = () => {
         resolution: 'DISMISSED' as 'DISMISSED' | 'VIOLATION_ISSUED',
         adminNotes: ''
     });
+
+    // 2026 Loyalty Review modal state
+    const [isLoyaltyDecideModalOpen, setIsLoyaltyDecideModalOpen] = useState(false);
+    const [decidingAlert, setDecidingAlert] = useState<LoyaltyReviewAlert | null>(null);
+    const [decidingDecision, setDecidingDecision] = useState<'CANCEL_REWARDS' | 'KEEP_REWARDS'>('KEEP_REWARDS');
+    const [decidingNotes, setDecidingNotes] = useState('');
+
+    // 2026 Drop violation modal state
+    const [isDropModalOpen, setIsDropModalOpen] = useState(false);
+    const [droppingViolation, setDroppingViolation] = useState<Violation | null>(null);
+    const [dropReason, setDropReason] = useState('');
     // Form State for Violation Issuance
     const [formData, setFormData] = useState({
         targetUserId: '',
@@ -116,6 +135,7 @@ export const AdminViolations: React.FC = () => {
         fetchPendingAppeals();
         fetchPendingPenalties();
         fetchRiskAlerts();
+        fetchLoyaltyAlerts();
 
         const unsubscribe = subscribeToViolations();
         return () => unsubscribe();
@@ -130,6 +150,7 @@ export const AdminViolations: React.FC = () => {
             { id: 'appeals', icon: Scale, label: vt.tabs.appeals, permissionKey: 'APPEALS' },
             { id: 'penalties', icon: AlertTriangle, label: vt.tabs.penalties, permissionKey: 'PENALTIES' },
             { id: 'risk_alerts', icon: Flag, label: vt.tabs.riskAlerts, permissionKey: 'RISK_ALERTS' },
+            { id: 'loyalty_reviews', icon: Heart, label: (vt.tabs as any).loyaltyReviews ?? (isAr ? 'مراجعات الولاء' : 'Loyalty Reviews'), permissionKey: 'LOYALTY_REVIEWS' },
             { id: 'types', icon: FileText, label: vt.tabs.types, permissionKey: 'TYPES' },
             { id: 'thresholds', icon: ShieldCheck, label: vt.table.threshold, permissionKey: 'THRESHOLDS' }
         ];
@@ -137,7 +158,7 @@ export const AdminViolations: React.FC = () => {
             ...tab,
             isLocked: !canViewTab('violations', tab.permissionKey)
         }));
-    }, [vt]);
+    }, [vt, isAr]);
 
     // Auto-switch if current tab is restricted
     useEffect(() => {
@@ -178,6 +199,14 @@ export const AdminViolations: React.FC = () => {
         (a.status || '').toLowerCase().includes(search.toLowerCase())
     ), [riskAlerts, search]);
 
+    const filteredLoyaltyAlerts = useMemo(() => (loyaltyAlerts || []).filter(a =>
+        (a.user?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (a.user?.email || '').toLowerCase().includes(search.toLowerCase()) ||
+        (a.reasonAr || '').toLowerCase().includes(search.toLowerCase()) ||
+        (a.reasonEn || '').toLowerCase().includes(search.toLowerCase()) ||
+        (a.status || '').toLowerCase().includes(search.toLowerCase())
+    ), [loyaltyAlerts, search]);
+
     const filteredViolationTypes = useMemo(() => violationTypes.filter(t =>
         (t.nameAr || '').toLowerCase().includes(search.toLowerCase()) ||
         (t.nameEn || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -196,6 +225,7 @@ export const AdminViolations: React.FC = () => {
                 case 'violations': return 'البحث في المخالفات...';
                 case 'appeals': return 'البحث في الطعون...';
                 case 'penalties': return 'البحث في العقوبات...';
+                case 'loyalty_reviews': return 'البحث في مراجعات الولاء...';
                 case 'types': return 'البحث في أنواع المخالفات...';
                 case 'thresholds': return 'البحث في حدود العقوبات...';
                 default: return 'البحث...';
@@ -206,6 +236,7 @@ export const AdminViolations: React.FC = () => {
             case 'appeals': return 'Search appeals...';
             case 'penalties': return 'Search penalties...';
             case 'risk_alerts': return 'Search risk alerts...';
+            case 'loyalty_reviews': return 'Search loyalty reviews...';
             case 'types': return 'Search violation types...';
             case 'thresholds': return 'Search thresholds...';
             default: return 'Search...';
@@ -332,6 +363,43 @@ export const AdminViolations: React.FC = () => {
                 setIsResolveModalOpen(false);
                 setResolvingAlert(null);
                 setResolveFormData({ resolution: 'DISMISSED', adminNotes: '' });
+            } else {
+                alert(res.message);
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDecideLoyaltyAlert = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!decidingAlert) return;
+        setIsSubmitting(true);
+        try {
+            const res = await decideLoyaltyAlert(decidingAlert.id, decidingDecision, decidingNotes || undefined);
+            if (res.success) {
+                setIsLoyaltyDecideModalOpen(false);
+                setDecidingAlert(null);
+                setDecidingNotes('');
+                setDecidingDecision('KEEP_REWARDS');
+            } else {
+                alert(res.message);
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDropViolation = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!droppingViolation || !dropReason.trim()) return;
+        setIsSubmitting(true);
+        try {
+            const res = await dropViolation(droppingViolation.id, dropReason);
+            if (res.success) {
+                setIsDropModalOpen(false);
+                setDroppingViolation(null);
+                setDropReason('');
             } else {
                 alert(res.message);
             }
@@ -498,11 +566,142 @@ export const AdminViolations: React.FC = () => {
                                                             <span className="text-[8px] text-white/20 uppercase tracking-tighter">Issue Date</span>
                                                         </div>
                                                     </div>
+                                                    {v.status === 'ACTIVE' && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setDroppingViolation(v);
+                                                                setDropReason('');
+                                                                setIsDropModalOpen(true);
+                                                            }}
+                                                            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-red-500/10 text-white/40 hover:text-red-400 border border-white/10 hover:border-red-500/30 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                                                            title={isAr ? 'إسقاط المخالفة وإرجاع النقاط' : 'Drop violation and refund points'}
+                                                        >
+                                                            <ShieldOff size={12} />
+                                                            {isAr ? 'إسقاط' : 'Drop'}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </GlassCard>
                                     )) : (
                                         <div className="text-center py-20 opacity-30 italic">{isAr ? 'لا توجد مخالفات مسجلة' : 'No violations logged.'}</div>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab === 'loyalty_reviews' && (
+                                <div className="grid gap-4">
+                                    {filteredLoyaltyAlerts.length > 0 ? filteredLoyaltyAlerts.map(alertItem => {
+                                        const isPending = alertItem.status === 'PENDING_REVIEW';
+                                        const triggerColor = alertItem.triggeredByType === 'VIOLATION'
+                                            ? 'text-red-400 bg-red-500/10 border-red-500/20'
+                                            : alertItem.triggeredByType === 'DISPUTE'
+                                                ? 'text-orange-400 bg-orange-500/10 border-orange-500/20'
+                                                : 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+                                        return (
+                                            <GlassCard key={alertItem.id} className="p-6 border-white/5 hover:border-pink-500/20 transition-all overflow-hidden relative">
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 blur-[80px] -z-10" />
+                                                <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1.5fr_1fr_1fr] items-start gap-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center shrink-0">
+                                                            <Gem size={22} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-black text-white uppercase italic tracking-tight">
+                                                                {alertItem.user?.name || 'Unknown User'}
+                                                            </h3>
+                                                            <p className="text-[10px] text-white/40 font-bold font-mono">{alertItem.user?.email}</p>
+                                                            <div className="flex items-center gap-2 mt-2">
+                                                                <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${triggerColor}`}>
+                                                                    {isAr
+                                                                        ? (alertItem.triggeredByType === 'VIOLATION' ? 'مخالفة' : alertItem.triggeredByType === 'DISPUTE' ? 'نزاع' : 'إرجاع')
+                                                                        : alertItem.triggeredByType}
+                                                                </span>
+                                                                <span className="px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider bg-white/5 text-white/50 border-white/10">
+                                                                    {alertItem.user?.loyaltyTier || 'BASIC'} • {alertItem.user?.loyaltyPoints ?? 0} pts
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="px-4 lg:border-x border-white/5">
+                                                        <div className="text-[9px] text-white/20 font-black uppercase tracking-widest mb-1 italic">
+                                                            {isAr ? 'سبب المراجعة' : 'Review Reason'}
+                                                        </div>
+                                                        <p className="text-[11px] text-white/70 italic leading-relaxed line-clamp-3">
+                                                            "{isAr ? alertItem.reasonAr : alertItem.reasonEn}"
+                                                        </p>
+                                                        {alertItem.adminNotes && (
+                                                            <p className="mt-2 text-[10px] text-white/50">
+                                                                <span className="text-white/30">{isAr ? 'ملاحظات الإدمن:' : 'Admin notes:'} </span>
+                                                                {alertItem.adminNotes}
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    <div>
+                                                        <div className="text-[9px] text-white/20 font-black uppercase tracking-widest mb-1">
+                                                            {isAr ? 'الحالة' : 'Status'}
+                                                        </div>
+                                                        <div className={`inline-flex px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wider ${
+                                                            alertItem.status === 'PENDING_REVIEW'
+                                                                ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                                                : alertItem.status === 'REWARDS_CANCELLED'
+                                                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                                                    : 'bg-green-500/10 text-green-400 border-green-500/20'
+                                                            }`}>
+                                                            {alertItem.status === 'PENDING_REVIEW' ? (isAr ? 'بانتظار قرار' : 'Pending') :
+                                                                alertItem.status === 'REWARDS_CANCELLED' ? (isAr ? 'تم الإلغاء' : 'Cancelled') :
+                                                                    (isAr ? 'تم الإبقاء' : 'Kept')}
+                                                        </div>
+                                                        <div className="text-[9px] text-white/30 mt-2 font-mono">
+                                                            {new Date(alertItem.createdAt).toLocaleString()}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-2 justify-start">
+                                                        {isPending ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setDecidingAlert(alertItem);
+                                                                        setDecidingDecision('CANCEL_REWARDS');
+                                                                        setDecidingNotes('');
+                                                                        setIsLoyaltyDecideModalOpen(true);
+                                                                    }}
+                                                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/20"
+                                                                >
+                                                                    <Ban size={14} />
+                                                                    {isAr ? 'إلغاء المكافآت' : 'Cancel Rewards'}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setDecidingAlert(alertItem);
+                                                                        setDecidingDecision('KEEP_REWARDS');
+                                                                        setDecidingNotes('');
+                                                                        setIsLoyaltyDecideModalOpen(true);
+                                                                    }}
+                                                                    className="px-4 py-2 bg-white/5 hover:bg-green-500/10 text-white/60 hover:text-green-400 border border-white/10 hover:border-green-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                                                                >
+                                                                    <Heart size={14} />
+                                                                    {isAr ? 'الإبقاء' : 'Keep'}
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <div className="text-[9px] text-white/30 font-mono">
+                                                                {alertItem.decidedAt && (
+                                                                    <span>{isAr ? 'بقرار:' : 'Decided:'} {new Date(alertItem.decidedAt).toLocaleString()}</span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </GlassCard>
+                                        );
+                                    }) : (
+                                        <div className="text-center py-20 opacity-30 italic">
+                                            {isAr ? 'لا توجد مراجعات ولاء معلقة' : 'No pending loyalty reviews.'}
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -1303,6 +1502,181 @@ export const AdminViolations: React.FC = () => {
                                 >
                                     {isSubmitting && <Loader2 size={16} className="animate-spin" />}
                                     {isAr ? 'تنفيذ القرار' : 'Execute Decision'}
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* 2026 Loyalty Review Decision Modal */}
+            {isLoyaltyDecideModalOpen && decidingAlert && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="w-full max-w-lg bg-[#151310] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+                    >
+                        <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-pink-600/10 to-transparent">
+                            <div>
+                                <h3 className="text-xl font-black text-white uppercase italic">
+                                    {isAr ? 'قرار الولاء' : 'Loyalty Decision'}
+                                </h3>
+                                <p className="text-[10px] text-pink-400/60 font-bold tracking-widest uppercase mt-1">
+                                    {decidingDecision === 'CANCEL_REWARDS'
+                                        ? (isAr ? 'تأكيد إلغاء جميع المكافآت' : 'Confirm Cancellation of All Rewards')
+                                        : (isAr ? 'تأكيد الإبقاء على المكافآت' : 'Confirm Keeping Rewards')}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsLoyaltyDecideModalOpen(false)} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white/50 flex items-center justify-center transition-colors">
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleDecideLoyaltyAlert} className="p-8 space-y-6">
+                            <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-400">
+                                        <Gem size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-black text-white uppercase tracking-tight">{decidingAlert.user?.name || 'Unknown'}</h4>
+                                        <p className="text-[10px] text-white/40 font-mono">{decidingAlert.user?.email}</p>
+                                        <div className="flex gap-2 mt-1">
+                                            <span className="text-[9px] font-black bg-white/5 text-white/60 px-1.5 py-0.5 rounded border border-white/10">
+                                                {decidingAlert.user?.loyaltyTier || 'BASIC'}
+                                            </span>
+                                            <span className="text-[9px] font-black bg-white/5 text-white/60 px-1.5 py-0.5 rounded border border-white/10">
+                                                {decidingAlert.user?.loyaltyPoints ?? 0} pts
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-[11px] text-white/70 italic leading-relaxed pt-2 border-t border-white/5">
+                                    "{isAr ? decidingAlert.reasonAr : decidingAlert.reasonEn}"
+                                </div>
+                            </div>
+
+                            {decidingDecision === 'CANCEL_REWARDS' && (
+                                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                                        <div className="text-[11px] text-red-300/90 leading-relaxed">
+                                            {isAr
+                                                ? 'سيتم تصفير نقاط الولاء وإرجاع المستوى إلى BASIC. لن يتأثر رصيد العميل النقدي ولا الكاش-باك المسجّل سابقاً. هذا الإجراء يسجَّل في سجل التدقيق ويصل العميل إشعار فورى.'
+                                                : 'Loyalty points will be reset to 0 and tier returned to BASIC. The customer cash balance and previously-realized cashback are NOT affected. The action is recorded in the audit log and the customer is notified instantly.'}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-white/40 font-black uppercase tracking-widest">
+                                    {isAr ? 'ملاحظات الإدارة' : 'Admin Notes'}
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    placeholder={isAr ? 'سبب القرار (سيظهر فى سجل التدقيق)...' : 'Reason for the decision (recorded in audit log)...'}
+                                    className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-pink-500/50 resize-none"
+                                    value={decidingNotes}
+                                    onChange={e => setDecidingNotes(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="pt-2 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLoyaltyDecideModalOpen(false)}
+                                    className="flex-1 px-6 py-4 rounded-2xl bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                                >
+                                    {isAr ? 'إلغاء' : 'Cancel'}
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className={`flex-[2] px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                                        decidingDecision === 'CANCEL_REWARDS'
+                                            ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/30'
+                                            : 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/30'
+                                    }`}
+                                >
+                                    {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                                    {decidingDecision === 'CANCEL_REWARDS'
+                                        ? (isAr ? 'تأكيد إلغاء المكافآت' : 'Confirm Cancellation')
+                                        : (isAr ? 'تأكيد الإبقاء' : 'Confirm Keep')}
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* 2026 Drop Violation Modal */}
+            {isDropModalOpen && droppingViolation && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="w-full max-w-lg bg-[#151310] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+                    >
+                        <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-red-600/10 to-transparent">
+                            <div>
+                                <h3 className="text-xl font-black text-white uppercase italic">
+                                    {isAr ? 'إسقاط مخالفة' : 'Drop Violation'}
+                                </h3>
+                                <p className="text-[10px] text-red-400/60 font-bold tracking-widest uppercase mt-1">
+                                    {isAr ? 'سيتم إعادة النقاط للعميل' : 'Points will be refunded to user'}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsDropModalOpen(false)} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white/50 flex items-center justify-center transition-colors">
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleDropViolation} className="p-8 space-y-6">
+                            <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-1">
+                                <div className="text-sm font-black text-white uppercase italic tracking-tight">
+                                    {isAr ? droppingViolation.type.nameAr : droppingViolation.type.nameEn}
+                                </div>
+                                <div className="text-[10px] text-white/40">
+                                    <span className="text-red-400 font-mono">-{droppingViolation.points} PTS</span>
+                                    {' • '}
+                                    <span>{droppingViolation.targetType}</span>
+                                    {' • '}
+                                    <span className="font-mono">#{droppingViolation.id.slice(0, 8).toUpperCase()}</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-white/40 font-black uppercase tracking-widest">
+                                    {isAr ? 'سبب الإسقاط (إلزامي)' : 'Drop Reason (required)'}
+                                </label>
+                                <textarea
+                                    required
+                                    rows={3}
+                                    placeholder={isAr ? 'مثال: صدرت بالخطأ، أو تم التحقق من سلامة الطلب...' : 'e.g. Issued in error, verified order was correct...'}
+                                    className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-red-500/50 resize-none"
+                                    value={dropReason}
+                                    onChange={e => setDropReason(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="pt-2 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDropModalOpen(false)}
+                                    className="flex-1 px-6 py-4 rounded-2xl bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                                >
+                                    {isAr ? 'إلغاء' : 'Cancel'}
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting || !dropReason.trim()}
+                                    className="flex-[2] px-6 py-4 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-600/30"
+                                >
+                                    {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                                    <ShieldOff size={14} />
+                                    {isAr ? 'إسقاط المخالفة' : 'Drop Violation'}
                                 </button>
                             </div>
                         </form>

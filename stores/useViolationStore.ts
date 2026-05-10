@@ -4,6 +4,7 @@ import { violationsApi } from '../services/api/violations';
 
 export interface ViolationType {
   id: string;
+  code?: string;
   nameAr: string;
   nameEn: string;
   descriptionAr?: string;
@@ -13,6 +14,8 @@ export interface ViolationType {
   decayDays: number;
   targetType: 'MERCHANT' | 'CUSTOMER';
   isActive: boolean;
+  severity?: 'NORMAL' | 'SEVERE';
+  loyaltyImpact?: 'NONE' | 'CANCEL_ALL_REWARDS_PROMPT';
 }
 
 export interface Violation {
@@ -40,9 +43,43 @@ export interface PenaltyThreshold {
   nameEn: string;
   targetType: 'MERCHANT' | 'CUSTOMER';
   thresholdPoints: number;
-  action: 'WARNING' | 'TEMPORARY_SUSPENSION' | 'PERMANENT_BAN' | 'FEE_INCREASE';
+  action:
+    | 'WARNING'
+    | 'TEMPORARY_SUSPENSION'
+    | 'FREEZE_BALANCE'
+    | 'RESTRICT_PURCHASE'
+    | 'PERMANENT_BAN'
+    | 'FEE_INCREASE';
   suspendDurationDays: number;
   isActive: boolean;
+}
+
+export interface LoyaltyReviewAlert {
+  id: string;
+  userId: string;
+  triggeredByType: 'VIOLATION' | 'DISPUTE' | 'REFUND' | 'MANUAL';
+  triggeredById?: string;
+  reasonAr: string;
+  reasonEn: string;
+  status: 'PENDING_REVIEW' | 'REWARDS_CANCELLED' | 'KEPT';
+  decidedBy?: string;
+  decidedAt?: string;
+  adminNotes?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    avatar?: string;
+    loyaltyTier?: string;
+    loyaltyPoints?: number;
+    customerBalance?: number;
+    violationScore?: number;
+  };
+  decider?: { id: string; name: string; email: string };
 }
 
 export interface ViolationAppeal {
@@ -101,6 +138,7 @@ export interface ViolationState {
   pendingAppeals: ViolationAppeal[];
   pendingPenalties: PenaltyAction[];
   riskAlerts: RiskAlert[];
+  loyaltyAlerts: LoyaltyReviewAlert[];
   myViolations: Violation[];
   myScore: number | null;
   isLoading: boolean;
@@ -112,6 +150,7 @@ export interface ViolationState {
   fetchPendingAppeals: () => Promise<void>;
   fetchPendingPenalties: () => Promise<void>;
   fetchRiskAlerts: (status?: string) => Promise<void>;
+  fetchLoyaltyAlerts: (status?: string) => Promise<void>;
   fetchMyViolations: () => Promise<void>;
   fetchMyScore: () => Promise<void>;
   
@@ -119,6 +158,8 @@ export interface ViolationState {
   reviewAppeal: (id: string, data: any) => Promise<{ success: boolean; message: string }>;
   reviewPenalty: (id: string, data: any) => Promise<{ success: boolean; message: string }>;
   resolveRiskAlert: (id: string, data: { resolution: string; adminNotes?: string }) => Promise<{ success: boolean; message: string }>;
+  decideLoyaltyAlert: (id: string, decision: 'CANCEL_REWARDS' | 'KEEP_REWARDS', adminNotes?: string) => Promise<{ success: boolean; message: string }>;
+  dropViolation: (id: string, reason: string) => Promise<{ success: boolean; message: string }>;
   submitAppeal: (violationId: string, data: { reason: string; evidenceUrls?: string[] }) => Promise<{ success: boolean; message: string }>;
   
   createViolationType: (data: any) => Promise<{ success: boolean; message: string }>;
@@ -130,6 +171,8 @@ export interface ViolationState {
 
   // Real-time
   subscribeToViolations: () => () => void;
+  /** Customer/merchant scoped real-time subscription. Avoids hitting admin endpoints. */
+  subscribeForUser: (userId: string) => () => void;
   unsubscribeFromViolations: () => void;
 }
 
@@ -140,6 +183,7 @@ export const useViolationStore = create<ViolationState>((set, get) => ({
   pendingAppeals: [],
   pendingPenalties: [],
   riskAlerts: [],
+  loyaltyAlerts: [],
   myViolations: [],
   myScore: null,
   isLoading: false,
@@ -196,6 +240,15 @@ export const useViolationStore = create<ViolationState>((set, get) => ({
     try {
       const data = await violationsApi.getRiskAlerts(status);
       set({ riskAlerts: data });
+    } catch (e) {
+      console.error(e);
+    }
+  },
+
+  fetchLoyaltyAlerts: async (status) => {
+    try {
+      const data = await violationsApi.getLoyaltyAlerts(status);
+      set({ loyaltyAlerts: data });
     } catch (e) {
       console.error(e);
     }
@@ -259,6 +312,26 @@ export const useViolationStore = create<ViolationState>((set, get) => ({
         get().fetchViolations();
       }
       return { success: true, message: result.message || 'Alert resolved' };
+    } catch (e: any) {
+      return { success: false, message: e.response?.data?.message || 'Server error' };
+    }
+  },
+
+  decideLoyaltyAlert: async (id, decision, adminNotes) => {
+    try {
+      await violationsApi.decideLoyaltyAlert(id, { decision, adminNotes });
+      get().fetchLoyaltyAlerts();
+      return { success: true, message: decision === 'CANCEL_REWARDS' ? 'Rewards cancelled' : 'Rewards kept' };
+    } catch (e: any) {
+      return { success: false, message: e.response?.data?.message || 'Server error' };
+    }
+  },
+
+  dropViolation: async (id, reason) => {
+    try {
+      await violationsApi.dropViolation(id, reason);
+      get().fetchViolations();
+      return { success: true, message: 'Violation dropped' };
     } catch (e: any) {
       return { success: false, message: e.response?.data?.message || 'Server error' };
     }
@@ -333,15 +406,34 @@ export const useViolationStore = create<ViolationState>((set, get) => ({
     }
   },
 
-  // Real-time
+  // Real-time (admin scope)
   subscribeToViolations: () => {
     const channel = supabase.channel('admin-violations-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'violations' }, () => get().fetchViolations())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'violation_appeals' }, () => get().fetchPendingAppeals())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'penalty_actions' }, () => get().fetchPendingPenalties())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_risk_alerts' }, () => get().fetchRiskAlerts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'loyalty_review_alerts' }, () => get().fetchLoyaltyAlerts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'violation_types' }, () => get().fetchViolationTypes())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'penalty_thresholds' }, () => get().fetchThresholds())
       .subscribe();
       
+    return () => supabase.removeChannel(channel);
+  },
+
+  // Real-time (customer/merchant scope) — only refetches "my" data and never hits admin endpoints
+  subscribeForUser: (userId: string) => {
+    const channel = supabase.channel(`user-violations-realtime-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'violations', filter: `target_user_id=eq.${userId}` },
+        () => {
+          get().fetchMyViolations();
+          get().fetchMyScore();
+        }
+      )
+      .subscribe();
+
     return () => supabase.removeChannel(channel);
   },
 
