@@ -490,22 +490,28 @@ export const AdminViolations: React.FC = () => {
             </div>
 
             {/* Tabs Navigation */}
-            <div className="flex items-center gap-1 p-1.5 bg-white/5 rounded-2xl border border-white/5 w-fit">
+            <div className="flex items-center gap-1.5 p-1.5 bg-white/5 rounded-2xl border border-white/5 w-fit flex-wrap">
                 {visibleTabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`
-                            flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap
+                            flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-bold text-[11px] transition-all whitespace-nowrap group
                             ${activeTab === tab.id
-                                ? 'bg-red-500 text-white shadow-lg shadow-red-500/20 active:scale-95'
-                                : 'text-white/40 hover:text-white hover:bg-white/5'
+                                ? 'bg-red-500 text-white shadow-lg shadow-red-500/20 scale-[1.02] z-10'
+                                : 'text-white/40 hover:text-white/70 hover:bg-white/[0.03]'
                             }
                             ${tab.isLocked ? 'opacity-70' : ''}
                         `}
                     >
-                        <tab.icon size={18} />
-                        {tab.isLocked && <Lock size={12} className={activeTab === tab.id ? 'text-white/50' : 'text-red-500/50'} />}
+                        <tab.icon 
+                            size={16} 
+                            className={`transition-transform duration-300 ${activeTab === tab.id ? 'scale-110' : 'group-hover:scale-110 opacity-70 group-hover:opacity-100'}`} 
+                        />
+                        <span className={`uppercase tracking-widest font-black italic font-outfit ${activeTab === tab.id ? 'opacity-100' : 'opacity-60 group-hover:opacity-100 transition-opacity'}`}>
+                            {tab.label}
+                        </span>
+                        {tab.isLocked && <Lock size={10} className={activeTab === tab.id ? 'text-white/50' : 'text-red-500/50'} />}
                     </button>
                 ))}
             </div>
