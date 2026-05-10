@@ -22,6 +22,25 @@ interface Review {
     store?: { name: string }; // For joined data
 }
 
+export interface ReferralHistoryItem {
+    id: string;
+    firstName: string;
+    registeredAt: string;
+    windowStartsAt: string;
+    windowExpiresAt: string;
+    daysRemaining: number;
+    isActive: boolean;
+    totalEarned: number;
+    ordersCount: number;
+    lastRewardAt: string | null;
+}
+
+export interface ReferralTotals {
+    count: number;
+    earned: number;
+    activeCount: number;
+}
+
 interface LoyaltyState {
     points: number; 
     loyaltyPoints: number; // 2026 Field
@@ -32,11 +51,15 @@ interface LoyaltyState {
     customerBalance: number; // 2026 Profit Balance
     transactions: LoyaltyTransaction[];
     reviews: Review[];
+    referralHistory: ReferralHistoryItem[];
+    referralTotals: ReferralTotals;
+    referralHistoryLoading: boolean;
     loading: boolean;
     error: string | null;
     socket: Socket | null;
     initSocket: () => void;
     fetchLoyaltyData: () => Promise<void>;
+    fetchReferralHistory: () => Promise<void>;
     redeemPoints: (amount: number, description: string) => Promise<boolean>;
     disconnectSocket: () => void;
 }
@@ -51,6 +74,9 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
     customerBalance: 0,
     transactions: [],
     reviews: [],
+    referralHistory: [],
+    referralTotals: { count: 0, earned: 0, activeCount: 0 },
+    referralHistoryLoading: false,
     loading: false,
     error: null,
     socket: null,
@@ -127,6 +153,30 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
             set({ error: error.message });
         } finally {
             set({ loading: false });
+        }
+    },
+
+    fetchReferralHistory: async () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        set({ referralHistoryLoading: true });
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/loyalty/referrals`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch referral history');
+            const data = await response.json();
+
+            set({
+                referralHistory: Array.isArray(data.referrals) ? data.referrals : [],
+                referralTotals: data.totals || { count: 0, earned: 0, activeCount: 0 },
+            });
+        } catch (error: any) {
+            console.error('Error fetching referral history:', error);
+        } finally {
+            set({ referralHistoryLoading: false });
         }
     },
 

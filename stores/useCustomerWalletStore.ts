@@ -30,6 +30,8 @@ export interface WalletStats {
   refundedAmount: number;
   pendingRewards: number;
   profitPercentage: number;
+  referralRate?: number;
+  referralWindowDays?: number;
   name?: string;
   stripeOnboarded?: boolean;
   stripeAccountId?: string;

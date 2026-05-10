@@ -200,6 +200,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { id: 'violations', icon: ShieldAlert, label: t.dashboard.menu.violations },
     { id: 'billing', icon: CreditCard, label: t.dashboard.menu.billing },
     { id: 'wallet', icon: Wallet, label: language === 'ar' ? 'المحفظة' : 'Wallet' },
+    { id: 'rewards', icon: Award, label: language === 'ar' ? 'الولاء والإحالات' : 'Loyalty & Referrals' },
     { id: 'chats', icon: MessageSquare, label: t.dashboard.menu.chats },
     { id: 'support', icon: Headset, label: t.dashboard.menu.support },
     { id: 'preferences', icon: Settings, label: t.dashboard.profile.tabs.settings },

@@ -50,6 +50,7 @@ interface MerchantWalletState {
     pendingRewards: number;
     monthlyRewards: number;
     profitPercentage: number;
+    referralWindowDays?: number;
     earnedReferralProfits: number;
     storeId?: string;
     tierBenefits: { ar: string; en: string }[];
@@ -90,7 +91,8 @@ export const useMerchantWalletStore = create<MerchantWalletState>((set, get) => 
     loyaltyPoints: 0,
     pendingRewards: 0,
     monthlyRewards: 0,
-    profitPercentage: 0,
+    profitPercentage: 1,
+    referralWindowDays: 180,
     earnedReferralProfits: 0,
     storeId: '',
     tierBenefits: [],

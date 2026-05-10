@@ -142,7 +142,7 @@ export const common = {
         subtitle: 'لا تربح لحالك 👇',
         bullet1: '✔ احصل على رابط دعوة خاص بك',
         bullet2: '✔ شاركه مع أصدقائك',
-        bullet3: '✔ عند شراءهم عبر الرابط تربح تلقائيًا بدون أي جهد إضافي'
+        bullet3: '✔ تربح 1% من ثمن كل منتج يشتريه صديقك خلال 6 شهور من تسجيله'
       },
       timing: {
         title: '⏱ متى تُحتسب الأرباح؟',
@@ -351,7 +351,7 @@ export const common = {
         subtitle: "Don't profit alone 👇",
         bullet1: '✔ Get your own referral invitation link',
         bullet2: '✔ Share it with your friends',
-        bullet3: '✔ When they buy via the link, you profit automatically'
+        bullet3: '✔ Earn 1% on every item they buy for 6 months from their signup'
       },
       timing: {
         title: '⏱ When are profits calculated?',

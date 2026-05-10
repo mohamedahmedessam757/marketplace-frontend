@@ -69,6 +69,7 @@ import { ReturnsExchangePage } from './components/dashboard/resolution/ReturnsEx
 import { SupportPage } from './components/dashboard/support/SupportPage';
 import { PreferencesPage } from './components/dashboard/preferences/PreferencesPage';
 import { LoyaltyPage } from './components/dashboard/loyalty/LoyaltyPage';
+import { RewardsPage } from './components/dashboard/rewards/RewardsPage';
 import { ShipmentDetailsPage } from './components/dashboard/shipments/ShipmentDetailsPage';
 import { CustomerResolutionCenter } from './components/dashboard/customer/CustomerResolutionCenter';
 import { CustomerDisputeDetails } from './components/dashboard/customer/CustomerDisputeDetails';
@@ -599,6 +600,7 @@ function AppContent() {
                       {dashboardPath === 'support' && <SupportPage onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'preferences' && <PreferencesPage />}
                       {dashboardPath === 'loyalty' && <LoyaltyPage />}
+                      {dashboardPath === 'rewards' && <RewardsPage />}
                       {dashboardPath === 'violations' && <ViolationsPage role="customer" />}
                       {dashboardPath === 'info-center' && <InfoCenter />}
                     </DashboardLayout>

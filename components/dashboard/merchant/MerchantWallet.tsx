@@ -1282,15 +1282,19 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                     {copied ? (isAr ? 'تم نسخ الرابط!' : 'LINK COPIED!') : (isAr ? 'دعوة صديق الآن' : 'INVITE PARTNER')}
                                 </button>
 
-                                {/* Encouraging dynamic CTA [NEW 2026] */}
+                                {/* Fixed 1% Referral CTA + 6-month Window Note (v2 2026) */}
                                 <div className="mt-4 p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 text-center relative overflow-hidden group/cta">
                                     <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/30" />
                                     <p className="text-[10px] text-blue-400 font-black mb-1.5 leading-snug tracking-tight">
                                         {isAr
-                                            ? `اربح عوائد نقدية بنسبة ${stats.profitPercentage}% على كل طلب إحالة ناجح!`
-                                            : `Earn ${stats.profitPercentage}% cashback on every successful referral order!`}
+                                            ? 'اربح عمولة 1% من ثمن كل منتج يشتريه صديقك خلال 6 شهور من تاريخ تسجيله.'
+                                            : "Earn 1% commission on every item your friend buys, for 6 months from their signup date."}
                                     </p>
-                                    <p className="text-[9px] text-white/30 font-medium leading-relaxed px-2">
+                                    <p className="text-[9px] text-blue-400/80 mt-2 font-bold flex items-center justify-center gap-1.5">
+                                        <Clock size={10} />
+                                        {isAr ? 'مدة فعالية الرابط: 6 شهور لكل مُحال' : 'Link validity: 6 months per referred user'}
+                                    </p>
+                                    <p className="text-[9px] text-white/30 font-medium leading-relaxed px-2 mt-2">
                                         {isAr
                                             ? 'رؤيتك وشركاؤك هم قيمة متجرك الحقيقية. ابدأ في بناء شبكتك العالمية اليوم.'
                                             : 'Your vision and partners are your store\'s true value. Start building your global network today.'}

@@ -493,7 +493,8 @@ export const customer = {
         referral: {
           title: 'نظام الإحالات',
           totalLabel: 'إجمالي إحالاتك:',
-          commissionNote: 'شارك رابطك الخاص واحصل على عمولة {rate} من كل عملية ناجحة يقوم بها أصدقاؤك.'
+          commissionNote: 'شارك رابطك الخاص واحصل على عمولة 1% من ثمن كل منتج يشتريه صديقك خلال 6 شهور من تاريخ تسجيله.',
+          windowNote: 'مدة صلاحية الرابط: 6 شهور تبدأ من تاريخ تسجيل كل صديق'
         }
       }
     },
@@ -866,7 +867,43 @@ export const customer = {
                 duration: 'مدة الإيقاف'
             }
         }
-      }
+      },
+    rewards: {
+      pageTitle: 'الولاء والإحالات',
+      pageSubtitle: 'تابع تقدمك في برنامج الولاء، شارك رابطك مع أصدقائك، واحصل على 1% من ثمن كل منتج يشتريه صديقك خلال 6 شهور من تسجيله.',
+      tierProgressTitle: 'تطور مستوى العضوية',
+      referralHubTitle: 'مركز الإحالة',
+      referralCodeLabel: 'كود الإحالة الشخصي',
+      shareOn: 'مشاركة عبر',
+      copyLink: 'نسخ الرابط',
+      copiedToast: 'تم نسخ الرابط!',
+      shareViaNative: 'مشاركة',
+      history: {
+        title: 'سجل الإحالات',
+        subtitle: 'كل صديق دعوته خلال آخر 6 شهور',
+        empty: 'لا توجد إحالات بعد',
+        emptyDesc: 'كن أول من يشارك رابطك! ابدأ الآن واحصل على عمولة 1% من كل منتج يشتريه أصدقاؤك خلال 6 شهور.',
+        emptyBadge: 'الفرصة في انتظارك',
+        totalReferrals: 'إجمالي الإحالات',
+        totalEarned: 'إجمالي ما كسبته',
+        activeCount: 'الإحالات النشطة',
+        active: 'نشطة',
+        windowLabel: 'نافذة 6 شهور',
+        columns: {
+          friend: 'الصديق',
+          registered: 'تاريخ التسجيل',
+          orders: 'الطلبات',
+          earned: 'المكاسب',
+          window: 'نافذة 6 شهور'
+        },
+        daysRemaining: '{days} يوم متبقي',
+        endingSoon: '{days} يوم — على وشك الانتهاء',
+        expired: 'انتهت',
+        ordersBadge: '{n} طلب'
+      },
+      shareMessage: 'انضم إلى E-TASHLEH وابدأ تجربة تسوق ذكية. سجل من خلال رابطي:',
+      emailSubject: 'دعوة للانضمام إلى E-TASHLEH'
+    }
   },
   en: {
     menu: {
@@ -1362,7 +1399,8 @@ export const customer = {
         referral: {
           title: 'Referral System',
           totalLabel: 'Total Referrals:',
-          commissionNote: 'Share your personal link and earn {rate} commission from every successful order by your friends.'
+          commissionNote: 'Share your personal link and earn 1% commission on each item your friend buys, for 6 months from their signup date.',
+          windowNote: 'Link validity: 6 months starting from each friend\'s signup date'
         }
       }
     },
@@ -1737,6 +1775,42 @@ export const customer = {
       adminAlert: 'Admin Alert',
       violationIssued: 'New Violation Recorded',
       appealReviewed: 'Appeal Decision'
+    },
+    rewards: {
+      pageTitle: 'Loyalty & Referrals',
+      pageSubtitle: 'Track your loyalty progress, share your link, and earn 1% on every item your friends buy for 6 months from their signup.',
+      tierProgressTitle: 'Membership Tier Progression',
+      referralHubTitle: 'Referral Hub',
+      referralCodeLabel: 'Personal Referral Code',
+      shareOn: 'Share via',
+      copyLink: 'Copy link',
+      copiedToast: 'Link copied!',
+      shareViaNative: 'Share',
+      history: {
+        title: 'Referral History',
+        subtitle: 'Every friend you invited in the last 6 months',
+        empty: 'No referrals yet',
+        emptyDesc: 'Be the first to share your link! Start now and earn 1% from every item your friends buy for 6 months.',
+        emptyBadge: 'Opportunity awaits',
+        totalReferrals: 'Total Referrals',
+        totalEarned: 'Total Earned',
+        activeCount: 'Active Referrals',
+        active: 'Active',
+        windowLabel: '6-month window',
+        columns: {
+          friend: 'Friend',
+          registered: 'Registered',
+          orders: 'Orders',
+          earned: 'Earned',
+          window: '6-Month Window'
+        },
+        daysRemaining: '{days} days remaining',
+        endingSoon: '{days}d — Ending soon',
+        expired: 'Expired',
+        ordersBadge: '{n} orders'
+      },
+      shareMessage: 'Join E-TASHLEH for a smart shopping experience. Sign up using my link:',
+      emailSubject: 'Invitation to join E-TASHLEH'
     }
   }
 };

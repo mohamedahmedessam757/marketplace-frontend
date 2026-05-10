@@ -1361,15 +1361,13 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                             {copied ? (isAr ? 'تم النسخ!' : 'LINK COPIED!') : (isAr ? 'دعوة صديق الآن' : 'INVITE PARTNER')}
                                         </button>
                                         
-                                        <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5">
+                                        <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5 space-y-2">
                                             <p className="text-[10px] text-white/50 leading-relaxed font-bold">
-                                                {(() => {
-                                                    const currentTier = stats?.loyaltyTier || 'BASIC';
-                                                    const rates: Record<string, string> = { 'BASIC': '2%', 'SILVER': '3%', 'GOLD': '4%', 'VIP': '5%', 'PARTNER': '6%' };
-                                                    const rate = rates[currentTier] || '2%';
-                                                    const note = t.dashboard.profile.loyalty.referral.commissionNote;
-                                                    return note.replace('{rate}', rate);
-                                                })()}
+                                                {t.dashboard.profile.loyalty.referral.commissionNote}
+                                            </p>
+                                            <p className="text-[9px] text-blue-400/80 leading-relaxed font-bold flex items-center gap-1.5">
+                                                <Clock size={10} />
+                                                {t.dashboard.profile.loyalty.referral.windowNote}
                                             </p>
                                         </div>
 
