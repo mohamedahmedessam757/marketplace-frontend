@@ -255,8 +255,8 @@ export const ReferralHubCard: React.FC<ReferralHubCardProps> = ({
                     </div>
                 </motion.button>
 
-                {/* Social Share Grid */}
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                {/* Social Share Row - Compact & Premium 2026 Style */}
+                <div className="flex flex-wrap items-center justify-center gap-4 py-2">
                     {shareButtons.map((btn) => {
                         const Component = btn.href ? 'a' : 'button';
                         const props = btn.href 
@@ -266,20 +266,24 @@ export const ReferralHubCard: React.FC<ReferralHubCardProps> = ({
                         return (
                             <motion.div
                                 key={btn.id}
-                                whileHover={{ y: -5 }}
+                                whileHover={{ scale: 1.15, rotate: 5 }}
+                                whileTap={{ scale: 0.9 }}
                                 className="relative group/share"
                             >
-                                <div className={`absolute -inset-1 bg-gradient-to-br ${btn.gradient} rounded-2xl blur-lg opacity-0 group-hover/share:opacity-40 transition-opacity`} />
+                                <div className={`absolute -inset-1.5 bg-gradient-to-br ${btn.gradient} rounded-full blur-md opacity-0 group-hover/share:opacity-50 transition-all duration-300`} />
                                 <Component
                                     {...props as any}
-                                    className={`relative w-full flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-2xl bg-gradient-to-br ${btn.gradient} ${btn.shadow} ${btn.border || 'border-transparent'} border transition-all active:scale-95 overflow-hidden`}
+                                    className={`relative w-14 h-14 flex items-center justify-center rounded-2xl bg-gradient-to-br ${btn.gradient} ${btn.shadow} ${btn.border || 'border-transparent'} border-2 transition-all overflow-hidden shadow-xl`}
+                                    title={btn.label}
                                 >
                                     <div className="absolute inset-0 bg-black/10 opacity-0 group-hover/share:opacity-100 transition-opacity" />
-                                    <btn.icon size={22} className={`relative z-10 ${btn.textColor || 'text-white'}`} />
-                                    <span className={`relative z-10 text-[9px] font-black uppercase tracking-tighter truncate max-w-full ${btn.textColor || 'text-white'}`}>
-                                        {btn.label}
-                                    </span>
+                                    <btn.icon size={26} className={`relative z-10 ${btn.textColor || 'text-white'} group-hover/share:scale-110 transition-transform`} />
                                 </Component>
+                                
+                                {/* Tooltip label */}
+                                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/80 backdrop-blur-md rounded-md text-[8px] font-black text-white opacity-0 group-hover/share:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10 tracking-widest z-20">
+                                    {btn.label}
+                                </div>
                             </motion.div>
                         );
                     })}
