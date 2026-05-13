@@ -41,6 +41,7 @@ export interface WalletStats {
   withdrawalFreezeNote?: string;
   orderLimit?: number;
   restrictionAlertMessage?: string;
+  pointsLastResetAt?: string;
 }
 
 export interface BankDetails {
@@ -112,14 +113,19 @@ export const useCustomerWalletStore = create<CustomerWalletState>((set, get) => 
   fetchWithdrawals: async () => {
     try {
         const { client } = await import('../services/api/client');
-        const [reqRes, limitsRes] = await Promise.all([
-            client.get('/payments/withdrawals'), // Unified endpoint for all roles
-            client.get('/payments/admin/withdrawal-settings')
-        ]);
-        set({ 
-            withdrawalRequests: reqRes.data,
-            withdrawalLimits: limitsRes.data 
-        });
+        // Fetch withdrawal requests independently — admin-settings endpoint requires
+        // billing:view permission and will 403 for CUSTOMER role.
+        // Splitting ensures history is always visible even if limits call fails.
+        const reqRes = await client.get('/payments/withdrawals');
+        set({ withdrawalRequests: reqRes.data });
+
+        // Fetch limits separately — silently fail if not authorized (e.g. CUSTOMER role)
+        try {
+            const limitsRes = await client.get('/payments/admin/withdrawal-settings');
+            set({ withdrawalLimits: limitsRes.data });
+        } catch {
+            // Customer role gets 403 here — use safe default limits
+        }
     } catch (error) {
         console.error('Failed to fetch withdrawal data', error);
     }
@@ -272,7 +278,8 @@ export const subscribeToWalletUpdates = () => {
                     withdrawalsFrozen: payload.new.withdrawals_frozen,
                     withdrawalFreezeNote: payload.new.withdrawal_freeze_note,
                     orderLimit: payload.new.order_limit,
-                    restrictionAlertMessage: payload.new.restriction_alert_message
+                    restrictionAlertMessage: payload.new.restriction_alert_message,
+                    pointsLastResetAt: payload.new.points_last_reset_at
                 });
             }
         )

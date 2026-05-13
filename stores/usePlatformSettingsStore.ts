@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
+import { API_URL } from '../services/api/config';
 
 // 2026: Robust boolean parser for Supabase jsonb values
 // Handles: true, 'true', "true", 1, and their false equivalents
@@ -33,7 +34,6 @@ export const usePlatformSettingsStore = create<PlatformSettingsState>((set) => (
 
     fetchSettings: async () => {
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
             const res = await fetch(`${API_URL}/system/feature-flags`);
             
             if (res.ok) {

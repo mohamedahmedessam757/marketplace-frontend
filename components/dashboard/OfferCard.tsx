@@ -6,11 +6,11 @@ import { useLanguage } from '../../contexts/LanguageContext';
 export interface OfferProps {
     id: number;
     storeName: string;
-    rating: number;
+    rating: number | string;
     storeCity?: string;
-    reviewCount: number;
-    price: number;
-    unitPrice: number;
+    reviewCount: number | string;
+    price: number | string;
+    unitPrice: number | string;
     condition: string;
     warranty: string | boolean;
     deliveryTime: string;
@@ -22,7 +22,7 @@ export interface OfferProps {
     storeLogo?: string | null;
     isShippingIncluded?: boolean;
     shippingCost?: number;
-    weight?: number;
+    weight?: number | string;
     partType?: string;
     disabled?: boolean;
     offerNumber?: string;
@@ -66,6 +66,11 @@ export const OfferCard: React.FC<OfferProps> = memo(({
     const { t, language } = useLanguage();
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
+    const toSafeNumber = (value: number | string | undefined | null, fallback = 0) => {
+        const parsed = typeof value === 'number' ? value : Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
     // Helper to map raw values to translations
     // Access 'offers' from 'dashboard' namespace if nested, or root if moved. 
     // Based on index.ts, it is inside dashboard.
@@ -102,6 +107,11 @@ export const OfferCard: React.FC<OfferProps> = memo(({
         return key;
     }, [deliveryTime, offersT, language]);
 
+    const ratingValue = toSafeNumber(rating);
+    const reviewCountValue = toSafeNumber(reviewCount);
+    const priceValue = toSafeNumber(price);
+    const weightValue = toSafeNumber(weight, NaN);
+
     return (
         <>
             <motion.div
@@ -132,9 +142,9 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                             <div className="flex items-center gap-2 text-sm mt-1">
                                 <div className="flex items-center text-yellow-500">
                                     <Star size={14} fill="currentColor" />
-                                    <span className="mx-1 font-bold text-white">{rating.toFixed(1)}</span>
+                                    <span className="mx-1 font-bold text-white">{ratingValue.toFixed(1)}</span>
                                 </div>
-                                <span className="text-white/30 text-xs">({reviewCount} {(t.common as any)?.reviews || 'Reviews'})</span>
+                                <span className="text-white/30 text-xs">({reviewCountValue} {(t.common as any)?.reviews || 'Reviews'})</span>
                             </div>
                         </div>
                     </div>
@@ -156,7 +166,7 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                     <div className="text-right shrink-0">
                         <div className="flex flex-col items-end">
                             <div className="text-3xl font-bold text-gold-400 number-font">
-                                {price.toLocaleString()}
+                                {priceValue.toLocaleString()}
                                 <span className="text-sm font-medium text-white/50 ml-1">AED</span>
                             </div>
                             <div className="text-xs text-white/40 mt-1 flex items-center gap-1 justify-end">
@@ -243,17 +253,17 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                         <div className="text-yellow-400 font-bold shrink-0 text-lg">$</div>
                         <div className="flex flex-col">
                             <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.finalPrice || 'Final Price'}</span>
-                            <span className="text-sm font-medium">{(price || 0).toLocaleString()} AED</span>
+                            <span className="text-sm font-medium">{priceValue.toLocaleString()} AED</span>
                         </div>
                     </div>
 
                     {/* Weight (Optional) - Strict Guard for '0' issue */}
-                    {typeof weight === 'number' && weight > 0 && (
+                    {Number.isFinite(weightValue) && weightValue > 0 && (
                         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-white/80">
                             <Box size={16} className="text-orange-400 shrink-0" />
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-white/40 uppercase tracking-wider">{offersT?.labels?.weight || 'Weight'}</span>
-                                <span className="text-sm font-medium">{weight} {offersT?.units?.kg || 'Kg'}</span>
+                                <span className="text-sm font-medium">{weightValue} {offersT?.units?.kg || 'Kg'}</span>
                             </div>
                         </div>
                     )}

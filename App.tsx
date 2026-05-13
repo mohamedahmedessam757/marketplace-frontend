@@ -625,7 +625,7 @@ function AppContent() {
                       {dashboardPath === 'my-offers' && <MerchantOffers onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'reviews' && <MerchantReviews />}
                       {dashboardPath === 'profile' && <MerchantProfile />}
-                      {dashboardPath === 'wallet' && <MerchantWallet />}
+                      {dashboardPath === 'wallet' && <MerchantWallet onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'shipments' && <ShipmentsPage onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'shipment-details' && <ShipmentDetailsPage shipmentId={viewId} onBack={() => handleDashboardNavigate('shipments')} role="merchant" />}
                       {dashboardPath === 'settings' && <MerchantSettings />}

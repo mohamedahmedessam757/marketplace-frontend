@@ -303,6 +303,12 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
     if (!order) return <div className="text-white text-center py-10">{t.dashboard.common?.notFound || 'Order not found'}</div>;
 
+    const isAcceptedOfferStatus = (status?: string) => ['ACCEPTED', 'PREPARATION', 'PARTIALLY_PAID', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(status || '').toUpperCase());
+    const isRejectedOfferStatus = (status?: string) => String(status || '').toUpperCase() === 'REJECTED';
+    const visibleOffers = order.offers?.filter((o: any) => !isRejectedOfferStatus(o.status)) || [];
+    const acceptedOffers = order.offers?.filter((o: any) => isAcceptedOfferStatus(o.status)) || [];
+    const firstAcceptedOffer = acceptedOffers[0];
+
     const BackIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
     const handleAcceptOffer = async (offer: any) => {
@@ -424,7 +430,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
             // If the drawer is open and there are no more offers, close it
             if (drawerPart) {
-                const remainingOffers = order.offers.filter((o: any) => o.orderPartId === drawerPart.id && o.id !== offerToReject.id && o.status !== 'rejected');
+                const remainingOffers = order.offers.filter((o: any) => o.orderPartId === drawerPart.id && o.id !== offerToReject.id && !isRejectedOfferStatus(o.status));
                 if (remainingOffers.length === 0) {
                     setDrawerPart(null);
                 }
@@ -749,12 +755,12 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             {/* Simulation buttons removed for production/customer view */}
 
                             {/* Continue Checkout Button */}
-                            {['COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && order.offers?.some(o => o.status === 'accepted') && (
+                            {['COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && acceptedOffers.length > 0 && (
                                 <button
                                     onClick={() => {
                                         useCheckoutStore.getState().reset();
                                         useCheckoutStore.getState().setOrderId(order.id);
-                                        const accOffer = order.offers.find(o => o.status === 'accepted');
+                                        const accOffer = firstAcceptedOffer;
                                         if (accOffer) {
                                             setSelectedOfferAction({
                                                 id: accOffer.id,
@@ -1005,7 +1011,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </div>
                                 <div className="text-right">
                                     <span className="text-blue-400 font-bold text-lg">
-                                        {Math.round(((order.offers?.filter(o => o.status === 'accepted' && o.shippedFromCart).length || 0) / (order.offers?.filter(o => o.status === 'accepted').length || 1)) * 100)}%
+                                        {Math.round(((order.offers?.filter(o => isAcceptedOfferStatus(o.status) && o.shippedFromCart).length || 0) / (order.offers?.filter(o => isAcceptedOfferStatus(o.status)).length || 1)) * 100)}%
                                     </span>
                                 </div>
                             </div>
@@ -1013,17 +1019,17 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
                                 <motion.div 
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${((order.offers?.filter(o => o.status === 'accepted' && o.shippedFromCart).length || 0) / (order.offers?.filter(o => o.status === 'accepted').length || 1)) * 100}%` }}
+                                    animate={{ width: `${((order.offers?.filter(o => isAcceptedOfferStatus(o.status) && o.shippedFromCart).length || 0) / (order.offers?.filter(o => isAcceptedOfferStatus(o.status)).length || 1)) * 100}%` }}
                                     className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-600 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
                                 />
                             </div>
                             
                             <div className="flex justify-between mt-3">
                                 <span className="text-[10px] text-white/30 font-bold uppercase">
-                                    {order.offers?.filter(o => o.status === 'accepted' && o.shippedFromCart).length || 0} {language === 'ar' ? 'قطعة تم شحنها' : 'Shipped'}
+                                    {order.offers?.filter(o => isAcceptedOfferStatus(o.status) && o.shippedFromCart).length || 0} {language === 'ar' ? 'قطعة تم شحنها' : 'Shipped'}
                                 </span>
                                 <span className="text-[10px] text-white/30 font-bold uppercase">
-                                    {(order.offers?.filter(o => o.status === 'accepted').length || 0) - (order.offers?.filter(o => o.status === 'accepted' && o.shippedFromCart).length || 0)} {language === 'ar' ? 'متبقي في السلة' : 'Remaining'}
+                                    {(order.offers?.filter(o => isAcceptedOfferStatus(o.status)).length || 0) - (order.offers?.filter(o => isAcceptedOfferStatus(o.status) && o.shippedFromCart).length || 0)} {language === 'ar' ? 'متبقي في السلة' : 'Remaining'}
                                 </span>
                             </div>
                         </motion.div>
@@ -1057,7 +1063,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     )}
 
                     {/* STATE: AWAITING OFFERS - Only show if NO offers yet */}
-                    {order.status === 'AWAITING_OFFERS' && !isExpired && order.offers.filter(o => o.status !== 'rejected').length === 0 && (
+                    {order.status === 'AWAITING_OFFERS' && !isExpired && visibleOffers.length === 0 && (
                         <GlassCard className="flex flex-col items-center justify-center text-center py-16 border-dashed border-white/10 bg-white/5">
                             <div className="w-20 h-20 bg-[#1A1814] rounded-full flex items-center justify-center mb-6 relative">
                                 <div className="absolute inset-0 bg-gold-500 rounded-full opacity-20 animate-ping" />
@@ -1071,7 +1077,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     )}
 
                     {/* STATE: EXPIRED / CANCELLED WITH 0 OFFERS */}
-                    {((order.status === 'AWAITING_OFFERS' && isExpired) || (order.status === 'CANCELLED' && (!order.offers || order.offers.filter(o => o.status !== 'rejected').length === 0))) && (
+                    {((order.status === 'AWAITING_OFFERS' && isExpired) || (order.status === 'CANCELLED' && visibleOffers.length === 0)) && (
                         <GlassCard className="flex flex-col items-center justify-center text-center py-16 border-dashed border-red-500/20 bg-red-500/5">
                             <div className="w-20 h-20 bg-red-950/20 rounded-full flex items-center justify-center mb-6 relative border border-red-500/10">
                                 <div className="absolute inset-0 bg-red-500 rounded-full opacity-10 animate-pulse" />
@@ -1101,7 +1107,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             <div className="space-y-4">
                                 {order.parts.map((p, idx) => {
                                     const partOffers = order.offers
-                                        .filter((o: any) => (o.orderPartId === p.id || (!o.orderPartId && order.parts.length === 1)) && o.status !== 'rejected')
+                                        .filter((o: any) => (o.orderPartId === p.id || (!o.orderPartId && order.parts.length === 1)) && !isRejectedOfferStatus(o.status))
                                         .slice(0, 10); // Hard cap: max 10
 
                                     const hasOffers = partOffers.length > 0;
@@ -1194,7 +1200,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                     partDescription={drawerPart.description}
                                     partImage={drawerPart.image}
                                     partIndex={drawerPart.index}
-                                    offers={order.offers.filter((o: any) => o.orderPartId === drawerPart.id && o.status !== 'rejected')}
+                                    offers={order.offers.filter((o: any) => o.orderPartId === drawerPart.id && !isRejectedOfferStatus(o.status))}
                                     selectedOffer={selectedOffer}
                                     onAcceptOffer={handleAcceptOffer}
                                     onChat={handleChat}
@@ -1206,7 +1212,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     )}
 
                     {/* General Offers (Unlinked) */}
-                    {order.offers.filter(o => !o.orderPartId && o.status !== 'rejected').length > 0 && (
+                    {order.offers.filter(o => !o.orderPartId && !isRejectedOfferStatus(o.status)).length > 0 && (
                         <div className="space-y-4">
                             <h3 className="text-white font-bold flex items-center gap-2">
                                 <span className="w-1.5 h-6 bg-gold-500 rounded-full" />
@@ -1214,7 +1220,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             </h3>
                             <div className="space-y-4">
                                 {order.offers
-                                    .filter(o => !o.orderPartId && o.status !== 'rejected')
+                                    .filter(o => !o.orderPartId && !isRejectedOfferStatus(o.status))
                                     .slice(0, 10)
                                     .map(offer => (
                                         <div key={offer.id} className="relative">
@@ -1337,12 +1343,12 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     </button>
 
                     {/* Mobile/Sidebar Continue Checkout Button */}
-                    {['COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && order.offers?.some(o => o.status === 'accepted') && (
+                    {['COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && acceptedOffers.length > 0 && (
                         <button
                             onClick={() => {
                                 useCheckoutStore.getState().reset();
                                 useCheckoutStore.getState().setOrderId(order.id);
-                                const accOffer = order.offers.find(o => o.status === 'accepted');
+                                const accOffer = firstAcceptedOffer;
                                 if (accOffer) {
                                     setSelectedOfferAction({
                                         id: accOffer.id,

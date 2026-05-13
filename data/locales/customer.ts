@@ -885,8 +885,8 @@ export const customer = {
         }
       },
     rewards: {
-      pageTitle: 'الولاء والإحالات',
-      pageSubtitle: 'تابع تقدمك في برنامج الولاء، شارك رابطك مع أصدقائك، واحصل على 1% من ثمن كل منتج يشتريه صديقك خلال 6 شهور من تسجيله.',
+      pageTitle: 'مركز الإحالات',
+      pageSubtitle: 'شارك رابطك الخاص مع أصدقائك واحصل على عمولة 1% من ثمن كل منتج يشتريه صديقك خلال 6 شهور من تاريخ تسجيله.',
       tierProgressTitle: 'تطور مستوى العضوية',
       referralHubTitle: 'مركز الإحالة',
       referralCodeLabel: 'كود الإحالة الشخصي',
@@ -1395,7 +1395,10 @@ export const customer = {
             GOLD: [
                 'Premium Priority Support 🥇',
                 '4% Cashback on Platform Commission 💸',
-                'Early Access to New Features 🚀',
+                'Early Access to New Features 🚀'
+            ],
+            VIP: [
+                'VIP Dedicated Support 🌟',
                 '5% Cashback on Platform Commission 💎',
                 'Dedicated Account Manager'
             ],
@@ -1809,8 +1812,8 @@ export const customer = {
       appealReviewed: 'Appeal Decision'
     },
     rewards: {
-      pageTitle: 'Loyalty & Referrals',
-      pageSubtitle: 'Track your loyalty progress, share your link, and earn 1% on every item your friends buy for 6 months from their signup.',
+      pageTitle: 'Referral Center',
+      pageSubtitle: 'Share your personal link with friends and earn 1% commission on every item they buy for 6 months from their signup.',
       tierProgressTitle: 'Membership Tier Progression',
       referralHubTitle: 'Referral Hub',
       referralCodeLabel: 'Personal Referral Code',

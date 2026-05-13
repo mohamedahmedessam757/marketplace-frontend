@@ -15,6 +15,7 @@ export const OrderSummaryStep: React.FC = () => {
 
     const order = useMemo(() => orders.find(o => String(o.id) === String(orderId)), [orders, orderId]);
     const tFR = t.dashboard.checkout.finalReview;
+    const acceptedStatuses = useMemo(() => new Set(['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED', 'PREPARATION', 'PARTIALLY_PAID', 'accepted', 'completed', 'shipped', 'delivered', 'preparation', 'partially_paid']), []);
 
     if (!order) return <div className="p-8 text-center text-white/50">{t.common.loading}</div>;
 
@@ -23,7 +24,7 @@ export const OrderSummaryStep: React.FC = () => {
     const itemsCount = requiredPartsArray.length;
 
     const allOffers = order.offers || [];
-    const acceptedOffers = allOffers.filter(o => o.status === 'accepted');
+    const acceptedOffers = allOffers.filter((o: any) => acceptedStatuses.has(String(o.status || '').toUpperCase()) || acceptedStatuses.has(String(o.status || '')));
     const offersToDisplay = acceptedOffers.length > 0 ? acceptedOffers : (selectedOffer ? [selectedOffer] : []);
 
     const isGrouped = itemsCount > 1; // Assuming multi-part implies grouped unless explicitly 'separate'
@@ -32,18 +33,20 @@ export const OrderSummaryStep: React.FC = () => {
         navigator.clipboard.writeText(text);
     };
 
-    const formatCondition = (cond: string) => {
+    const formatCondition = (cond?: string) => {
         if (!cond || cond === '---') return '---';
         const c = cond.toLowerCase();
         if (c.includes('clean')) return isAr ? 'مستعمل - نظيف' : 'Used - Clean';
+        if (c.includes('avg')) return isAr ? 'مستعمل - متوسط' : 'Used - Average';
         if (c === 'new') return isAr ? 'جديد' : 'New';
         if (c === 'used') return isAr ? 'مستعمل' : 'Used';
         return cond;
     };
 
-    const formatWarranty = (w: string) => {
-        if (!w || w === 'no' || w === 'none') return tFR.noWarranty;
+    const formatWarranty = (w?: string) => {
+        if (!w || w === 'no' || w === 'none' || w === 'false') return tFR.noWarranty;
         const clean = w.toLowerCase().replace(/\s+/g, '');
+        if (clean === 'yes' || clean === 'true') return isAr ? 'يوجد ضمان' : 'Warranty Included';
         if (clean === 'd15' || clean === '15days') return isAr ? '15 يوم' : '15 Days';
         if (clean === 'month1' || clean === '1month' || clean === '1months') return isAr ? 'شهر واحد' : '1 Month';
         if (clean === 'month3' || clean === '3month' || clean === '3months') return isAr ? '3 أشهر' : '3 Months';
@@ -68,6 +71,31 @@ export const OrderSummaryStep: React.FC = () => {
         return w;
     };
 
+    const getOfferStoreCode = (offer: any) => {
+        return offer?.storeCode || offer?.store?.storeCode || offer?.storeId || offer?.store?.id || '---';
+    };
+
+    const getOfferMerchantName = (offer: any) => {
+        return offer?.merchantName || offer?.store?.name || '---';
+    };
+
+    const getOfferWarranty = (offer: any) => {
+        if (typeof offer?.warranty === 'string' && offer.warranty.trim()) return offer.warranty;
+        if (offer?.hasWarranty) return offer?.warrantyDuration || 'yes';
+        return 'no';
+    };
+
+    const getOfferWeight = (offer: any) => {
+        const rawWeight = offer?.weight ?? offer?.weightKg ?? offer?.weight_kg;
+        const weightValue = Number(rawWeight);
+        return Number.isFinite(weightValue) && weightValue > 0 ? weightValue : null;
+    };
+
+    const getOfferCylinders = (offer: any) => {
+        const cylindersValue = Number(offer?.cylinders);
+        return Number.isFinite(cylindersValue) && cylindersValue > 0 ? cylindersValue : null;
+    };
+
 
 
     const hasMultiAddresses = Object.keys(partAddresses).length > 0;
@@ -88,6 +116,11 @@ export const OrderSummaryStep: React.FC = () => {
                 {offersToDisplay.map((offer, idx) => {
                     const part = requiredPartsArray.find(p => p.id === offer.orderPartId);
                     const partName = part ? part.name : order.partName;
+                    const storeCode = getOfferStoreCode(offer);
+                    const merchantName = getOfferMerchantName(offer);
+                    const warrantyValue = getOfferWarranty(offer);
+                    const weightValue = getOfferWeight(offer);
+                    const cylindersValue = getOfferCylinders(offer);
 
                     // Determine which image to show
                     const merchantImage = offer.offerImage;
@@ -142,9 +175,9 @@ export const OrderSummaryStep: React.FC = () => {
                                 <div className="flex-1 min-w-[110px]">
                                     <p className="text-[10px] text-white/40 mb-1">{tFR.storeNo}</p>
                                     <p className="text-xs font-bold text-white font-mono">
-                                        {offer.storeCode && offer.storeCode !== 'N/A' ? `#${offer.storeCode}` : '---'}
+                                        {storeCode && storeCode !== 'N/A' ? `#${storeCode}` : '---'}
                                     </p>
-                                    <p className="text-[10px] text-white/30 mt-1">{offer.merchantName || '---'}</p>
+                                    <p className="text-[10px] text-white/30 mt-1">{merchantName}</p>
                                 </div>
                                 <div className="flex-1 min-w-[110px]">
                                     <p className="text-[10px] text-white/40 mb-1">{tFR.paymentStatus}</p>
@@ -163,14 +196,20 @@ export const OrderSummaryStep: React.FC = () => {
                                 </div>
                                 <div className="flex-1 min-w-[110px]">
                                     <p className="text-[10px] text-white/40 mb-1">{tFR.warranty}</p>
-                                    <p className="text-xs font-bold text-amber-400/90">{formatWarranty(offer.warranty)}</p>
+                                    <p className="text-xs font-bold text-amber-400/90">{formatWarranty(warrantyValue)}</p>
                                 </div>
 
                                 <div className="flex-1 min-w-[110px]">
-                                    <p className="text-[10px] text-white/40 mb-1">{tFR.approxWeight}</p>
-                                    <p className="text-xs font-bold text-white/90">
-                                        <span className="font-mono text-gold-400 mr-1">{offer.weight || '---'}</span> kg
-                                    </p>
+                                    <p className="text-[10px] text-white/40 mb-1">{cylindersValue ? (isAr ? 'السلندرات' : 'Cylinders') : tFR.approxWeight}</p>
+                                    {cylindersValue ? (
+                                        <p className="text-xs font-bold text-white/90">
+                                            <span className="font-mono text-gold-400 mr-1">{cylindersValue}</span>
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs font-bold text-white/90">
+                                            <span className="font-mono text-gold-400 mr-1">{weightValue ?? '---'}</span> {weightValue ? 'kg' : ''}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 

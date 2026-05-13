@@ -49,6 +49,7 @@ interface LoyaltyState {
     referralCode: string;
     referralCount: number; // 2026 Field
     customerBalance: number; // 2026 Profit Balance
+    pointsLastResetAt: string | null;
     transactions: LoyaltyTransaction[];
     reviews: Review[];
     referralHistory: ReferralHistoryItem[];
@@ -72,6 +73,7 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
     referralCode: '',
     referralCount: 0,
     customerBalance: 0,
+    pointsLastResetAt: null,
     transactions: [],
     reviews: [],
     referralHistory: [],
@@ -88,9 +90,11 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
         const userId = getCurrentUserId();
         if (!userId) return;
 
+        const token = localStorage.getItem('access_token');
         const newSocket = io(`${import.meta.env.VITE_API_URL}/loyalty`, {
             transports: ['websocket'],
             autoConnect: true,
+            auth: token ? { token } : {},
         });
 
         newSocket.on('connect', () => {
@@ -145,6 +149,7 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
                 referralCode: data.referralCode || '',
                 referralCount: data.referralCount || 0,
                 customerBalance: data.customerBalance || 0,
+                pointsLastResetAt: data.pointsLastResetAt || new Date().toISOString(),
                 reviews: data.submittedReviews || []
             });
 

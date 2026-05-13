@@ -55,10 +55,13 @@ const DEFAULT_FORM: PartFormData = {
     condition: 'used_clean',
     notes: '',
     imageUrl: null,
-    cylinders: 4,
+    cylinders: undefined,
 };
 
-export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onClose, requestDetails, existingOffers = [], onSubmit }) => {
+const EMPTY_PARTS: any[] = [];
+const EMPTY_OFFERS: any[] = [];
+
+export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onClose, requestDetails, existingOffers, onSubmit }) => {
     const { t, language } = useLanguage();
     const { fetchChat } = useOrderChatStore();
     const { addNotification } = useNotificationStore();
@@ -68,8 +71,9 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
 
     const isAr = language === 'ar';
     const offersT = t.dashboard.merchant.offerModal;
-    const parts = requestDetails?.parts || [];
+    const parts = requestDetails?.parts ?? EMPTY_PARTS;
     const isMultiPart = parts.length > 1;
+    const safeExistingOffers = existingOffers ?? EMPTY_OFFERS;
 
     // --- Per-Part State ---
     const [selectedPartIds, setSelectedPartIds] = useState<Set<string>>(new Set());
@@ -88,12 +92,12 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
     // Build a map of existing offers by partId for quick lookup
     const existingOfferMap = useMemo(() => {
         const map = new Map<string, any>();
-        existingOffers.forEach((o: any) => {
+        safeExistingOffers.forEach((o: any) => {
             const partId = o.orderPartId || o.order_part_id;
             if (partId) map.set(partId, o);
         });
         return map;
-    }, [existingOffers]);
+    }, [safeExistingOffers]);
 
     // Map partId -> check if awarded to ANOTHER merchant
     const awardedToOthersMap = useMemo(() => {
@@ -111,25 +115,35 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         return map;
     }, [parts, requestDetails?.offers, storeId]);
 
+    const getShipmentTypeById = useCallback((partType: string) => {
+        return systemConfig.logistics.shipmentTypes?.find((type: any) => type.id === partType)
+            || systemConfig.logistics.shipmentTypes?.find((type: any) => type.id === 'standard');
+    }, [systemConfig.logistics.shipmentTypes]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        fetchPublicConfig();
+    }, [isOpen, fetchPublicConfig]);
+
     // Initialize: auto-select single part or reset for multi-part
     // If existingOffers exist, pre-fill form data from them
     useEffect(() => {
         if (!isOpen || !requestDetails) return;
-        
-        fetchPublicConfig(); // 2026 Real-time logistics sync
 
-        const buildFormFromOffer = (offer: any): PartFormData => ({
-            basePrice: offer.unitPrice?.toString() || offer.unit_price?.toString() || '',
-            weight: offer.weightKg?.toString() || offer.weight_kg?.toString() || '',
-            partType: offer.partType || offer.part_type || 'normal',
-            hasWarranty: offer.hasWarranty ?? offer.has_warranty ?? false,
-            warrantyDuration: offer.warrantyDuration || offer.warranty_duration || '15days',
-            deliveryTime: offer.deliveryDays || offer.delivery_days || 'd1_3',
-            condition: offer.condition || 'used_clean',
-            notes: offer.notes || '',
-            imageUrl: offer.offerImage || offer.offer_image || null,
-            cylinders: offer.cylinders || 4,
-        });
+        const buildFormFromOffer = (offer: any): PartFormData => {
+            return {
+                basePrice: offer.unitPrice?.toString() || offer.unit_price?.toString() || '',
+                weight: offer.weightKg?.toString() || offer.weight_kg?.toString() || '',
+                partType: offer.partType || offer.part_type || 'standard',
+                hasWarranty: offer.hasWarranty ?? offer.has_warranty ?? false,
+                warrantyDuration: offer.warrantyDuration || offer.warranty_duration || '15days',
+                deliveryTime: offer.deliveryDays || offer.delivery_days || 'd1_3',
+                condition: offer.condition || 'used_clean',
+                notes: offer.notes || '',
+                imageUrl: offer.offerImage || offer.offer_image || null,
+                cylinders: offer.cylinders ? Number(offer.cylinders) : undefined,
+            };
+        };
 
         if (parts.length === 1) {
             const partId = parts[0].id || 'single';
@@ -158,12 +172,12 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             setFormDataMap(map);
         } else {
             const partId = 'legacy';
-            const existingOffer = existingOffers.length > 0 ? existingOffers[0] : null;
+            const existingOffer = safeExistingOffers.length > 0 ? safeExistingOffers[0] : null;
             setSelectedPartIds(new Set([partId]));
             setActivePartId(partId);
             setFormDataMap({ [partId]: existingOffer ? buildFormFromOffer(existingOffer) : { ...DEFAULT_FORM } });
         }
-    }, [isOpen, requestDetails?.id, existingOfferMap, fetchPublicConfig]);
+    }, [isOpen, requestDetails?.id, existingOfferMap]);
 
     // Get active form data
     const activeForm = activePartId ? (formDataMap[activePartId] || DEFAULT_FORM) : DEFAULT_FORM;
@@ -187,23 +201,44 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         if (error) setError(null);
     }, [activePartId, error]);
 
+    const handlePartTypeChange = useCallback((nextPartType: string) => {
+        if (!activePartId) return;
+
+        const nextShipmentType = getShipmentTypeById(nextPartType);
+
+        setFormDataMap(prev => {
+            const currentForm = prev[activePartId] || DEFAULT_FORM;
+            return {
+                ...prev,
+                [activePartId]: {
+                    ...currentForm,
+                    partType: nextPartType,
+                    weight: nextShipmentType?.isWeightBound ? currentForm.weight : '',
+                    cylinders: nextShipmentType?.hasCylinders ? currentForm.cylinders : undefined,
+                }
+            };
+        });
+
+        if (error) setError(null);
+    }, [activePartId, error, getShipmentTypeById]);
+
     // Shared Calculation Logic for 2026 Resiliency
     const getQuoteCalculations = useCallback((basePriceStr: string, weightStr: string, partType: string, cylinders?: number) => {
         const price = parseFloat(basePriceStr) || 0;
         const w = parseFloat(weightStr) || 0;
         
-        const shipmentType = systemConfig.logistics.shipmentTypes?.find((t: any) => t.id === partType) 
-                          || systemConfig.logistics.shipmentTypes?.find((t: any) => t.id === 'standard');
+        const shipmentType = getShipmentTypeById(partType);
 
         let shippingCost = 0;
         if (shipmentType) {
-            shippingCost = shipmentType.basePrice || 0;
-
-            // 2026 Cylinder Logic: Override with fixed cylinder rates if applicable
-            if (shipmentType.hasCylinders && cylinders) {
+            if (shipmentType.hasCylinders) {
                 const rate = (shipmentType.cylinderRates || []).find((r: any) => r.cylinders === cylinders);
                 if (rate) shippingCost = rate.price;
-            } else if (shipmentType.isWeightBound && w > 0) {
+            } else {
+                shippingCost = shipmentType.basePrice || 0;
+            }
+
+            if (!shipmentType.hasCylinders && shipmentType.isWeightBound && w > 0) {
                 const brackets = shipmentType.weightBrackets || [];
                 const bracket = brackets.find((b: any) => w >= b.minWeight && w <= b.maxWeight);
                 if (bracket) {
@@ -231,7 +266,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             finalPrice,
             merchantEarnings: price 
         };
-    }, [systemConfig]);
+    }, [getShipmentTypeById, systemConfig]);
 
     // --- Calculations for active part (Optimized with Deferred Values) ---
     const calculations = useMemo(() => {
@@ -315,13 +350,20 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         // Validate all selected parts
         for (const partId of selectedPartIds) {
             const form = formDataMap[partId];
+            const shipmentType = getShipmentTypeById(form.partType);
             if (!form?.basePrice) {
                 const partName = parts.find((p: any) => p.id === partId)?.name || requestDetails?.part || '';
                 triggerError(isAr ? `أدخل سعر القطعة: ${partName}` : `Enter price for: ${partName}`);
                 setActivePartId(partId);
                 return;
             }
-            if (!form.weight && form.partType === 'normal') {
+            if (shipmentType?.hasCylinders && !form.cylinders) {
+                const partName = parts.find((p: any) => p.id === partId)?.name || requestDetails?.part || '';
+                triggerError(isAr ? `حدد عدد السلندرات: ${partName}` : `Select cylinder count for: ${partName}`);
+                setActivePartId(partId);
+                return;
+            }
+            if (shipmentType?.isWeightBound && !form.weight) {
                 const partName = parts.find((p: any) => p.id === partId)?.name || requestDetails?.part || '';
                 triggerError(isAr ? `أدخل وزن القطعة: ${partName}` : `Enter weight for: ${partName}`);
                 setActivePartId(partId);
@@ -345,11 +387,14 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                 const partId = selectedParts[i];
                 const form = formDataMap[partId];
                 const part = parts.find((p: any) => p.id === partId);
+                const shipmentType = getShipmentTypeById(form.partType);
+                const normalizedWeightKg = shipmentType?.isWeightBound ? (parseFloat(form.weight) || 0) : 0;
+                const normalizedCylinders = shipmentType?.hasCylinders ? form.cylinders : undefined;
 
                 // Dynamic calculation using shared logic (2026 Standard)
                 const { shipping: shippingCost, finalPrice, merchantEarnings: price, weightKg: w } = {
-                    ...getQuoteCalculations(form.basePrice, form.weight, form.partType, form.cylinders),
-                    weightKg: parseFloat(form.weight) || 0
+                    ...getQuoteCalculations(form.basePrice, form.weight, form.partType, normalizedCylinders),
+                    weightKg: normalizedWeightKg
                 };
 
                 // Determine if this is an update or a new offer
@@ -369,7 +414,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                     notes: form.notes,
                     offerImage: form.imageUrl || undefined,
                     shippingCost,
-                    cylinders: form.cylinders,
+                    cylinders: normalizedCylinders,
                 };
 
                 // CREATE — Always create new (Edit is locked, requires cancel first)
@@ -399,6 +444,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                         notes: form.notes,
                         offerImage: form.imageUrl || undefined,
                         weight: w,
+                        cylinders: normalizedCylinders,
                         partType: form.partType,
                         orderPartId: partId !== 'legacy' && partId !== 'single' ? String(partId) : undefined,
                         partName: part?.name || requestDetails?.part,
@@ -779,7 +825,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                 <div className="relative group">
                                                     <select
                                                         value={activeForm.partType}
-                                                        onChange={(e) => updateField('partType', e.target.value)}
+                                                        onChange={(e) => handlePartTypeChange(e.target.value)}
                                                         className="w-full bg-black/40 border border-white/5 hover:border-white/10 focus:border-gold-500/50 rounded-2xl py-4 px-4 text-white text-sm font-bold focus:bg-gold-500/5 outline-none appearance-none transition-all cursor-pointer"
                                                     >
                                                         {(systemConfig.logistics?.shipmentTypes || []).map((type: any) => (

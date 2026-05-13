@@ -649,10 +649,10 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     </div>
                     <div>
                         <h1 className="text-xl sm:text-2xl font-bold text-white leading-none truncate max-w-[250px] sm:max-w-none">
-                            {isAr ? 'لوحة تحكم العميل (Dashboard)' : 'Customer Dashboard'}
+                            {isAr ? 'المحفظة المالية' : 'Financial Wallet'}
                         </h1>
                         <p className="text-white/40 text-[10px] sm:text-xs mt-1.5 font-medium">
-                            {isAr ? 'أهلاً بك في منصتك المالية والولاء المتكاملة.' : 'Welcome to your integrated financial and loyalty platform.'}
+                            {isAr ? 'إدارة رصيدك المالي، أرباحك، وعمليات السحب والولاء.' : 'Manage your balance, earnings, withdrawals, and loyalty.'}
                         </p>
                     </div>
                 </div>
@@ -829,13 +829,13 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto relative">
+                        <div className="overflow-x-auto overflow-y-auto max-h-[500px] relative custom-scrollbar">
                             {/* Mobile Scroll Indicator */}
                             <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/40 to-transparent pointer-events-none sm:hidden" />
                             
                             <table className="w-full text-sm text-center border-collapse min-w-[800px]">
                                 <thead>
-                                    <tr className="border-b border-white/5 bg-white/[0.01] text-[10px] text-white/30 uppercase tracking-widest font-black">
+                                    <tr className="sticky top-0 z-20 border-b border-white/5 bg-[#151310] text-[10px] text-white/30 uppercase tracking-widest font-black">
                                         <th className="px-4 py-5 font-black">{isAr ? 'رقم الطلب' : 'Order ID'}</th>
                                         <th className="px-4 py-5 font-black">{isAr ? 'التاريخ' : 'Date'}</th>
                                         <th className="px-4 py-5 font-black">{isAr ? 'المبلغ' : 'Amount'}</th>
@@ -954,8 +954,15 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         
                         const range = endLimit - startLimit;
                         const relativeSpent = spent - startLimit;
-                        const progress = nextTier ? Math.max(0, Math.min((relativeSpent / range) * 100, 100)) : 100;
+                        const segmentProgress = nextTier ? Math.max(0, Math.min((relativeSpent / range) * 100, 100)) : 100;
+                        const totalProgress = ((currentTierIdx + (nextTier ? segmentProgress / 100 : 0)) / (tiers.length - 1)) * 100;
                         const remaining = nextTier ? endLimit - spent : 0;
+                        
+                        // v2026 6-Month Points Reset Timer
+                        const resetDateRaw = stats?.pointsLastResetAt ? new Date(stats.pointsLastResetAt) : new Date();
+                        const nextResetDate = new Date(resetDateRaw.getTime() + (180 * 24 * 60 * 60 * 1000));
+                        const daysUntilReset = Math.max(0, Math.ceil((nextResetDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+                        const isResetNear = daysUntilReset <= 30;
 
                         return (
                             <GlassCard className="p-6 sm:p-8 relative overflow-hidden border-white/5 group bg-gradient-to-br from-gold-500/5 to-transparent">
@@ -982,47 +989,116 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                             )}
                                         </div>
                                         
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between text-[10px] uppercase font-black tracking-widest text-white/40">
-                                                <span className="flex items-center gap-2">
-                                                    <TrendingUp size={12} className="text-gold-500/50" /> 
-                                                    {isAr ? 'إجمالي الإنفاق المكتمل (المعتمد): ' : 'Total Approved (Completed) Spent: '}
-                                                    <span className="text-white font-black">{spent.toLocaleString()}</span> <span className="text-[8px] font-medium opacity-60">AED</span>
+                                        <div className="space-y-6">
+                                            {/* Tier Roadmap Visual */}
+                                            <div className="relative pt-4 pb-2">
+                                                {/* Background Progress Track */}
+                                                <div className="absolute top-[32px] left-[10%] right-[10%] h-1 bg-white/5 rounded-full overflow-hidden">
+                                                    <motion.div 
+                                                        initial={{ width: 0 }}
+                                                        animate={{ width: `${totalProgress}%` }}
+                                                        transition={{ duration: 1.5, ease: "easeOut" }}
+                                                        className="h-full bg-gradient-to-r from-blue-500 via-gold-500 to-gold-400 shadow-[0_0_15px_rgba(212,175,55,0.5)]"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Tier Nodes */}
+                                                <div className="relative flex justify-between">
+                                                    {tiers.map((tier, idx) => {
+                                                        const isCompleted = currentTierIdx > idx;
+                                                        const isCurrent = currentTierIdx === idx;
+                                                        
+                                                        let iconColor = "text-white/20";
+                                                        let bgColor = "bg-[#1A1814] border-white/10";
+                                                        let labelColor = "text-white/30";
+                                                        
+                                                        if (isCompleted) {
+                                                            iconColor = "text-gold-500";
+                                                            bgColor = "bg-gold-500/10 border-gold-500/30";
+                                                            labelColor = "text-gold-500/80";
+                                                        } else if (isCurrent) {
+                                                            iconColor = "text-white";
+                                                            bgColor = "bg-gradient-to-tr from-gold-600 to-gold-400 border-white shadow-[0_0_20px_rgba(212,175,55,0.4)]";
+                                                            labelColor = "text-gold-400 font-bold";
+                                                        }
+                                                        
+                                                        return (
+                                                            <div key={tier.id} className="flex flex-col items-center gap-2 z-10 w-[20%]">
+                                                                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${bgColor}`}>
+                                                                    {isCurrent ? <Star size={16} className={iconColor} fill="currentColor" /> : <ShieldCheck size={14} className={iconColor} />}
+                                                                </div>
+                                                                <div className="flex flex-col items-center text-center">
+                                                                    <span className={`text-[8px] sm:text-[9px] uppercase tracking-widest ${labelColor}`}>
+                                                                        {tier.id}
+                                                                    </span>
+                                                                    <span className="text-[7px] text-white/40 font-bold mt-0.5">
+                                                                        {tier.rate}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-between text-[10px] uppercase font-black tracking-widest text-white/40 bg-white/5 p-3 rounded-xl border border-white/5">
+                                                <span className="flex flex-col gap-1">
+                                                    <span className="text-white/30 text-[8px]">{isAr ? 'الإنفاق المعتمد' : 'APPROVED SPENT'}</span>
+                                                    <span className="flex items-center gap-1.5 text-white">
+                                                        <TrendingUp size={12} className="text-gold-500" /> 
+                                                        {spent.toLocaleString()} <span className="text-[8px] font-medium opacity-60">AED</span>
+                                                    </span>
                                                 </span>
                                                 {nextTier && (
-                                                    <span className="text-gold-500 flex items-center gap-1">
-                                                        {t.dashboard.profile.loyalty.progression.goal}: {endLimit.toLocaleString()} <ChevronRight size={12} />
+                                                    <span className="flex flex-col items-end gap-1">
+                                                        <span className="text-white/30 text-[8px]">{t.dashboard.profile.loyalty.progression.goal}</span>
+                                                        <span className="text-gold-500 flex items-center gap-1">
+                                                            {endLimit.toLocaleString()} <ChevronRight size={12} />
+                                                        </span>
                                                     </span>
                                                 )}
                                             </div>
                                             
-                                            <div className="h-5 bg-black/60 rounded-full border border-white/10 p-1 relative overflow-hidden">
-                                                <motion.div 
-                                                    initial={{ width: 0 }}
-                                                    animate={{ width: `${progress}%` }}
-                                                    transition={{ duration: 1.5, ease: "easeOut" }}
-                                                    className="h-full bg-gradient-to-r from-gold-700 via-gold-500 to-gold-400 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.4)] relative"
-                                                >
-                                                    {/* Animated glow on the edge of progress */}
-                                                    <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/20 blur-md animate-pulse" />
-                                                </motion.div>
-                                            </div>
-                                            
                                             <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-                                                <p className="text-[9px] text-white/40 uppercase font-black tracking-tighter flex items-center gap-2">
+                                                <p className="text-[9px] text-white/40 uppercase font-black tracking-tighter flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
                                                     {nextTier 
                                                         ? t.dashboard.profile.loyalty.progression.almostThere.replace('{amount}', Math.max(0, remaining).toLocaleString())
                                                         : (isAr ? 'لقد وصلت إلى أعلى مستوى كشريك! 👑' : 'YOU HAVE REACHED THE MAXIMUM PARTNER TIER! 👑')
                                                     }
                                                 </p>
                                                 {nextTier && (
-                                                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg">
+                                                    <div className="flex items-center gap-2 bg-gold-500/10 border border-gold-500/20 px-3 py-1.5 rounded-lg shadow-inner">
                                                         <Star size={12} className="text-gold-500" />
-                                                        <span className="text-[9px] font-black text-white/60">
-                                                            {t.dashboard.profile.loyalty.progression.nextLvlPerks}: {nextTier.rate} Profit Share
+                                                        <span className="text-[9px] font-black text-gold-500/80 uppercase tracking-widest">
+                                                            {t.dashboard.profile.loyalty.progression.nextLvlPerks}: {nextTier.rate}
                                                         </span>
                                                     </div>
                                                 )}
+                                            </div>
+                                            
+                                            {/* v2026 Points Reset Timer */}
+                                            <div className={`mt-4 p-3 sm:p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${isResetNear ? 'bg-orange-500/10 border-orange-500/30' : 'bg-white/[0.02] border-white/5'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center ${isResetNear ? 'bg-orange-500/20 text-orange-400' : 'bg-white/5 text-white/40'}`}>
+                                                        <Clock size={16} />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-white">
+                                                            {isAr ? 'دورة نقاط الولاء' : 'Loyalty Points Cycle'}
+                                                        </span>
+                                                        <span className={`text-[9px] sm:text-[10px] font-bold mt-1 ${isResetNear ? 'text-orange-400/80' : 'text-white/40'}`}>
+                                                            {isAr ? '⏰ تتم إعادة تعيين النقاط كل 6 أشهر. المستوى لا يتأثر.' : '⏰ Points reset every 6 months. Tier is unaffected.'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isResetNear ? 'text-orange-400' : 'text-white/40'}`}>
+                                                        {isAr ? 'الوقت المتبقي' : 'Time Remaining'}
+                                                    </span>
+                                                    <span className={`text-lg sm:text-xl font-black ${isResetNear ? 'text-orange-500' : 'text-white'} leading-none mt-1`}>
+                                                        {daysUntilReset} <span className="text-[10px] font-medium opacity-60 uppercase">{isAr ? 'يوم' : 'Days'}</span>
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1308,11 +1384,11 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     <GlassCard className="p-6 border-blue-500/20 relative group bg-gradient-to-br from-blue-600/[0.08] via-transparent to-transparent overflow-hidden">
                         <div className="absolute top-0 right-0 p-24 bg-blue-500/10 rounded-full -mr-12 -mt-12 blur-3xl pointer-events-none group-hover:bg-blue-500/20 transition-colors" />
                         
-                        <div className="flex items-center gap-3 mb-5 relative z-10">
+                        <div className="flex items-center justify-between gap-3 mb-5 relative z-10 w-full">
                                         <div className="flex flex-col">
                                             <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
-                                                {t.dashboard.profile.loyalty.referral.title}
                                                 <span className="w-1 h-4 bg-gold-500 rounded-full" />
+                                                {t.dashboard.profile.loyalty.referral.title}
                                             </h3>
                                             <div className="mt-2 flex items-center gap-3">
                                                 <div className="px-3 py-1 bg-gold-500/10 border border-gold-500/20 rounded-full">
@@ -1322,6 +1398,13 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                                 </div>
                                             </div>
                                         </div>
+                                        <button
+                                            onClick={() => onNavigate?.('rewards')}
+                                            title={isAr ? 'الانتقال إلى مركز الإحالات' : 'Go to Referral Center'}
+                                            className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 rounded-xl border border-blue-500/20 hover:border-blue-500/40 transition-all active:scale-90"
+                                        >
+                                            <ArrowUpRight size={16} />
+                                        </button>
                                     </div>
                                     
                                     <div className="space-y-4 relative z-10">

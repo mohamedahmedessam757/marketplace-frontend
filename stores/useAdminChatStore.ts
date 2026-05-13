@@ -94,18 +94,16 @@ export const useAdminChatStore = create<AdminChatState>((set, get) => ({
         const { socket } = get();
         if (socket) return;
 
+        const token = localStorage.getItem('access_token');
         const newSocket = io(`${API_URL}/chat`, {
             transports: ['websocket'],
             autoConnect: true,
+            auth: token ? { token } : {},
         });
 
         newSocket.on('connect', () => {
             console.log('Admin Chat Socket Connected');
-            
-            // Phase 4: Join global oversight room for real-time list updates
-            const token = localStorage.getItem('access_token');
             if (token) {
-                // We assume the user is an admin here because this is the admin store
                 newSocket.emit('joinChat', { chatId: 'admin_global', role: 'admin' });
             }
         });

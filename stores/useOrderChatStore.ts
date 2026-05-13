@@ -340,9 +340,11 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
         if (!socket) {
             // Initialize Socket Connection to NestJS WebSocket Gateway
             const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+            const token = localStorage.getItem('access_token');
             socket = io(`${baseUrl}/chat`, {
                 path: '/socket.io',
-                transports: ['websocket']
+                transports: ['websocket'],
+                auth: token ? { token } : {},
             });
             set({ socket });
 

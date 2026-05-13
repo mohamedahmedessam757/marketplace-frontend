@@ -232,7 +232,9 @@ export const MerchantPerformance: React.FC = () => {
             auth: token ? { token } : {},
         });
 
-        socket.emit('joinLoyalty', { targetId: performance.storeId, role: 'VENDOR' });
+        socket.on('connect', () => {
+            socket.emit('joinLoyalty', { targetId: performance.storeId, role: 'VENDOR' });
+        });
 
         socket.on('loyaltyUpdated', () => {
             fetchData();

@@ -14,6 +14,7 @@ export const PaymentStep: React.FC = () => {
   const isAr = language === 'ar';
   const tPay = t.dashboard.checkout.payment;
   const tFR = t.dashboard.checkout.finalReview;
+  const acceptedStatuses = useMemo(() => new Set(['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED', 'PREPARATION', 'PARTIALLY_PAID', 'accepted', 'completed', 'shipped', 'delivered', 'preparation', 'partially_paid']), []);
 
   const { 
     orderId, 
@@ -51,8 +52,8 @@ export const PaymentStep: React.FC = () => {
 
   const acceptedOffers = useMemo(() => {
     if (!currentOrder?.offers) return [];
-    return currentOrder.offers.filter((o: any) => o.status === 'accepted');
-  }, [currentOrder]);
+    return currentOrder.offers.filter((o: any) => acceptedStatuses.has(String(o.status || '').toUpperCase()) || acceptedStatuses.has(String(o.status || '')));
+  }, [acceptedStatuses, currentOrder]);
 
   const formatCondition = (cond: string) => {
     if (!cond || cond === '---') return '---';
@@ -63,9 +64,10 @@ export const PaymentStep: React.FC = () => {
     return cond;
   };
 
-  const formatWarranty = (w: string) => {
-    if (!w || w === 'no' || w === 'none') return tFR.noWarranty;
+  const formatWarranty = (w?: string) => {
+    if (!w || w === 'no' || w === 'none' || w === 'false') return tFR.noWarranty;
     const clean = w.toLowerCase().replace(/\s+/g, '');
+    if (clean === 'yes' || clean === 'true') return isAr ? 'يوجد ضمان' : 'Warranty Included';
     if (clean === 'd15' || clean === '15days') return isAr ? '15 يوم' : '15 Days';
     if (clean === 'month1' || clean === '1month' || clean === '1months') return isAr ? 'شهر واحد' : '1 Month';
     if (clean === 'month3' || clean === '3month' || clean === '3months') return isAr ? '3 أشهر' : '3 Months';
@@ -88,6 +90,12 @@ export const PaymentStep: React.FC = () => {
       if (w.includes('year')) return isAr ? `${num} سنة` : `${num} Year${parseInt(num) > 1 ? 's' : ''}`;
     }
     return w;
+  };
+
+  const getOfferWarranty = (offer: any) => {
+    if (typeof offer?.warranty === 'string' && offer.warranty.trim()) return offer.warranty;
+    if (offer?.hasWarranty) return offer?.warrantyDuration || 'yes';
+    return 'no';
   };
 
   const copyToClipboard = (text: string) => {
@@ -475,7 +483,7 @@ export const PaymentStep: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-[110px]">
                   <p className="text-[10px] text-white/40 mb-1">{tFR.warranty}</p>
-                  <p className="text-xs font-bold text-amber-400/90">{formatWarranty(offer.warranty)}</p>
+                  <p className="text-xs font-bold text-amber-400/90">{formatWarranty(getOfferWarranty(offer))}</p>
                 </div>
                 <div className="flex-1 min-w-[110px]">
                   <p className="text-[10px] text-white/40 mb-1">{tFR.paymentStatus}</p>

@@ -681,10 +681,10 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     </div>
                     <div>
                         <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                            {isAr ? 'لوحة تحكم التاجر (Financial)' : 'Merchant Dashboard'}
+                            {isAr ? 'المحفظة المالية للتاجر' : 'Merchant Financial Wallet'}
                         </h1>
                         <p className="text-white/40 text-[10px] sm:text-xs mt-1 font-medium">
-                            {isAr ? 'إدارة مبيعاتك، أرباح العمولات، ونظام الولاء.' : 'Manage your sales, commission profits, and loyalty system.'}
+                            {isAr ? 'إدارة رصيدك المالي، أرباحك، عمليات السحب، ونظام الولاء.' : 'Manage your financial balance, earnings, withdrawals, and loyalty system.'}
                         </p>
                     </div>
                 </div>
@@ -850,10 +850,10 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto overflow-y-auto max-h-[500px] custom-scrollbar">
                             <table className="w-full text-sm text-center border-collapse min-w-[900px]">
                                 <thead>
-                                    <tr className="border-b border-white/5 bg-white/[0.01] text-[10px] text-white/30 uppercase tracking-widest font-black">
+                                    <tr className="sticky top-0 z-20 border-b border-white/5 bg-[#151310] text-[10px] text-white/30 uppercase tracking-widest font-black">
                                         <th className="px-4 py-5">{isAr ? 'رقم الطلب' : 'Order ID'}</th>
                                         <th className="px-4 py-5">{isAr ? 'التاريخ' : 'Date'}</th>
                                         <th className="px-4 py-5">{isAr ? 'المبلغ' : 'Amount'}</th>
@@ -937,36 +937,140 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                         </div>
                     </GlassCard>
 
-                    {/* Integrated Merchant Loyalty Progression */}
-                    <GlassCard className="p-6 sm:p-8 relative overflow-hidden group bg-gradient-to-br from-gold-500/5 to-transparent border-white/5">
-                        <div className="absolute top-0 right-0 p-32 bg-gold-500/5 rounded-full -mr-16 -mt-16 blur-4xl pointer-events-none group-hover:bg-gold-500/10 transition-colors" />
-                        <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 relative z-10">
-                            <div className="relative shrink-0">
-                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-black to-white/5 border border-gold-500/30 flex items-center justify-center shadow-2xl group-hover:shadow-gold-500/10 transition-all">
-                                    <Star size={40} className="text-gold-500" />
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 bg-gold-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full border-2 border-[#1A1814] uppercase">
-                                    {stats.loyaltyTier}
-                                </div>
-                            </div>
-                            <div className="flex-1 w-full">
-                                <h3 className="text-sm sm:text-lg font-bold text-white uppercase tracking-tighter mb-4">
-                                    {isAr ? 'تطور مستوى العضوية المستحقة' : 'Merchant Tier Progression'}
-                                </h3>
-                                {(() => {
-                                    const nextMap: Record<string, number> = { BASIC: 5000, SILVER: 20000, GOLD: 100000, VIP: 200000, ELITE: 500000 };
-                                    const nextLimit = nextMap[stats.loyaltyTier] || 1000000;
-                                    const progress = Math.min((stats.totalSales / nextLimit) * 100, 100);
-                                    return (
-                                        <div className="space-y-4">
-                                            <div className="h-5 bg-black/60 rounded-full border border-white/10 p-1 relative overflow-hidden shadow-inner">
-                                                <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1.5 }} className="h-full bg-gradient-to-r from-gold-700 via-gold-500 to-gold-400 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.4)] relative">
-                                                    <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/20 blur-md animate-pulse" />
-                                                </motion.div>
+                    {/* Integrated Merchant Loyalty Progression (2026 REVOLUTION) */}
+                    {(() => {
+                        const spent = Number(stats.totalSales || 0);
+                        const tiers = [
+                            { id: 'BASIC', label: isAr ? 'أساسي' : 'Basic', limit: 5000, rate: '2%' },
+                            { id: 'SILVER', label: isAr ? 'فضي' : 'Silver', limit: 20000, rate: '3%' },
+                            { id: 'GOLD', label: isAr ? 'ذهبي' : 'Gold', limit: 100000, rate: '4%' },
+                            { id: 'VIP', label: 'VIP', limit: 200000, rate: '5%' },
+                            { id: 'ELITE', label: 'ELITE', limit: 500000, rate: '5%' },
+                        ];
+                        
+                        const currentTierIdx = tiers.findIndex(tier => tier.id === (stats.loyaltyTier || 'BASIC'));
+                        const nextTier = currentTierIdx < tiers.length - 1 ? tiers[currentTierIdx + 1] : null;
+                        
+                        // v2026 Relative Progression Logic:
+                        // (CurrentSpent - LevelStart) / (LevelEnd - LevelStart)
+                        const startLimit = currentTierIdx === 0 ? 0 : tiers[currentTierIdx - 1].limit;
+                        const endLimit = nextTier ? nextTier.limit : tiers[currentTierIdx].limit;
+                        
+                        const range = endLimit - startLimit;
+                        const relativeSpent = spent - startLimit;
+                        const segmentProgress = nextTier ? Math.max(0, Math.min((relativeSpent / range) * 100, 100)) : 100;
+                        const totalProgress = ((currentTierIdx + (nextTier ? segmentProgress / 100 : 0)) / (tiers.length - 1)) * 100;
+                        const remaining = nextTier ? endLimit - spent : 0;
+
+                        return (
+                            <GlassCard className="p-6 sm:p-8 relative overflow-hidden group bg-gradient-to-br from-gold-500/5 to-transparent border-white/5">
+                                <div className="absolute top-0 right-0 p-32 bg-gold-500/5 rounded-full -mr-16 -mt-16 blur-4xl pointer-events-none group-hover:bg-gold-500/10 transition-colors" />
+                                <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 relative z-10">
+                                    <div className="relative shrink-0">
+                                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-black to-white/5 border border-gold-500/30 flex items-center justify-center shadow-2xl group-hover:shadow-gold-500/10 transition-all">
+                                            <Star size={40} className="text-gold-500" />
+                                        </div>
+                                        <div className="absolute -bottom-1 -right-1 bg-gold-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full border-2 border-[#1A1814] uppercase">
+                                            {stats.loyaltyTier}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 w-full text-center md:text-start">
+                                        <div className="flex justify-between items-end mb-2">
+                                            <h3 className="text-sm sm:text-lg font-bold text-white uppercase tracking-tighter">
+                                                {isAr ? 'تطور مستوى العضوية المستحقة' : 'Merchant Tier Progression'}
+                                            </h3>
+                                            {nextTier && (
+                                                <span className="text-[10px] font-black text-gold-500 uppercase tracking-widest bg-gold-500/10 px-2 py-1 rounded">
+                                                    NEXT: {nextTier.label}
+                                                </span>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="space-y-6">
+                                            {/* Tier Roadmap Visual */}
+                                            <div className="relative pt-4 pb-2">
+                                                {/* Background Progress Track */}
+                                                <div className="absolute top-[32px] left-[10%] right-[10%] h-1 bg-white/5 rounded-full overflow-hidden">
+                                                    <motion.div 
+                                                        initial={{ width: 0 }}
+                                                        animate={{ width: `${totalProgress}%` }}
+                                                        transition={{ duration: 1.5, ease: "easeOut" }}
+                                                        className="h-full bg-gradient-to-r from-blue-500 via-gold-500 to-gold-400 shadow-[0_0_15px_rgba(212,175,55,0.5)]"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Tier Nodes */}
+                                                <div className="relative flex justify-between">
+                                                    {tiers.map((tier, idx) => {
+                                                        const isCompleted = currentTierIdx > idx;
+                                                        const isCurrent = currentTierIdx === idx;
+                                                        
+                                                        let iconColor = "text-white/20";
+                                                        let bgColor = "bg-[#1A1814] border-white/10";
+                                                        let labelColor = "text-white/30";
+                                                        
+                                                        if (isCompleted) {
+                                                            iconColor = "text-gold-500";
+                                                            bgColor = "bg-gold-500/10 border-gold-500/30";
+                                                            labelColor = "text-gold-500/80";
+                                                        } else if (isCurrent) {
+                                                            iconColor = "text-white";
+                                                            bgColor = "bg-gradient-to-tr from-gold-600 to-gold-400 border-white shadow-[0_0_20px_rgba(212,175,55,0.4)]";
+                                                            labelColor = "text-gold-400 font-bold";
+                                                        }
+                                                        
+                                                        return (
+                                                            <div key={tier.id} className="flex flex-col items-center gap-2 z-10 w-[20%]">
+                                                                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${bgColor}`}>
+                                                                    {isCurrent ? <Star size={16} className={iconColor} fill="currentColor" /> : <ShieldCheck size={14} className={iconColor} />}
+                                                                </div>
+                                                                <div className="flex flex-col items-center text-center">
+                                                                    <span className={`text-[8px] sm:text-[9px] uppercase tracking-widest ${labelColor}`}>
+                                                                        {tier.id}
+                                                                    </span>
+                                                                    <span className="text-[7px] text-white/40 font-bold mt-0.5">
+                                                                        {tier.rate}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
-                                            <div className="flex justify-between text-[10px] font-black uppercase text-white/30 tracking-widest">
-                                                <span>{stats.totalSales.toLocaleString()} / {nextLimit.toLocaleString()} AED</span>
-                                                <span className="text-gold-500/70">{Math.round(progress)}% {isAr ? 'مكتمل' : 'COMPLETE'}</span>
+
+                                            <div className="flex justify-between text-[10px] uppercase font-black tracking-widest text-white/40 bg-white/5 p-3 rounded-xl border border-white/5">
+                                                <span className="flex flex-col gap-1">
+                                                    <span className="text-white/30 text-[8px]">{isAr ? 'المبيعات المعتمدة' : 'APPROVED SALES'}</span>
+                                                    <span className="flex items-center gap-1.5 text-white">
+                                                        <TrendingUp size={12} className="text-gold-500" /> 
+                                                        {spent.toLocaleString()} <span className="text-[8px] font-medium opacity-60">AED</span>
+                                                    </span>
+                                                </span>
+                                                {nextTier && (
+                                                    <span className="flex flex-col items-end gap-1">
+                                                        <span className="text-white/30 text-[8px]">{isAr ? 'الهدف القادم' : 'NEXT GOAL'}</span>
+                                                        <span className="text-gold-500 flex items-center gap-1">
+                                                            {endLimit.toLocaleString()} <ChevronRight size={12} />
+                                                        </span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                                                <p className="text-[9px] text-white/40 uppercase font-black tracking-tighter flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                                                    {nextTier 
+                                                        ? (isAr ? `ينقصك ${Math.max(0, remaining).toLocaleString()} درهم للترقية للمستوى التالي` : `You are ${Math.max(0, remaining).toLocaleString()} AED away from the next tier`)
+                                                        : (isAr ? 'لقد وصلت إلى أعلى مستوى في المنصة! 👑' : 'YOU HAVE REACHED THE ELITE TIER! 👑')
+                                                    }
+                                                </p>
+                                                {nextTier && (
+                                                    <div className="flex items-center gap-2 bg-gold-500/10 border border-gold-500/20 px-3 py-1.5 rounded-lg shadow-inner">
+                                                        <Star size={12} className="text-gold-500" />
+                                                        <span className="text-[9px] font-black text-gold-500/80 uppercase tracking-widest">
+                                                            {isAr ? 'معدل العمولة القادم' : 'NEXT COMMISSION RATE'}: {nextTier.rate}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Tier Benefits List [NEW 2026] */}
@@ -985,11 +1089,11 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                                 ))}
                                             </div>
                                         </div>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                    </GlassCard>
+                                    </div>
+                                </div>
+                            </GlassCard>
+                        );
+                    })()}
 
                     {/* Payout Section (Withdrawal & Profits) */}
                     <GlassCard className="p-0 border-gold-500/10 bg-gradient-to-br from-gold-500/[0.03] to-transparent relative overflow-hidden">
@@ -1256,10 +1360,19 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                     <GlassCard className="p-6 border-blue-500/20 relative group bg-gradient-to-br from-blue-600/[0.08] via-transparent to-transparent overflow-hidden">
                         <div className="absolute top-0 right-0 p-24 bg-blue-500/10 rounded-full -mr-12 -mt-12 blur-3xl pointer-events-none group-hover:bg-blue-500/20 transition-colors" />
                         <div className="relative z-10">
-                            <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2 mb-4">
-                                {isAr ? 'نظام الإحالات' : 'Referral Social Hub'}
-                                <span className="w-1 h-4 bg-gold-500 rounded-full" />
-                            </h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-1 h-4 bg-gold-500 rounded-full" />
+                                    {isAr ? 'نظام الإحالات' : 'Referral Social Hub'}
+                                </h3>
+                                <button
+                                    onClick={() => onNavigate?.('performance')}
+                                    title={isAr ? 'الانتقال إلى مركز الأداء والمزايا' : 'Go to Performance Center'}
+                                    className="p-1.5 bg-gold-500/10 hover:bg-gold-500/20 text-gold-500 hover:text-gold-400 rounded-lg border border-gold-500/20 hover:border-gold-500/40 transition-all active:scale-90"
+                                >
+                                    <ArrowUpRight size={14} />
+                                </button>
+                            </div>
                             <div className="mb-4">
                                 <div className="px-3 py-1 bg-gold-500/10 border border-gold-500/20 rounded-full inline-block">
                                     <span className="text-[10px] font-black text-gold-500 uppercase tracking-tighter">{isAr ? 'إجمالي الإحالات:' : 'Total Refs:'} {stats.referralCount}</span>
@@ -1328,12 +1441,8 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                             <Star size={14} className="text-gold-500/50" />
                         </div>
                         <div className="space-y-4 relative z-10">
-                            <div className="flex justify-between items-end border-b border-white/5 pb-2">
+                            <div className="border-b border-white/5 pb-2">
                                 <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">{isAr ? 'الرصيد المتاح للسحب' : 'WITHDRAWABLE BALANCE'}</p>
-                                <div className="flex items-center gap-1.5 bg-gold-500/10 text-gold-500 px-2 py-0.5 rounded-full border border-gold-500/20">
-                                    <Star size={10} />
-                                    <span className="text-[10px] font-black">{stats.loyaltyPoints} pts</span>
-                                </div>
                             </div>
                             <div className="flex items-baseline gap-2">
                                 <h2 className="text-3xl font-black text-white">

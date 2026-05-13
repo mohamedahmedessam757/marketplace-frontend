@@ -4,10 +4,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { MerchantStatus } from './useVendorStore';
 import { supabase } from '../services/supabase';
 import { storesApi } from '../services/api/stores';
+import { API_URL } from '../services/api/config';
 import { useAdminPermissionsStore } from './useAdminPermissionsStore';
-
-// Dynamic API URL - uses environment variable in production
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT';
 

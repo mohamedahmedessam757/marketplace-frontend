@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Trophy } from 'lucide-react';
 import { useLoyaltyStore } from '../../../stores/useLoyaltyStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { TierProgressCard } from './TierProgressCard';
+// TierProgressCard removed — displayed exclusively in Wallet page
 import { ReferralHubCard } from './ReferralHubCard';
 import { ReferralHistoryCard } from './ReferralHistoryCard';
 import { supabase } from '../../../services/supabase';
@@ -94,17 +94,17 @@ export const RewardsPage: React.FC = () => {
                         <div className="p-2.5 sm:p-3 bg-gold-500/10 rounded-2xl border border-gold-500/20 shadow-lg shadow-gold-500/5">
                             <Trophy className="text-gold-500" size={28} />
                         </div>
-                        {isAr ? 'الولاء والإحالات' : 'Loyalty & Referrals'}
+                        {isAr ? 'مركز الإحالات' : 'Referral Center'}
                     </h1>
                     <p className="text-white/50 mt-2 max-w-2xl text-sm sm:text-base leading-relaxed">
                         {isAr
-                            ? 'تابع تقدمك في برنامج الولاء، شارك رابطك مع أصدقائك، واحصل على 1% من ثمن كل منتج يشتريه صديقك خلال 6 شهور من تسجيله.'
-                            : 'Track your loyalty progress, share your link, and earn 1% on every item your friends buy for 6 months from their signup.'}
+                            ? 'شارك رابطك الخاص مع أصدقائك واحصل على عمولة 1% من ثمن كل منتج يشتريه صديقك خلال 6 شهور من تاريخ تسجيله.'
+                            : 'Share your personal link with friends and earn 1% commission on every item they buy for 6 months from their signup.'}
                     </p>
                 </div>
             </div>
 
-            <TierProgressCard totalSpent={totalSpent} loyaltyTier={tier} />
+            {/* TierProgressCard removed — displayed in Wallet page only */}
 
             <ReferralHubCard
                 referralCode={referralCode}

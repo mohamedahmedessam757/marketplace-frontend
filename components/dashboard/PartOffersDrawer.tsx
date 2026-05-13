@@ -37,9 +37,10 @@ export const PartOffersDrawer: React.FC<PartOffersDrawerProps> = ({
     const { language } = useLanguage();
     const isAr = language === 'ar';
     const [acceptLoadingOfferId, setAcceptLoadingOfferId] = React.useState<number | null>(null);
+    const isRejectedOfferStatus = (status?: string) => String(status || '').toUpperCase() === 'REJECTED';
 
     // Strictly limit to 10 and exclude rejected offers
-    const displayedOffers = offers.filter(o => o.status !== 'rejected').slice(0, 10);
+    const displayedOffers = offers.filter(o => !isRejectedOfferStatus(o.status)).slice(0, 10);
 
     // Memoize handlers to prevent OfferCard re-renders
     const handleAccept = useCallback(async (offer: any) => {

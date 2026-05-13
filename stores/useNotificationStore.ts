@@ -206,9 +206,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
 
     // 3. Connect to the NestJS WebSockets Gateway (Phase 1 Infrastructure)
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('access_token') : null;
     console.log(`[Notifications] Connecting to ${BACKEND_URL}/notifications for user ${userId}...`);
     socket = io(`${BACKEND_URL}/notifications`, {
-      query: { userId, role: role.toUpperCase() },
+      auth: token ? { token } : {},
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,
     });
