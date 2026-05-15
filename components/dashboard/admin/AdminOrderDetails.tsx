@@ -10,12 +10,12 @@ import { WarrantyProtectionCard } from '../../ui/WarrantyProtectionCard';
 import { ShipmentTracker } from '../shipments/ShipmentTracker';
 import { OrderCountdown } from '../../ui/OrderCountdown';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { useOrderStore, SLA_LIMITS } from '../../../stores/useOrderStore';
+import { useOrderStore } from '../../../stores/useOrderStore';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import {
     ChevronLeft, ChevronRight, User, Store, DollarSign, Settings2, ShieldAlert,
     AlertTriangle, Clock, PlayCircle, Search, Package, Eye, Truck, Calendar, FileText, MapPin, X,
-    Edit2, Trash2, Ban, Copy, CheckCircle2, MessageSquare, Info
+    Edit2, Trash2, Ban, Copy, CheckCircle2, MessageSquare, Info, CreditCard, Box, XCircle, RotateCcw, AlertOctagon, Award, Zap
 } from 'lucide-react';
 import { VerificationReviewPanel } from './VerificationReviewPanel';
 import { VerificationTaskManager } from './VerificationTaskManager';
@@ -193,54 +193,6 @@ const EditOfferModal = ({ offer, onClose, onSave }: { offer: any, onClose: () =>
         </div>
     );
 };
-const RiskTimer = ({ updatedAt, limitHours }: { updatedAt: string, limitHours: number }) => {
-    const { t } = useLanguage();
-    const [timeLeft, setTimeLeft] = useState<{ h: number, m: number } | null>(null);
-    const [isUrgent, setIsUrgent] = useState(false);
-    const [isBreached, setIsBreached] = useState(false);
-
-    useEffect(() => {
-        const update = () => {
-            const start = new Date(updatedAt).getTime();
-            const limitMs = limitHours * 60 * 60 * 1000;
-            const target = start + limitMs;
-            const now = new Date().getTime();
-            const diff = target - now;
-
-            if (diff <= 0) {
-                setTimeLeft({ h: 0, m: 0 });
-                setIsUrgent(true);
-                setIsBreached(true);
-            } else {
-                const h = Math.floor(diff / (1000 * 60 * 60));
-                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                setTimeLeft({ h, m });
-                setIsUrgent(diff < 2 * 60 * 60 * 1000); // Less than 2 hours = urgent
-                setIsBreached(false);
-            }
-        };
-
-        update();
-        const interval = setInterval(update, 60000); // update every minute
-        return () => clearInterval(interval);
-    }, [updatedAt, limitHours]);
-
-    if (!timeLeft) return null;
-
-    return (
-        <div className={`flex items-center justify-between ${isBreached ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-green-400'}`}>
-            <div className="flex items-center gap-2">
-                <Clock size={16} />
-                <span className="text-xs font-bold uppercase">
-                    {(t.admin.orderDetails as any)?.slaTime || 'SLA Time'}
-                </span>
-            </div>
-            <div className="font-mono font-bold text-sm">
-                {isBreached ? '-' : ''}{String(timeLeft.h).padStart(2, '0')}:{String(timeLeft.m).padStart(2, '0')}
-            </div>
-        </div>
-    );
-};
 
 export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
@@ -294,7 +246,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
     if (!order) return <motion.div className="text-white p-8 text-center">{t.admin.orderDetails.notFound}</motion.div>;
 
     const validTransitions = getValidTransitions(order.status);
-    const slaLimit = SLA_LIMITS[order.status];
+
 
     const handleTransition = async (target: StatusType) => {
         const result = await transitionOrder(orderId, target, currentAdmin?.role || 'ADMIN');
@@ -463,13 +415,6 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                         </div>
                     </div>
 
-                    {/* SLA Limit for Admin (Integrated Header) */}
-                    {slaLimit && (
-                        <div className="bg-white/5 px-6 py-3 border-b border-white/5 flex justify-between items-center text-sm">
-                            <div className="text-white/50">{t.admin.orderDetails.currentStatus}: <span className="text-white font-bold ml-1">{t.common.status[order.status]}</span></div>
-                            <div className="min-w-[200px]"><RiskTimer updatedAt={order.updatedAt} limitHours={slaLimit} /></div>
-                        </div>
-                    )}
 
                     {/* Premium Warranty Protection Hub for Admin */}
                     {order.status === 'WARRANTY_ACTIVE' && order.warranty_end_at && (
@@ -1043,24 +988,71 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                         />
                     </GlassCard>
 
-                    {/* Admin Actions */}
+                    {/* Modern Admin Actions (2026 Refactor) */}
                     {isAdmin && (
-                        <GlassCard className="p-6 bg-green-900/5 border-green-500/20">
-                            <h3 className="text-sm font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                <PlayCircle size={16} />
+                        <GlassCard className="p-6 bg-emerald-900/5 border-emerald-500/20 overflow-hidden relative group">
+                            <div className="absolute -top-12 -right-12 w-24 h-24 bg-emerald-500/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+                            
+                            <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                                    <Zap size={14} className="fill-emerald-400/20" />
+                                </div>
                                 {t.admin.orderDetails.availableActions || 'Available Actions'}
                             </h3>
-                            <div className="flex flex-col gap-2">
-                                {validTransitions.map((status) => (
-                                    <button
-                                        key={status}
-                                        onClick={() => handleTransition(status)}
-                                        className="w-full px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm transition-all shadow-lg flex justify-between items-center group"
-                                    >
-                                        <span>{(t.admin.actions as any)?.move} {t.common.status[status]}</span>
-                                        <ChevronRight size={16} className="rtl:-scale-x-100 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform" />
-                                    </button>
-                                ))}
+
+                            <div className="grid grid-cols-1 gap-3">
+                                <AnimatePresence mode="popLayout">
+                                    {validTransitions.length > 0 ? (
+                                        validTransitions.map((status, idx) => {
+                                            // Dynamic UI Config per status
+                                            const getStatusInfo = (s: string) => {
+                                                const mapping: any = {
+                                                    AWAITING_PAYMENT: { icon: CreditCard, color: 'emerald' },
+                                                    PREPARATION: { icon: Box, color: 'emerald' },
+                                                    SHIPPED: { icon: Truck, color: 'emerald' },
+                                                    DELIVERED: { icon: CheckCircle2, color: 'emerald' },
+                                                    CANCELLED: { icon: XCircle, color: 'rose' },
+                                                    AWAITING_SELECTION: { icon: Search, color: 'emerald' },
+                                                };
+                                                return mapping[s] || { icon: PlayCircle, color: 'emerald' };
+                                            };
+                                            const info = getStatusInfo(status);
+                                            const Icon = info.icon;
+
+                                            return (
+                                                <motion.button
+                                                    key={status}
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: idx * 0.05 }}
+                                                    whileHover={{ scale: 1.02, x: 4 }}
+                                                    whileTap={{ scale: 0.98 }}
+                                                    onClick={() => handleTransition(status)}
+                                                    className="relative w-full group/btn overflow-hidden rounded-2xl p-4 flex items-center justify-between transition-all bg-emerald-500/5 border border-emerald-500/10 hover:border-emerald-500/40 hover:bg-emerald-500/10"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover/btn:scale-110 group-hover/btn:bg-emerald-500 group-hover/btn:text-white transition-all duration-300">
+                                                            <Icon size={18} />
+                                                        </div>
+                                                        <div className="flex flex-col items-start">
+                                                            <span className="text-sm font-bold text-white group-hover/btn:text-emerald-400 transition-colors">
+                                                                {t.common.status[status]}
+                                                            </span>
+                                                            <span className="text-[10px] text-white/40 font-medium tracking-tight">
+                                                                {(t.admin.actions as any)?.move || 'Move to'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <ChevronRight size={16} className="text-white/20 group-hover/btn:text-emerald-400 group-hover/btn:translate-x-1 rtl:rotate-180 transition-all" />
+                                                </motion.button>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="text-center py-6 border border-dashed border-white/10 rounded-2xl">
+                                            <p className="text-xs text-white/20 font-medium italic">{(t.admin.actions as any)?.noActions || 'No manual actions available for current state'}</p>
+                                        </div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </GlassCard>
                     )}
@@ -1146,35 +1138,69 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                         </div>
                     </GlassCard>
 
-                    {/* Danger Zone (Super Admin) */}
-                    <GlassCard className="p-6 bg-[#160B0B] border-red-500/20 opacity-90 hover:opacity-100 transition-opacity">
-                        <h3 className="text-sm font-bold text-red-500 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-red-500/10 pb-2">
-                            <ShieldAlert size={16} />
+                    {/* Danger Zone (High-Alert 2026 UI) */}
+                    <GlassCard className="p-6 bg-[#160B0B]/80 border-red-500/20 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-red-500/10 transition-colors duration-1000" />
+                        
+                        <h3 className="text-xs font-bold text-red-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                            <div className="p-1.5 bg-red-500/10 rounded-lg border border-red-500/20">
+                                <ShieldAlert size={14} className="fill-red-500/20" />
+                            </div>
                             {(t.admin.actions as any)?.danger || 'Danger Zone'}
                         </h3>
 
                         {!isSuper ? (
-                            <div className="text-xs text-white/30 italic text-center py-2 bg-white/5 rounded-xl border border-white/5">
-                                <ShieldAlert size={14} className="inline-block mb-1 text-white/20" /><br />
-                                {(t.admin.actions as any)?.superReq || 'Requires Super Admin privileges'}
+                            <div className="relative p-6 rounded-2xl bg-black/40 border border-red-500/10 flex flex-col items-center text-center gap-3">
+                                <div className="w-12 h-12 rounded-full bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/30">
+                                    <Ban size={24} />
+                                </div>
+                                <p className="text-[10px] text-white/30 font-medium leading-relaxed max-w-[180px]">
+                                    {(t.admin.actions as any)?.superReq || 'Requires Super Admin privileges to perform forced state overrides.'}
+                                </p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 gap-2">
-                                {['CANCELLED', 'RETURNED', 'DISPUTED', 'COMPLETED'].map((s) => (
-                                    <button
-                                        key={s}
-                                        onClick={() => handleForce(s as StatusType)}
-                                        disabled={order.status === s}
-                                        className={`px-2 py-2.5 rounded-lg text-[11px] font-bold border transition-all flex items-center justify-center gap-1.5 
-                                            ${order.status === s
-                                                ? 'bg-red-500/10 border-red-500/20 text-red-500/40 cursor-not-allowed'
-                                                : 'bg-black/40 border-red-500/30 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500 shadow-lg'}`
-                                        }
-                                    >
-                                        <AlertTriangle size={12} className={order.status !== s ? "animate-pulse" : ""} />
-                                        {(t.admin.actions as any)?.force || 'Force'} {t.common.status[s as StatusType]}
-                                    </button>
-                                ))}
+                            <div className="space-y-4">
+                                <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/10 mb-4">
+                                    <p className="text-[10px] text-red-400/80 font-medium leading-relaxed italic">
+                                        {(t.admin.orderDetails as any)?.forceWarning || 'Manual override will bypass state machine rules and create a priority audit log entry.'}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { status: 'CANCELLED', icon: XCircle, color: 'rose' },
+                                        { status: 'RETURNED', icon: RotateCcw, color: 'orange' },
+                                        { status: 'DISPUTED', icon: AlertOctagon, color: 'amber' },
+                                        { status: 'COMPLETED', icon: Award, color: 'gold' }
+                                    ].map((item, idx) => (
+                                        <motion.button
+                                            key={item.status}
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            transition={{ delay: idx * 0.05 }}
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => handleForce(item.status as StatusType)}
+                                            disabled={order.status === item.status}
+                                            className={`group/danger relative p-3 rounded-xl border transition-all flex flex-col items-center justify-center gap-2
+                                                ${order.status === item.status
+                                                    ? 'bg-white/5 border-white/5 text-white/10 cursor-not-allowed opacity-50'
+                                                    : 'bg-black/60 border-red-500/20 text-red-400/70 hover:border-red-500 hover:text-white hover:bg-red-500/10 active:bg-red-500/20 shadow-lg'}`
+                                            }
+                                        >
+                                            <item.icon size={16} className={order.status !== item.status ? "group-hover/danger:scale-125 transition-transform" : ""} />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider">
+                                                {t.common.status[item.status as StatusType]}
+                                            </span>
+                                            
+                                            {order.status !== item.status && (
+                                                <div className="absolute top-1 right-1">
+                                                    <div className="w-1 h-1 rounded-full bg-red-500 animate-ping" />
+                                                </div>
+                                            )}
+                                        </motion.button>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </GlassCard>

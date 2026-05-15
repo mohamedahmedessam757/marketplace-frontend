@@ -71,7 +71,7 @@ export const AdminAccessControl: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'ADMIN' as 'ADMIN' | 'SUPPORT',
+    role: 'ADMIN' as 'ADMIN' | 'SUPPORT' | 'VERIFICATION_OFFICER',
     permissions: {} as any,
     supportCategories: [] as string[],
     blurredSections: [] as string[]
@@ -105,6 +105,21 @@ export const AdminAccessControl: React.FC = () => {
     return initial;
   };
 
+  const applyRoleDefaults = (role: string, basePermissions?: any) => {
+    const perms = basePermissions ? JSON.parse(JSON.stringify(basePermissions)) : initializePermissions();
+    if (role === 'VERIFICATION_OFFICER') {
+      const officerPages = ['verification-tasks', 'verification-task-details', 'profile'];
+      officerPages.forEach((page) => {
+        perms[page] = {
+          ...(perms[page] || { view: false, edit: false, actions: {}, fields: {}, tabs: {} }),
+          view: true,
+          edit: page !== 'profile',
+        };
+      });
+    }
+    return perms;
+  };
+
   const handleOpenCreate = () => {
     setEditingAdmin(null);
     setFormData({
@@ -122,34 +137,40 @@ export const AdminAccessControl: React.FC = () => {
   };
 
   const handleOpenEdit = (admin: AdminAccount) => {
-    const defaults = initializePermissions();
-    const existing = admin.adminPermission?.permissions || {};
-    
-    // Deep merge to ensure new permission keys are present
-    const mergedPermissions = { ...defaults };
-    Object.keys(existing).forEach(page => {
-      mergedPermissions[page] = {
-        ...mergedPermissions[page],
-        ...existing[page],
-        actions: { ...mergedPermissions[page].actions, ...(existing[page].actions || {}) },
-        fields: { ...mergedPermissions[page].fields, ...(existing[page].fields || {}) },
-        tabs: { ...mergedPermissions[page].tabs, ...(existing[page].tabs || {}) }
-      };
-    });
+    try {
+      const defaults = initializePermissions();
+      const existing = admin.adminPermission?.permissions || {};
 
-    setEditingAdmin(admin);
-    setFormData({
-      name: admin.name,
-      email: admin.email,
-      password: '',
-      confirmPassword: '',
-      role: (admin.role as any) || 'ADMIN',
-      permissions: mergedPermissions,
-      supportCategories: admin.adminPermission?.supportTicketCategories || [],
-      blurredSections: admin.adminPermission?.blurredSections || []
-    });
-    setActiveTab('basic');
-    setShowCreateModal(true);
+      const mergedPermissions = { ...defaults };
+      Object.keys(existing).forEach((page) => {
+        mergedPermissions[page] = {
+          ...mergedPermissions[page],
+          ...existing[page],
+          actions: { ...mergedPermissions[page]?.actions, ...(existing[page]?.actions || {}) },
+          fields: { ...mergedPermissions[page]?.fields, ...(existing[page]?.fields || {}) },
+          tabs: { ...mergedPermissions[page]?.tabs, ...(existing[page]?.tabs || {}) },
+        };
+      });
+
+      const role = (admin.role as 'ADMIN' | 'SUPPORT' | 'VERIFICATION_OFFICER') || 'ADMIN';
+
+      setEditingAdmin(admin);
+      setFormData({
+        name: admin.name || '',
+        email: admin.email,
+        password: '',
+        confirmPassword: '',
+        role,
+        permissions: mergedPermissions,
+        supportCategories: admin.adminPermission?.supportTicketCategories || [],
+        blurredSections: admin.adminPermission?.blurredSections || [],
+      });
+      setActiveTab('basic');
+      setShowCreateModal(true);
+    } catch (err) {
+      console.error('handleOpenEdit failed', err);
+      alert(language === 'ar' ? 'تعذر فتح نافذة التعديل' : 'Could not open edit dialog');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -158,6 +179,11 @@ export const AdminAccessControl: React.FC = () => {
     
     try {
       if (editingAdmin) {
+        if (editingAdmin.role === 'SUPER_ADMIN' && formData.role !== 'SUPER_ADMIN') {
+          alert(language === 'ar' ? 'لا يمكن تغيير دور Super Admin من هنا' : 'Cannot change Super Admin role here');
+          setIsSaving(false);
+          return;
+        }
         const success = await updatePermissions(editingAdmin.id, {
           role: formData.role,
           permissions: formData.permissions,
@@ -180,8 +206,14 @@ export const AdminAccessControl: React.FC = () => {
           supportTicketCategories: formData.supportCategories,
           blurredSections: formData.blurredSections
         });
-        if (success) setShowCreateModal(false);
+        if (success) {
+          setShowCreateModal(false);
+        } else {
+          alert(language === 'ar' ? 'فشل إنشاء الحساب' : 'Failed to create account');
+        }
       }
+    } catch (err: any) {
+      alert(err?.message || (language === 'ar' ? 'فشل الحفظ' : 'Save failed'));
     } finally {
       setIsSaving(false);
     }
@@ -296,6 +328,7 @@ export const AdminAccessControl: React.FC = () => {
       case 'chat-monitoring': return isAr ? 'مراقبة المحادثات' : 'Chat Monitoring';
       case 'access-control': return isAr ? 'إدارة الوصول' : 'Access Control';
       case 'verification-tasks': return isAr ? 'مهام المطابقة الميدانية' : 'Verification Tasks';
+      case 'verification-task-details': return isAr ? 'تفاصيل مهمة المطابقة' : 'Verification Task Details';
       default: return pageId.replace('-', ' ');
     }
   };
@@ -307,7 +340,7 @@ export const AdminAccessControl: React.FC = () => {
   };
 
   const toggleAllGranular = (page: string, type: 'actions' | 'fields' | 'tabs') => {
-    const items = GRANULAR_PERMISSIONS[page][type];
+    const items = GRANULAR_PERMISSIONS[page]?.[type];
     if (!items) return;
     const allSelected = items.every(item => formData.permissions[page]?.[type]?.[item]);
     
@@ -455,7 +488,7 @@ export const AdminAccessControl: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 font-bold border border-red-500/20">
-                          {admin.name.charAt(0).toUpperCase()}
+                          {(admin.name || admin.email || '?').charAt(0).toUpperCase()}
                         </div>
                         <div>
                           <div className="text-white font-medium text-sm">{admin.name}</div>
@@ -668,7 +701,13 @@ export const AdminAccessControl: React.FC = () => {
                             <button
                               key={role.id}
                               type="button"
-                              onClick={() => setFormData({...formData, role: role.id as any})}
+                              onClick={() =>
+                                setFormData({
+                                  ...formData,
+                                  role: role.id as 'ADMIN' | 'SUPPORT' | 'VERIFICATION_OFFICER',
+                                  permissions: applyRoleDefaults(role.id, formData.permissions),
+                                })
+                              }
                               className={`p-4 rounded-2xl border text-right rtl transition-all ${
                                 formData.role === role.id 
                                   ? 'bg-red-500/10 border-red-500/50 ring-1 ring-red-500/50' 

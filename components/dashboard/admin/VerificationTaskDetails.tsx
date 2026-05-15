@@ -1,12 +1,67 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '../../ui/GlassCard';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { ShieldCheck, MapPin, Camera, AlertTriangle, CheckCircle, XCircle, User, Car, Clock, ArrowRight, ArrowLeft } from 'lucide-react';
-import { Badge } from '../../ui/Badge';
+import {
+  ShieldCheck,
+  MapPin,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Clock,
+  ArrowRight,
+  ArrowLeft,
+  Loader2,
+  FileText,
+} from 'lucide-react';
 import { FileUploader } from '../../ui/FileUploader';
 import { verificationTasksApi } from '@/services/api/verificationTasks';
 import { getCurrentUser } from '../../../utils/auth';
+import {
+  isDevGpsBypassEnabled,
+  isGeolocationSecureContext,
+  mapGeolocationError,
+  requestGeolocationCoords,
+} from '../../../utils/geolocation';
+
+const ADMIN_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
+import { VerificationSessionCountdown } from './verification/VerificationSessionCountdown';
+import { VerificationOrderSummary } from './verification/VerificationOrderSummary';
+import { VerificationComparisonGrid } from './verification/VerificationComparisonGrid';
+import { VerificationActivityTimeline } from './verification/VerificationActivityTimeline';
+import { VerificationImageGrid } from './verification/VerificationImageGrid';
+import { asImageUrls, getCustomerReferenceImages } from './verification/verificationTaskHelpers';
+
+async function openVerificationTaskReport(params: {
+  taskId: string;
+  legacyReportUrl?: string | null;
+  isAr: boolean;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { taskId, legacyReportUrl, isAr } = params;
+  try {
+    // We always prefer the live generated report to ensure latest design/data
+    const res = await verificationTasksApi.getReportBlob(taskId);
+    const blob = res.data;
+    if (!(blob instanceof Blob) || blob.size === 0) {
+      return { ok: false, message: isAr ? 'التقرير غير متاح' : 'Report is empty or unavailable' };
+    }
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) {
+      URL.revokeObjectURL(url);
+      return { ok: false, message: isAr ? 'اسمح بفتح النوافذ المنبثقة للمتصفح' : 'Allow pop-ups for this site' };
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+    return { ok: true };
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string };
+    const msg = err?.response?.data?.message || err?.message;
+    return {
+      ok: false,
+      message: typeof msg === 'string' ? msg : isAr ? 'تعذر فتح التقرير' : 'Could not open report',
+    };
+  }
+}
 
 interface VerificationTaskDetailsProps {
   taskId: string;
@@ -14,397 +69,532 @@ interface VerificationTaskDetailsProps {
 }
 
 export const VerificationTaskDetails: React.FC<VerificationTaskDetailsProps> = ({ taskId, onBack }) => {
-  const { t, language, dir } = useLanguage();
+  const { language, dir } = useLanguage();
+  const isAr = language === 'ar';
+  const currentRole = getCurrentUser()?.role;
+  const isOfficer = currentRole === 'VERIFICATION_OFFICER';
+  const isAdmin = ADMIN_ROLES.has(currentRole || '');
+
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [starting, setStarting] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [completingHint, setCompletingHint] = useState<string | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [showDevGpsBypass, setShowDevGpsBypass] = useState(false);
   const [decision, setDecision] = useState<'MATCHING' | 'NON_MATCHING' | null>(null);
   const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
 
-  const isAr = language === 'ar';
-
-  useEffect(() => {
-    fetchTaskDetails();
-  }, [taskId]);
-
-  const fetchTaskDetails = async () => {
+  const fetchTaskDetails = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const { data } = await verificationTasksApi.getTask(taskId);
       setTask(data);
-
-      const role = getCurrentUser()?.role;
-      if (data?.order?.id && ['ADMIN', 'SUPER_ADMIN'].includes(role || '')) {
-        try {
-          const histRes = await verificationTasksApi.getByOrder(data.order.id);
-          setHistory((histRes.data || []).filter((t: any) => t.id !== taskId));
-        } catch {
-          setHistory([]);
-        }
+      setNotes(data.officerNotes ?? '');
+      if (data.sessionDeadline && new Date(data.sessionDeadline).getTime() <= Date.now()) {
+        setSessionExpired(true);
       }
-    } catch (error) {
-      console.error('Failed to fetch task details', error);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        (isAr ? 'تعذر تحميل المهمة' : 'Failed to load task');
+      setLoadError(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [taskId, isAr]);
 
-  const handleStartVerification = async () => {
+  useEffect(() => {
+    fetchTaskDetails();
+  }, [fetchTaskDetails]);
+
+  useEffect(() => {
+    if (isDevGpsBypassEnabled() && !isGeolocationSecureContext()) {
+      setShowDevGpsBypass(true);
+    }
+  }, []);
+
+  const order = task?.order;
+  const doc = order?.verificationDocuments?.[0];
+
+  const customerImages = useMemo(() => {
+    if (!order) return [];
+    return getCustomerReferenceImages(order);
+  }, [order]);
+
+  const storeImages = useMemo(() => (doc ? asImageUrls(doc.images) : []), [doc]);
+  const officerImages = useMemo(() => {
+    const fromRows =
+      (task?.fieldPhotos as { url: string }[] | undefined)?.map((p) => p.url).filter(Boolean) ?? [];
+    const fromJson = asImageUrls(task?.officerPhotos);
+    return [...new Set([...fromRows, ...fromJson])];
+  }, [task?.officerPhotos, task?.fieldPhotos]);
+
+  const deadlinePassed =
+    !!task?.sessionDeadline && new Date(task.sessionDeadline).getTime() <= Date.now();
+
+  const actionsLocked = isOfficer && (sessionExpired || deadlinePassed);
+
+  const startInspection = async (opts?: { forceDevBypass?: boolean }) => {
     setStarting(true);
+    setGpsError(null);
+    setShowDevGpsBypass(false);
     try {
-      // 1. Get GPS Location
-      let lat = 0, lng = 0;
-      if (navigator.geolocation) {
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-          });
-          lat = position.coords.latitude;
-          lng = position.coords.longitude;
-        } catch (e) {
-          console.warn('GPS denied or timeout, proceeding without exact location');
+      let lat: number | undefined;
+      let lng: number | undefined;
+      let gpsDevBypass = false;
+
+      if (opts?.forceDevBypass && isDevGpsBypassEnabled()) {
+        gpsDevBypass = true;
+      } else {
+        const coords = await requestGeolocationCoords(isAr, isDevGpsBypassEnabled());
+        if (coords.source === 'dev_bypass') {
+          gpsDevBypass = true;
+        } else {
+          lat = coords.lat;
+          lng = coords.lng;
         }
       }
 
-      // 2. Call API
       await verificationTasksApi.start(taskId, {
-        lat: lat || undefined,
-        lng: lng || undefined,
-        deviceInfo: { userAgent: navigator.userAgent },
+        lat,
+        lng,
+        gpsDevBypass,
+        deviceInfo: {
+          userAgent: navigator.userAgent,
+          ...(gpsDevBypass ? { gpsSource: 'dev_bypass' } : { gpsSource: 'gps' }),
+        },
       });
-      fetchTaskDetails();
-    } catch (error) {
-      console.error('Failed to start verification', error);
+      await fetchTaskDetails();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      const msg =
+        err?.response?.data?.message ||
+        (error instanceof Error ? error.message : mapGeolocationError(error, isAr)) ||
+        (isAr ? 'تعذر بدء المطابقة' : 'Could not start inspection');
+
+      setGpsError(msg);
+      if (isDevGpsBypassEnabled() && !isGeolocationSecureContext()) {
+        setShowDevGpsBypass(true);
+      }
     } finally {
       setStarting(false);
     }
   };
 
+  const handleStartVerification = () => startInspection();
+
   const handleCompleteVerification = async () => {
-    if (!decision) return;
+    if (!decision || actionsLocked) return;
     if (decision === 'NON_MATCHING' && !reason.trim()) {
       alert(isAr ? 'يرجى ذكر سبب عدم المطابقة' : 'Please provide a reason for non-matching');
       return;
     }
-    if (photos.length === 0) {
-      alert(isAr ? 'يرجى رفع صور المطابقة للقطعة الفعلية' : 'Please upload actual part verification photos');
+
+    const hasServerPhotos =
+      (task?.fieldPhotos?.length ?? 0) > 0 ||
+      asImageUrls(task?.officerPhotos).some((u) => u.startsWith('http'));
+
+    if (photos.length === 0 && !hasServerPhotos) {
+      alert(isAr ? 'يرجى رفع صور المطابقة للقطعة الفعلية' : 'Please upload field verification photos');
       return;
     }
 
     setCompleting(true);
+    setCompletingHint(null);
     try {
-      let lat = 0, lng = 0;
-      if (navigator.geolocation) {
-         try {
-           const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout: 5000}));
-           lat = pos.coords.latitude;
-           lng = pos.coords.longitude;
-         } catch(e){}
+      let lat: number | undefined;
+      let lng: number | undefined;
+      try {
+        const pos = await requestGeolocationCoords(isAr, isDevGpsBypassEnabled());
+        if (pos.source === 'gps') {
+          lat = pos.lat;
+          lng = pos.lng;
+        }
+      } catch {
+        /* optional at complete */
       }
 
-      const toBase64 = (f: File) => new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(f);
-      });
-      const base64Photos = await Promise.all(photos.map(f => toBase64(f)));
+      if (photos.length > 0) {
+        setCompletingHint(isAr ? 'جاري رفع الصور…' : 'Uploading photos…');
+        await verificationTasksApi.uploadFieldPhotos(taskId, photos);
+      }
 
+      setCompletingHint(isAr ? 'جاري إرسال القرار وتسجيل المهمة…' : 'Submitting decision…');
       await verificationTasksApi.complete(taskId, {
         decision,
         reason,
-        photos: base64Photos,
-        lat: lat || undefined,
-        lng: lng || undefined,
+        notes,
+        lat,
+        lng,
         deviceInfo: { userAgent: navigator.userAgent },
       });
-      fetchTaskDetails();
-    } catch (error) {
-      console.error('Failed to complete verification', error);
+      setCompletingHint(isAr ? 'جاري تحديث البيانات…' : 'Refreshing…');
+      await fetchTaskDetails();
+    } catch (error: any) {
+      alert(
+        error?.response?.data?.message ||
+          (isAr ? 'فشل إنهاء المطابقة' : 'Failed to complete verification'),
+      );
     } finally {
       setCompleting(false);
+      setCompletingHint(null);
     }
   };
 
-  if (loading || !task) {
+  if (loading) {
     return (
       <div className="flex justify-center p-12">
-        <div className="w-12 h-12 border-4 border-gold-500/30 border-t-gold-500 rounded-full animate-spin" />
+        <Loader2 className="w-12 h-12 text-gold-500 animate-spin" />
       </div>
     );
   }
 
-  const doc = task.order?.verificationDocuments?.[0];
+  if (loadError || !task) {
+    return (
+      <GlassCard className="p-8 text-center">
+        <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+        <p className="text-red-300 text-sm">{loadError || (isAr ? 'المهمة غير موجودة' : 'Task not found')}</p>
+        {onBack && (
+          <button type="button" onClick={onBack} className="mt-4 text-gold-400 text-sm underline">
+            {isAr ? 'رجوع' : 'Back'}
+          </button>
+        )}
+      </GlassCard>
+    );
+  }
+
+  const canAct =
+    !actionsLocked &&
+    (task.status === 'ASSIGNED' || task.status === 'LINK_SENT' || task.status === 'IN_PROGRESS');
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-colors"
-        >
-          {dir === 'rtl' ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
-        </button>
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-white">
-              {isAr ? 'مهمة مطابقة رقم' : 'Verification Task'} <span className="font-mono text-gold-400">#{task.id.split('-')[0].toUpperCase()}</span>
-            </h1>
-            <Badge status={task.status} />
-          </div>
+      <div className="flex flex-wrap items-center gap-4">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-colors"
+          >
+            {dir === 'rtl' ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
+          </button>
+        )}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2 flex-wrap">
+            <ShieldCheck className="text-gold-500 shrink-0" size={24} />
+            {isAr ? 'مهمة مطابقة ميدانية' : 'Field verification task'}
+            {order?.orderNumber && (
+              <span className="font-mono text-gold-400 text-lg">#{order.orderNumber}</span>
+            )}
+          </h1>
+          {task.officer && (
+            <p className="text-xs text-white/45 mt-1">
+              {isAr ? 'الموظف:' : 'Officer:'} {task.officer.name} ({task.officer.email})
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content (Order Details & Docs) */}
-        <div className="lg:col-span-2 space-y-6">
-          <GlassCard className="p-6 bg-[#1A1814]/80">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Car size={18} className="text-gold-500" />
-              {isAr ? 'بيانات القطعة والسيارة' : 'Part & Vehicle Details'}
-            </h3>
+      {task.sessionDeadline && (
+        <VerificationSessionCountdown
+          deadline={task.sessionDeadline}
+          isAr={isAr}
+          onExpired={isOfficer ? () => setSessionExpired(true) : undefined}
+        />
+      )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                <span className="text-[10px] text-white/40 uppercase tracking-widest">{isAr ? 'القطعة المطلوبة' : 'Requested Part'}</span>
-                <p className="text-sm font-bold text-white mt-1">{task.order?.partName}</p>
-              </div>
-              <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                <span className="text-[10px] text-white/40 uppercase tracking-widest">{isAr ? 'السيارة' : 'Vehicle'}</span>
-                <p className="text-sm font-bold text-white mt-1">{task.order?.vehicleMake} {task.order?.vehicleModel} ({task.order?.vehicleYear})</p>
-              </div>
-            </div>
-          </GlassCard>
+      {isOfficer && actionsLocked && (
+        <GlassCard className="p-4 border-red-500/30 bg-red-500/5">
+          <p className="text-sm text-red-200">
+            {isAr
+              ? 'انتهت صلاحية الجلسة. لا يمكن متابعة الإجراءات. تواصل مع الإدارة للحصول على رابط جديد.'
+              : 'Session expired. Actions are locked. Contact admin for a new link.'}
+          </p>
+        </GlassCard>
+      )}
 
-          {/* Customer Parts Info */}
-          {task.order?.parts?.map((part: any, idx: number) => (
-            <GlassCard key={idx} className="p-6 bg-[#1A1814]/80">
-               <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                 <User size={18} className="text-gold-500" />
-                 {isAr ? 'بيانات القطعة من العميل' : 'Customer Part Details'}
-               </h3>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                 <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                   <span className="text-[10px] text-white/40 uppercase tracking-widest">{isAr ? 'الاسم' : 'Name'}</span>
-                   <p className="text-sm font-bold text-white mt-1">{part.name}</p>
-                 </div>
-                 <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                   <span className="text-[10px] text-white/40 uppercase tracking-widest">{isAr ? 'الوصف' : 'Description'}</span>
-                   <p className="text-sm font-bold text-white mt-1">{part.description || 'N/A'}</p>
-                 </div>
-               </div>
-               {part.images?.length > 0 && (
-                  <div className="grid grid-cols-3 gap-3">
-                    {part.images.map((img: string, i: number) => (
-                       <div key={i} className="aspect-square rounded-xl bg-black/40 overflow-hidden border border-white/10">
-                          <img src={img} alt="Customer Part" className="w-full h-full object-cover" />
-                       </div>
-                    ))}
-                  </div>
-               )}
-            </GlassCard>
-          ))}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 space-y-6">
+          <VerificationOrderSummary isAr={isAr} order={order} task={task} viewerRole={currentRole} />
 
-          {/* Verification Documents */}
-          <GlassCard className="p-6 bg-[#1A1814]/80">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Camera size={18} className="text-gold-500" />
-              {isAr ? 'مستندات التوثيق من المتجر' : 'Store Verification Documents'}
-            </h3>
+          <VerificationComparisonGrid
+            isAr={isAr}
+            customerImages={customerImages}
+            storeImages={storeImages}
+            officerImages={officerImages}
+          />
 
-            {doc ? (
+          {(task.orderTaskHistory?.length ?? 0) > 0 && (
+            <GlassCard className="p-6 bg-red-500/5 border-red-500/20">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <AlertTriangle size={18} className="text-red-500" />
+                {isAr ? 'دورات مطابقة سابقة' : 'Previous verification cycles'}
+              </h3>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {(doc.images as string[]).map((img, i) => (
-                    <div key={i} className="aspect-square rounded-xl bg-black/40 border border-white/10 overflow-hidden cursor-pointer hover:border-gold-500/50 transition-colors">
-                      <img src={img} alt="Part" className="w-full h-full object-cover" />
+                {task.orderTaskHistory.map((h: any) => (
+                  <div key={h.id} className="p-4 bg-white/5 border border-white/10 rounded-xl">
+                    <div className="flex justify-between items-center mb-2 text-xs text-white/50">
+                      <span>
+                        {isAr ? 'دورة' : 'Cycle'} {h.cycleNumber} · {h.status}
+                      </span>
+                      <span>{h.completedAt ? new Date(h.completedAt).toLocaleDateString() : '—'}</span>
                     </div>
-                  ))}
-                </div>
-                {doc.videoUrl && (
-                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-200 text-sm flex items-center gap-2">
-                    <Camera size={16} />
-                    {isAr ? 'يوجد فيديو مرفق يمكن مراجعته' : 'Video attachment available'}
+                    {h.decisionReason && (
+                      <p className="text-sm text-white mb-2">
+                        <span className="text-white/40">{isAr ? 'السبب:' : 'Reason:'}</span> {h.decisionReason}
+                      </p>
+                    )}
+                    <VerificationImageGrid images={asImageUrls(h.officerPhotos)} emptyLabel="" columns={4} />
+                    {(h.reportUrl || h.completedAt) && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const r = await openVerificationTaskReport({
+                            taskId: h.id,
+                            legacyReportUrl: h.reportUrl,
+                            isAr,
+                          });
+                          if (r.ok === false) alert(r.message);
+                        }}
+                        className="text-xs text-gold-400 underline mt-2 inline-block bg-transparent border-0 cursor-pointer p-0 font-inherit"
+                      >
+                        {isAr ? 'تقرير الدورة' : 'Cycle report'}
+                      </button>
+                    )}
                   </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
+          <VerificationActivityTimeline
+            isAr={isAr}
+            logs={task.activityLogs ?? []}
+            showAdminNote={isAdmin || isOfficer}
+          />
+        </div>
+
+        <div className="space-y-6">
+          <GlassCard className="p-6 border-gold-500/20 bg-gradient-to-b from-gold-500/5 to-transparent relative overflow-hidden">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <ShieldCheck size={18} className="text-gold-500" />
+              {isAr ? 'إجراءات المطابقة' : 'Verification actions'}
+            </h3>
+
+            {task.status === 'ASSIGNED' || task.status === 'LINK_SENT' ? (
+              <div className="space-y-4">
+                <p className="text-sm text-white/60">
+                  {isAr
+                    ? 'يجب بدء المطابقة لتسجيل الموقع (GPS) والوقت. الموقع إلزامي.'
+                    : 'Start inspection to record GPS and time. Location is required.'}
+                </p>
+                {gpsError && <p className="text-xs text-red-300">{gpsError}</p>}
+                {!isGeolocationSecureContext() && isDevGpsBypassEnabled() && (
+                  <p className="text-[10px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
+                    {isAr
+                      ? 'بيئة تطوير (HTTP): GPS غير متاح. استخدم الزر البرتقالي للمتابعة بدون موقع.'
+                      : 'Dev (HTTP): GPS blocked. Use the orange button to continue without location.'}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleStartVerification}
+                  disabled={starting || !canAct}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+                >
+                  {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin size={18} />}
+                  {starting ? (isAr ? 'جاري البدء...' : 'Starting...') : isAr ? 'بدء الفحص الميداني' : 'Start field inspection'}
+                </button>
+                {showDevGpsBypass && isDevGpsBypassEnabled() && (
+                  <button
+                    type="button"
+                    onClick={() => startInspection({ forceDevBypass: true })}
+                    disabled={starting || !canAct}
+                    className="w-full py-2.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-200 rounded-xl text-sm font-bold"
+                  >
+                    {isAr ? 'متابعة بدون GPS (تطوير فقط)' : 'Continue without GPS (dev only)'}
+                  </button>
+                )}
+              </div>
+            ) : task.status === 'IN_PROGRESS' ? (
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-200">
+                  <Clock size={14} className="inline mr-1" />
+                  {isAr ? 'بدء الفحص:' : 'Started:'}{' '}
+                  {task.startedAt ? new Date(task.startedAt).toLocaleString(isAr ? 'ar-EG' : 'en-GB') : '—'}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={!canAct}
+                    onClick={() => setDecision('MATCHING')}
+                    className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
+                      decision === 'MATCHING'
+                        ? 'bg-green-500/20 border-green-500 text-green-400'
+                        : 'bg-white/5 border-white/10 text-white/40'
+                    }`}
+                  >
+                    <CheckCircle size={24} />
+                    <span className="text-xs font-bold">{isAr ? 'مطابق' : 'Matching'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canAct}
+                    onClick={() => setDecision('NON_MATCHING')}
+                    className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
+                      decision === 'NON_MATCHING'
+                        ? 'bg-red-500/20 border-red-500 text-red-400'
+                        : 'bg-white/5 border-white/10 text-white/40'
+                    }`}
+                  >
+                    <XCircle size={24} />
+                    <span className="text-xs font-bold">{isAr ? 'غير مطابق' : 'Not matching'}</span>
+                  </button>
+                </div>
+
+                {decision === 'NON_MATCHING' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <textarea
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      disabled={!canAct}
+                      placeholder={isAr ? 'سبب عدم المطابقة (إلزامي)...' : 'Non-matching reason (required)...'}
+                      className="w-full bg-black/40 border border-red-500/30 rounded-xl p-3 text-sm text-white min-h-[90px]"
+                    />
+                  </motion.div>
+                )}
+
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  disabled={!canAct}
+                  placeholder={isAr ? 'ملاحظات إضافية (اختياري)' : 'Additional notes (optional)'}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white min-h-[70px]"
+                />
+
+                <div className="p-4 bg-black/20 rounded-xl border border-white/5">
+                  <p className="text-xs font-bold text-white mb-2">
+                    {isAr ? 'صور القطعة الفعلية' : 'Actual part photos'}
+                    <span className="text-red-400"> *</span>
+                  </p>
+                  <FileUploader
+                    onFilesSelected={setPhotos}
+                    maxFiles={6}
+                    accept={{ 'image/*': ['.jpg', '.jpeg', '.png', '.webp'] }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCompleteVerification}
+                  disabled={!canAct || !decision || completing}
+                  className="w-full py-3 bg-gold-500 disabled:opacity-40 text-black rounded-xl font-bold flex items-center justify-center gap-2"
+                >
+                  {completing ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                  {isAr ? 'إنهاء وإرسال للإدارة' : 'Complete & send to admin'}
+                </button>
+                {completingHint && (
+                  <p className="text-[11px] text-gold-300/90 text-center flex items-center justify-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    {completingHint}
+                  </p>
                 )}
               </div>
             ) : (
-              <div className="text-center p-8 text-white/30 border border-dashed border-white/10 rounded-xl">
-                {isAr ? 'لا توجد مستندات مرفوعة' : 'No documents uploaded'}
-              </div>
+              <CompletedState task={task} isAr={isAr} />
             )}
-          </GlassCard>
-
-          {/* History Cycles */}
-          {history.length > 0 && (
-             <GlassCard className="p-6 bg-red-500/5 border-red-500/20">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <AlertTriangle size={18} className="text-red-500" />
-                  {isAr ? 'سجلات الفحص السابقة (مرفوضة)' : 'Previous Inspection Records (Rejected)'}
-                </h3>
-                <div className="space-y-4">
-                   {history.map((h: any, i: number) => (
-                      <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-xl">
-                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-white/60">Cycle {h.cycleNumber}</span>
-                            <span className="text-xs text-red-400">{new Date(h.createdAt).toLocaleDateString()}</span>
-                         </div>
-                         <p className="text-sm text-white mb-3">
-                            <span className="text-white/40">{isAr ? 'السبب:' : 'Reason:'} </span>
-                            {h.decisionReason || 'N/A'}
-                         </p>
-                         {h.officerPhotos?.length > 0 && (
-                            <div className="grid grid-cols-4 gap-2">
-                               {h.officerPhotos.map((img: string, idx: number) => (
-                                  <div key={idx} className="aspect-square rounded-lg overflow-hidden bg-black/40">
-                                     <img src={img} alt="Reject" className="w-full h-full object-cover" />
-                                  </div>
-                               ))}
-                            </div>
-                         )}
-                      </div>
-                   ))}
-                </div>
-             </GlassCard>
-          )}
-        </div>
-
-        {/* Action Panel Sidebar */}
-        <div className="space-y-6">
-          <GlassCard className="p-6 border-gold-500/20 bg-gradient-to-b from-gold-500/5 to-transparent relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 blur-3xl rounded-full" />
-
-            <h3 className="text-lg font-bold text-white mb-4 relative z-10 flex items-center gap-2">
-              <ShieldCheck size={18} className="text-gold-500" />
-              {isAr ? 'إجراءات المطابقة' : 'Verification Actions'}
-            </h3>
-
-            <div className="relative z-10 space-y-4">
-              {task.status === 'ASSIGNED' || task.status === 'LINK_SENT' ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-white/60">
-                    {isAr ? 'يجب بدء المطابقة لتسجيل الموقع (GPS) والوقت الفعلي.' : 'Start verification to record GPS and timestamp.'}
-                  </p>
-                  <button
-                    onClick={handleStartVerification}
-                    disabled={starting}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
-                  >
-                    {starting ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <MapPin size={18} />
-                        {isAr ? 'بدء الفحص الميداني' : 'Start Field Inspection'}
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : task.status === 'IN_PROGRESS' ? (
-                <div className="space-y-4">
-                  <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                    <p className="text-xs text-blue-300 font-bold flex items-center gap-2 mb-1">
-                      <Clock size={14} />
-                      {isAr ? 'الفحص قيد التنفيذ' : 'Inspection in progress'}
-                    </p>
-                    <p className="text-[10px] text-blue-200/60 font-mono">
-                      Started: {new Date(task.startedAt).toLocaleTimeString()}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setDecision('MATCHING')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${decision === 'MATCHING' ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:border-white/20'
-                        }`}
-                    >
-                      <CheckCircle size={24} />
-                      <span className="text-xs font-bold">{isAr ? 'القطعة مطابقة' : 'Matching'}</span>
-                    </button>
-                    <button
-                      onClick={() => setDecision('NON_MATCHING')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${decision === 'NON_MATCHING' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:border-white/20'
-                        }`}
-                    >
-                      <XCircle size={24} />
-                      <span className="text-xs font-bold">{isAr ? 'غير مطابقة' : 'Not Matching'}</span>
-                    </button>
-                  </div>
-
-                  {decision === 'NON_MATCHING' && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                      <textarea
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        placeholder={isAr ? 'الرجاء توضيح سبب الرفض/عدم المطابقة بالتفصيل...' : 'Explain non-matching reason...'}
-                        className="w-full bg-black/40 border border-red-500/30 rounded-xl p-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-red-500 min-h-[100px]"
-                      />
-                    </motion.div>
-                  )}
-
-                  <div className="p-4 bg-black/20 rounded-xl border border-white/5">
-                    <p className="text-xs font-bold text-white mb-2">
-                       {isAr ? 'إرفاق صور المطابقة الفعلية' : 'Attach Field Verification Photos'}
-                       <span className="text-red-400">*</span>
-                    </p>
-                    <FileUploader onFilesSelected={setPhotos} maxFiles={4} accept={{ 'image/*': ['.jpg', '.jpeg', '.png'] }} />
-                  </div>
-
-                  <button
-                    onClick={handleCompleteVerification}
-                    disabled={!decision || photos.length === 0 || completing}
-                    className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${decision && photos.length > 0
-                      ? 'bg-gold-500 text-black hover:bg-gold-400 shadow-lg shadow-gold-500/20'
-                      : 'bg-white/5 text-white/30 cursor-not-allowed'
-                      }`}
-                  >
-                    {completing ? (
-                      <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                    ) : (
-                      isAr ? 'إنهاء الاعتماد' : 'Complete Verification'
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
-                  <div className={`w-12 h-12 rounded-full mx-auto flex items-center justify-center mb-3 ${['COMPLETED_MATCH', 'AWAITING_ADMIN_APPROVAL'].includes(task.status) || task.decision === 'MATCHING' ? 'bg-green-500/20 text-green-500' :
-                    ['COMPLETED_NON_MATCH', 'AWAITING_CORRECTION'].includes(task.status) || task.decision === 'NON_MATCHING' ? 'bg-red-500/20 text-red-500' :
-                      'bg-white/10 text-white/40'
-                    }`}>
-                    {['COMPLETED_MATCH', 'AWAITING_ADMIN_APPROVAL'].includes(task.status) || task.decision === 'MATCHING' ? <CheckCircle size={24} /> :
-                      ['COMPLETED_NON_MATCH', 'AWAITING_CORRECTION'].includes(task.status) || task.decision === 'NON_MATCHING' ? <XCircle size={24} /> :
-                        <ShieldCheck size={24} />}
-                  </div>
-                  <h4 className="font-bold text-white mb-1">
-                    {task.status === 'AWAITING_ADMIN_APPROVAL'
-                      ? (isAr ? 'تمت المطابقة — بانتظار اعتماد الإدارة' : 'Matched — awaiting admin approval')
-                      : task.status === 'AWAITING_CORRECTION'
-                        ? (isAr ? 'غير مطابق — فترة تصحيح 48 ساعة' : 'Non-matching — 48h correction')
-                        : task.status === 'COMPLETED_MATCH' || task.decision === 'MATCHING'
-                          ? (isAr ? 'تمت المطابقة بنجاح' : 'Matched Successfully')
-                          : task.status === 'COMPLETED_NON_MATCH' || task.decision === 'NON_MATCHING'
-                            ? (isAr ? 'القطعة غير مطابقة' : 'Not Matching')
-                            : task.status}
-                  </h4>
-                  {task.reportUrl && (
-                    <a href={task.reportUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gold-400 underline mt-2 inline-block">
-                      {isAr ? 'عرض تقرير المطابقة' : 'View verification report'}
-                    </a>
-                  )}
-                  {task.decisionReason && (
-                    <p className="text-xs text-red-300/80 mt-2 p-2 bg-red-500/10 rounded-lg text-left" dir="auto">
-                      "{task.decisionReason}"
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
           </GlassCard>
         </div>
       </div>
     </div>
   );
 };
+
+function CompletedState({ task, isAr }: { task: any; isAr: boolean }) {
+  const [reportOpening, setReportOpening] = useState(false);
+
+  const matched =
+    ['COMPLETED_MATCH', 'AWAITING_ADMIN_APPROVAL'].includes(task.status) || task.decision === 'MATCHING';
+  const rejected =
+    ['COMPLETED_NON_MATCH', 'AWAITING_CORRECTION'].includes(task.status) || task.decision === 'NON_MATCHING';
+
+  const canOpenReport =
+    !!task.completedAt ||
+    !!task.reportUrl ||
+    ['AWAITING_ADMIN_APPROVAL', 'AWAITING_CORRECTION', 'COMPLETED_MATCH', 'COMPLETED_NON_MATCH'].includes(
+      task.status,
+    );
+
+  return (
+    <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+      <div
+        className={`w-12 h-12 rounded-full mx-auto flex items-center justify-center mb-3 ${
+          matched ? 'bg-green-500/20 text-green-500' : rejected ? 'bg-red-500/20 text-red-500' : 'bg-white/10'
+        }`}
+      >
+        {matched ? <CheckCircle size={24} /> : rejected ? <XCircle size={24} /> : <ShieldCheck size={24} />}
+      </div>
+      <h4 className="font-bold text-white mb-1">
+        {task.status === 'AWAITING_ADMIN_APPROVAL'
+          ? isAr
+            ? 'تمت المطابقة — بانتظار اعتماد الإدارة'
+            : 'Matched — awaiting admin'
+          : task.status === 'AWAITING_CORRECTION'
+            ? isAr
+              ? 'غير مطابق — فترة تصحيح 48 ساعة'
+              : 'Non-match — 48h correction'
+            : matched
+              ? isAr
+                ? 'مطابق'
+                : 'Matching'
+              : rejected
+                ? isAr
+                  ? 'غير مطابق'
+                  : 'Not matching'
+                : task.status}
+      </h4>
+      {canOpenReport && (
+        <div className="mt-4">
+          <button
+            type="button"
+            disabled={reportOpening}
+            onClick={async () => {
+              setReportOpening(true);
+              const r = await openVerificationTaskReport({
+                taskId: task.id,
+                legacyReportUrl: task.reportUrl,
+                isAr,
+              });
+              setReportOpening(false);
+              if (r.ok === false) {
+                alert(r.message);
+              }
+            }}
+            className="w-full py-3 bg-white/5 hover:bg-white/10 border border-gold-500/30 rounded-xl text-gold-400 font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+          >
+            {reportOpening ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <FileText size={18} className="text-gold-500" />
+            )}
+            {reportOpening ? (isAr ? 'جاري الفتح…' : 'Opening…') : (isAr ? 'عرض تقرير HTML' : 'Open HTML report')}
+          </button>
+          <p className="mt-2 text-[10px] text-white/40">
+            {isAr ? 'جاهز للتصدير كـ PDF' : 'Ready for PDF export'}
+          </p>
+        </div>
+      )}
+      {task.decisionReason && (
+        <p className="text-xs text-red-300/80 mt-2 p-2 bg-red-500/10 rounded-lg">{task.decisionReason}</p>
+      )}
+    </div>
+  );
+}
+

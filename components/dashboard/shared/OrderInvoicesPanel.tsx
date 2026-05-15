@@ -18,7 +18,7 @@ import { supabase } from './../../../services/supabase';
 
 interface OrderInvoicesPanelProps {
     orderId: string;
-    role: 'ADMIN' | 'SUPER_ADMIN' | 'MERCHANT' | 'CUSTOMER';
+    role: 'ADMIN' | 'SUPER_ADMIN' | 'MERCHANT' | 'CUSTOMER' | 'VERIFICATION_OFFICER';
     initialData?: any[];
 }
 

@@ -29,9 +29,14 @@ export const useShipmentStore = create<ShipmentState>((set, get) => ({
         try {
             const data = await shipmentsApi.getAll();
             set({ shipments: data, error: null });
-        } catch (err) {
-            set({ error: 'Failed to fetch shipments' });
-            console.error(err);
+        } catch (err: unknown) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            if (status !== 403) {
+                set({ error: 'Failed to fetch shipments' });
+            }
+            if (import.meta.env.DEV && status !== 403) {
+                console.warn('[shipments] fetch failed', err);
+            }
         } finally {
             set({ isLoading: false });
         }

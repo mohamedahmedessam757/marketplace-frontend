@@ -89,9 +89,10 @@ export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get)
       await client.put(`/admin-permissions/${userId}`, data);
       await get().fetchAdminList();
       return true;
-    } catch (error) {
-      console.error('Failed to update permissions', error);
-      return false;
+    } catch (error: any) {
+      const msg = error?.response?.data?.message;
+      console.error('Failed to update permissions', msg || error);
+      throw new Error(Array.isArray(msg) ? msg.join(', ') : msg || 'Update failed');
     }
   },
 

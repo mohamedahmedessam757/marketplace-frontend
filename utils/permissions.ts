@@ -47,6 +47,7 @@ export const PERMISSION_PAGES = {
   MONITORING: 'chat-monitoring',
   ACCESS_CONTROL: 'access-control',
   VERIFICATION_TASKS: 'verification-tasks',
+  VERIFICATION_TASK_DETAILS: 'verification-task-details',
 };
 
 /**
@@ -121,5 +122,13 @@ export const GRANULAR_PERMISSIONS: Record<string, { fields: string[], actions: s
     fields: ['SYSTEM_HEALTH'],
     actions: ['EXPORT_REPORTS'],
     tabs: ['GENERAL', 'FINANCIAL', 'LOGISTICS', 'CONTENT', 'CATALOG', 'MAINTENANCE']
-  }
+  },
+  'verification-tasks': {
+    fields: [],
+    actions: ['start', 'complete', 'upload_photos'],
+  },
+  'verification-task-details': {
+    fields: [],
+    actions: ['start', 'complete', 'upload_photos'],
+  },
 };

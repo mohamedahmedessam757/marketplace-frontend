@@ -5,6 +5,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { ShieldCheck, Calendar, Car, Clock, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Badge } from '../../ui/Badge';
 import { verificationTasksApi } from '@/services/api/verificationTasks';
+import { getCurrentUser } from '../../../utils/auth';
 
 interface VerificationTasksDashboardProps {
   onNavigate?: (path: string, id?: any) => void;
@@ -22,9 +23,16 @@ export const VerificationTasksDashboard: React.FC<VerificationTasksDashboardProp
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      // Fallback API call wrapper to your endpoint
-      const { data } = await verificationTasksApi.getMyTasks();
-      setTasks(data || []);
+      const role = getCurrentUser()?.role ?? '';
+      let data: unknown[] = [];
+      if (role === 'VERIFICATION_OFFICER') {
+        const res = await verificationTasksApi.getMyTasks();
+        data = res.data ?? [];
+      } else if (['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(role)) {
+        const res = await verificationTasksApi.getAdminQueue();
+        data = res.data ?? [];
+      }
+      setTasks(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch verification tasks', error);
     } finally {
@@ -33,6 +41,8 @@ export const VerificationTasksDashboard: React.FC<VerificationTasksDashboardProp
   };
 
   const isAr = language === 'ar';
+  const viewerRole = getCurrentUser()?.role ?? '';
+  const isOfficer = viewerRole === 'VERIFICATION_OFFICER';
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
@@ -48,7 +58,13 @@ export const VerificationTasksDashboard: React.FC<VerificationTasksDashboardProp
             </h1>
           </div>
           <p className="text-white/50 text-sm">
-            {isAr ? 'إدارة مهام الفحص والمطابقة المسندة إليك' : 'Manage your assigned verification and inspection tasks'}
+            {isOfficer
+              ? isAr
+                ? 'إدارة مهام الفحص والمطابقة المسندة إليك'
+                : 'Manage your assigned verification and inspection tasks'
+              : isAr
+                ? 'مهام بانتظار اعتمادك بعد إكمال موظف المطابقة الميدانية'
+                : 'Tasks awaiting your approval after field verification'}
           </p>
         </div>
       </div>
@@ -62,8 +78,18 @@ export const VerificationTasksDashboard: React.FC<VerificationTasksDashboardProp
         ) : tasks.length === 0 ? (
           <GlassCard className="flex flex-col items-center justify-center p-12 text-center border-dashed border-white/10">
             <ShieldCheck size={48} className="text-white/10 mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">{isAr ? 'لا توجد مهام حالياً' : 'No tasks assigned'}</h3>
-            <p className="text-sm text-white/40">{isAr ? 'لم يتم إسناد أي مهام مطابقة إليك بعد.' : 'You have not been assigned any verification tasks yet.'}</p>
+            <h3 className="text-xl font-bold text-white mb-2">
+              {isAr ? 'لا توجد مهام في قائمة الانتظار' : 'Nothing in the queue'}
+            </h3>
+            <p className="text-sm text-white/40">
+              {isOfficer
+                ? isAr
+                  ? 'لم يتم إسناد أي مهام مطابقة إليك بعد.'
+                  : 'You have not been assigned any verification tasks yet.'
+                : isAr
+                  ? 'لا توجد مهام بحالة «بانتظار اعتماد الإدارة» حالياً.'
+                  : 'There are no tasks awaiting admin approval right now.'}
+            </p>
           </GlassCard>
         ) : (
           tasks.map((task) => (

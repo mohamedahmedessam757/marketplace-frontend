@@ -4,11 +4,19 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { verificationTasksApi } from '@/services/api/verificationTasks';
 import { getCurrentUser } from '../../utils/auth';
 import { AdminLogin } from '../auth/AdminLogin';
+import { VerificationSessionCountdown } from '../dashboard/admin/verification/VerificationSessionCountdown';
 
 interface VerifyLinkPageProps {
   token: string;
   onNavigateToTask: (taskId: string) => void;
   onNavigateLogin: () => void;
+}
+
+interface LinkMeta {
+  taskId: string;
+  orderNumber?: string;
+  expiresAt?: string;
+  sessionDeadline?: string;
 }
 
 function PageShell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
@@ -34,10 +42,15 @@ export const VerifyLinkPage: React.FC<VerifyLinkPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [linkInfo, setLinkInfo] = useState<{ taskId: string; orderNumber?: string } | null>(null);
+  const [linkExpired, setLinkExpired] = useState(false);
+  const [linkInfo, setLinkInfo] = useState<LinkMeta | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
 
+  const deadline = linkInfo?.sessionDeadline ?? linkInfo?.expiresAt;
+
   const activate = useCallback(async () => {
+    if (linkExpired) return;
+
     const user = getCurrentUser();
     if (!user || user.role !== 'VERIFICATION_OFFICER') {
       setNeedsLogin(true);
@@ -61,7 +74,7 @@ export const VerifyLinkPage: React.FC<VerifyLinkPageProps> = ({
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
         } catch {
-          /* optional */
+          /* optional at link open */
         }
       }
       const { data } = await verificationTasksApi.activateLink(token, { lat, lng, deviceInfo });
@@ -71,7 +84,7 @@ export const VerifyLinkPage: React.FC<VerifyLinkPageProps> = ({
     } finally {
       setActivating(false);
     }
-  }, [token, isAr, onNavigateToTask]);
+  }, [token, isAr, onNavigateToTask, linkExpired]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,12 +93,24 @@ export const VerifyLinkPage: React.FC<VerifyLinkPageProps> = ({
         setLoading(true);
         const { data } = await verificationTasksApi.validatePublicLink(token);
         if (cancelled) return;
-        setLinkInfo({ taskId: data.taskId, orderNumber: data.orderNumber });
+
+        const sessionDeadline = data.sessionDeadline ?? data.expiresAt;
+        if (sessionDeadline && new Date(sessionDeadline).getTime() <= Date.now()) {
+          setLinkExpired(true);
+        }
+
+        setLinkInfo({
+          taskId: data.taskId,
+          orderNumber: data.orderNumber,
+          expiresAt: data.expiresAt,
+          sessionDeadline,
+        });
+
         const user = getCurrentUser();
         if (!user || user.role !== 'VERIFICATION_OFFICER') setNeedsLogin(true);
       } catch (e: any) {
         if (!cancelled) {
-          setError(e?.response?.data?.message || (isAr ? 'رابط غير صالح' : 'Invalid link'));
+          setError(e?.response?.data?.message || (isAr ? 'رابط غير صالح أو منتهي' : 'Invalid or expired link'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -97,14 +122,25 @@ export const VerifyLinkPage: React.FC<VerifyLinkPageProps> = ({
   }, [token, isAr]);
 
   useEffect(() => {
-    if (!loading && linkInfo && !needsLogin) activate();
-  }, [loading, linkInfo, needsLogin, activate]);
+    if (!loading && linkInfo && !needsLogin && !linkExpired) activate();
+  }, [loading, linkInfo, needsLogin, linkExpired, activate]);
 
   if (loading) {
     return (
       <PageShell>
         <Loader2 className="w-10 h-10 text-gold-500 animate-spin mx-auto" />
         <p className="text-white/60 text-sm mt-4">{isAr ? 'جاري التحقق...' : 'Validating...'}</p>
+      </PageShell>
+    );
+  }
+
+  if (linkExpired) {
+    return (
+      <PageShell>
+        <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+        <p className="text-red-300 text-sm">
+          {isAr ? 'انتهت صلاحية الرابط. اطلب من الإدارة رابطاً جديداً.' : 'This link has expired. Ask admin for a new link.'}
+        </p>
       </PageShell>
     );
   }
@@ -119,6 +155,17 @@ export const VerifyLinkPage: React.FC<VerifyLinkPageProps> = ({
         {linkInfo.orderNumber && (
           <p className="text-gold-400/80 text-sm font-mono mb-4">#{linkInfo.orderNumber}</p>
         )}
+        {deadline && (
+          <VerificationSessionCountdown
+            deadline={deadline}
+            isAr={isAr}
+            onExpired={() => setLinkExpired(true)}
+            className="mb-4 justify-center"
+          />
+        )}
+        <p className="text-xs text-white/50 mb-4">
+          {isAr ? 'سجّل الدخول ثم أكمل OTP للوصول للمهمة فقط.' : 'Sign in and complete OTP for task access only.'}
+        </p>
         <AdminLogin onLoginSuccess={() => setNeedsLogin(false)} />
       </PageShell>
     );
@@ -129,7 +176,11 @@ export const VerifyLinkPage: React.FC<VerifyLinkPageProps> = ({
       <PageShell>
         <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-3" />
         <p className="text-red-300 text-sm">{error}</p>
-        <button type="button" onClick={onNavigateLogin} className="mt-6 px-6 py-2 rounded-xl border border-white/20 text-white text-sm">
+        <button
+          type="button"
+          onClick={onNavigateLogin}
+          className="mt-6 px-6 py-2 rounded-xl border border-white/20 text-white text-sm"
+        >
           {isAr ? 'تسجيل الدخول' : 'Sign in'}
         </button>
       </PageShell>

@@ -186,8 +186,10 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigat
         fetchDashboardStats(debouncedRange);
         subscribeToStats();
         
-        // Start Global Shipment Sync
-        useShipmentStore.getState().startRealtime();
+        // Shipment sync — admins only (officer has no shipments permission → 403 noise)
+        if (!['VERIFICATION_OFFICER'].includes(currentAdmin?.role || '')) {
+            useShipmentStore.getState().startRealtime();
+        }
 
         // Listen for internal navigation events
         const handleInternalNav = (e: any) => {
@@ -203,7 +205,7 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigat
             useShipmentStore.getState().stopRealtime();
             window.removeEventListener('admin-nav', handleInternalNav);
         };
-    }, [debouncedRange, fetchDashboardStats, subscribeToStats, unsubscribeFromStats]);
+    }, [debouncedRange, fetchDashboardStats, subscribeToStats, unsubscribeFromStats, currentAdmin?.role]);
 
     // Helper for internal nav bubbling
     const navigate = (path: string, id?: any) => {
