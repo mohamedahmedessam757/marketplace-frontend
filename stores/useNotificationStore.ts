@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import { io, Socket } from 'socket.io-client';
+import { API_URL } from '../services/api/config';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const wsBaseUrl = API_URL.replace(/\/api\/?$/, '');
 let socket: Socket | null = null;
 
 export type NotificationType = 'ORDER' | 'SYSTEM' | 'OFFER' | 'PAYMENT' | 'SHIPPING' | 'DELIVERED' | 'CANCELED' | 'RATE' | 'DISPUTE' | 'DOC_EXPIRY' | 'SECURITY';
@@ -207,8 +208,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     // 3. Connect to the NestJS WebSockets Gateway (Phase 1 Infrastructure)
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('access_token') : null;
-    console.log(`[Notifications] Connecting to ${BACKEND_URL}/notifications for user ${userId}...`);
-    socket = io(`${BACKEND_URL}/notifications`, {
+    console.log(`[Notifications] Connecting to ${wsBaseUrl}/notifications for user ${userId}...`);
+    socket = io(`${wsBaseUrl}/notifications`, {
+      transports: ['websocket'],
       auth: token ? { token } : {},
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,

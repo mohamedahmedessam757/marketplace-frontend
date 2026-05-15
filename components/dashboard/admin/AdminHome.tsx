@@ -35,6 +35,8 @@ import { AdminAccessControl } from './AdminAccessControl';
 import { FinancialHub } from './FinancialHub';
 import { PermissionGuard } from './PermissionGuard';
 import { AdminShippingCarts } from './AdminShippingCarts';
+import { VerificationTasksDashboard } from './VerificationTasksDashboard';
+import { VerificationTaskDetails } from './VerificationTaskDetails';
 
 interface AdminHomeProps {
     subPath?: string;
@@ -367,6 +369,20 @@ export const AdminHome: React.FC<AdminHomeProps> = ({ subPath, viewId, onNavigat
         return (
             <PermissionGuard page="access-control" action="view">
                 <AdminAccessControl />
+            </PermissionGuard>
+        );
+    }
+    if (subPath === 'verification-tasks') {
+        return (
+            <PermissionGuard page="verification-tasks" action="view">
+                <VerificationTasksDashboard onNavigate={navigate} />
+            </PermissionGuard>
+        );
+    }
+    if (subPath === 'verification-task-details' && viewId) {
+        return (
+            <PermissionGuard page="verification-tasks" action="view">
+                <VerificationTaskDetails taskId={viewId} onBack={() => navigate('verification-tasks')} />
             </PermissionGuard>
         );
     }

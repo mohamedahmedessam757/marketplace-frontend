@@ -18,6 +18,7 @@ import {
     Edit2, Trash2, Ban, Copy, CheckCircle2, MessageSquare, Info
 } from 'lucide-react';
 import { VerificationReviewPanel } from './VerificationReviewPanel';
+import { VerificationTaskManager } from './VerificationTaskManager';
 import { ordersApi } from '../../../services/api/orders';
 import { OrderInvoicesPanel } from '../shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from '../shared/OrderWaybillsPanel';
@@ -243,12 +244,20 @@ const RiskTimer = ({ updatedAt, limitHours }: { updatedAt: string, limitHours: n
 
 export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
-    const { getOrder, transitionOrder, forceStatus, getValidTransitions } = useOrderStore();
+    const { getOrder, fetchOrder, transitionOrder, forceStatus, getValidTransitions } = useOrderStore();
     const { currentAdmin } = useAdminStore();
 
     const order = getOrder(orderId);
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronRight : ChevronLeft;
+
+    const [isLoadingDetail, setIsLoadingDetail] = useState(true);
+
+    useEffect(() => {
+        if (!orderId) return;
+        setIsLoadingDetail(true);
+        fetchOrder(String(orderId)).finally(() => setIsLoadingDetail(false));
+    }, [orderId, fetchOrder]);
 
     const [activeMedia, setActiveMedia] = useState<{ type: 'image' | 'video', url: string } | null>(null);
     const [showTracking, setShowTracking] = useState(false);
@@ -278,7 +287,11 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
     const isAdmin = currentAdmin?.role === 'ADMIN' || currentAdmin?.role === 'SUPER_ADMIN';
     const isSuper = currentAdmin?.role === 'SUPER_ADMIN';
 
-    if (!order) return <div className="text-white p-8 text-center">{t.admin.orderDetails.notFound}</div>;
+    if (isLoadingDetail && !order) {
+        return <motion.div className="text-white p-8 text-center">{isAr ? 'جاري تحميل تفاصيل الطلب...' : 'Loading order details...'}</motion.div>;
+    }
+
+    if (!order) return <motion.div className="text-white p-8 text-center">{t.admin.orderDetails.notFound}</motion.div>;
 
     const validTransitions = getValidTransitions(order.status);
     const slaLimit = SLA_LIMITS[order.status];
@@ -563,7 +576,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                             documents={order.verificationDocuments || []}
                             onReviewSubmit={async (action, payload) => {
                                 await ordersApi.adminReviewVerification(String(order.id), {
-                                    action,                                          // 'APPROVE' | 'REJECT'
+                                    action,
                                     rejectionReason: payload?.reason,
                                     rejectionImages: payload?.rejectionImages || [],
                                     rejectionVideo: payload?.rejectionVideo,
@@ -572,9 +585,14 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                     adminSignatureType: payload?.adminSignatureType,
                                     adminSignatureText: payload?.adminSignatureText,
                                 });
-                                // Real-time Supabase subscription auto-updates order status in UI
+                                await fetchOrder(String(order.id));
                             }}
                         />
+                    )}
+
+                    {/* Temporary Links for Verification Tasks */}
+                    {['VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING'].includes(order.status) && (
+                        <VerificationTaskManager orderId={order.id} />
                     )}
 
                     {/* STATE: AWAITING OFFERS - Only show if NO offers yet */}
@@ -605,9 +623,14 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                         .filter((o: any) => o.orderPartId === p.id); // Show ALL offers for admin
 
                                     const hasOffers = partOffers.length > 0;
-                                    const partImgSrc = p.images?.[0]
+                                    const primaryOffer = partOffers.find((o: any) =>
+                                        ['accepted', 'ACCEPTED'].includes(String(o.status))
+                                    ) || partOffers[0];
+                                    const offerPartImage = primaryOffer?.offerImage;
+                                    const customerPartImage = p.images?.[0]
                                         ? (typeof p.images[0] === 'string' ? p.images[0] : URL.createObjectURL(p.images[0] as File))
                                         : undefined;
+                                    const partImgSrc = customerPartImage || offerPartImage;
 
                                     return (
                                         <GlassCard key={p.id || idx} className="p-0 overflow-hidden border-white/5 bg-[#1A1814]">

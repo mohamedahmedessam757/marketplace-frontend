@@ -295,6 +295,7 @@ export const AdminAccessControl: React.FC = () => {
       case 'chats': return isAr ? 'المحادثات' : 'Messages';
       case 'chat-monitoring': return isAr ? 'مراقبة المحادثات' : 'Chat Monitoring';
       case 'access-control': return isAr ? 'إدارة الوصول' : 'Access Control';
+      case 'verification-tasks': return isAr ? 'مهام المطابقة الميدانية' : 'Verification Tasks';
       default: return pageId.replace('-', ' ');
     }
   };
@@ -466,6 +467,7 @@ export const AdminAccessControl: React.FC = () => {
                       <span className={`px-2 py-1 rounded-md text-[10px] font-bold tracking-widest ${
                         admin.role === 'SUPER_ADMIN' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
                         admin.role === 'ADMIN' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                        admin.role === 'VERIFICATION_OFFICER' ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30' :
                         'bg-purple-500/20 text-purple-400 border border-purple-500/30'
                       }`}>
                         {admin.role}
@@ -660,7 +662,8 @@ export const AdminAccessControl: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {[
                             { id: 'ADMIN', labelAr: 'مسؤول نظام (ADMIN)', descAr: 'وصول شامل لجميع الأدوات الإدارية مع صلاحيات تعديل واسعة.', labelEn: 'Admin', descEn: 'Full access to administrative tools with extensive edit capabilities.' },
-                            { id: 'SUPPORT', labelAr: 'دعم فني (SUPPORT)', descAr: 'مخصص لمعالجة الطلبات، التذاكر، والدردشات بصلاحيات محدودة.', labelEn: 'Support', descEn: 'Dedicated to handling orders, tickets, and chats with limited scope.' }
+                            { id: 'SUPPORT', labelAr: 'دعم فني (SUPPORT)', descAr: 'مخصص لمعالجة الطلبات، التذاكر، والدردشات بصلاحيات محدودة.', labelEn: 'Support', descEn: 'Dedicated to handling orders, tickets, and chats with limited scope.' },
+                            { id: 'VERIFICATION_OFFICER', labelAr: 'موظف مطابقة (VERIFICATION_OFFICER)', descAr: 'مخصص لمطابقة القطع بالمستندات ميدانياً.', labelEn: 'Verification Officer', descEn: 'Dedicated to verifying parts against documents on the field.' }
                           ].map(role => (
                             <button
                               key={role.id}

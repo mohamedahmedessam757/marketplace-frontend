@@ -4,6 +4,7 @@ export interface NavigationState {
     view: string;
     dashboardPath?: string;
     viewId?: any;
+    verifyToken?: string;
 }
 
 /**
@@ -110,6 +111,11 @@ export function parseUrlToState(): NavigationState {
     if (path === '/wholesale') return { view: 'wholesale' };
     if (path === '/how-it-works') return { view: 'how-we-work' };
     if (path === '/tutorial') return { view: 'how-we-work-tutorial' };
+
+    if (path.startsWith('/verify/')) {
+        const token = path.split('/').filter(Boolean)[1];
+        if (token) return { view: 'verify-link', verifyToken: token };
+    }
 
     if (path.startsWith('/dashboard/')) {
         const segments = path.split('/').filter(Boolean); // ["dashboard", "orders", "123"]

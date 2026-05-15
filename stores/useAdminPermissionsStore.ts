@@ -138,7 +138,10 @@ export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get)
   canView: (page) => {
     const role = get()._getRole();
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') return true;
-    
+    if (role === 'VERIFICATION_OFFICER') {
+      return page === 'verification-tasks' || page === 'verification-task-details' || page === 'profile';
+    }
+
     const { myPermissions } = get();
     if (!myPermissions) return false;
     return myPermissions.permissions[page]?.view || false;
@@ -147,7 +150,10 @@ export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get)
   canEdit: (page) => {
     const role = get()._getRole();
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') return true;
-    
+    if (role === 'VERIFICATION_OFFICER') {
+      return page === 'verification-tasks' || page === 'verification-task-details';
+    }
+
     const { myPermissions } = get();
     if (!myPermissions) return false;
     return myPermissions.permissions[page]?.edit || false;

@@ -56,7 +56,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
 
       // Verify Role
       const role = data.user?.role;
-      if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPPORT') {
+      if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPPORT' || role === 'VERIFICATION_OFFICER') {
         // Store Admin Details
         setUserName(data.user.name || 'Admin');
         setUserPhone(data.user.phone || '');

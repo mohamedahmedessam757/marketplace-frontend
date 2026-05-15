@@ -13,6 +13,7 @@ export const admin = {
     auditLogs: 'سجل العمليات',
     violations: 'المخالفات والعقوبات',
     accessControl: 'إدارة الوصول والحوكمة',
+    verificationTasks: 'مهام المطابقة الميدانية',
     automations: {
       active: 'الأتمتة نشطة',
       stopped: 'الأتمتة متوقفة'
@@ -1006,6 +1007,7 @@ export const admin = {
     auditLogs: 'Audit Logs',
     violations: 'Violations & Penalties',
     accessControl: 'Access Control & Governance',
+    verificationTasks: 'Verification Tasks',
     automations: {
       active: 'Automations Active',
       stopped: 'Automations Stopped'

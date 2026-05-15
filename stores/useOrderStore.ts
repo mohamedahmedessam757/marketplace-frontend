@@ -217,6 +217,73 @@ export interface Order {
     review?: any;
 }
 
+const parseJsonArray = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : (value ? [value] : []);
+        } catch {
+            return value ? [value] : [];
+        }
+    }
+    return [];
+};
+
+const normalizeVerificationDocuments = (docs: any[] | undefined) =>
+    (docs || []).map((doc) => ({
+        ...doc,
+        images: parseJsonArray(doc.images),
+        adminRejectionImages: parseJsonArray(doc.adminRejectionImages),
+    }));
+
+/** List endpoint returns only id/adminStatus/createdAt — do not overwrite a full detail fetch. */
+const isListOnlyVerificationPayload = (docs: any[] | undefined): boolean => {
+    if (!docs?.length) return false;
+    const doc = docs[0];
+    return (
+        doc.images === undefined &&
+        doc.videoUrl === undefined &&
+        doc.description === undefined &&
+        doc.recipientName === undefined
+    );
+};
+
+const mergeOrderPreservingDetails = (existing: Order, incoming: Order): Order => {
+    const preserveVerification =
+        isListOnlyVerificationPayload(incoming.verificationDocuments) &&
+        !isListOnlyVerificationPayload(existing.verificationDocuments);
+
+    const mergedOffers = incoming.offers?.map((inc) => {
+        const prev = existing.offers?.find((o) => String(o.id) === String(inc.id));
+        if (prev?.offerImage && !inc.offerImage) return { ...inc, offerImage: prev.offerImage };
+        return inc;
+    }) ?? incoming.offers;
+
+    const mergedParts = incoming.parts?.map((inc) => {
+        const prev = existing.parts?.find((p) => String(p.id) === String(inc.id));
+        if (prev?.images?.length && !inc.images?.length) {
+            return { ...inc, images: prev.images, video: prev.video ?? inc.video };
+        }
+        return inc;
+    }) ?? incoming.parts;
+
+    return {
+        ...incoming,
+        verificationDocuments: preserveVerification
+            ? existing.verificationDocuments
+            : normalizeVerificationDocuments(incoming.verificationDocuments),
+        offers: mergedOffers,
+        parts: mergedParts,
+    };
+};
+
+const mergeMappedOrdersWithExisting = (existingOrders: Order[], mapped: Order[]): Order[] =>
+    mapped.map((incoming) => {
+        const existing = existingOrders.find((o) => String(o.id) === String(incoming.id));
+        return existing ? mergeOrderPreservingDetails(existing, incoming) : incoming;
+    });
+
 interface OrderState {
     orders: Order[];
     isLoading: boolean;
@@ -386,7 +453,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 status 
             });
 
-            const mappedOrders = get().mapBackendOrders(result.items);
+            const mappedOrders = mergeMappedOrdersWithExisting(orders, get().mapBackendOrders(result.items));
 
             set({
                 orders: mappedOrders,
@@ -417,7 +484,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 ...params 
             });
 
-            const newMappedOrders = get().mapBackendOrders(result.items);
+            const newMappedOrders = mergeMappedOrdersWithExisting(orders, get().mapBackendOrders(result.items));
 
             set({
                 orders: [...orders, ...newMappedOrders],
@@ -440,7 +507,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         try {
             // Strategic Refresh: Fetch the current view + first page of active items
             const result = await ordersApi.getAll({ page: 1, limit: Math.max(page * limit, 50) });
-            const mappedOrders = get().mapBackendOrders(result.items);
+            const mappedOrders = mergeMappedOrdersWithExisting(get().orders, get().mapBackendOrders(result.items));
             
             set((state) => ({ 
                 orders: mappedOrders, 
@@ -552,7 +619,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 merchantName: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase()))?.store?.name || null,
                 acceptedOffer: o.offers?.find((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),
                 acceptedOffers: o.offers?.filter((of: any) => ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(of.status).toUpperCase())),
-                verificationDocuments: o.verificationDocuments || [],
+                verificationDocuments: normalizeVerificationDocuments(o.verificationDocuments),
                 verificationSubmittedAt: o.verificationSubmittedAt,
                 correctionDeadlineAt: o.correctionDeadlineAt,
                 shipments: o.shipments || [],

@@ -26,6 +26,16 @@ export type StatusType =
   | 'RETURNED'
   | 'DISPUTED'
   | 'REFUNDED'
+  // Task Statuses
+  | 'PENDING_ASSIGNMENT'
+  | 'ASSIGNED'
+  | 'LINK_SENT'
+  | 'IN_PROGRESS'
+  | 'COMPLETED_MATCH'
+  | 'COMPLETED_NON_MATCH'
+  | 'AWAITING_ADMIN_APPROVAL'
+  | 'ADMIN_APPROVED'
+  | 'ADMIN_REJECTED'
   // Shipment Detailed Statuses
   | 'RECEIVED_AT_HUB'
   | 'QUALITY_CHECK_PASSED'
@@ -100,6 +110,17 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, 
     DISPUTED: "bg-red-600/20 text-red-500 border-red-600/50 animate-pulse font-bold",
     REFUNDED: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
 
+    // Task Statuses
+    PENDING_ASSIGNMENT: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+    ASSIGNED: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    LINK_SENT: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 animate-pulse",
+    IN_PROGRESS: "bg-gold-500/10 text-gold-500 border-gold-500/30 animate-pulse shadow-[0_0_15px_rgba(212,175,55,0.2)]",
+    COMPLETED_MATCH: "bg-green-500/10 text-green-400 border-green-500/30 font-bold",
+    COMPLETED_NON_MATCH: "bg-red-500/10 text-red-400 border-red-500/30 font-bold",
+    AWAITING_ADMIN_APPROVAL: "bg-amber-500/10 text-amber-500 border-amber-500/30 animate-pulse",
+    ADMIN_APPROVED: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-bold shadow-[0_0_10px_rgba(16,185,129,0.2)]",
+    ADMIN_REJECTED: "bg-red-600/20 text-red-500 border-red-600/50 font-bold shadow-[0_0_10px_rgba(220,38,38,0.2)]",
+
     // Shipment Detailed Styles
     RECEIVED_AT_HUB: "bg-purple-500/10 text-purple-400 border-purple-500/20",
     QUALITY_CHECK_PASSED: "bg-purple-500/10 text-purple-400 border-purple-500/20",
@@ -142,7 +163,19 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, 
     default: status ? styles[status] || styles.CANCELLED : "bg-white/5 border-white/10 text-white/40"
   };
 
-  const statusLabel = status ? ((t.common as any).status?.[status] || status) : null;
+  const taskTranslations: Record<string, string> = {
+    PENDING_ASSIGNMENT: language === 'ar' ? 'بانتظار التعيين' : 'Pending Assignment',
+    ASSIGNED: language === 'ar' ? 'تم التعيين' : 'Assigned',
+    LINK_SENT: language === 'ar' ? 'رابط نشط' : 'Link Sent',
+    IN_PROGRESS: language === 'ar' ? 'قيد الفحص' : 'In Progress',
+    COMPLETED_MATCH: language === 'ar' ? 'مطابق' : 'Matched',
+    COMPLETED_NON_MATCH: language === 'ar' ? 'غير مطابق' : 'Non-Matching',
+    AWAITING_ADMIN_APPROVAL: language === 'ar' ? 'بانتظار اعتماد الإدارة' : 'Awaiting Approval',
+    ADMIN_APPROVED: language === 'ar' ? 'تم الاعتماد' : 'Approved',
+    ADMIN_REJECTED: language === 'ar' ? 'مرفوض' : 'Rejected',
+  };
+
+  const statusLabel = status ? (taskTranslations[status] || (t.common as any).status?.[status] || status) : null;
 
   return (
     <span className={`inline-flex items-center justify-center px-3 py-1 rounded-lg text-[10px] font-bold border backdrop-blur-sm whitespace-nowrap ${isShipmentStatus ? 'border-dashed' : ''} ${variant !== 'default' ? variantStyles[variant] : variantStyles.default} ${className}`}>

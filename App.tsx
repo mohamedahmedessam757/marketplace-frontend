@@ -98,6 +98,7 @@ const ResetPassword = lazy(() => import('./components/auth/ResetPassword').then(
 const TermsView = lazy(() => import('./components/auth/TermsView').then(module => ({ default: module.TermsView })));
 const AccountRecoveryWizard = lazy(() => import('./components/auth/AccountRecoveryWizard').then(module => ({ default: module.AccountRecoveryWizard })));
 import { EarnIncomeLanding } from './components/EarnIncomeLanding';
+import { VerifyLinkPage } from './components/verify/VerifyLinkPage';
 
 type ViewState =
   | 'landing'
@@ -116,7 +117,8 @@ type ViewState =
   | 'wholesale'
   | 'how-we-work'
   | 'how-we-work-tutorial'
-  | 'earn-income';
+  | 'earn-income'
+  | 'verify-link';
 type UserRole = 'customer' | 'merchant' | 'admin' | null;
 
 function AppContent() {
@@ -150,12 +152,14 @@ function AppContent() {
   // Dashboard State
   const [dashboardPath, setDashboardPath] = useState('home');
   const [viewId, setViewId] = useState<any>(null); // Generic ID
+  const [verifyToken, setVerifyToken] = useState<string | null>(null);
 
   // --- NAVIGATION HISTORY API ---
   const { pushView, replaceView } = useNavigationHistory((state) => {
     if (state.view) setCurrentView(state.view as ViewState);
     if (state.dashboardPath) setDashboardPath(state.dashboardPath);
     if (state.viewId !== undefined) setViewId(state.viewId);
+    if (state.verifyToken !== undefined) setVerifyToken(state.verifyToken ?? null);
   });
 
   // Restore state from URL on initial load and setup pending redirect
@@ -173,6 +177,11 @@ function AppContent() {
 
     // 2. Sync URL State Immediately (Prevents delay in route calculation)
     const initialState = parseUrlToState();
+    if (initialState.view === 'verify-link' && initialState.verifyToken) {
+      setCurrentView('verify-link');
+      setVerifyToken(initialState.verifyToken);
+      return;
+    }
     if (initialState.view === 'dashboard') {
       const isStripeReturn = window.location.search.includes('stripe_status=');
       if (user) {
@@ -556,8 +565,24 @@ function AppContent() {
         {!loading && (
           <AnimatePresence mode="wait">
 
-            {/* 1. DASHBOARD VIEW */}
-            {currentView === 'dashboard' ? (
+            {currentView === 'verify-link' && verifyToken ? (
+              <motion.div key="verify-link" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <VerifyLinkPage
+                  token={verifyToken}
+                  onNavigateToTask={(taskId) => {
+                    const user = getCurrentUser();
+                    if (user) {
+                      setUserRole(mapBackendRoleToFrontend(user.role) as UserRole);
+                    }
+                    setCurrentView('dashboard');
+                    setDashboardPath('verification-task-details');
+                    setViewId(taskId);
+                    pushView('dashboard', 'verification-task-details', taskId);
+                  }}
+                  onNavigateLogin={() => handleNavigate('admin-login')}
+                />
+              </motion.div>
+            ) : currentView === 'dashboard' ? (
               <motion.div
                 key="dashboard"
                 initial={{ opacity: 0 }}
@@ -675,6 +700,10 @@ function AppContent() {
                     {dashboardPath === 'chats' && <AdminChatOversight />}
                     {dashboardPath === 'chat-monitoring' && <AdminChatMonitoring />}
                     {dashboardPath === 'access-control' && <AdminHome subPath="access-control" />}
+                    {dashboardPath === 'verification-tasks' && <AdminHome subPath="verification-tasks" onNavigate={handleDashboardNavigate} />}
+                    {dashboardPath === 'verification-task-details' && (
+                      <AdminHome subPath="verification-task-details" viewId={viewId} onNavigate={handleDashboardNavigate} />
+                    )}
                     {dashboardPath === 'profile' && <ProfileView />}
                   </DashboardLayout>
                 )}

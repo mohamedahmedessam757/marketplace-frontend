@@ -45,7 +45,8 @@ export const PERMISSION_PAGES = {
   REVIEWS: 'reviews',
   CHATS: 'chats',
   MONITORING: 'chat-monitoring',
-  ACCESS_CONTROL: 'access-control'
+  ACCESS_CONTROL: 'access-control',
+  VERIFICATION_TASKS: 'verification-tasks',
 };
 
 /**

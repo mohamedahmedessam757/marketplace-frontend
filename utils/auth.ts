@@ -60,7 +60,7 @@ export function mapBackendRoleToFrontend(role: string | undefined): string {
     if (!role) return 'customer';
     const r = role.toUpperCase();
     if (r === 'VENDOR') return 'merchant';
-    if (r === 'ADMIN' || r === 'SUPER_ADMIN' || r === 'SUPPORT') return 'admin';
+    if (r === 'ADMIN' || r === 'SUPER_ADMIN' || r === 'SUPPORT' || r === 'VERIFICATION_OFFICER') return 'admin';
     if (r === 'CUSTOMER') return 'customer';
     return role.toLowerCase();
 }

@@ -245,6 +245,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     // Logistics & Operations
     { id: 'orders-control', icon: PackageSearch, label: t.admin.orders, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
     { id: 'shipping-carts', icon: ShoppingBag, label: (t.admin as any).shippingCarts || (language === 'ar' ? 'سلال التجميع' : 'Assembly Carts'), allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
+    { id: 'verification-tasks', icon: ShieldCheck, label: (t.admin as any).verificationTasks || (language === 'ar' ? 'مهام المطابقة الميدانية' : 'Verification Tasks'), allowed: ['SUPER_ADMIN', 'ADMIN', 'VERIFICATION_OFFICER'] },
     { id: 'shipping', icon: Truck, label: t.admin.shipping, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] },
     { id: 'reviews', icon: Star, label: t.admin.reviews, allowed: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'resolution', icon: Scale, label: t.admin.disputes, allowed: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT'] }, // Support View Only

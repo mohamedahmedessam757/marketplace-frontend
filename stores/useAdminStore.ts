@@ -7,7 +7,7 @@ import { storesApi } from '../services/api/stores';
 import { API_URL } from '../services/api/config';
 import { useAdminPermissionsStore } from './useAdminPermissionsStore';
 
-export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT';
+export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT' | 'VERIFICATION_OFFICER';
 
 export interface AdminUser {
   id: string;
