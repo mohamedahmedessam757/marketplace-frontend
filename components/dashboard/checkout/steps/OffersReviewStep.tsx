@@ -3,6 +3,10 @@ import { useOrderStore } from '../../../../stores/useOrderStore';
 import { useCheckoutStore } from '../../../../stores/useCheckoutStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { Package, AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
+import {
+    isAcceptedOfferStatus,
+    isActiveOfferStatus,
+} from '../../../../utils/offerStatusHelpers';
 
 export const OffersReviewStep: React.FC<{
     onBackToOffers: (partId?: string) => void,
@@ -21,12 +25,16 @@ export const OffersReviewStep: React.FC<{
 
     // Grouping parts and finding accepted offers
     const partStatus = parts.map(part => {
-        const partOffers = offers.filter(o => o.orderPartId === part.id && o.status !== 'rejected');
-        const acceptedOffer = partOffers.find(o => o.status === 'accepted');
+        const partOffers = offers.filter(
+            (o) =>
+                String(o.orderPartId) === String(part.id) &&
+                isActiveOfferStatus(o.status),
+        );
+        const acceptedOffer = partOffers.find((o) => isAcceptedOfferStatus(o.status));
         return {
             part,
             hasOffers: partOffers.length > 0,
-            acceptedOffer
+            acceptedOffer,
         };
     });
 

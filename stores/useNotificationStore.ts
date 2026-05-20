@@ -2,9 +2,42 @@ import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import { io, Socket } from 'socket.io-client';
 import { API_URL } from '../services/api/config';
+import { getCurrentUserId } from '../utils/auth';
+import { notificationsApi } from '../services/api/notifications';
+import {
+  addDismissedPopupId,
+  isPopupDismissed,
+} from '../utils/notificationDismissals';
 
 const wsBaseUrl = API_URL.replace(/\/api\/?$/, '');
 let socket: Socket | null = null;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function newLocalNotificationId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `local-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+function mapNotificationRow(n: any): Notification {
+  return {
+    id: n.id,
+    recipientId: n.recipientId ?? n.recipient_id,
+    recipientRole: n.recipientRole ?? n.recipient_role,
+    titleAr: n.titleAr ?? n.title_ar,
+    titleEn: n.titleEn ?? n.title_en,
+    messageAr: n.messageAr ?? n.message_ar,
+    messageEn: n.messageEn ?? n.message_en,
+    type: n.type,
+    isRead: n.isRead ?? n.is_read,
+    link: n.link,
+    metadata: n.metadata,
+    createdAt: n.createdAt ?? n.created_at,
+  };
+}
 
 export type NotificationType = 'ORDER' | 'SYSTEM' | 'OFFER' | 'PAYMENT' | 'SHIPPING' | 'DELIVERED' | 'CANCELED' | 'RATE' | 'DISPUTE' | 'DOC_EXPIRY' | 'SECURITY';
 
@@ -39,7 +72,10 @@ interface NotificationState {
 
   fetchNotifications: (userId: string, role: string) => Promise<void>;
   markAsRead: (id: string, userId: string) => Promise<void>;
+  /** Mark read on server + remember popup dismissed for this browser session */
+  dismissNotification: (id: string) => Promise<void>;
   markAllAsRead: (userId: string, role: string) => Promise<void>;
+  shouldShowAsPopup: (notification: Notification) => boolean;
   subscribeToNotifications: (userId: string, role: string) => void;
   unsubscribeFromNotifications: () => void;
   addNotification: (notification: Partial<Notification>) => Promise<void>;
@@ -59,94 +95,94 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   }),
 
   fetchNotifications: async (userId: string, role: string) => {
-    if (!userId || !role) return;
+    if (!userId) return;
     set({ isLoading: true });
+    
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('recipient_id', userId)
-        .eq('recipient_role', role.toUpperCase())
-        .order('created_at', { ascending: false })
-        .limit(50);
+      console.log(`[Notifications] Fetching for user: ${userId} (Role: ${role})`);
+      const rows = await notificationsApi.list();
+      const mappedNotifications = (rows || []).map(mapNotificationRow);
 
-      if (error) throw error;
+      if (mappedNotifications.length === 0) {
+        console.warn('[Notifications] No notifications returned from API for this user.');
+      } else {
+        console.log(`[Notifications] Successfully loaded ${mappedNotifications.length} items.`);
+      }
 
-      // Map snake_case from DB to camelCase if needed, but Supabase returns as is unless mapped.
-      // Actually Supabase JS client returns data matching column names by default? 
-      // Yes, DB has snake_case (title_ar). I need to map it or use snake_case in interface.
-      // Let's check Supabase configuration. Usually it returns column names.
-      // I'll map it manually to be safe and consistent with frontend camelCase convention.
-
-      const mappedNotifications = (data || []).map((n: any) => ({
-        id: n.id,
-        recipientId: n.recipient_id,
-        recipientRole: n.recipient_role,
-        titleAr: n.title_ar,
-        titleEn: n.title_en,
-        messageAr: n.message_ar,
-        messageEn: n.message_en,
-        type: n.type,
-        isRead: n.is_read,
-        link: n.link,
-        metadata: n.metadata,
-        createdAt: n.created_at
-      }));
+      const withDismissals = mappedNotifications.map((n) =>
+        userId && isPopupDismissed(userId, n.id) ? { ...n, isRead: true } : n,
+      );
 
       set({
-        notifications: mappedNotifications,
-        unreadCount: mappedNotifications.filter(n => !n.isRead).length,
-        isLoading: false
+        notifications: withDismissals,
+        unreadCount: withDismissals.filter((n) => !n.isRead).length,
+        isLoading: false,
       });
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('[Notifications] Critical Store Error:', error);
       set({ isLoading: false });
     }
   },
 
   markAsRead: async (id: string, userId: string) => {
-    // Optimistic update
-    set(state => {
-      const updated = state.notifications.map(n => n.id === id ? { ...n, isRead: true } : n);
+    set((state) => {
+      const updated = state.notifications.map((n) =>
+        n.id === id ? { ...n, isRead: true } : n,
+      );
       return {
         notifications: updated,
-        unreadCount: updated.filter(n => !n.isRead).length
+        unreadCount: updated.filter((n) => !n.isRead).length,
       };
     });
 
+    if (!UUID_RE.test(id)) {
+      return;
+    }
+
     try {
-      await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', id);
+      await notificationsApi.markRead(id);
     } catch (error) {
-      console.error('Error marking as read:', error);
-      // Maybe revert if critical, but for read status it's fine.
+      console.error('[Notifications] markAsRead failed:', error);
     }
   },
 
-  markAllAsRead: async (userId: string, role: string) => {
-    // Optimistic
-    set(state => ({
-      notifications: state.notifications.map(n => ({ ...n, isRead: true })),
-      unreadCount: 0
+  dismissNotification: async (id: string) => {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+    addDismissedPopupId(userId, id);
+    await get().markAsRead(id, userId);
+  },
+
+  shouldShowAsPopup: (notification: Notification) => {
+    const userId = getCurrentUserId();
+    if (!userId || notification.isRead) return false;
+    if (isPopupDismissed(userId, notification.id)) return false;
+    const popupTypes = new Set(['DISPUTE', 'SECURITY', 'PAYMENT']);
+    return popupTypes.has(String(notification.type || '').toUpperCase());
+  },
+
+  markAllAsRead: async (userId: string, _role: string) => {
+    const popupTypes = new Set(['DISPUTE', 'SECURITY', 'PAYMENT']);
+    get().notifications.forEach((n) => {
+      if (!n.isRead && popupTypes.has(String(n.type || '').toUpperCase())) {
+        addDismissedPopupId(userId, n.id);
+      }
+    });
+
+    set((state) => ({
+      notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
+      unreadCount: 0,
     }));
 
     try {
-      await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('recipient_id', userId)
-        .eq('recipient_role', role.toUpperCase())
-        .eq('is_read', false);
+      await notificationsApi.markAllRead();
     } catch (error) {
-      console.error('Error marking all as read:', error);
+      console.error('[Notifications] markAllAsRead failed:', error);
     }
   },
 
   addNotification: async (notification: Partial<Notification>) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const recipientId = notification.recipientId || user?.id;
+    const recipientId = notification.recipientId || getCurrentUserId() || undefined;
     if (!recipientId) return;
 
     const recipientRole = notification.recipientRole || 'CUSTOMER';
@@ -166,7 +202,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     // Optimistic
     const optimistic: Notification = {
-      id: Math.random().toString(),
+      id: newLocalNotificationId(),
       recipientId,
       recipientRole: newNotif.recipient_role,
       titleAr: newNotif.title_ar,
@@ -231,7 +267,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       console.log('[Notifications] Received real-time event:', payload);
 
       const mapped: Notification = {
-        id: payload.id || Math.random().toString(),
+        id: payload.id || newLocalNotificationId(),
         recipientId: payload.recipientId,
         recipientRole: payload.recipientRole,
         titleAr: payload.titleAr,
@@ -245,13 +281,17 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         createdAt: payload.createdAt || new Date().toISOString()
       };
 
-      set(state => {
-        // Prevent duplicate if already fetched or optimistically added
-        if (state.notifications.some(n => n.id === mapped.id)) return state;
-        
+      const uid = getCurrentUserId();
+      if (uid && isPopupDismissed(uid, mapped.id)) {
+        mapped.isRead = true;
+      }
+
+      set((state) => {
+        if (state.notifications.some((n) => n.id === mapped.id)) return state;
+
         return {
           notifications: [mapped, ...state.notifications],
-          unreadCount: state.unreadCount + 1
+          unreadCount: mapped.isRead ? state.unreadCount : state.unreadCount + 1,
         };
       });
     };

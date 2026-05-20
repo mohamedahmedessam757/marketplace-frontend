@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
 import {
   ShieldCheck,
@@ -10,19 +10,13 @@ import {
   UserPlus,
   Loader2,
   Download,
-  AlertCircle,
-  FileText,
-  Image as ImageIcon,
 } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { verificationTasksApi } from '@/services/api/verificationTasks';
 import { supabase } from '../../../services/supabase';
 import { QRCodeCanvas } from 'qrcode.react';
-import { getCurrentUser } from '../../../utils/auth';
-import { 
-  VERIFICATION_TASK_STATUS_LABEL, 
-  VERIFICATION_TASK_DECISION_LABEL 
-} from './verification/verificationTaskHelpers';
+import { VERIFICATION_TASK_STATUS_LABEL, taskHasFieldOfficerReport } from './verification/verificationTaskHelpers';
+import { FieldVerificationReportPanel } from './verification/FieldVerificationReportPanel';
 
 interface VerificationTaskManagerProps {
   orderId: string;
@@ -64,14 +58,7 @@ export const VerificationTaskManager: React.FC<VerificationTaskManagerProps> = (
   const [copied, setCopied] = useState(false);
   const [qrImgError, setQrImgError] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [adminRejectReason, setAdminRejectReason] = useState('');
-  const [adminReviewBusy, setAdminReviewBusy] = useState(false);
-  const [openingReport, setOpeningReport] = useState(false);
-
-  const staffCanFieldReview = useMemo(() => {
-    const r = getCurrentUser()?.role;
-    return !!(r && ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(r));
-  }, []);
+  const [openingReportTaskId, setOpeningReportTaskId] = useState<string | null>(null);
 
   const fetchInFlight = useRef(false);
   const mountedRef = useRef(true);
@@ -111,16 +98,18 @@ export const VerificationTaskManager: React.FC<VerificationTaskManagerProps> = (
   const latestTask = tasks[0];
   latestTaskRef.current = latestTask;
 
-  const fieldPhotoUrls = useMemo(() => {
-    if (!latestTask) return [];
-    const rows = (latestTask.fieldPhotos ?? []) as { url?: string }[];
-    const fromRows = rows.map((p) => p.url).filter((u): u is string => !!u);
-    if (fromRows.length) return fromRows;
-    const legacy = latestTask.officerPhotos;
-    if (Array.isArray(legacy)) {
-      return legacy.filter((u: unknown): u is string => typeof u === 'string' && u.length > 0);
+  const previousReportTasks = useMemo(
+    () => tasks.slice(1).filter((t) => taskHasFieldOfficerReport(t)),
+    [tasks],
+  );
+
+  const latestReportVariant = useMemo(() => {
+    if (!latestTask) return null;
+    if (!taskHasFieldOfficerReport(latestTask)) return null;
+    if (['AWAITING_ADMIN_APPROVAL', 'AWAITING_CORRECTION'].includes(latestTask.status)) {
+      return 'pending' as const;
     }
-    return [];
+    return 'current' as const;
   }, [latestTask]);
 
   useEffect(() => {
@@ -154,7 +143,8 @@ export const VerificationTaskManager: React.FC<VerificationTaskManagerProps> = (
   }, [orderId, fetchTasks]);
 
   const url = activeToken ? `${window.location.origin}/verify/${activeToken}` : '';
-  const isBusy = assigning || generating || refreshing || copying || adminReviewBusy || openingReport;
+  const reportBusy = openingReportTaskId !== null;
+  const isBusy = assigning || generating || refreshing || copying || reportBusy;
 
   const qrImageSrc = useMemo(() => {
     if (!url) return '';
@@ -239,42 +229,11 @@ export const VerificationTaskManager: React.FC<VerificationTaskManagerProps> = (
     }
   };
 
-  const handleAdminFieldReview = async (approved: boolean) => {
-    if (!latestTask?.id) return;
-    if (!approved && !adminRejectReason.trim()) {
-      flashMessage(isAr ? 'سبب الرفض مطلوب' : 'Rejection reason is required');
-      return;
-    }
-    setAdminReviewBusy(true);
+  const openFieldReport = async (taskId: string) => {
+    if (!taskId) return;
+    setOpeningReportTaskId(taskId);
     try {
-      await verificationTasksApi.adminFieldReview(latestTask.id, {
-        approved,
-        reason: approved ? undefined : adminRejectReason.trim(),
-      });
-      setAdminRejectReason('');
-      await fetchTasks({ silent: true });
-      flashMessage(
-        approved
-          ? isAr
-            ? 'تم اعتماد المطابقة الميدانية'
-            : 'Field verification approved'
-          : isAr
-            ? 'تم رفض المطابقة وطلب التصحيح'
-            : 'Field verification rejected; correction required',
-      );
-    } catch (err) {
-      console.error(err);
-      flashMessage(isAr ? 'تعذر تنفيذ القرار' : 'Could not apply decision');
-    } finally {
-      setAdminReviewBusy(false);
-    }
-  };
-
-  const openFieldReport = async () => {
-    if (!latestTask?.id) return;
-    setOpeningReport(true);
-    try {
-      const res = await verificationTasksApi.getReportBlob(latestTask.id);
+      const res = await verificationTasksApi.getReportBlob(taskId);
       const blob = res.data as Blob;
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank', 'noopener,noreferrer');
@@ -283,7 +242,7 @@ export const VerificationTaskManager: React.FC<VerificationTaskManagerProps> = (
       console.error(err);
       flashMessage(isAr ? 'تعذر فتح التقرير' : 'Could not open report');
     } finally {
-      setOpeningReport(false);
+      setOpeningReportTaskId(null);
     }
   };
 
@@ -338,9 +297,13 @@ export const VerificationTaskManager: React.FC<VerificationTaskManagerProps> = (
               className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors ${
                 latestTask.status === 'AWAITING_ADMIN_APPROVAL'
                   ? 'bg-amber-500/20 text-amber-300'
-                  : latestTask.status === 'COMPLETED_MATCH' || latestTask.decision === 'MATCHING'
+                  : latestTask.decision === 'MATCHING' ||
+                      latestTask.status === 'COMPLETED_MATCH' ||
+                      latestTask.status === 'ADMIN_APPROVED'
                   ? 'bg-green-500/20 text-green-400'
-                  : latestTask.status === 'COMPLETED_NON_MATCH' || latestTask.decision === 'NON_MATCHING'
+                  : latestTask.decision === 'NON_MATCHING' ||
+                      latestTask.status === 'COMPLETED_NON_MATCH' ||
+                      latestTask.status === 'ADMIN_REJECTED'
                     ? 'bg-red-500/20 text-red-400'
                     : 'bg-blue-500/20 text-blue-400'
               }`}
@@ -357,88 +320,45 @@ export const VerificationTaskManager: React.FC<VerificationTaskManagerProps> = (
         <p className="text-xs text-gold-300 mb-3 relative z-10 animate-in fade-in">{actionMessage}</p>
       )}
 
-      {latestTask?.status === 'AWAITING_ADMIN_APPROVAL' && (
-        <div className="relative z-10 mb-6 p-5 rounded-2xl border border-amber-500/35 bg-gradient-to-br from-amber-500/10 to-transparent space-y-4">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="text-amber-400 shrink-0 mt-0.5" size={20} />
-            <div>
-              <p className="text-sm font-bold text-amber-100">
-                {isAr ? 'بانتظار اعتماد الإدارة على المطابقة الميدانية' : 'Awaiting admin approval (field verification)'}
-              </p>
-              <p className="text-xs text-white/50 mt-1">
-                {isAr
-                  ? 'قرأ موظف المطابقة الفحص الميداني. راجع الصور والملاحظات ثم اعتمد أو ارفض.'
-                  : 'The field officer submitted a matching result. Review evidence, then approve or reject.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="bg-black/30 rounded-xl p-3 border border-white/10">
-              <p className="text-white/40 uppercase font-bold mb-1">{isAr ? 'الموظف' : 'Officer'}</p>
-              <p className="text-white font-medium">
-                {latestTask.officer?.name || latestTask.officer?.email || '—'}
-              </p>
-            </div>
-            <div className="bg-black/30 rounded-xl p-3 border border-white/10">
-              <p className="text-white/40 uppercase font-bold mb-1">{isAr ? 'قرار الفحص' : 'Field decision'}</p>
-              <p className="text-white font-medium">
-                {isAr 
-                  ? (VERIFICATION_TASK_DECISION_LABEL[latestTask.decision || 'MATCHING']?.ar || latestTask.decision) 
-                  : (VERIFICATION_TASK_DECISION_LABEL[latestTask.decision || 'MATCHING']?.en || latestTask.decision)}
-              </p>
-            </div>
-          </div>
-
-          {latestTask.officerNotes ? (
-            <div className="text-sm text-white/80 bg-black/20 rounded-xl p-3 border border-white/10">
-              <p className="text-[10px] uppercase text-white/40 font-bold mb-1">{isAr ? 'ملاحظات الموظف' : 'Officer notes'}</p>
-              <p className="whitespace-pre-wrap">{latestTask.officerNotes}</p>
-            </div>
-          ) : null}
-
-          {latestTask.decisionReason ? (
-            <div className="text-sm text-white/80 bg-black/20 rounded-xl p-3 border border-white/10">
-              <p className="text-[10px] uppercase text-white/40 font-bold mb-1">{isAr ? 'سبب / تفاصيل' : 'Reason / details'}</p>
-              <p className="whitespace-pre-wrap">{latestTask.decisionReason}</p>
-            </div>
-          ) : null}
-
-          {fieldPhotoUrls.length > 0 ? (
-            <div>
-              <p className="text-[10px] uppercase text-white/40 font-bold mb-2 flex items-center gap-1">
-                <ImageIcon size={12} />
-                {isAr ? 'صور التطبيق' : 'Field photos'}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {fieldPhotoUrls.map((src) => (
-                  <a
-                    key={src}
-                    href={src}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block w-24 h-24 rounded-lg overflow-hidden border border-white/10 bg-black/40 shrink-0"
-                  >
-                    <img src={src} alt="" className="w-full h-full object-cover" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void openFieldReport()}
-              disabled={isBusy}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gold-500/10 hover:bg-gold-500/20 border border-gold-500/30 text-sm text-gold-400 font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-            >
-              {openingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText size={18} className="text-gold-500" />}
-              {isAr ? 'عرض تقرير HTML' : 'Open HTML report'}
-            </button>
-          </div>
-
+      {previousReportTasks.length > 0 && (
+        <div className="relative z-10 space-y-4 mb-4">
+          <p className="text-xs font-bold text-white/50 uppercase tracking-wider">
+            {isAr ? 'دورات مطابقة سابقة لهذا الطلب' : 'Previous verification cycles for this order'}
+          </p>
+          {previousReportTasks.map((t) => (
+            <FieldVerificationReportPanel
+              key={t.id}
+              task={t}
+              isAr={isAr}
+              variant="previous"
+              openingReportTaskId={openingReportTaskId}
+              reportBusy={reportBusy}
+              onOpenReport={(id) => void openFieldReport(id)}
+            />
+          ))}
         </div>
+      )}
+
+      {latestTask && latestReportVariant === 'pending' && (
+        <FieldVerificationReportPanel
+          task={latestTask}
+          isAr={isAr}
+          variant="pending"
+          openingReportTaskId={openingReportTaskId}
+          reportBusy={reportBusy}
+          onOpenReport={(id) => void openFieldReport(id)}
+        />
+      )}
+
+      {latestTask && latestReportVariant === 'current' && (
+        <FieldVerificationReportPanel
+          task={latestTask}
+          isAr={isAr}
+          variant="current"
+          openingReportTaskId={openingReportTaskId}
+          reportBusy={reportBusy}
+          onOpenReport={(id) => void openFieldReport(id)}
+        />
       )}
 
       <div className={`relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity ${refreshing ? 'opacity-70' : ''}`}>

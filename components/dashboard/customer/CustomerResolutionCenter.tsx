@@ -34,6 +34,7 @@ import { useOrderStore, Order } from '../../../stores/useOrderStore';
 import { OrderSelectionModal } from './OrderSelectionModal';
 import { ReturnRequestModal } from '../resolution/ReturnRequestModal';
 import { DisputeModal } from '../resolution/DisputeModal';
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../../utils/orderSla';
 
 interface CustomerResolutionCenterProps {
   onNavigate?: (path: string, id?: any) => void;
@@ -108,10 +109,10 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
   };
 
   const eligibleOrders = orders.filter(order => {
-    if (order.status !== 'DELIVERED') return false;
+    if (order.status !== 'DELIVERED' && order.status !== 'DELIVERED_TO_CUSTOMER') return false;
     const deliveredDate = order.deliveredAt ? new Date(order.deliveredAt) : new Date(order.updatedAt);
     const diffHours = (new Date().getTime() - deliveredDate.getTime()) / (1000 * 60 * 60);
-    return diffHours <= 72;
+    return diffHours <= POST_DELIVERY_RETURN_DISPUTE_HOURS;
   });
 
   const stats = [
@@ -302,7 +303,7 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
                         <div className="flex items-center gap-2.5 mb-8">
                            <Clock size={12} className="text-gold-500/50" />
                            <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">
-                             {isAr ? 'حماية 72 ساعة نشطة' : '72h Protection Active'}
+                             {isAr ? `حماية ${POST_DELIVERY_RETURN_DISPUTE_HOURS} ساعة نشطة` : `${POST_DELIVERY_RETURN_DISPUTE_HOURS}h window active`}
                            </span>
                         </div>
 

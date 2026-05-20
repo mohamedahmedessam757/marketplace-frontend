@@ -191,14 +191,14 @@ export const ReturnsExchangePage: React.FC<ReturnsExchangePageProps> = ({ onNavi
                 isOpen={returnModalOpen}
                 onClose={() => setReturnModalOpen(false)}
                 onSuccess={() => {
-                    fetchReturnsAndDisputes();
+                    void fetchReturnsAndDisputes({ silent: true });
                 }}
             />
             <DisputeModal
                 isOpen={disputeModalOpen}
                 onClose={() => setDisputeModalOpen(false)}
                 onSuccess={() => {
-                    fetchReturnsAndDisputes();
+                    void fetchReturnsAndDisputes({ silent: true });
                 }}
             />
         </div>

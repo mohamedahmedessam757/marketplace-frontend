@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { waybillsApi } from './../../../services/api/waybills';
 import { useLanguage } from './../../../contexts/LanguageContext';
-import { FileText, Printer, ChevronDown, ChevronUp, Truck, CheckCircle2, ShieldAlert, Download } from 'lucide-react';
+import { Printer, ChevronDown, ChevronUp, Truck, ShieldAlert, Download } from 'lucide-react';
 import { excelApi } from './../../../services/api/excel';
 import { GlassCard } from './../../ui/GlassCard';
 import { supabase } from '../../../services/supabase';
@@ -21,7 +21,6 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
     const [waybills, setWaybills] = useState<any[]>(initialData && initialData.length > 0 ? initialData : []);
     const [isLoading, setIsLoading] = useState(true);
 
-    const [isIssuing, setIsIssuing] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [activeWaybill, setActiveWaybill] = useState<any | null>(null);
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -79,22 +78,6 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
         };
     }, [orderId]);
 
-    const handleIssueWaybill = async () => {
-        if (!window.confirm(isAr ? 'تأكيد إصدار بوليصات الشحن لهذا الطلب؟' : 'Confirm issuing waybills for this order?')) {
-            return;
-        }
-        setIsIssuing(true);
-        setError(null);
-        try {
-            await waybillsApi.issue(orderId);
-            await fetchWaybills();
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to issue waybills');
-        } finally {
-            setIsIssuing(false);
-        }
-    };
-
     const handlePrint = (wb: any) => {
         setActiveWaybill(wb);
         setIsPrinting(true);
@@ -121,11 +104,6 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
     if (isLoading) {
         return <div className="text-white/50 text-center py-8">{isAr ? 'جاري التحميل...' : 'Loading...'}</div>;
     }
-
-    const canIssue = (role === 'ADMIN' || role === 'SUPER_ADMIN') && (
-        (['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING'].includes(orderStatus) && waybills.length === 0) ||
-        (orderStatus === 'RETURN_APPROVED')
-    );
 
     // Shared Visual Content for Screen/Print
     const WaybillVisualContent: React.FC<{ wb: any, isPrint?: boolean }> = ({ wb, isPrint = false }) => {
@@ -372,17 +350,15 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                                     : 'Order waybills have not been issued yet. Waybills are issued only after successful verification.'}
                             </p>
                             
-                            {canIssue && (
-                                <button 
-                                    onClick={handleIssueWaybill}
-                                    disabled={isIssuing}
-                                    className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-bold rounded-xl hover:from-amber-400 hover:to-yellow-300 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] disabled:opacity-50 flex items-center gap-2 mx-auto"
-                                >
-                                    {isIssuing ? (
-                                        <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                                    ) : <CheckCircle2 size={18} />}
-                                    {isAr ? 'إصدار بوليصات الشحن (تلقائي)' : 'Issue Shipping Waybills (Auto)'}
-                                </button>
+                            {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING'].includes(orderStatus) && (
+                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm font-bold">
+                                    <Truck size={16} />
+                                    <span>
+                                        {isAr
+                                            ? 'سيصدر النظام البوليصة تلقائياً بعد اعتماد التوثيق.'
+                                            : 'The system will issue the waybill automatically after verification approval.'}
+                                    </span>
+                                </div>
                             )}
                         </div>
                     ) : (

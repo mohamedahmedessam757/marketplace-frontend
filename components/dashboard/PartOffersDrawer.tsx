@@ -13,7 +13,7 @@ interface PartOffersDrawerProps {
     partImage?: string;
     partIndex: number;
     offers: OrderOffer[];
-    selectedOffer: number | null;
+    selectedOffer: string | number | null;
     onAcceptOffer: (offer: any) => void;
     onChat: (offer: any) => void;
     onRejectOffer: (offer: any) => void;
@@ -36,7 +36,7 @@ export const PartOffersDrawer: React.FC<PartOffersDrawerProps> = ({
 }) => {
     const { language } = useLanguage();
     const isAr = language === 'ar';
-    const [acceptLoadingOfferId, setAcceptLoadingOfferId] = React.useState<number | null>(null);
+    const [acceptLoadingOfferId, setAcceptLoadingOfferId] = React.useState<string | null>(null);
     const isRejectedOfferStatus = (status?: string) => String(status || '').toUpperCase() === 'REJECTED';
 
     // Strictly limit to 10 and exclude rejected offers
@@ -44,15 +44,13 @@ export const PartOffersDrawer: React.FC<PartOffersDrawerProps> = ({
 
     // Memoize handlers to prevent OfferCard re-renders
     const handleAccept = useCallback(async (offer: any) => {
-        setAcceptLoadingOfferId(offer.id);
+        setAcceptLoadingOfferId(String(offer.id));
         try {
             await onAcceptOffer(offer);
-            // Close after standard timeout or handled by parent
         } finally {
             setAcceptLoadingOfferId(null);
-            onClose();
         }
-    }, [onAcceptOffer, onClose]);
+    }, [onAcceptOffer]);
 
     const handleChat = useCallback((offer: any) => {
         onChat(offer);
@@ -148,8 +146,8 @@ export const PartOffersDrawer: React.FC<PartOffersDrawerProps> = ({
                                         </p>
                                     </div>
                                 ) : (
-                                    <AnimatePresence mode="popLayout">
-                                        <div className="space-y-4" style={{ contentVisibility: 'auto' } as any}>
+                                    <AnimatePresence mode="sync">
+                                        <div className="space-y-4">
                                             {displayedOffers.map(offer => (
                                                 <OfferCard
                                                     key={offer.id}
@@ -158,12 +156,22 @@ export const PartOffersDrawer: React.FC<PartOffersDrawerProps> = ({
                                                     rating={offer.storeRating || 0}
                                                     reviewCount={offer.storeReviewCount || 0}
                                                     unitPrice={offer.unitPrice || offer.price}
-                                                    isSelected={selectedOffer === offer.id}
+                                                    isSelected={
+                                                        selectedOffer != null &&
+                                                        String(selectedOffer) === String(offer.id)
+                                                    }
                                                     onAccept={() => handleAccept(offer)}
                                                     onChat={() => handleChat(offer)}
                                                     onReject={() => onRejectOffer(offer)}
-                                                    disabled={disabled || (acceptLoadingOfferId !== null && acceptLoadingOfferId !== offer.id)}
-                                                    acceptLoading={acceptLoadingOfferId === offer.id}
+                                                    disabled={
+                                                        disabled ||
+                                                        (acceptLoadingOfferId !== null &&
+                                                            acceptLoadingOfferId !== String(offer.id))
+                                                    }
+                                                    acceptLoading={
+                                                        acceptLoadingOfferId !== null &&
+                                                        acceptLoadingOfferId === String(offer.id)
+                                                    }
                                                 />
                                             ))}
                                         </div>

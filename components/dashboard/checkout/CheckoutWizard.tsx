@@ -9,9 +9,14 @@ import { AddressStep } from './steps/AddressStep';
 import { OrderSummaryStep } from './steps/OrderSummaryStep';
 import { PaymentStep } from './steps/PaymentStep';
 import { useOrderStore } from '../../../stores/useOrderStore';
-import { useProfileStore } from '../../../stores/useProfileStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { OffersReviewStep } from './steps/OffersReviewStep';
+import { useOrderRealtimeSync } from '../../../hooks/useOrderRealtimeSync';
+import { isAcceptedOfferStatus, isActiveOfferStatus } from '../../../utils/offerStatusHelpers';
+import {
+    areAllAcceptedOffersPaid,
+    getAcceptedOffersFromList,
+} from '../../../utils/checkoutPaymentHelpers';
 
 interface CheckoutWizardProps {
     onComplete: () => void;
@@ -32,7 +37,8 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
         setIsEditingShipping,
         saveOrderData,
         orderId,
-        paidOfferIds
+        paidOfferIds,
+        syncPaidOffersForOrder,
     } = useCheckoutStore();
     const { updateOrderStatus, orders } = useOrderStore();
     const { addNotification } = useNotificationStore();
@@ -40,17 +46,34 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
     const { t, language } = useLanguage();
     const [showValidationErrors, setShowValidationErrors] = useState(false);
     const [showPaymentError, setShowPaymentError] = useState(false);
+    const [isVerifyingPayments, setIsVerifyingPayments] = useState(false);
 
     const NextIcon = language === 'ar' ? ChevronLeft : ChevronRight;
     const PrevIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
     const order = React.useMemo(() => orders.find(o => String(o.id) === String(orderId)), [orders, orderId]);
 
-    // Check if all accepted offers are paid (reactive)
-    const allOffersPaid = React.useMemo(() => {
-        const accepted = order?.offers?.filter((o: any) => o.status === 'accepted') || [];
-        return accepted.every((o: any) => paidOfferIds.includes(o.id));
-    }, [order, paidOfferIds]);
+    useOrderRealtimeSync(orderId ?? undefined);
+
+    useEffect(() => {
+        if (!orderId) return;
+        void useOrderStore.getState().fetchOrder(orderId);
+    }, [orderId]);
+
+    const acceptedOffers = React.useMemo(
+        () => getAcceptedOffersFromList(order?.offers),
+        [order?.offers],
+    );
+
+    const allOffersPaid = React.useMemo(
+        () => areAllAcceptedOffersPaid(acceptedOffers, paidOfferIds),
+        [acceptedOffers, paidOfferIds],
+    );
+
+    useEffect(() => {
+        if (step !== 3 || !orderId || acceptedOffers.length === 0) return;
+        void syncPaidOffersForOrder(acceptedOffers.map((o) => String(o.id)));
+    }, [step, orderId, acceptedOffers, syncPaidOffersForOrder]);
 
     // Determines if any part still needs an offer selection (for validation blocking)
     const hasPendingToReview = React.useMemo(() => {
@@ -58,9 +81,13 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
 
         let pending = false;
         for (const part of order.parts) {
-            const partOffers = order.offers?.filter(o => o.orderPartId === part.id && o.status !== 'rejected') || [];
-            const hasAccepted = partOffers.some(o => o.status === 'accepted');
-            // If part has active offers but none are accepted yet
+            const partOffers =
+                order.offers?.filter(
+                    (o) =>
+                        String(o.orderPartId) === String(part.id) &&
+                        isActiveOfferStatus(o.status),
+                ) || [];
+            const hasAccepted = partOffers.some((o) => isAcceptedOfferStatus(o.status));
             if (partOffers.length > 0 && !hasAccepted) {
                 pending = true;
                 break;
@@ -136,30 +163,49 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
                 });
             }
         } else if (step === 3) {
-            // Check if all accepted offers are paid
-            const { paidOfferIds } = useCheckoutStore.getState();
-            const acceptedOffers = order?.offers?.filter((o: any) => o.status === 'accepted') || [];
-            const allPaid = acceptedOffers.every((o: any) => paidOfferIds.includes(o.id));
-
-            if (!allPaid) {
-                setShowPaymentError(true);
-                setTimeout(() => setShowPaymentError(false), 2000);
-
-                const remaining = acceptedOffers.length - paidOfferIds.filter(id => acceptedOffers.some((o: any) => o.id === id)).length;
+            if (acceptedOffers.length === 0) {
                 addNotification({
                     recipientRole: 'CUSTOMER',
                     type: 'system',
                     titleKey: 'error',
                     message: language === 'ar'
-                        ? `لا يزال هناك ${remaining} عرض/عروض لم يتم الدفع لها. يرجى دفع جميع العروض أولاً.`
-                        : `There are still ${remaining} unpaid offer(s). Please pay for all offers first.`,
-                    priority: 'high'
+                        ? 'لا توجد عروض مقبولة للدفع.'
+                        : 'No accepted offers to pay for.',
+                    priority: 'high',
                 });
                 return;
             }
 
-            // All paid — navigate to order details page
-            onNavigate('order-details', orderId);
+            setIsVerifyingPayments(true);
+            try {
+                await syncPaidOffersForOrder(acceptedOffers.map((o) => String(o.id)));
+                const latestPaid = useCheckoutStore.getState().paidOfferIds;
+                const allPaid = areAllAcceptedOffersPaid(acceptedOffers, latestPaid);
+
+                if (!allPaid) {
+                    setShowPaymentError(true);
+                    setTimeout(() => setShowPaymentError(false), 2000);
+
+                    const paidSet = new Set(latestPaid.map(String));
+                    const remaining = acceptedOffers.filter(
+                        (o) => !paidSet.has(String(o.id)),
+                    ).length;
+                    addNotification({
+                        recipientRole: 'CUSTOMER',
+                        type: 'system',
+                        titleKey: 'error',
+                        message: language === 'ar'
+                            ? `لا يزال هناك ${remaining} قطعة/عروض لم يتم الدفع لها بنجاح. يرجى إكمال الدفع لجميع القطع أولاً.`
+                            : `There are still ${remaining} unpaid part(s). Please complete payment for all parts first.`,
+                        priority: 'high',
+                    });
+                    return;
+                }
+
+                onNavigate('order-details', orderId);
+            } finally {
+                setIsVerifyingPayments(false);
+            }
         } else {
             setStep(step + 1);
         }
@@ -202,8 +248,12 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
                     })}
                 </div>
 
-                <GlassCard className="min-h-[400px] flex flex-col justify-between p-8 border-gold-500/20">
-                    <div className="flex-1">
+                <GlassCard
+                    className={`flex flex-col p-8 border-gold-500/20 ${
+                        step === 1 ? 'min-h-0' : 'min-h-[400px] justify-between'
+                    }`}
+                >
+                    <div className={step === 1 ? '' : 'flex-1'}>
                         {step === 0 && <OffersReviewStep
                             showValidationErrors={showValidationErrors}
                             onBackToOffers={(partId) => {
@@ -251,18 +301,23 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
                                 <span>{isFirstStep ? (language === 'ar' ? 'رجوع للطلب' : 'Back to Order') : t.dashboard.checkout.common.back}</span>
                             </button>
                             <motion.button
+                                type="button"
                                 onClick={handleNext}
-                                disabled={isProcessing}
+                                disabled={
+                                    isProcessing ||
+                                    isVerifyingPayments ||
+                                    (step === 3 && !allOffersPaid)
+                                }
                                 animate={showPaymentError ? { x: [-10, 10, -10, 10, 0], scale: [1, 1.02, 1] } : {}}
                                 transition={{ duration: 0.4 }}
                                 className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all relative ${showPaymentError
                                     ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]'
                                     : step === 3 && !allOffersPaid
-                                        ? 'bg-white/10 text-white/40 cursor-not-allowed'
+                                        ? 'bg-white/10 text-white/40 cursor-not-allowed opacity-60'
                                         : 'bg-gold-500 hover:bg-gold-600 text-white shadow-lg shadow-gold-500/20'
                                     }`}
                             >
-                                {isProcessing ? (
+                                {isProcessing || isVerifyingPayments ? (
                                     <Loader2 size={18} className="animate-spin" />
                                 ) : (
                                     <>

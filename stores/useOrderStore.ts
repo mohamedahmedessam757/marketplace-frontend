@@ -5,6 +5,7 @@ import { useNotificationStore } from './useNotificationStore';
 import { useBillingStore } from './useBillingStore';
 import { ordersApi } from '../services/api/orders';
 import { supabase } from '../services/supabase';
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../utils/orderSla';
 
 // Module-level debounce timer to prevent realtime spam and race conditions with DB transactions
 let realtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -70,7 +71,7 @@ export const SLA_LIMITS: Partial<Record<StatusType, number>> = {
     PREPARATION: 48,      // 48 hours to prepare
     DELAYED_PREPARATION: 24, // 24 extra hours to prepare (Penalty period)
     SHIPPED: 72,          // 3 days to deliver
-    DELIVERED: 72,
+    DELIVERED: POST_DELIVERY_RETURN_DISPUTE_HOURS,
     WARRANTY_ACTIVE: 0,   // Dynamic based on warranty_end_at
     DISPUTED: 72
 };
@@ -108,6 +109,10 @@ export interface OrderOffer {
     shippedFromCart?: boolean;
     shippedFromCartAt?: string;
     cartShipmentId?: string;
+    fulfillmentStatus?: string;
+    preparedAt?: string;
+    verificationSubmittedAt?: string;
+    readyForShippingAt?: string;
 }
 
 export interface Order {
@@ -231,11 +236,13 @@ const parseJsonArray = (value: unknown): string[] => {
 };
 
 const normalizeVerificationDocuments = (docs: any[] | undefined) =>
-    (docs || []).map((doc) => ({
-        ...doc,
-        images: parseJsonArray(doc.images),
-        adminRejectionImages: parseJsonArray(doc.adminRejectionImages),
-    }));
+    docs
+        ? docs.map((doc) => ({
+              ...doc,
+              images: parseJsonArray(doc.images),
+              adminRejectionImages: parseJsonArray(doc.adminRejectionImages),
+          }))
+        : undefined;
 
 /** List endpoint returns only id/adminStatus/createdAt — do not overwrite a full detail fetch. */
 const isListOnlyVerificationPayload = (docs: any[] | undefined): boolean => {
@@ -249,16 +256,126 @@ const isListOnlyVerificationPayload = (docs: any[] | undefined): boolean => {
     );
 };
 
-const mergeOrderPreservingDetails = (existing: Order, incoming: Order): Order => {
-    const preserveVerification =
-        isListOnlyVerificationPayload(incoming.verificationDocuments) &&
-        !isListOnlyVerificationPayload(existing.verificationDocuments);
+const hasFullVerificationPayload = (docs: any[] | undefined): boolean => {
+    if (!docs?.length) return false;
+    const doc = docs[0];
+    return !!(
+        doc.images !== undefined &&
+        doc.recipientName !== undefined
+    );
+};
 
-    const mergedOffers = incoming.offers?.map((inc) => {
-        const prev = existing.offers?.find((o) => String(o.id) === String(inc.id));
-        if (prev?.offerImage && !inc.offerImage) return { ...inc, offerImage: prev.offerImage };
-        return inc;
-    }) ?? incoming.offers;
+/** Map Supabase verification_documents row for instant admin panel updates. */
+export const mapVerificationDocFromRow = (row: Record<string, unknown>): Record<string, unknown> => ({
+    id: row.id,
+    orderId: row.order_id ?? row.orderId,
+    storeId: row.store_id ?? row.storeId,
+    images: parseJsonArray(row.images),
+    videoUrl: row.video_url ?? row.videoUrl,
+    description: row.description,
+    recipientName: row.recipient_name ?? row.recipientName,
+    recipientSignature: row.recipient_signature ?? row.recipientSignature,
+    signatureType: row.signature_type ?? row.signatureType,
+    signatureText: row.signature_text ?? row.signatureText,
+    handoverDate: row.handover_date ?? row.handoverDate,
+    handoverTime: row.handover_time ?? row.handoverTime,
+    adminStatus: row.admin_status ?? row.adminStatus,
+    adminReviewedAt: row.admin_reviewed_at ?? row.adminReviewedAt,
+    adminRejectionReason: row.admin_rejection_reason ?? row.adminRejectionReason,
+    adminRejectionImages: parseJsonArray(row.admin_rejection_images ?? row.adminRejectionImages),
+    adminRejectionVideo: row.admin_rejection_video ?? row.adminRejectionVideo,
+    adminSignatureName: row.admin_signature_name ?? row.adminSignatureName,
+    adminSignatureImage: row.admin_signature_image ?? row.adminSignatureImage,
+    adminSignatureType: row.admin_signature_type ?? row.adminSignatureType,
+    adminSignatureText: row.admin_signature_text ?? row.adminSignatureText,
+    isCorrection: row.is_correction ?? row.isCorrection,
+    createdAt: row.created_at ?? row.createdAt,
+    updatedAt: row.updated_at ?? row.updatedAt,
+});
+
+const mergeVerificationDocuments = (
+    existing: any[] | undefined,
+    incoming: any[] | undefined,
+): any[] | undefined => {
+    const hasFullIncoming = hasFullVerificationPayload(incoming);
+    const hasFullExisting = hasFullVerificationPayload(existing);
+    
+    if (hasFullIncoming) {
+        return normalizeVerificationDocuments(incoming);
+    }
+    
+    if (hasFullExisting) {
+        return existing;
+    }
+    
+    if (!incoming) {
+        return existing;
+    }
+    
+    if (!existing) {
+        return incoming?.length ? normalizeVerificationDocuments(incoming) : undefined;
+    }
+    
+    return existing;
+};
+
+/** Map Supabase row (snake_case) to partial Order fields for instant UI updates. */
+export const mapRealtimeOrderRow = (row: Record<string, unknown>): Partial<Order> => {
+    const partial: Partial<Order> = {};
+    if (row.status != null) partial.status = row.status as StatusType;
+    if (row.updated_at != null || row.updatedAt != null) {
+        partial.updatedAt = String(row.updated_at ?? row.updatedAt);
+    }
+    if (row.verification_submitted_at != null || row.verificationSubmittedAt != null) {
+        partial.verificationSubmittedAt = String(
+            row.verification_submitted_at ?? row.verificationSubmittedAt,
+        );
+    }
+    if (row.correction_deadline_at != null || row.correctionDeadlineAt != null) {
+        partial.correctionDeadlineAt = String(
+            row.correction_deadline_at ?? row.correctionDeadlineAt,
+        );
+    }
+    if (row.reveal_offers_at != null || row.revealOffersAt != null) {
+        partial.revealOffersAt = String(row.reveal_offers_at ?? row.revealOffersAt);
+    }
+    if (row.offers_stop_at != null || row.offersStopAt != null) {
+        partial.offersStopAt = String(row.offers_stop_at ?? row.offersStopAt);
+    }
+    if (row.selection_deadline_at != null || row.selectionDeadlineAt != null) {
+        partial.selectionDeadlineAt = String(
+            row.selection_deadline_at ?? row.selectionDeadlineAt,
+        );
+    }
+    if (row.delivered_at != null || row.deliveredAt != null) {
+        partial.deliveredAt = String(row.delivered_at ?? row.deliveredAt);
+    }
+    if (row.admin_notes != null || row.adminNotes != null) {
+        partial.adminNotes = String(row.admin_notes ?? row.adminNotes);
+    }
+    return partial;
+};
+
+const mergeOrderPreservingDetails = (existing: Order, incoming: Order): Order => {
+    const existingOfferCount = existing.offers?.length ?? 0;
+    const incomingOfferCount = incoming.offers?.length ?? 0;
+    const useExistingOffers =
+        existingOfferCount > 0 && incomingOfferCount < existingOfferCount;
+
+    const mergedOffers = useExistingOffers
+        ? existing.offers
+        : (incoming.offers?.map((inc) => {
+              const prev = existing.offers?.find((o) => String(o.id) === String(inc.id));
+              if (!prev) return inc;
+              return {
+                  ...inc,
+                  status: inc.status ?? prev.status,
+                  offerImage: inc.offerImage || prev.offerImage,
+                  storeRating: inc.storeRating || prev.storeRating,
+                  storeReviewCount: inc.storeReviewCount || prev.storeReviewCount,
+                  storeLogo: inc.storeLogo || prev.storeLogo,
+              };
+          }) ?? incoming.offers);
 
     const mergedParts = incoming.parts?.map((inc) => {
         const prev = existing.parts?.find((p) => String(p.id) === String(inc.id));
@@ -270,11 +387,24 @@ const mergeOrderPreservingDetails = (existing: Order, incoming: Order): Order =>
 
     return {
         ...incoming,
-        verificationDocuments: preserveVerification
-            ? existing.verificationDocuments
-            : normalizeVerificationDocuments(incoming.verificationDocuments),
+        adminNotes: incoming.adminNotes ?? existing.adminNotes,
+        partImages: parseJsonArray(incoming.partImages).length
+            ? incoming.partImages
+            : existing.partImages,
+        verificationDocuments: mergeVerificationDocuments(
+            existing.verificationDocuments,
+            incoming.verificationDocuments,
+        ),
         offers: mergedOffers,
         parts: mergedParts,
+        invoices:
+            incoming.invoices?.length ? incoming.invoices : existing.invoices,
+        shippingWaybills:
+            incoming.shippingWaybills?.length
+                ? incoming.shippingWaybills
+                : existing.shippingWaybills,
+        shipments:
+            incoming.shipments?.length ? incoming.shipments : existing.shipments,
     };
 };
 
@@ -286,6 +416,7 @@ const mergeMappedOrdersWithExisting = (existingOrders: Order[], mapped: Order[])
 
 interface OrderState {
     orders: Order[];
+    activeOrderId: string | null;
     isLoading: boolean;
     isFetchingMore: boolean;
     error: string | null;
@@ -296,8 +427,15 @@ interface OrderState {
     total: number;
     hasMore: boolean;
 
+    setActiveOrderId: (id: string | null) => void;
+    patchOrderFromRealtime: (orderId: string, partial: Partial<Order>) => void;
+    patchVerificationFromRealtime: (orderId: string, docRow: Record<string, unknown>) => void;
     fetchOrders: (params?: { search?: string; status?: string; page?: number; retry?: number }) => Promise<void>;
     fetchOrder: (id: string) => Promise<void>;
+    patchOrderReview: (
+        orderId: string,
+        review: NonNullable<Order['review']>,
+    ) => void;
     fetchMoreOrders: (params?: { search?: string; status?: string }) => Promise<void>;
     silentFetch: () => Promise<void>;
     mapBackendOrders: (items: any[]) => Order[];
@@ -329,8 +467,22 @@ interface OrderState {
     getOrderById: (id: string) => Order | undefined;
 }
 
+const handleGlobalRealtimeEvent = (source: string) => {
+    console.log(`⚡ Realtime Update: ${source} changed. Debouncing fetch...`);
+    if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer);
+    realtimeDebounceTimer = setTimeout(() => {
+        const { activeOrderId, fetchOrder, silentFetch } = useOrderStore.getState();
+        if (activeOrderId) {
+            fetchOrder(activeOrderId);
+        } else {
+            silentFetch();
+        }
+    }, REALTIME_DEBOUNCE_MS);
+};
+
 export const useOrderStore = create<OrderState>((set, get) => ({
     orders: [],
+    activeOrderId: null,
     isLoading: false,
     isFetchingMore: false,
     error: null,
@@ -341,9 +493,51 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     total: 0,
     hasMore: false,
 
+    setActiveOrderId: (id: string | null) => {
+        set({ activeOrderId: id });
+    },
+
+    patchOrderFromRealtime: (orderId: string, partial: Partial<Order>) => {
+        set((state) => ({
+            orders: state.orders.map((o) => {
+                if (String(o.id) !== String(orderId)) return o;
+                const updated = { ...o, ...partial };
+                if (partial.verificationDocuments === undefined) {
+                    updated.verificationDocuments = o.verificationDocuments;
+                }
+                return updated;
+            }),
+        }));
+    },
+
+    patchVerificationFromRealtime: (orderId: string, docRow: Record<string, unknown>) => {
+        const doc = mapVerificationDocFromRow(docRow);
+        set((state) => ({
+            orders: state.orders.map((o) => {
+                if (String(o.id) !== String(orderId)) return o;
+                const existing = o.verificationDocuments || [];
+                const docId = doc.id != null ? String(doc.id) : '';
+                const idx = docId
+                    ? existing.findIndex((d) => String(d.id) === docId)
+                    : -1;
+                const next =
+                    idx >= 0
+                        ? existing.map((d, i) =>
+                              i === idx ? { ...d, ...doc } : d,
+                          )
+                        : [doc, ...existing];
+                return {
+                    ...o,
+                    verificationDocuments: normalizeVerificationDocuments(next),
+                };
+            }),
+        }));
+    },
+
     clearOrders: () => {
         set({ 
             orders: [], 
+            activeOrderId: null,
             error: null, 
             lastFetchRole: null, 
             page: 1, 
@@ -375,20 +569,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         // For admin and merchants, we listen globally or via backend API constraints, 
         // relying on the API fetch to securely filter the records after the ping.
 
-        // 1. Setup Realtime Subscription first
-        const handleRealtimeEvent = (source: string) => {
-            console.log(`⚡ Realtime Update: ${source} changed. Debouncing fetch...`);
-            if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer);
-            realtimeDebounceTimer = setTimeout(() => {
-                get().silentFetch();
-            }, REALTIME_DEBOUNCE_MS);
-        };
-
         const channel = supabase.channel(`orders-realtime-${userId || 'global'}`)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'orders', filter: filterString },
-                () => handleRealtimeEvent('orders table')
+                () => handleGlobalRealtimeEvent('orders table')
             )
             .subscribe();
 
@@ -398,7 +583,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         // Also listen to offers table for real-time offer status changes
         const offersChannel = supabase.channel(`offers-realtime-${userId || 'global'}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'offers' }, () => {
-                handleRealtimeEvent('offers table');
+                handleGlobalRealtimeEvent('offers table');
             })
             .subscribe();
 
@@ -418,20 +603,27 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         try {
             const result = await ordersApi.getById(id);
             const mappedOrder = get().mapBackendOrders([result])[0];
-            
+
             set((state) => {
                 const existingIndex = state.orders.findIndex(o => String(o.id) === String(id));
                 if (existingIndex > -1) {
                     const newOrders = [...state.orders];
-                    newOrders[existingIndex] = mappedOrder;
+                    newOrders[existingIndex] = mergeOrderPreservingDetails(state.orders[existingIndex], mappedOrder);
                     return { orders: newOrders };
-                } else {
-                    return { orders: [mappedOrder, ...state.orders] };
                 }
+                return { orders: [mappedOrder, ...state.orders] };
             });
         } catch (err) {
             console.error(`Failed to fetch order ${id}`, err);
         }
+    },
+
+    patchOrderReview: (orderId, review) => {
+        set((state) => ({
+            orders: state.orders.map((o) =>
+                String(o.id) === String(orderId) ? { ...o, review } : o,
+            ),
+        }));
     },
 
     fetchOrders: async (params = {}) => {
@@ -500,9 +692,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     },
 
     silentFetch: async () => {
-        const { isLoading, isFetchingMore, page, limit } = get();
-        // Allow silent fetch even if other fetches are in progress, but guard against overlap
-        if (isLoading || isFetchingMore) return;
+        const { isLoading, isFetchingMore, page, limit, activeOrderId } = get();
+        if (isFetchingMore) return;
+        // Detail pages refresh via fetchOrder(activeOrderId) from global realtime
+        if (activeOrderId) return;
+        if (isLoading) return;
 
         try {
             // Strategic Refresh: Fetch the current view + first page of active items
@@ -529,12 +723,12 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 car: `${o.vehicleMake} ${o.vehicleModel} ${o.vehicleYear}`,
                 part: o.partName,
                 partDescription: o.partDescription,
-                partImages: o.partImages || [],
+                partImages: parseJsonArray(o.partImages),
                 parts: o.parts ? o.parts.map((p: any) => ({
                     id: p.id,
                     name: p.name,
                     description: p.description,
-                    images: p.images || [],
+                    images: parseJsonArray(p.images),
                     video: p.video || null,
                     notes: p.notes
                 })) : [],
@@ -555,6 +749,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     vinImage: o.vinImage
                 },
                 status: o.status,
+                adminNotes: o.adminNotes ?? o.admin_notes ?? undefined,
                 date: new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
                 offersCount: o.offers ? o.offers.length : 0,
                 offers: o.offers ? o.offers.map((offer: any) => ({
@@ -592,10 +787,15 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     isWithdrawn: !!offer.isWithdrawn,
                     shippedFromCart: !!offer.shippedFromCart,
                     shippedFromCartAt: offer.shippedFromCartAt,
-                    cartShipmentId: offer.cartShipmentId
+                    cartShipmentId: offer.cartShipmentId,
+                    fulfillmentStatus: offer.fulfillmentStatus || offer.fulfillment_status,
+                    preparedAt: offer.preparedAt || offer.prepared_at,
+                    verificationSubmittedAt: offer.verificationSubmittedAt || offer.verification_submitted_at,
+                    readyForShippingAt: offer.readyForShippingAt || offer.ready_for_shipping_at,
                 })) : [],
                 createdAt: o.createdAt,
                 updatedAt: o.updatedAt,
+                deliveredAt: o.deliveredAt || o.delivered_at,
                 revealOffersAt: o.revealOffersAt,
                 offersStopAt: o.offersStopAt,
                 selectionDeadlineAt: o.selectionDeadlineAt,
@@ -627,6 +827,15 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 invoices: o.invoices || [],
                 warranty_active_at: o.warranty_active_at || o.warrantyActiveAt,
                 warranty_end_at: o.warranty_end_at || o.warrantyEndAt,
+                review: o.review
+                    ? {
+                        id: o.review.id,
+                        rating: o.review.rating,
+                        comment: o.review.comment,
+                        adminStatus: o.review.adminStatus,
+                        createdAt: o.review.createdAt,
+                    }
+                    : undefined,
             }));
     },
 
@@ -700,27 +909,35 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     },
 
     acceptOffer: async (orderId: string, partId: string, offerId: string) => {
-        // Optimistic update
+        const normPartId = String(partId);
+        const normOfferId = String(offerId);
+
         set((state) => ({
             orders: state.orders.map(o => {
-                if (o.id !== orderId) return o;
+                if (String(o.id) !== String(orderId)) return o;
                 return {
                     ...o,
                     offers: o.offers?.map(offer => {
-                        if (offer.id === offerId) return { ...offer, status: 'accepted' };
-                        if (offer.orderPartId === partId && offer.id !== offerId && offer.status !== 'rejected') return { ...offer, status: 'rejected' };
+                        if (String(offer.id) === normOfferId) return { ...offer, status: 'ACCEPTED' };
+                        if (
+                            String(offer.orderPartId) === normPartId &&
+                            String(offer.id) !== normOfferId &&
+                            String(offer.status).toUpperCase() !== 'REJECTED'
+                        ) {
+                            return { ...offer, status: 'REJECTED' };
+                        }
                         return offer;
-                    })
+                    }),
                 };
-            })
+            }),
         }));
 
         try {
             await ordersApi.acceptOfferForPart(orderId, partId, offerId);
-            setTimeout(() => { get().silentFetch(); }, 2000);
+            await get().fetchOrder(orderId);
         } catch (error) {
-            console.error("Failed to accept offer", error);
-            await get().silentFetch();
+            console.error('Failed to accept offer', error);
+            await get().fetchOrder(orderId);
             throw error;
         }
     },
@@ -737,6 +954,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
         try {
             await ordersApi.transition(id, targetStatus, JSON.stringify(metadata));
+            const { activeOrderId, fetchOrder } = get();
+            if (String(activeOrderId) === String(id)) {
+                await fetchOrder(id);
+            }
             return { success: true };
         } catch (err: any) {
             console.error('Transition failed, rolling back...', err);
@@ -782,7 +1003,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             const err = await response.json();
             throw new Error(err.message || 'Failed to update offer by admin');
         }
-        await get().silentFetch(); // Refresh orders after update
+        const { activeOrderId, fetchOrder, silentFetch } = get();
+        if (activeOrderId) await fetchOrder(activeOrderId);
+        else await silentFetch();
     },
 
     adminDeleteOffer: async (offerId) => {
@@ -798,7 +1021,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             const err = await response.json();
             throw new Error(err.message || 'Failed to delete offer by admin');
         }
-        await get().silentFetch(); // Refresh orders after deletion
+        const { activeOrderId, fetchOrder, silentFetch } = get();
+        if (activeOrderId) await fetchOrder(activeOrderId);
+        else await silentFetch();
     },
     
     withdrawOffer: async (offerId) => {
@@ -814,7 +1039,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             const err = await response.json();
             throw new Error(err.message || 'Failed to withdraw offer');
         }
-        await get().silentFetch(); // Refresh to show 'withdrawn' status
+        const { activeOrderId, fetchOrder, silentFetch } = get();
+        if (activeOrderId) await fetchOrder(activeOrderId);
+        else await silentFetch();
     },
 
     updateAdminNotes: async (orderId, notes) => {
@@ -837,14 +1064,24 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             const err = await response.json();
             throw new Error(err.message || 'Failed to update admin notes');
         }
-        await get().silentFetch(); // Refresh orders
+        await get().fetchOrder(orderId);
     },
 
     confirmOrderReceived: async (id: string, note?: string) => {
         // 1. Optimistic UI Update
         const previousOrders = get().orders;
+        const nowIso = new Date().toISOString();
         set((state) => ({
-            orders: state.orders.map(o => String(o.id) === String(id) ? { ...o, status: 'DELIVERED', updatedAt: new Date().toISOString() } : o)
+            orders: state.orders.map(o =>
+                String(o.id) === String(id)
+                    ? {
+                          ...o,
+                          status: 'DELIVERED',
+                          updatedAt: nowIso,
+                          deliveredAt: o.deliveredAt || nowIso,
+                      }
+                    : o
+            ),
         }));
 
         try {

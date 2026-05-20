@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
+import { useOrderById } from '../../../hooks/useOrderById';
+import { useOrderRealtimeSync } from '../../../hooks/useOrderRealtimeSync';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import {
     ArrowLeft, ArrowRight, Clock, MapPin, Package, Settings, Monitor, ShieldCheck, FileText, CheckCircle2, ChevronDown, MessageCircle, AlertTriangle, Search, Car, Box, Calendar, Truck, User, DollarSign, Weight, Shield, Edit3, XCircle, Loader2, ExternalLink, Scale
@@ -15,7 +17,6 @@ import { offersApi } from '../../../services/api/offers';
 import { ordersApi } from '../../../services/api/orders';
 import { shipmentsApi } from '../../../services/api/shipments.api';
 import { StatusTimeline } from '../../ui/StatusTimeline';
-import { supabase } from '../../../services/supabase';
 import { VerificationForm } from './VerificationForm';
 import { OrderInvoicesPanel } from '../shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from '../shared/OrderWaybillsPanel';
@@ -23,6 +24,12 @@ import { useShipmentsStore } from '../../../stores/useShipmentsStore';
 import { ShipmentTracker } from '../shipments/ShipmentTracker';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { ShippingPaymentCard } from '../resolution/ShippingPaymentCard';
+import {
+    getFulfillmentLabel,
+    merchantCanMarkPrepared,
+    merchantCanSubmitVerification,
+    merchantCanRequestReadyForShipping,
+} from '../../../utils/offerFulfillmentHelpers';
 
 const MarketplaceDetailsSkeleton = ({ isAr }: { isAr: boolean }) => (
     <div className="space-y-6 animate-pulse">
@@ -67,7 +74,8 @@ interface MarketplaceOfferDetailsProps {
 
 export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = ({ orderId, onBack }) => {
     const { t, language } = useLanguage();
-    const { orders, addOfferToOrder } = useOrderStore(); // We'll need to fetch the exact order from API in real app
+    const { addOfferToOrder, patchOrderFromRealtime, fetchOrder } = useOrderStore();
+    const order = useOrderById(orderId);
     const { storeId, performance, fetchDashboardStats } = useVendorStore();
     const { shipments, fetchShipments } = useShipmentsStore();
     const { cases, fetchCases } = useResolutionStore();
@@ -109,7 +117,6 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         return key;
     };
 
-    const [order, setOrder] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [showVerificationForm, setShowVerificationForm] = useState(false);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -136,6 +143,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     // Preparation States
     const [isPrepareDialogOpen, setIsPrepareDialogOpen] = useState(false);
     const [isPreparing, setIsPreparing] = useState(false);
+    const [prepareOfferId, setPrepareOfferId] = useState<string | null>(null);
+    const [verificationOfferId, setVerificationOfferId] = useState<string | null>(null);
 
     // Shipping Request State
     const [isRequestingShipping, setIsRequestingShipping] = useState(false);
@@ -171,21 +180,21 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         }
     }, [orderId, order?.offers]);
 
+    useOrderRealtimeSync(orderId, { onOffersChange: fetchMyOffers });
+
     useEffect(() => {
         const fetchInitialData = async () => {
-            const foundOrder = orders.find(o => o.id.toString() === orderId.toString());
-            setOrder(foundOrder);
-            
-            // Wait for both order and myOffers
             await fetchMyOffers();
             await fetchShipments();
-            
-            // Artificial smoothing delay (optional, but 200ms feels premium)
             setTimeout(() => setIsLoading(false), 200);
         };
-
+        setIsLoading(true);
         fetchInitialData();
-    }, [orderId, fetchMyOffers, orders]);
+    }, [orderId, fetchMyOffers, fetchShipments]);
+
+    useEffect(() => {
+        if (order) setIsLoading(false);
+    }, [order]);
 
     useEffect(() => {
         if (orderId) {
@@ -193,82 +202,17 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         }
     }, [orderId]);
 
-    const activeShippingCase = cases.find(c => 
-        c.orderId === orderId && 
-        c.shippingPaymentStatus === 'PENDING' && 
-        !['RESOLVED', 'CLOSED', 'CANCELLED'].includes(c.status)
-    );
-
-    // Real-time Subscriptions
-    useEffect(() => {
-        if (!orderId) return;
-
-        // 1. Subscribe to order changes (status, parts, etc.)
-        let orderSubscription: any;
-        if (order?.id) { // Use order.id for the channel if available, otherwise orderId
-            orderSubscription = supabase.channel(`order_details_${order.id}`)
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'UPDATE',
-                        schema: 'public',
-                        table: 'orders',
-                        filter: `id=eq.${order.id}`
-                    },
-                    (payload) => {
-                        console.log('Real-time order update:', payload);
-                        setOrder((prev: any) => ({ ...prev, ...payload.new }));
-                    }
-                )
-                .subscribe();
+    const activeShippingCase = cases.find((c) => {
+        if (String(c.orderId) !== String(orderId)) return false;
+        if (c.shippingPayee !== 'MERCHANT') return false;
+        const amount = Number(c.shippingRefund || c.shippingRoundtrip || 0);
+        if (amount <= 0) return false;
+        if (['CLOSED', 'CANCELLED'].includes(c.status)) return false;
+        if (c.shippingPaymentStatus === 'PENDING' || c.shippingPaymentStatus === 'INSUFFICIENT_FUNDS') {
+            return true;
         }
-
-        // 2. Subscribe to offers changes (competition levels, accepted offers)
-        const offersSubscription = supabase
-            .channel(`order_offers_${orderId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'offers',
-                    filter: `order_id=eq.${orderId}`
-                },
-                (payload: any) => {
-                    console.log('Real-time offer update:', payload.eventType, payload);
-                    
-                    const newOffer = payload.new as any;
-                    // Re-calculate or re-fetch to ensure consistency
-                    // If it's the merchant's own offer, re-fetch myOffers
-                    if (newOffer && (String(newOffer.storeId || '') === String(storeId) || String(newOffer.store_id || '') === String(storeId))) {
-                        fetchMyOffers();
-                    }
-
-                    // Update order.offers locally for competition counts
-                    setOrder((prev: any) => {
-                        if (!prev) return prev;
-                        const existingOffers = prev.offers || [];
-                        let nextOffers = [...existingOffers];
-
-                        if (payload.eventType === 'INSERT') {
-                            nextOffers.push(payload.new);
-                        } else if (payload.eventType === 'UPDATE') {
-                            nextOffers = nextOffers.map(o => (o.id === payload.new.id ? payload.new : o));
-                        } else if (payload.eventType === 'DELETE') {
-                            nextOffers = nextOffers.filter(o => o.id !== payload.old.id);
-                        }
-
-                        return { ...prev, offers: nextOffers };
-                    });
-                }
-            )
-            .subscribe();
-
-        return () => {
-            if (orderSubscription) supabase.removeChannel(orderSubscription);
-            if (offersSubscription) supabase.removeChannel(offersSubscription);
-        };
-    }, [orderId, storeId, fetchMyOffers, order?.id]);
+        return c.shippingPaymentStatus === 'PAID' && !c.shippingPaymentMethod;
+    });
 
     // Map partId -> count of ALL offers (from all merchants)
     const offersPerPart = useMemo(() => {
@@ -285,6 +229,26 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     }, [order?.offers]);
 
     // Map partId -> MY offer data for per-part indicator
+    const merchantAcceptedOffers = useMemo(() => {
+        if (!storeId || !order?.offers) return [];
+        return order.offers.filter(
+            (o) => o.storeId === storeId && String(o.status).toLowerCase() === 'accepted',
+        );
+    }, [order?.offers, storeId]);
+
+    const offersNeedingPrepare = useMemo(
+        () => merchantAcceptedOffers.filter((o) => merchantCanMarkPrepared(o.fulfillmentStatus)),
+        [merchantAcceptedOffers],
+    );
+    const offersNeedingVerification = useMemo(
+        () => merchantAcceptedOffers.filter((o) => merchantCanSubmitVerification(o.fulfillmentStatus)),
+        [merchantAcceptedOffers],
+    );
+    const offersReadyForHandover = useMemo(
+        () => merchantAcceptedOffers.filter((o) => merchantCanRequestReadyForShipping(o.fulfillmentStatus)),
+        [merchantAcceptedOffers],
+    );
+
     const myOffersByPart = useMemo(() => {
         const map = new Map<string, any>();
         myOffers.forEach((o: any) => {
@@ -293,6 +257,19 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         });
         return map;
     }, [myOffers]);
+
+    const getPartOfferEnriched = useCallback(
+        (partId: string) => {
+            const mine = myOffersByPart.get(partId);
+            if (!mine) return null;
+            const fromOrder = order?.offers?.find((o) => o.id === mine.id);
+            return {
+                ...mine,
+                fulfillmentStatus: fromOrder?.fulfillmentStatus ?? mine.fulfillmentStatus,
+            };
+        },
+        [myOffersByPart, order?.offers],
+    );
 
     // Map partId -> check if awarded to ANOTHER merchant
     const awardedToOthers = useMemo(() => {
@@ -411,11 +388,14 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     };
 
     const handleMarkPrepared = async () => {
+        const targetOfferId = prepareOfferId || offersNeedingPrepare[0]?.id;
+        if (!targetOfferId) return;
         setIsPreparing(true);
         try {
-            await ordersApi.markPrepared(String(orderId));
-            setOrder((prev: any) => ({ ...prev, status: 'PREPARED' }));
+            await ordersApi.markOfferPrepared(String(orderId), targetOfferId);
+            await fetchOrder(String(orderId));
             setIsPrepareDialogOpen(false);
+            setPrepareOfferId(null);
         } catch (err) {
             console.error('Failed to mark prepared:', err);
             alert(isAr ? 'فشل تأكيد التجهيز، يرجى المحاولة لاحقاً.' : 'Failed to confirm preparation.');
@@ -425,11 +405,13 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     };
 
     const handleRequestShipping = async () => {
+        const targetOfferId = offersReadyForHandover[0]?.id;
+        if (!targetOfferId) return;
         setIsRequestingShipping(true);
         try {
-            await shipmentsApi.createStoreShipment(String(orderId));
-            setOrder((prev: any) => ({ ...prev, status: 'READY_FOR_SHIPPING' }));
-            alert(isAr ? 'تم طلب الشحن بنجاح!' : 'Shipping requested successfully!');
+            await ordersApi.markOfferReadyForShipping(String(orderId), targetOfferId);
+            await fetchOrder(String(orderId));
+            alert(isAr ? 'تم تأكيد جاهزية القطعة للشحن! يمكن للعميل شحنها من السلة.' : 'Part marked ready for shipping! Customer can ship from cart.');
         } catch (err) {
             console.error('Failed to request shipping:', err);
             alert(isAr ? 'فشل طلب الشحن، يرجى المحاولة لاحقاً.' : 'Failed to request shipping.');
@@ -474,11 +456,20 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                         try {
                             if (order.status === 'CORRECTION_PERIOD' || order.status === 'NON_MATCHING') {
                                 await ordersApi.submitCorrectionVerification(order.id, payload);
+                                patchOrderFromRealtime(String(order.id), {
+                                    status: 'CORRECTION_SUBMITTED',
+                                });
                             } else {
-                                await ordersApi.submitVerification(order.id, payload);
+                                const oid = verificationOfferId || offersNeedingVerification[0]?.id;
+                                if (oid) {
+                                    await ordersApi.submitOfferVerification(order.id, oid, payload);
+                                } else {
+                                    await ordersApi.submitVerification(order.id, payload);
+                                }
                             }
                             setShowVerificationForm(false);
-                            // Real-time subscription will update the UI state
+                            await fetchOrder(String(order.id));
+                            await fetchMyOffers();
                         } catch (err) {
                             console.error(err);
                             throw err; // VerificationForm will catch and show error
@@ -901,7 +892,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
                         {order.parts && order.parts.length > 0 ? (
                             order.parts.map((part: any, idx: number) => {
-                                    const partOffer = myOffersByPart.get(part.id);
+                                    const partOffer = getPartOfferEnriched(part.id);
                                     const hasOffer = !!partOffer;
                                     const isAwardedToOther = awardedToOthers.get(part.id);
 
@@ -1047,7 +1038,13 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                                     <span className="text-sm font-bold text-white">{getWarrantyText(partOffer.warranty)}</span>
                                                                 </div>
                                                             )}
-                                                            {['READY_FOR_SHIPPING', 'VERIFICATION_SUCCESS'].includes(order.status) && !partOffer.shippingRequested && partOffer.status === 'accepted' && (
+                                                            {partOffer.fulfillmentStatus && String(partOffer.status).toLowerCase() === 'accepted' && (
+                                                                <div className="bg-blue-500/10 rounded-lg px-2 py-1.5 border border-blue-500/20 col-span-2 sm:col-span-3">
+                                                                    <span className="text-[10px] text-blue-400 block font-bold">{isAr ? 'حالة التجهيز' : 'Fulfillment'}</span>
+                                                                    <span className="text-sm font-bold text-white">{getFulfillmentLabel(partOffer.fulfillmentStatus, isAr)}</span>
+                                                                </div>
+                                                            )}
+                                                            {partOffer.fulfillmentStatus === 'READY_FOR_SHIPPING' && !partOffer.shippedFromCart && partOffer.status === 'accepted' && (
                                                                 <div className="bg-gold-500/10 rounded-lg px-2 py-1.5 border border-gold-500/20 flex flex-col justify-center animate-in zoom-in duration-500">
                                                                     <span className="text-[10px] text-gold-400 block font-bold uppercase tracking-tighter">{isAr ? 'حالة اللوجستيات' : 'Logistics'}</span>
                                                                     <span className="text-[11px] font-black text-white flex items-center gap-1">
@@ -1239,7 +1236,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
                     {/* Dynamic Context Card (Bidding vs Action) */}
                     <GlassCard className="p-6 relative z-20">
-                        {(order.status === 'PREPARATION' || order.status === 'DELAYED_PREPARATION') ? (
+                        {offersNeedingPrepare.length > 0 ? (
                             <div className="text-center">
                                 <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border ${order.status === 'DELAYED_PREPARATION' ? 'bg-red-500/10 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'bg-blue-500/10 border-blue-500/20'}`}>
                                     <Package size={28} className={order.status === 'DELAYED_PREPARATION' ? "text-red-500 animate-pulse" : "text-blue-400"} />
@@ -1253,7 +1250,10 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                         : 'The customer is waiting for you to prepare the order in a tightly sealed box. Click the button once packed.'}
                                 </p>
                                 <button
-                                    onClick={() => setIsPrepareDialogOpen(true)}
+                                    onClick={() => {
+                                        setPrepareOfferId(offersNeedingPrepare[0]?.id || null);
+                                        setIsPrepareDialogOpen(true);
+                                    }}
                                     className={`w-full py-4 rounded-xl font-bold transition-all shadow-lg active:scale-98 flex items-center justify-center gap-2 ${order.status === 'DELAYED_PREPARATION' ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/20' : 'bg-blue-500 hover:bg-blue-400 text-white shadow-blue-500/20'}`}
                                 >
                                     <CheckCircle2 size={20} />
@@ -1393,10 +1393,13 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                     const progressiveStates = ['AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED'];
                                     const isProgressive = progressiveStates.includes(order.status);
 
-                                    if (order.status === 'PREPARED') {
+                                    if (offersNeedingVerification.length > 0) {
                                         return (
                                             <button
-                                                onClick={() => setShowVerificationForm(true)}
+                                                onClick={() => {
+                                                    setVerificationOfferId(offersNeedingVerification[0]?.id || null);
+                                                    setShowVerificationForm(true);
+                                                }}
                                                 className="w-full py-4 rounded-xl font-bold bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black transition-all shadow-[0_0_25px_rgba(245,158,11,0.4)] hover:shadow-[0_0_40px_rgba(245,158,11,0.6)] flex items-center justify-center gap-2 group relative overflow-hidden active:scale-98 animate-pulse"
                                             >
                                                 <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out pointer-events-none" />
@@ -1414,8 +1417,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                         );
                                     }
 
-                                    // VERIFICATION_SUCCESS: approved, user must manually hit ready for shipping
-                                    if (order.status === 'VERIFICATION_SUCCESS') {
+                                    if (offersReadyForHandover.length > 0) {
                                         return (
                                             <button 
                                                 onClick={handleRequestShipping}

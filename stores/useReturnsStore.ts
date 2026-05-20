@@ -1,21 +1,38 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import { Return, Dispute } from '../types';
-import { getCurrentUserId } from '../utils/auth';
 
 interface ReturnsState {
     returns: Return[];
     disputes: Dispute[];
-    deliveredOrders: any[]; // Or use a specific Type like CartItemType
+    deliveredOrders: any[];
     loading: boolean;
     error: string | null;
 
-    fetchReturnsAndDisputes: () => Promise<void>;
+    fetchReturnsAndDisputes: (options?: { silent?: boolean }) => Promise<void>;
     fetchDeliveredOrders: () => Promise<void>;
     requestReturn: (orderId: string, orderPartId: string | undefined, reason: string, description: string, usageCondition: string | undefined, files: File[]) => Promise<boolean>;
     cancelReturn: (orderId: string) => Promise<boolean>;
     escalateDispute: (orderId: string, orderPartId: string | undefined, reason: string, description: string, files: File[]) => Promise<boolean>;
 }
+
+const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+const getAuthHeaders = (): HeadersInit => {
+    const token = localStorage.getItem('access_token');
+    if (!token) throw new Error('No authentication token found');
+    return { Authorization: `Bearer ${token}` };
+};
+
+const parseApiError = async (response: Response, fallback: string) => {
+    const errorText = await response.text();
+    try {
+        const parsed = JSON.parse(errorText);
+        return parsed?.message || parsed?.error || errorText || fallback;
+    } catch {
+        return errorText || fallback;
+    }
+};
 
 export const useReturnsStore = create<ReturnsState>((set, get) => ({
     returns: [],
@@ -25,17 +42,13 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
     error: null,
 
     fetchDeliveredOrders: async () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
         set({ loading: true, error: null });
         try {
-            const token = localStorage.getItem('access_token');
-            if (!token) return;
-
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-            const response = await fetch(`${API_URL}/orders/delivered`, { // The new endpoint
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+            const response = await fetch(`${getApiUrl()}/orders/delivered`, {
+                headers: { Authorization: `Bearer ${token}` },
             });
 
             if (!response.ok) {
@@ -43,29 +56,24 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
             }
 
             const data = await response.json();
-
-            set({
-                deliveredOrders: data || [],
-                loading: false
-            });
+            set({ deliveredOrders: data || [], loading: false });
         } catch (err: any) {
             console.error('Error fetching delivered orders:', err);
             set({ error: err.message, loading: false });
         }
     },
 
-    fetchReturnsAndDisputes: async () => {
-        set({ loading: true, error: null });
+    fetchReturnsAndDisputes: async (options?: { silent?: boolean }) => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        const silent = options?.silent ?? false;
+        if (!silent) {
+            set({ loading: true, error: null });
+        }
         try {
-            const token = localStorage.getItem('access_token');
-            if (!token) return;
-
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-            const response = await fetch(`${API_URL}/returns/my-requests`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+            const response = await fetch(`${getApiUrl()}/returns/my-requests`, {
+                headers: { Authorization: `Bearer ${token}` },
             });
 
             if (!response.ok) {
@@ -73,62 +81,48 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
             }
 
             const data = await response.json();
-
             set({
                 returns: data.returns || [],
                 disputes: data.disputes || [],
-                loading: false
+                ...(silent ? {} : { loading: false }),
             });
         } catch (err: any) {
             console.error('Error fetching returns/disputes:', err);
             set({ error: err.message });
         } finally {
-            set({ loading: false });
+            if (!silent) {
+                set({ loading: false });
+            }
         }
     },
 
-    requestReturn: async (orderId: string, orderPartId: string | undefined, reason: string, description: string, usageCondition: string | undefined, files: File[]) => {
-        set({ loading: true, error: null });
+    requestReturn: async (orderId, orderPartId, reason, description, usageCondition, files) => {
+        set({ error: null });
         try {
-            const token = localStorage.getItem('access_token');
-            if (!token) throw new Error('No authentication token found');
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
             const formData = new FormData();
             formData.append('orderId', orderId);
             if (orderPartId) formData.append('orderPartId', orderPartId);
             formData.append('reason', reason);
             formData.append('description', description);
             if (usageCondition) formData.append('usageCondition', usageCondition);
+            files?.forEach((file) => formData.append('files', file));
 
-            if (files && files.length > 0) {
-                files.forEach((file) => {
-                    formData.append('files', file);
-                });
-            }
-
-            const response = await fetch(`${API_URL}/returns/request`, {
+            const response = await fetch(`${getApiUrl()}/returns/request`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                body: formData
+                headers: getAuthHeaders(),
+                body: formData,
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || 'Failed to request return');
+                throw new Error(await parseApiError(response, 'Failed to request return'));
             }
 
-            await get().fetchReturnsAndDisputes();
+            void get().fetchReturnsAndDisputes({ silent: true });
             return true;
         } catch (error: any) {
             console.error('Failed to request return:', error);
-            const errorMessage = typeof error === 'object' && error.message ? error.message : 'Failed to request return';
-            set({ error: errorMessage });
+            set({ error: error?.message || 'Failed to request return' });
             return false;
-        } finally {
-            set({ loading: false });
         }
     },
 
@@ -141,7 +135,7 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
 
             if (error) throw error;
 
-            await get().fetchReturnsAndDisputes();
+            void get().fetchReturnsAndDisputes({ silent: true });
             return true;
         } catch (err) {
             console.error('Failed to cancel return:', err);
@@ -149,47 +143,32 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
         }
     },
 
-    escalateDispute: async (orderId: string, orderPartId: string | undefined, reason: string, description: string, files: File[]) => {
-        set({ loading: true, error: null });
+    escalateDispute: async (orderId, orderPartId, reason, description, files) => {
+        set({ error: null });
         try {
-            const token = localStorage.getItem('access_token');
-            if (!token) throw new Error('No authentication token found');
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
             const formData = new FormData();
             formData.append('orderId', orderId);
             if (orderPartId) formData.append('orderPartId', orderPartId);
             formData.append('reason', reason);
             formData.append('description', description);
+            files?.forEach((file) => formData.append('files', file));
 
-            if (files && files.length > 0) {
-                files.forEach((file) => {
-                    formData.append('files', file);
-                });
-            }
-
-            const response = await fetch(`${API_URL}/returns/dispute`, {
+            const response = await fetch(`${getApiUrl()}/returns/dispute`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                body: formData
+                headers: getAuthHeaders(),
+                body: formData,
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || 'Failed to escalate dispute');
+                throw new Error(await parseApiError(response, 'Failed to escalate dispute'));
             }
 
-            await get().fetchReturnsAndDisputes();
+            void get().fetchReturnsAndDisputes({ silent: true });
             return true;
         } catch (error: any) {
             console.error('Failed to escalate dispute:', error);
-            const errorMessage = typeof error === 'object' && error.message ? error.message : 'Failed to escalate dispute';
-            set({ error: errorMessage });
+            set({ error: error?.message || 'Failed to escalate dispute' });
             return false;
-        } finally {
-            set({ loading: false });
         }
-    }
+    },
 }));

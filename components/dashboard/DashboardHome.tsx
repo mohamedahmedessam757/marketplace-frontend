@@ -15,17 +15,14 @@ interface DashboardHomeProps {
 
 export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
-    const { orders, startRealtime, stopRealtime, fetchOrders } = useOrderStore();
+    const { orders, fetchOrders } = useOrderStore();
     const { user } = useProfileStore();
 
     React.useEffect(() => {
-        if (user?.id) {
-            startRealtime(user.id, 'customer');
-        } else {
+        if (!user?.id) {
             fetchOrders();
         }
-        return () => stopRealtime();
-    }, [user?.id, startRealtime, stopRealtime, fetchOrders]);
+    }, [user?.id, fetchOrders]);
 
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ArrowLeft : ArrowRight;

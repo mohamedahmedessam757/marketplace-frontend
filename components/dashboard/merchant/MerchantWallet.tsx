@@ -911,6 +911,7 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                                                             'GATEWAY_FEE': { icon: ShieldAlert, color: 'text-orange-400' },
                                                             'REFUND_FEE': { icon: RotateCcw, color: 'text-rose-400' },
                                                             'SHIPPING_FEE': { icon: Truck, color: 'text-cyan-400' },
+                                                            'ADJUDICATION_FEE': { icon: Gavel, color: 'text-orange-400' },
                                                             'FRAUD_PENALTY': { icon: AlertOctagon, color: 'text-red-600' }
                                                         };
 

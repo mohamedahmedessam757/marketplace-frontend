@@ -12,6 +12,7 @@ import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { ShippingPaymentCard } from '../resolution/ShippingPaymentCard';
+import { useShippingPaymentReturn } from '../../../utils/useShippingPaymentReturn';
 
 interface MerchantDisputeDetailsProps {
   caseId: string;
@@ -24,9 +25,15 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
   const isAr = language === 'ar';
   const ArrowIcon = isAr ? ChevronLeft : ChevronRight;
   
-  const { getCaseById, respondToCase, escalateCase } = useResolutionStore();
+  const { getCaseById, respondToCase, escalateCase, fetchMerchantCases } = useResolutionStore();
   const { addNotification } = useNotificationStore();
   const dispute = getCaseById(caseId);
+
+  useEffect(() => {
+    fetchMerchantCases(true);
+  }, [caseId, fetchMerchantCases]);
+
+  useShippingPaymentReturn(true, 'merchant');
 
   const [response, setResponse] = useState('');
   const [decision, setDecision] = useState<'APPROVE' | 'REJECT' | null>(null);
@@ -351,14 +358,14 @@ export const MerchantDisputeDetails: React.FC<MerchantDisputeDetailsProps> = ({ 
                     </div>
  
                     {/* Shipping Payment Section (Phase 4) */}
-                    {dispute.shippingPaymentStatus && dispute.shippingRefund && Number(dispute.shippingRefund) > 0 && (
+                    {dispute.shippingPayee === 'MERCHANT' &&
+                        Number(dispute.shippingRefund || dispute.shippingRoundtrip || 0) > 0 && (
                        <div className="pt-4 border-t border-white/5">
-                                                     <ShippingPaymentCard 
-                              caseRecord={dispute as any} 
-                              role="MERCHANT" 
-                              onSuccess={() => useResolutionStore.getState().fetchMerchantCases()}
+                           <ShippingPaymentCard
+                              caseRecord={dispute as any}
+                              role="MERCHANT"
+                              onSuccess={() => useResolutionStore.getState().fetchMerchantCases(true)}
                            />
-
                        </div>
                     )}
                  </div>

@@ -47,19 +47,28 @@ export const returnsApi = {
         });
     },
 
-    respondToDispute: (id: string, responseText: string, evidence?: string[] | File[]) => {
+    respondToDispute: (
+        id: string,
+        action: 'APPROVE' | 'REJECT',
+        responseText: string,
+        evidence?: string[] | File[],
+    ) => {
         if (evidence && evidence.length > 0 && typeof evidence[0] === 'string') {
-            // JSON approach (Supplied URLs)
-            return client.post(`/returns/${id}/respond-dispute`, { responseText, evidenceUrls: evidence });
+            return client.post(`/returns/${id}/respond-dispute`, {
+                action,
+                responseText,
+                evidenceUrls: evidence,
+            });
         }
 
         const formData = new FormData();
+        formData.append('action', action);
         formData.append('responseText', responseText);
         if (evidence) {
-            (evidence as File[]).forEach(file => formData.append('files', file));
+            (evidence as File[]).forEach((file) => formData.append('files', file));
         }
         return client.post(`/returns/${id}/respond-dispute`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
     },
 

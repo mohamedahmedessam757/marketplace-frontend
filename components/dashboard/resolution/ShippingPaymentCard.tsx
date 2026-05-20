@@ -51,7 +51,11 @@ export const ShippingPaymentCard: React.FC<ShippingPaymentCardProps> = ({ caseRe
     // If we have a case that is resolved/approved but metadata is temporarily missing, wait instead of returning null
     const isTransitional = (caseRecord?.status === 'RESOLVED' || caseRecord?.status === 'APPROVED') && !caseRecord?.shippingPayee;
 
-    if (!caseRecord || (!caseRecord.shippingPayee && !isTransitional) || Number(caseRecord.shippingRefund || 0) <= 0) {
+    const shippingAmount = Number(
+        caseRecord?.shippingRefund || (caseRecord as any)?.shippingRoundtrip || 0,
+    );
+
+    if (!caseRecord || (!caseRecord.shippingPayee && !isTransitional) || shippingAmount <= 0) {
         // If we are ADMIN, and it's not a shipping payment case, don't show anything.
         // But if it IS a shipping payment case (has shippingPayee), show it even if not paid.
         if (role !== 'ADMIN') return null;
@@ -72,8 +76,17 @@ export const ShippingPaymentCard: React.FC<ShippingPaymentCardProps> = ({ caseRe
     }
 
     const isPayee = role === 'ADMIN' ? false : caseRecord.shippingPayee === role;
-    const isPaid = caseRecord.shippingPaymentStatus === 'PAID';
-    const amount = Number(caseRecord.shippingRefund);
+    /** PAID only when Stripe/wallet payment was recorded (not legacy auto-marked at verdict). */
+    const isPaid =
+        caseRecord.shippingPaymentStatus === 'PAID' &&
+        Boolean(caseRecord.shippingPaymentMethod);
+    const needsPayment =
+        isPayee &&
+        !isPaid &&
+        (caseRecord.shippingPaymentStatus === 'PENDING' ||
+            caseRecord.shippingPaymentStatus === 'INSUFFICIENT_FUNDS' ||
+            (caseRecord.shippingPaymentStatus === 'PAID' && !caseRecord.shippingPaymentMethod));
+    const amount = shippingAmount;
 
     const balance = role === 'ADMIN' ? 0 : 
                    (role === 'MERCHANT' 
@@ -108,17 +121,16 @@ export const ShippingPaymentCard: React.FC<ShippingPaymentCardProps> = ({ caseRe
             if (!response.ok) throw new Error('Failed to create checkout session');
             const { url } = await response.json();
 
-            // 2026 Best Practice: Open hosted checkout in new tab for continuity
             if (url) {
-                window.open(url, '_blank');
-                
-                addNotification({
-                    type: 'info',
-                    titleAr: 'تم فتح صفحة الدفع',
-                    titleEn: 'Payment Page Opened',
-                    messageAr: 'يرجى إكمال الدفع في النافذة الجديدة.',
-                    messageEn: 'Please complete the payment in the new tab.'
-                });
+                sessionStorage.setItem(
+                    'shipping_checkout_return',
+                    JSON.stringify({
+                        caseId: caseRecord.id,
+                        caseType: caseRecord.type,
+                    }),
+                );
+                window.location.assign(url);
+                return;
             } else {
                 throw new Error('No checkout URL received');
             }
@@ -209,7 +221,7 @@ export const ShippingPaymentCard: React.FC<ShippingPaymentCardProps> = ({ caseRe
                                         {resT.shipping_paid}
                                     </Badge>
                                 )}
-                                {!isPaid && isPayee && (
+                                {needsPayment && (
                                     <Badge className="bg-gold-500/20 text-gold-500 border border-gold-500/30 text-[10px] px-3 py-1 font-black uppercase tracking-widest rounded-full animate-pulse">
                                         {isAr ? 'مطلوب السداد' : 'PAYMENT REQUIRED'}
                                     </Badge>
@@ -240,7 +252,7 @@ export const ShippingPaymentCard: React.FC<ShippingPaymentCardProps> = ({ caseRe
                 </div>
 
                 {/* Warning Banner Section (Role-Specific) */}
-                {!isPaid && isPayee && (
+                {needsPayment && (
                     <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -261,9 +273,9 @@ export const ShippingPaymentCard: React.FC<ShippingPaymentCardProps> = ({ caseRe
                 )}
 
                 {/* Actions Section */}
-                {!isPaid && (
-                    <div className="flex flex-col md:flex-row items-center gap-4 pt-2">
-                        {isPayee ? (
+                {(needsPayment || (!isPaid && !isPayee)) && (
+                    <motion.div className="flex flex-col md:flex-row items-center gap-4 pt-2">
+                        {needsPayment ? (
                             <>
                                 <Button 
                                     onClick={handleStripePayment}
@@ -314,7 +326,7 @@ export const ShippingPaymentCard: React.FC<ShippingPaymentCardProps> = ({ caseRe
                                 </span>
                             </div>
                         )}
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* Success Indicator */}
@@ -334,7 +346,7 @@ export const ShippingPaymentCard: React.FC<ShippingPaymentCardProps> = ({ caseRe
 
             {/* Real-time Indicator Bar */}
             <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-white/5 overflow-hidden">
-                {!isPaid && isPayee && (
+                {needsPayment && (
                     <motion.div 
                         initial={{ x: '-100%' }}
                         animate={{ x: '100%' }}

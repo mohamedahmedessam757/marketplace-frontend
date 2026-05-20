@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { client } from '../services/api/client';
 import { paymentsApi } from '../services/api/payments';
 
+/** Dedupes concurrent create-intent calls (expand prefetch + pay button race). */
+const paymentIntentInflight = new Map<string, Promise<string | null>>();
+
 export interface Address {
   fullName: string;
   phone: string;
@@ -77,6 +80,8 @@ interface CheckoutState {
   setIsOnline: (online: boolean) => void;
   resetPaymentState: () => void;
   fetchPaymentStatus: (offerId: string) => Promise<any>;
+  /** Merge SUCCESS payments from API for each offer (source of truth). */
+  syncPaidOffersForOrder: (offerIds: string[]) => Promise<string[]>;
   reset: () => void;
 }
 
@@ -175,18 +180,28 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
 
   createPaymentIntent: async (orderId: string, offerId: string) => {
     if (!orderId || !offerId) return null;
-    
-    set({ isProcessing: true, paymentError: null });
-    try {
-      const result = await paymentsApi.createIntent({ orderId, offerId });
-      return result.clientSecret;
-    } catch (e: any) {
-      const errorMessage = e.response?.data?.message || e.message || 'Failed to initialize payment';
-      set({ paymentError: errorMessage });
-      return null;
-    } finally {
-      set({ isProcessing: false });
-    }
+
+    const inflightKey = `${orderId}:${offerId}`;
+    const existing = paymentIntentInflight.get(inflightKey);
+    if (existing) return existing;
+
+    const request = (async () => {
+      set({ isProcessing: true, paymentError: null });
+      try {
+        const result = await paymentsApi.createIntent({ orderId, offerId });
+        return result.clientSecret;
+      } catch (e: any) {
+        const errorMessage = e.response?.data?.message || e.message || 'Failed to initialize payment';
+        set({ paymentError: errorMessage });
+        return null;
+      } finally {
+        set({ isProcessing: false });
+        paymentIntentInflight.delete(inflightKey);
+      }
+    })();
+
+    paymentIntentInflight.set(inflightKey, request);
+    return request;
   },
 
   clearPaymentError: () => set({ paymentError: null }),
@@ -206,6 +221,37 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
       console.error('Failed to fetch payment status:', e);
       return null;
     }
+  },
+
+  syncPaidOffersForOrder: async (offerIds: string[]) => {
+    if (!offerIds.length) return [];
+
+    const results = await Promise.allSettled(
+      offerIds.map((id) => paymentsApi.getStatus(String(id))),
+    );
+
+    const confirmedPaid: string[] = [];
+    results.forEach((result, index) => {
+      if (
+        result.status === 'fulfilled' &&
+        String(result.value?.status || '').toUpperCase() === 'SUCCESS'
+      ) {
+        confirmedPaid.push(String(offerIds[index]));
+      }
+    });
+
+    if (confirmedPaid.length > 0) {
+      set((state) => ({
+        paidOfferIds: [
+          ...new Set([
+            ...state.paidOfferIds.map(String),
+            ...confirmedPaid,
+          ]),
+        ],
+      }));
+    }
+
+    return confirmedPaid;
   },
 
   submitPayment: async () => {

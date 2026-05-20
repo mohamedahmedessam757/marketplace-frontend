@@ -4,6 +4,9 @@
  * Works for BOTH the Order type from types.ts (useOrdersStore)
  * and the Order type from useOrderStore (merchant/admin views).
  */
+
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from './orderSla';
+
 export const getDynamicOrderDeadline = (order: any): string | null => {
     if (!order || !order.status) return null;
 
@@ -97,13 +100,13 @@ export const getDynamicOrderDeadline = (order: any): string | null => {
             return d.toISOString();
         }
 
-        case 'DELIVERED': {
-            // 72h return window (3 Days Protection)
+        case 'DELIVERED':
+        case 'DELIVERED_TO_CUSTOMER': {
             const baseDate =
                 order.deliveredAt || order.delivered_at || order.updatedAt || order.updated_at;
             if (!baseDate) return null;
             const d = new Date(baseDate);
-            d.setHours(d.getHours() + 72);
+            d.setHours(d.getHours() + POST_DELIVERY_RETURN_DISPUTE_HOURS);
             return d.toISOString();
         }
 

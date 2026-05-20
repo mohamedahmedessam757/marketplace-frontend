@@ -167,11 +167,10 @@ export const FinancialHub: React.FC = () => {
                       </div>
                       <ArrowUpRight className="text-green-400 opacity-40" />
                     </div>
-                    <p className="text-white/40 text-[10px] uppercase font-black tracking-widest mb-1">{isAr ? 'إجمالي دخل المنصة' : 'Total Platform Revenue'}</p>
-                    <h3 className="text-3xl font-black text-white font-mono">{(kpis.totalSales || 0).toLocaleString()} <span className="text-xs text-gold-500">AED</span></h3>
+                    <p className="text-white/40 text-[10px] uppercase font-black tracking-widest mb-1">{isAr ? 'إيراد المنصة المحقق' : 'Realized Platform Revenue'}</p>
+                    <h3 className="text-3xl font-black text-white font-mono">{((kpis as any).platformRevenue ?? (kpis as any).netCommission ?? 0).toLocaleString()} <span className="text-xs text-gold-500">AED</span></h3>
                     <div className="mt-4 flex items-center gap-2">
-                      <span className="text-green-400 text-xs font-bold">+12.5%</span>
-                      <span className="text-white/20 text-[10px]">{isAr ? 'مقارنة بالشهر الماضي' : 'vs last month'}</span>
+                      <span className="text-white/40 text-[10px]">{isAr ? 'من سجل محفظة المنصة' : 'From platform_wallet ledger'}</span>
                     </div>
                   </GlassCard>
 
@@ -195,10 +194,10 @@ export const FinancialHub: React.FC = () => {
                         <ShieldCheck size={24} />
                       </div>
                     </div>
-                    <p className="text-white/40 text-[10px] uppercase font-black tracking-widest mb-1">{isAr ? 'رصيد الضمان الحالي' : 'Current Escrow Balance'}</p>
+                    <p className="text-white/40 text-[10px] uppercase font-black tracking-widest mb-1">{isAr ? 'أموال تجار معلقة/مجمدة' : 'Merchant Pending + Frozen'}</p>
                     <h3 className="text-3xl font-black text-white font-mono">{(kpis.frozenFunds || 0).toLocaleString()} <span className="text-xs text-purple-500">AED</span></h3>
                     <div className="mt-4 flex items-center gap-2">
-                      <span className="text-white/40 text-[10px]">{isAr ? 'موزعة على طلبيات نشطة' : 'Held across active orders'}</span>
+                      <span className="text-white/40 text-[10px]">{isAr ? 'من أرصدة المتاجر (ضمان + نزاعات)' : 'From store pending + frozen balances'}</span>
                     </div>
                   </GlassCard>
                 </div>

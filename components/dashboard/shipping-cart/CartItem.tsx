@@ -4,6 +4,7 @@ import { AlertCircle, Hash, Store, ShieldCheck, Truck } from 'lucide-react';
 import { CountdownTimer } from './CountdownTimer';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { CartItemType } from '../../../stores/useCartStore';
+import { getFulfillmentLabel } from '../../../utils/offerFulfillmentHelpers';
 
 const conditionMap: Record<string, string> = {
     'new': 'جديد',
@@ -37,7 +38,11 @@ interface CartItemProps {
 }
 
 export const CartItem: React.FC<CartItemProps> = ({ item, isSelected, onSelect }) => {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
+    const isAr = language === 'ar';
+    const canSelect = item.canSelectForShipping !== false;
+    const lockReason = isAr ? item.lockReasonAr : item.lockReasonEn;
+    const statusLabel = getFulfillmentLabel(item.fulfillmentStatus, isAr);
 
     // Arabic literals as requested by the user
     const txtPartsRequired = 'القطع المطلوبة';
@@ -52,17 +57,22 @@ export const CartItem: React.FC<CartItemProps> = ({ item, isSelected, onSelect }
 
 
     return (
-        <GlassCard className={`p-0 overflow-hidden group transition-all duration-300 ${isSelected ? 'border-gold-500 ring-1 ring-gold-500/20 bg-gold-500/5' : 'hover:border-gold-500/30'}`}>
+        <GlassCard className={`p-0 overflow-hidden group transition-all duration-300 ${!canSelect ? 'opacity-80' : ''} ${isSelected ? 'border-gold-500 ring-1 ring-gold-500/20 bg-gold-500/5' : 'hover:border-gold-500/30'}`}>
             {/* Header Strip */}
             <div className={`px-5 py-3 border-b transition-colors flex items-center justify-between ${isSelected ? 'bg-gold-500/10 border-gold-500/20' : 'bg-white/5 border-white/5'}`}>
                 <div className="flex items-center gap-4">
                     {/* Selection Checkbox */}
-                    <div 
-                        onClick={() => onSelect(item.offerId)}
-                        className={`w-5 h-5 rounded border cursor-pointer flex items-center justify-center transition-all ${
-                            isSelected 
-                            ? 'bg-gold-500 border-gold-500 text-black' 
-                            : 'border-white/20 hover:border-gold-500/50 bg-black/20'
+                    <div
+                        onClick={() => canSelect && onSelect(item.offerId)}
+                        role="checkbox"
+                        aria-checked={isSelected}
+                        aria-disabled={!canSelect}
+                        className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                            !canSelect
+                            ? 'border-white/10 bg-white/5 cursor-not-allowed opacity-40'
+                            : isSelected 
+                            ? 'bg-gold-500 border-gold-500 text-black cursor-pointer' 
+                            : 'border-white/20 hover:border-gold-500/50 bg-black/20 cursor-pointer'
                         }`}
                     >
                         {isSelected && (
@@ -83,13 +93,31 @@ export const CartItem: React.FC<CartItemProps> = ({ item, isSelected, onSelect }
                         </span>
                     </div>
                 </div>
-                {item.hasWarranty && (
-                    <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-xs font-medium flex items-center gap-1">
-                        <ShieldCheck size={12} />
-                        {warrantyText}
-                    </span>
-                )}
+                <div className="flex items-center gap-2">
+                    {item.fulfillmentStatus && (
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium border ${
+                            canSelect
+                            ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        }`}>
+                            {statusLabel}
+                        </span>
+                    )}
+                    {item.hasWarranty && (
+                        <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-xs font-medium flex items-center gap-1">
+                            <ShieldCheck size={12} />
+                            {warrantyText}
+                        </span>
+                    )}
+                </div>
             </div>
+
+            {!canSelect && lockReason && (
+                <div className="px-5 py-2 bg-amber-500/5 border-b border-amber-500/10 text-amber-300/90 text-xs flex items-center gap-2">
+                    <Truck size={14} className="shrink-0 opacity-70" />
+                    {lockReason}
+                </div>
+            )}
 
             {/* Content Body */}
             <div className="p-5 flex flex-col md:flex-row gap-6">

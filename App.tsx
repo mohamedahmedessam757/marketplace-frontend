@@ -359,9 +359,12 @@ function AppContent() {
       pushView('dashboard', pendingRedirect.path, pendingRedirect.id);
       setPendingRedirect(null); // Clear it
     } else {
-      setDashboardPath('home');
+      const backendRole = getCurrentUser()?.role;
+      const defaultPath =
+        backendRole === 'VERIFICATION_OFFICER' ? 'verification-tasks' : 'home';
+      setDashboardPath(defaultPath);
       setCurrentView('dashboard');
-      pushView('dashboard', 'home');
+      pushView('dashboard', defaultPath);
     }
   };
 

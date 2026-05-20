@@ -19,6 +19,8 @@ import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Badge } from '../../ui/Badge';
 import { getCurrentUserId } from '../../../utils/auth';
+import { MerchantShippingPayAlert } from './MerchantShippingPayAlert';
+import { useShippingPaymentReturn } from '../../../utils/useShippingPaymentReturn';
 
 interface MerchantResolutionPageProps {
   onNavigate?: (path: string, id?: any) => void;
@@ -80,6 +82,8 @@ export const MerchantResolutionPage: React.FC<MerchantResolutionPageProps> = ({ 
     };
   }, []);
 
+  useShippingPaymentReturn(true, 'merchant', onNavigate);
+
   // Logic: Filter cases based on merchant role (here we assume cases are already filtered by store at store level, 
   // but we can add secondary filters)
   const filteredCases = cases.filter(c => {
@@ -126,6 +130,7 @@ export const MerchantResolutionPage: React.FC<MerchantResolutionPageProps> = ({ 
 
   return (
     <div className="space-y-8 pb-12">
+      <MerchantShippingPayAlert cases={cases} onNavigate={onNavigate!} />
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <motion.div 

@@ -2,6 +2,7 @@ import React, { useState, memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Star, ShieldCheck, Truck, MessageSquare, CheckCircle2, Box, Tag, X, ZoomIn,Settings } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { isAcceptedOfferStatus, isRejectedOfferStatus } from '../../utils/offerStatusHelpers';
 
 export interface OfferProps {
     id: number;
@@ -115,7 +116,7 @@ export const OfferCard: React.FC<OfferProps> = memo(({
     return (
         <>
             <motion.div
-                initial={{ opacity: 0, y: 10 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 className={`rounded-2xl p-6 mb-4 relative overflow-hidden group will-change-[transform,opacity,border-color] transition-[border-color,transform,box-shadow,background-color] duration-300 ${isSelected
                     ? 'bg-gradient-to-br from-gold-500/10 to-transparent border-2 border-gold-500 shadow-[0_0_30px_rgba(234,179,8,0.1)]'
@@ -139,12 +140,22 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                                 <span className="text-gold-400 text-sm font-mono tracking-wide">ID</span>
                                 <span>{storeCode || '---'}</span>
                             </h3>
-                            <div className="flex items-center gap-2 text-sm mt-1">
-                                <div className="flex items-center text-yellow-500">
-                                    <Star size={14} fill="currentColor" />
-                                    <span className="mx-1 font-bold text-white">{ratingValue.toFixed(1)}</span>
-                                </div>
-                                <span className="text-white/30 text-xs">({reviewCountValue} {(t.common as any)?.reviews || 'Reviews'})</span>
+                            <div className="flex items-center gap-2 text-sm mt-1 min-h-[20px]">
+                                {reviewCountValue > 0 ? (
+                                    <>
+                                        <div className="flex items-center text-yellow-500">
+                                            <Star size={14} fill="currentColor" />
+                                            <span className="mx-1 font-bold text-white">{ratingValue.toFixed(1)}</span>
+                                        </div>
+                                        <span className="text-white/30 text-xs">
+                                            ({reviewCountValue} {(t.common as any)?.reviews || 'Reviews'})
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className="text-white/40 text-xs">
+                                        {language === 'ar' ? 'لا توجد تقييمات بعد' : 'No reviews yet'}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -302,14 +313,14 @@ export const OfferCard: React.FC<OfferProps> = memo(({
                             className="px-8 py-3 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/20 flex items-center gap-2 animate-pulse"
                         >
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            <span>{language === 'ar' ? 'جاري التحويل...' : 'Redirecting...'}</span>
+                            <span>{language === 'ar' ? 'جاري القبول...' : 'Accepting...'}</span>
                         </button>
-                    ) : status === 'accepted' ? (
+                    ) : isAcceptedOfferStatus(status) ? (
                         <div className="px-6 py-3 rounded-xl bg-green-500/20 border border-green-500/40 text-green-400 font-bold text-sm flex items-center gap-2">
                             <CheckCircle2 size={18} />
                             {language === 'ar' ? 'تم القبول' : 'Accepted'}
                         </div>
-                    ) : status === 'rejected' ? (
+                    ) : isRejectedOfferStatus(status) ? (
                         <div className="px-6 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-bold text-sm">
                             {language === 'ar' ? 'تم الرفض' : 'Rejected'}
                         </div>

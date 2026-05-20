@@ -4,12 +4,26 @@ import { motion } from 'framer-motion';
 import { Check, Clock, Package, Truck, CheckCircle, AlertTriangle, ShieldCheck, FileText } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { StatusType } from './Badge';
+import { buildFulfillmentStepHint } from '../../utils/offerFulfillmentHelpers';
+
+export interface FulfillmentSummaryHint {
+  total: number;
+  stepCounts: {
+    preparation: number;
+    prepared: number;
+    verification: number;
+    verificationSuccess: number;
+    readyForShipping: number;
+    shipped: number;
+  };
+}
 
 interface StatusTimelineProps {
   currentStatus: StatusType;
+  fulfillmentSummary?: FulfillmentSummaryHint | null;
 }
 
-export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus }) => {
+export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, fulfillmentSummary }) => {
   const { language } = useLanguage();
   
   // Define steps and their icons
@@ -142,6 +156,14 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus })
                 isCurrentDelayed ? 'text-red-400' : isCompleted ? 'text-white' : 'text-white/30'
               }`}>
                 {language === 'ar' ? step.label.ar : step.label.en}
+                {fulfillmentSummary && fulfillmentSummary.total > 1 && (() => {
+                  const hint = buildFulfillmentStepHint(fulfillmentSummary, idx, language === 'ar');
+                  return hint ? (
+                    <span className="block text-[9px] text-gold-400/80 font-normal text-center mt-0.5">
+                      {hint}
+                    </span>
+                  ) : null;
+                })()}
                 {isCurrentDelayed && idx === activeIndex && (
                   <span className="block text-[9px] text-red-400/70 font-normal text-center">
                     {language === 'ar' ? '(متأخر)' : '(Delayed)'}

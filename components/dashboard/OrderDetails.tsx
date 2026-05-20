@@ -11,6 +11,9 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useCheckoutStore } from '../../stores/useCheckoutStore';
 import { useChatStore } from '../../stores/useChatStore';
 import { useOrderStore, Order, OrderOffer } from '../../stores/useOrderStore';
+import { useOrderById } from '../../hooks/useOrderById';
+import { useOrderRealtimeSync } from '../../hooks/useOrderRealtimeSync';
+import { isAcceptedOfferStatus, isRejectedOfferStatus } from '../../utils/offerStatusHelpers';
 import { useOrderChatStore } from '../../stores/useOrderChatStore';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { TrackingView } from './tracking/TrackingView';
@@ -26,7 +29,12 @@ import { OrderCountdown } from '../ui/OrderCountdown';
 import { WarrantyProtectionCard } from '../ui/WarrantyProtectionCard';
 import { useResolutionStore } from '../../stores/useResolutionStore';
 import { ShippingPaymentCard } from './resolution/ShippingPaymentCard';
-import { supabase } from '../../services/supabase';
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../utils/orderSla';
+import { resolveReviewTarget } from '../../utils/reviewHelpers';
+import { parseImageList, resolveMediaSrc, resolvePartPrimaryImage } from '../../utils/partMedia';
+import { ordersApi } from '../../services/api/orders';
+import { getFulfillmentLabel } from '../../utils/offerFulfillmentHelpers';
+import type { FulfillmentSummaryHint } from '../ui/StatusTimeline';
 
 interface OrderDetailsProps {
     orderId: string | null;
@@ -144,7 +152,7 @@ export const WarrantyBadge = ({ endDate, status, onReplace }: { endDate: string,
 
 export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
-    const { getOrder, checkSLA, updateOrderStatus } = useOrderStore();
+    const { checkSLA, updateOrderStatus } = useOrderStore();
     const { setSelectedOffer: setSelectedOfferAction } = useCheckoutStore();
     const { fetchChat } = useOrderChatStore();
     const { addNotification } = useNotificationStore();
@@ -152,6 +160,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const { cases, fetchCases } = useResolutionStore();
     // UI State
     const [selectedOffer, setSelectedOffer] = useState<string | null>(null);
+    const [fulfillmentSummary, setFulfillmentSummary] = useState<FulfillmentSummaryHint | null>(null);
     const [acceptLoadingOfferId, setAcceptLoadingOfferId] = useState<string | null>(null);
     const [chatLoading, setChatLoading] = useState(false);
     const [showTracking, setShowTracking] = useState(false);
@@ -182,9 +191,22 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const [deliveryNote, setDeliveryNote] = useState('');
     const [showConfirmDeliveryModal, setShowConfirmDeliveryModal] = useState(false);
 
-    // Fetch Order
-    const order = getOrder(orderId || '');
+    const order = useOrderById(orderId || undefined);
+    useOrderRealtimeSync(orderId, { includeReviews: true });
     const shipment = shipments.find(s => s.orderId === (orderId || ''));
+
+    useEffect(() => {
+        if (!orderId || !order || order.requestType !== 'multiple') {
+            setFulfillmentSummary(null);
+            return;
+        }
+        const prePayment = ['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'CANCELLED'].includes(order.status);
+        if (prePayment) {
+            setFulfillmentSummary(null);
+            return;
+        }
+        ordersApi.getFulfillmentSummary(orderId).then(setFulfillmentSummary).catch(() => setFulfillmentSummary(null));
+    }, [orderId, order?.status, order?.requestType, order?.offers?.map((o) => `${o.id}:${o.fulfillmentStatus}`).join('|')]);
 
     // Show Expired Modal Logic
     useEffect(() => {
@@ -221,58 +243,10 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
         setShowExpiredModal(false);
     };
 
-    // Timer Check & Data Refresh
     useEffect(() => {
-        // Ensure fresh data on mount (Fixes the "Missing Offers" issue)
-        if (orderId) useOrderStore.getState().fetchOrder(orderId);
         checkSLA();
         fetchShipments();
-    }, [orderId]);
-
-    // 2026 Real-time Subscription Handler
-    useEffect(() => {
-        if (!orderId) return;
-
-        // Subscribe to order changes (status transitions, reveal timestamp reach, etc)
-        const orderChannel = supabase.channel(`customer_order_sync_${orderId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'orders',
-                    filter: `id=eq.${orderId}`
-                },
-                (payload) => {
-                    console.log('Order Sync Update:', payload);
-                    // Trigger a silent fetch to update the store and UI
-                    useOrderStore.getState().silentFetch();
-                }
-            )
-            .subscribe();
-
-        // Subscribe to offer reveals/additions
-        const offersChannel = supabase.channel(`customer_offers_sync_${orderId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'offers',
-                    filter: `order_id=eq.${orderId}`
-                },
-                (payload) => {
-                    console.log('Offers Sync Update:', payload);
-                    useOrderStore.getState().silentFetch();
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(orderChannel);
-            supabase.removeChannel(offersChannel);
-        };
-    }, [orderId]);
+    }, [orderId, checkSLA, fetchShipments]);
 
     // Auto-open drawer for specific part if requested from checkout
     useEffect(() => {
@@ -281,9 +255,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
             const partIdx = order.parts.findIndex(p => p.id === openDrawerForPartId);
             if (partIdx !== -1) {
                 const p = order.parts[partIdx];
-                const partImgSrc = p.images?.[0]
-                    ? (typeof p.images[0] === 'string' ? p.images[0] : window.URL.createObjectURL(p.images[0] as unknown as File))
-                    : undefined;
+                const partImgSrc = resolvePartPrimaryImage(p, order.partImages);
 
                 // Small timeout to ensure DOM is ready and modal transitions don't conflict
                 setTimeout(() => {
@@ -303,41 +275,55 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
     if (!order) return <div className="text-white text-center py-10">{t.dashboard.common?.notFound || 'Order not found'}</div>;
 
-    const isAcceptedOfferStatus = (status?: string) => ['ACCEPTED', 'PREPARATION', 'PARTIALLY_PAID', 'COMPLETED', 'SHIPPED', 'DELIVERED'].includes(String(status || '').toUpperCase());
-    const isRejectedOfferStatus = (status?: string) => String(status || '').toUpperCase() === 'REJECTED';
     const visibleOffers = order.offers?.filter((o: any) => !isRejectedOfferStatus(o.status)) || [];
     const acceptedOffers = order.offers?.filter((o: any) => isAcceptedOfferStatus(o.status)) || [];
     const firstAcceptedOffer = acceptedOffers[0];
 
     const BackIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
+    const isMultiPartOrder = (order.parts?.length ?? 0) > 1;
+
+    const openCheckout = (accOffer?: typeof firstAcceptedOffer) => {
+        const checkout = useCheckoutStore.getState();
+        checkout.reset();
+        checkout.setOrderId(order.id);
+        checkout.setStep(isMultiPartOrder ? 0 : 1);
+        const target = accOffer ?? firstAcceptedOffer;
+        if (target) {
+            setSelectedOfferAction({
+                id: target.id,
+                merchantName: target.merchantName,
+                price: target.price,
+                partName: order.part,
+            });
+        }
+        onNavigate('checkout');
+    };
+
     const handleAcceptOffer = async (offer: any) => {
-        setAcceptLoadingOfferId(offer.id);
+        setAcceptLoadingOfferId(String(offer.id));
 
         try {
-            // Determine the part ID to pass (either the specific part's ID or a dummy 'main' for single-part orders)
-            // It expects orderId, partId, offerId
             const partId = offer.orderPartId || (order.parts && order.parts[0]?.id) || 'main';
-            if (!offer.orderPartId && order.parts && order.parts.length > 1) {
-                // Should not happen based on UI constraints, but just in case
-                console.warn('Accepting a general offer on a multi-part order not fully supported yet in this flow.');
+            if (!offer.orderPartId && isMultiPartOrder) {
+                console.warn('Accepting a general offer on a multi-part order is not supported.');
             }
 
-            // Call the backend API
             await useOrderStore.getState().acceptOffer(order.id, partId, offer.id);
 
-            // Set for checkout summary usage
-            useCheckoutStore.getState().reset();
-            useCheckoutStore.getState().setOrderId(order.id);
-            setSelectedOfferAction({
-                id: offer.id,
-                merchantName: offer.merchantName,
-                price: offer.price,
-                partName: order.part
-            });
-
-            // Navigate immediately — optimistic state is preserved (silentFetch is deferred)
-            onNavigate('checkout');
+            if (isMultiPartOrder) {
+                setDrawerPart(null);
+                useNotificationStore.getState().addNotification({
+                    type: 'SYSTEM',
+                    titleAr: 'تم قبول العرض',
+                    titleEn: 'Offer accepted',
+                    messageAr: 'يمكنك قبول عروض باقي القطع ثم المتابعة للدفع.',
+                    messageEn: 'You can accept offers for other parts, then continue to checkout.',
+                    recipientRole: 'CUSTOMER',
+                });
+            } else {
+                openCheckout(offer);
+            }
         } catch (error) {
             console.error('Failed to accept offer:', error);
             useNotificationStore.getState().addNotification({
@@ -346,7 +332,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 titleEn: 'Failed to accept offer',
                 messageAr: 'حدث خطأ أثناء معالجة طلبك.',
                 messageEn: 'An error occurred while processing your request.',
-                recipientRole: 'CUSTOMER'
+                recipientRole: 'CUSTOMER',
             });
         } finally {
             setAcceptLoadingOfferId(null);
@@ -501,10 +487,11 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     };
 
     const getReturnDeadline = () => {
+        if (order.status !== 'DELIVERED' && order.status !== 'DELIVERED_TO_CUSTOMER') return '';
         const baseDate = order.deliveredAt || order.updatedAt;
-        if (!baseDate || order.status !== 'DELIVERED') return '';
+        if (!baseDate) return '';
         const d = new Date(baseDate);
-        d.setHours(d.getHours() + 72); // 3 Days SLA
+        d.setHours(d.getHours() + POST_DELIVERY_RETURN_DISPUTE_HOURS);
         return d.toISOString();
     }
 
@@ -543,14 +530,29 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 </div>
             )}
 
-            <ReviewModal
-                isOpen={showReviewModal}
-                onClose={() => setShowReviewModal(false)}
-                orderId={order.id}
-                storeId={order.acceptedOffer?.storeId || order.merchantId || ''}
-                merchantName={order.merchantName || 'Store'}
-                partName={order.part}
-            />
+            {(() => {
+                const reviewTarget = resolveReviewTarget(order);
+                return (
+                    <ReviewModal
+                        isOpen={showReviewModal}
+                        onClose={() => setShowReviewModal(false)}
+                        orderId={order.id}
+                        storeId={reviewTarget?.storeId}
+                        merchantName={reviewTarget?.merchantName}
+                        partName={reviewTarget?.partName}
+                        onSuccess={(review) => {
+                            if (!orderId) return;
+                            useOrderStore.getState().patchOrderReview(orderId, {
+                                id: review.id,
+                                rating: review.rating,
+                                comment: review.comment,
+                                adminStatus: review.adminStatus,
+                                createdAt: review.createdAt,
+                            });
+                        }}
+                    />
+                );
+            })()}
 
             <ReturnRequestModal
                 isOpen={showReturnModal}
@@ -711,13 +713,13 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     )}
                     {(order.status === 'DELIVERED' || order.status === 'DELIVERED_TO_CUSTOMER') && (
                         <div className="w-full md:w-auto">
-                            <OrderCountdown updatedAt={order.updatedAt} status={order.status} variant="badge" />
+                            <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} variant="badge" />
                         </div>
                     )}
                 </div>
 
                 {(order.status === 'DELIVERED' || order.status === 'DELIVERED_TO_CUSTOMER') && (
-                    <OrderCountdown updatedAt={order.updatedAt} status={order.status} variant="full" />
+                    <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} variant="full" />
                 )}
 
                 <GlassCard className="p-0 overflow-hidden bg-[#1A1814] border-white/5">
@@ -757,20 +759,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             {/* Continue Checkout Button */}
                             {['COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && acceptedOffers.length > 0 && (
                                 <button
-                                    onClick={() => {
-                                        useCheckoutStore.getState().reset();
-                                        useCheckoutStore.getState().setOrderId(order.id);
-                                        const accOffer = firstAcceptedOffer;
-                                        if (accOffer) {
-                                            setSelectedOfferAction({
-                                                id: accOffer.id,
-                                                merchantName: accOffer.merchantName,
-                                                price: accOffer.price,
-                                                partName: order.part
-                                            });
-                                        }
-                                        onNavigate('checkout');
-                                    }}
+                                    onClick={() => openCheckout()}
                                     className="hidden md:flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-black rounded-lg transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_20px_rgba(212,175,55,0.5)] font-bold text-sm"
                                 >
                                     <CheckCircle2 size={16} />
@@ -791,15 +780,39 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
                             {/* Warranty Badge Removed (Replaced by Hub above or Compact Badge in header) */}
 
-                            {/* Review Button - Only show if NOT reviewed yet */}
-                            {(order.status === 'COMPLETED' || order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && !order.review && (
-                                <button
-                                    onClick={() => setShowReviewModal(true)}
-                                    className="hidden md:flex items-center gap-2 px-4 py-2 bg-gold-500/10 hover:bg-gold-500 text-gold-400 hover:text-white border border-gold-500/30 rounded-lg transition-all font-bold text-sm"
-                                >
-                                    <Star size={16} />
-                                    {t.dashboard.reviews.writeTitle}
-                                </button>
+                            {/* Review: write CTA or submitted badge */}
+                            {(order.status === 'COMPLETED' || order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
+                                order.review ? (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg"
+                                    >
+                                        <motion.div className="flex gap-0.5">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <Star
+                                                    key={star}
+                                                    size={14}
+                                                    className={star <= (order.review?.rating ?? 0) ? 'text-gold-500' : 'text-white/15'}
+                                                    fill={star <= (order.review?.rating ?? 0) ? 'currentColor' : 'none'}
+                                                />
+                                            ))}
+                                        </motion.div>
+                                        <span className="text-emerald-400 font-bold text-sm">
+                                            {language === 'ar'
+                                                ? (order.review.adminStatus === 'PUBLISHED' ? 'تم نشر تقييمك' : 'تم إرسال تقييمك')
+                                                : (order.review.adminStatus === 'PUBLISHED' ? 'Review published' : 'Review submitted')}
+                                        </span>
+                                    </motion.div>
+                                ) : (
+                                    <button
+                                        onClick={() => setShowReviewModal(true)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-gold-500/10 hover:bg-gold-500 text-gold-400 hover:text-white border border-gold-500/30 rounded-lg transition-all font-bold text-sm"
+                                    >
+                                        <Star size={16} />
+                                        {t.dashboard.reviews.writeTitle}
+                                    </button>
+                                )
                             )}
 
                             {/* Return Button (ONLY for DELIVERED stage) */}
@@ -856,7 +869,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     {!['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'CANCELLED'].includes(order.status) ? (
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-6">
-                                <StatusTimeline currentStatus={order.status} />
+                                <StatusTimeline currentStatus={order.status} fulfillmentSummary={fulfillmentSummary} />
                             </div>
 
                             <AnimatePresence>
@@ -920,7 +933,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             </div>
                         </div>
                     ) : (
-                        <StatusTimeline currentStatus={order.status} />
+                        <StatusTimeline currentStatus={order.status} fulfillmentSummary={fulfillmentSummary} />
                     )}
                 </GlassCard>
             </div>
@@ -1111,9 +1124,16 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                         .slice(0, 10); // Hard cap: max 10
 
                                     const hasOffers = partOffers.length > 0;
-                                    const partImgSrc = p.images?.[0]
-                                        ? (typeof p.images[0] === 'string' ? p.images[0] : URL.createObjectURL(p.images[0] as File))
-                                        : undefined;
+                                    const partHasAcceptedOffer = partOffers.some((o: any) =>
+                                        isAcceptedOfferStatus(o.status),
+                                    );
+                                    const acceptedPartOffer = partOffers.find((o: any) =>
+                                        isAcceptedOfferStatus(o.status),
+                                    );
+                                    const partImgSrc = resolvePartPrimaryImage(p, order.partImages);
+                                    const thumbImages = parseImageList(p.images).length
+                                        ? parseImageList(p.images)
+                                        : parseImageList(order.partImages);
 
                                     return (
                                         <GlassCard key={p.id || idx} className="p-0 overflow-hidden border-white/5 bg-[#1A1814]">
@@ -1123,7 +1143,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                                 <div className="flex items-center gap-4 flex-1 min-w-[200px]">
                                                     <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
                                                         {partImgSrc ? (
-                                                            <img src={partImgSrc} alt={p.name} className="w-full h-full object-cover" />
+                                                            <img src={partImgSrc} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
                                                         ) : (
                                                             <Package size={24} className="text-white/20" />
                                                         )}
@@ -1147,17 +1167,29 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                                         <span className="text-[10px] text-white/40 uppercase tracking-tighter">
                                                             {language === 'ar' ? 'عرض' : partOffers.length === 1 ? 'Offer' : 'Offers'}
                                                         </span>
+                                                        {partHasAcceptedOffer && (
+                                                            <span className="text-[9px] text-green-400 font-bold mt-1 flex items-center gap-0.5">
+                                                                <CheckCircle2 size={10} />
+                                                                {language === 'ar' ? 'مقبول' : 'Accepted'}
+                                                            </span>
+                                                        )}
+                                                        {acceptedPartOffer?.fulfillmentStatus && !['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT'].includes(order.status) && (
+                                                            <span className="text-[9px] text-gold-400/90 font-bold mt-1 block">
+                                                                {getFulfillmentLabel(acceptedPartOffer.fulfillmentStatus, language === 'ar')}
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     {/* Image preview circles */}
-                                                    {p.images && p.images.length > 0 && (
+                                                    {thumbImages.length > 0 && (
                                                         <div className="flex -space-x-3 rtl:space-x-reverse overflow-hidden">
-                                                            {p.images.slice(0, 3).map((img: any, i: number) => {
-                                                                const src = typeof img === 'string' ? img : URL.createObjectURL(img as File);
+                                                            {thumbImages.slice(0, 3).map((img: string, i: number) => {
+                                                                const src = resolveMediaSrc(img);
+                                                                if (!src) return null;
                                                                 return (
-                                                                    <button key={i} onClick={() => setLightboxImage(src)}
+                                                                    <button key={`${p.id}-img-${i}`} onClick={() => setLightboxImage(src)}
                                                                         className="w-10 h-10 rounded-full border-2 border-[#1A1814] overflow-hidden hover:scale-110 transition-transform">
-                                                                        <img src={src} alt="" className="w-full h-full object-cover" />
+                                                                        <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
                                                                     </button>
                                                                 );
                                                             })}
@@ -1200,8 +1232,18 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                     partDescription={drawerPart.description}
                                     partImage={drawerPart.image}
                                     partIndex={drawerPart.index}
-                                    offers={order.offers.filter((o: any) => o.orderPartId === drawerPart.id && !isRejectedOfferStatus(o.status))}
-                                    selectedOffer={selectedOffer}
+                                    offers={order.offers.filter(
+                                        (o: any) =>
+                                            String(o.orderPartId) === String(drawerPart.id) &&
+                                            !isRejectedOfferStatus(o.status),
+                                    )}
+                                    selectedOffer={
+                                        order.offers.find(
+                                            (o: any) =>
+                                                String(o.orderPartId) === String(drawerPart.id) &&
+                                                isAcceptedOfferStatus(o.status),
+                                        )?.id ?? null
+                                    }
                                     onAcceptOffer={handleAcceptOffer}
                                     onChat={handleChat}
                                     onRejectOffer={(offer) => setOfferToReject(offer)}
@@ -1230,11 +1272,14 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                                     rating={offer.storeRating || 0}
                                                     reviewCount={offer.storeReviewCount || 0}
                                                     unitPrice={offer.unitPrice || offer.price}
-                                                    isSelected={selectedOffer === offer.id}
+                                                    isSelected={String(selectedOffer) === String(offer.id)}
                                                     onAccept={() => handleAcceptOffer(offer)}
                                                     onChat={() => handleChat(offer)}
                                                     onReject={() => setOfferToReject(offer)}
-                                                    acceptLoading={acceptLoadingOfferId === offer.id}
+                                                    acceptLoading={
+                                                        acceptLoadingOfferId !== null &&
+                                                        acceptLoadingOfferId === String(offer.id)
+                                                    }
                                                     disabled={isExpired || ['CANCELLED', 'COMPLETED', 'REJECTED'].includes(order.status) || acceptLoadingOfferId !== null}
                                                 />
                                             {/* Disable Cover during loading */}
@@ -1345,20 +1390,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                     {/* Mobile/Sidebar Continue Checkout Button */}
                     {['COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_OFFERS', 'AWAITING_PAYMENT'].includes(order.status) && acceptedOffers.length > 0 && (
                         <button
-                            onClick={() => {
-                                useCheckoutStore.getState().reset();
-                                useCheckoutStore.getState().setOrderId(order.id);
-                                const accOffer = firstAcceptedOffer;
-                                if (accOffer) {
-                                    setSelectedOfferAction({
-                                        id: accOffer.id,
-                                        merchantName: accOffer.merchantName,
-                                        price: accOffer.price,
-                                        partName: order.part
-                                    });
-                                }
-                                onNavigate('checkout');
-                            }}
+                            onClick={() => openCheckout()}
                             className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-black rounded-2xl transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] font-bold text-lg mb-4"
                         >
                             <CheckCircle2 size={24} />
@@ -1584,9 +1616,9 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </div>
 
                                 <p className="text-[10px] text-white/20 text-center px-4">
-                                    {language === 'ar' 
-                                        ? 'بتأكيد الاستلام، فإنك تقر بأن الطلب قد وصلك تماماً وتبدأ فترة الـ 3 أيام للضمان والتقييم.'
-                                        : 'By confirming, you acknowledge receipt of the items. Your 3-day return and review window starts now.'}
+                                    {language === 'ar'
+                                        ? `بتأكيد الاستلام، فإنك تقر بأن الطلب قد وصلك تماماً. تبدأ فترة ${POST_DELIVERY_RETURN_DISPUTE_HOURS} ساعة لطلب الإرجاع أو فتح النزاع (ثم يُكتمل الطلب تلقائياً).`
+                                        : `By confirming receipt, you acknowledge delivery. Your ${POST_DELIVERY_RETURN_DISPUTE_HOURS}-hour window opens for returns or disputes (after which the order completes automatically).`}
                                 </p>
                             </div>
                         </motion.div>
@@ -1602,19 +1634,12 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 initialReason={returnInitialReason}
                 merchantName={order.merchantName || 'Merchant'}
                 partName={order.part}
-                onSuccess={() => getOrder(order.id)}
+                onSuccess={() => useOrderStore.getState().fetchOrder(order.id)}
             />
 
             <DisputeModal 
                 isOpen={showDisputeModal}
                 onClose={() => setShowDisputeModal(false)}
-                orderId={order.id}
-            />
-
-            {/* Review Modal */}
-            <ReviewModal 
-                isOpen={showReviewModal}
-                onClose={() => setShowReviewModal(false)}
                 orderId={order.id}
             />
 

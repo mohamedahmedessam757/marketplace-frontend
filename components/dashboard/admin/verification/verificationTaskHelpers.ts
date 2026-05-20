@@ -76,17 +76,87 @@ export const CUSTOMER_ORDER_STATUS_LABEL: Record<string, { ar: string; en: strin
 
 export const VERIFICATION_TASK_STATUS_LABEL: Record<string, { ar: string; en: string }> = {
   PENDING: { ar: 'قيد الانتظار', en: 'Pending' },
+  PENDING_ASSIGNMENT: { ar: 'بانتظار التعيين', en: 'Pending assignment' },
+  ASSIGNED: { ar: 'تم التعيين', en: 'Assigned' },
+  LINK_SENT: { ar: 'تم إرسال الرابط', en: 'Link sent' },
   IN_PROGRESS: { ar: 'قيد التنفيذ', en: 'In progress' },
   AWAITING_ADMIN_APPROVAL: { ar: 'بانتظار اعتماد الإدارة', en: 'Awaiting admin approval' },
+  AWAITING_CORRECTION: { ar: 'بانتظار التصحيح من المتجر', en: 'Awaiting merchant correction' },
+  ADMIN_APPROVED: { ar: 'تم اعتماد الإدارة', en: 'Admin approved' },
+  ADMIN_REJECTED: { ar: 'مرفوض من الإدارة', en: 'Admin rejected' },
   COMPLETED_MATCH: { ar: 'تمت المطابقة بنجاح', en: 'Matching completed' },
   COMPLETED_NON_MATCH: { ar: 'تم إنهاء المهمة (غير مطابق)', en: 'Non-match completed' },
-  AWAITING_CORRECTION: { ar: 'بانتظار التصحيح من المتجر', en: 'Awaiting merchant correction' },
   EXPIRED: { ar: 'منتهي الصلاحية', en: 'Expired' },
   CANCELLED: { ar: 'ملغي', en: 'Cancelled' },
 };
+
+const PENDING_ADMIN_STATUSES = ['AWAITING_ADMIN_APPROVAL', 'AWAITING_CORRECTION'] as const;
+const ACTIVE_TASK_STATUSES = ['PENDING_ASSIGNMENT', 'ASSIGNED', 'LINK_SENT', 'IN_PROGRESS', 'PENDING'] as const;
+const DONE_TASK_STATUSES = [
+  'ADMIN_APPROVED',
+  'ADMIN_REJECTED',
+  'COMPLETED_MATCH',
+  'COMPLETED_NON_MATCH',
+  'CANCELLED',
+  'EXPIRED',
+] as const;
+
+export type AdminVerificationTasksFilter = 'all' | 'pending' | 'active' | 'done';
+
+export function filterVerificationTasksForAdmin(tasks: { status?: string }[], filter: AdminVerificationTasksFilter) {
+  if (filter === 'all') return tasks;
+  if (filter === 'pending') {
+    return tasks.filter((t) => PENDING_ADMIN_STATUSES.includes(t.status as (typeof PENDING_ADMIN_STATUSES)[number]));
+  }
+  if (filter === 'active') {
+    return tasks.filter((t) => ACTIVE_TASK_STATUSES.includes(t.status as (typeof ACTIVE_TASK_STATUSES)[number]));
+  }
+  return tasks.filter((t) => DONE_TASK_STATUSES.includes(t.status as (typeof DONE_TASK_STATUSES)[number]));
+}
+
+export function countVerificationTasksByAdminFilter(tasks: { status?: string }[]) {
+  return {
+    all: tasks.length,
+    pending: filterVerificationTasksForAdmin(tasks, 'pending').length,
+    active: filterVerificationTasksForAdmin(tasks, 'active').length,
+    done: filterVerificationTasksForAdmin(tasks, 'done').length,
+  };
+}
 
 export const VERIFICATION_TASK_DECISION_LABEL: Record<string, { ar: string; en: string }> = {
   MATCHING: { ar: 'مطابق', en: 'Matching' },
   NON_MATCHING: { ar: 'غير مطابق', en: 'Non-matching' },
   PARTIAL_MATCH: { ar: 'مطابق جزئياً', en: 'Partial match' },
 };
+
+const FIELD_REPORT_TASK_STATUSES = new Set([
+  'AWAITING_ADMIN_APPROVAL',
+  'AWAITING_CORRECTION',
+  'ADMIN_APPROVED',
+  'ADMIN_REJECTED',
+  'COMPLETED_MATCH',
+  'COMPLETED_NON_MATCH',
+]);
+
+/** Task has a submitted field report (decision must stay visible after admin acts). */
+export function taskHasFieldOfficerReport(task: {
+  decision?: string | null;
+  completedAt?: string | Date | null;
+  status?: string | null;
+} | null | undefined): boolean {
+  if (!task) return false;
+  if (task.decision) return true;
+  if (task.completedAt) return true;
+  return !!(task.status && FIELD_REPORT_TASK_STATUSES.has(task.status));
+}
+
+export function getFieldPhotoUrlsFromTask(task: {
+  fieldPhotos?: { url?: string | null }[] | null;
+  officerPhotos?: unknown;
+} | null | undefined): string[] {
+  if (!task) return [];
+  const rows = task.fieldPhotos ?? [];
+  const fromRows = rows.map((p) => p.url).filter((u): u is string => !!u);
+  if (fromRows.length) return fromRows;
+  return asImageUrls(task.officerPhotos);
+}

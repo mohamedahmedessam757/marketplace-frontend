@@ -34,6 +34,7 @@ export type StatusType =
   | 'COMPLETED_MATCH'
   | 'COMPLETED_NON_MATCH'
   | 'AWAITING_ADMIN_APPROVAL'
+  | 'AWAITING_CORRECTION'
   | 'ADMIN_APPROVED'
   | 'ADMIN_REJECTED'
   // Shipment Detailed Statuses
@@ -118,6 +119,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, 
     COMPLETED_MATCH: "bg-green-500/10 text-green-400 border-green-500/30 font-bold",
     COMPLETED_NON_MATCH: "bg-red-500/10 text-red-400 border-red-500/30 font-bold",
     AWAITING_ADMIN_APPROVAL: "bg-amber-500/10 text-amber-500 border-amber-500/30 animate-pulse",
+    AWAITING_CORRECTION: "bg-orange-500/10 text-orange-400 border-orange-500/30",
     ADMIN_APPROVED: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-bold shadow-[0_0_10px_rgba(16,185,129,0.2)]",
     ADMIN_REJECTED: "bg-red-600/20 text-red-500 border-red-600/50 font-bold shadow-[0_0_10px_rgba(220,38,38,0.2)]",
 
@@ -171,6 +173,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, className = '', children, 
     COMPLETED_MATCH: language === 'ar' ? 'مطابق' : 'Matched',
     COMPLETED_NON_MATCH: language === 'ar' ? 'غير مطابق' : 'Non-Matching',
     AWAITING_ADMIN_APPROVAL: language === 'ar' ? 'بانتظار اعتماد الإدارة' : 'Awaiting Approval',
+    AWAITING_CORRECTION: language === 'ar' ? 'بانتظار التصحيح' : 'Awaiting correction',
     ADMIN_APPROVED: language === 'ar' ? 'تم الاعتماد' : 'Approved',
     ADMIN_REJECTED: language === 'ar' ? 'مرفوض' : 'Rejected',
   };

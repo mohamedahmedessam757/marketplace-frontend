@@ -6,6 +6,7 @@ import { Button } from '../../ui/Button';
 import { useOrderStore, Order } from '../../../stores/useOrderStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { OrderCountdown } from '../../ui/OrderCountdown';
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../../utils/orderSla';
 
 interface OrderSelectionModalProps {
     isOpen: boolean;
@@ -20,12 +21,12 @@ export const OrderSelectionModal: React.FC<OrderSelectionModalProps> = ({ isOpen
     const isAr = language === 'ar';
     const [selectedParts, setSelectedParts] = useState<Record<string, string>>({});
 
-    // 2026 Standard: 72h (3 Days) unified window
-    const ELIGIBILITY_WINDOW_HOURS = 72;
+    // Post-delivery return/dispute SLA (aligned with backend + countdown)
+    const ELIGIBILITY_WINDOW_HOURS = POST_DELIVERY_RETURN_DISPUTE_HOURS;
 
     const eligibleOrders = orders.filter(order => {
         // Requirement: ONLY DELIVERED
-        if (order.status !== 'DELIVERED') return false;
+        if (order.status !== 'DELIVERED' && order.status !== 'DELIVERED_TO_CUSTOMER') return false;
         
         const deliveredDate = order.deliveredAt ? new Date(order.deliveredAt) : new Date(order.updatedAt);
         const now = new Date();
@@ -104,8 +105,8 @@ export const OrderSelectionModal: React.FC<OrderSelectionModalProps> = ({ isOpen
                                             <h3 className="text-2xl font-black text-white uppercase tracking-widest">{isAr ? 'لا توجد طلبات مؤهلة' : 'No Eligible Orders'}</h3>
                                             <p className="text-white/30 text-xs max-w-sm mx-auto mt-4 leading-relaxed font-bold uppercase tracking-widest">
                                                 {isAr 
-                                                    ? 'تظهر هنا فقط الطلبات التي تم تسليمها (DELIVERED) خلال الـ 72 ساعة الماضية. إذا تم استلام الطلب مسبقاً، يرجى التواصل مع الدعم.' 
-                                                    : 'Only orders officially DELIVERED within the last 72 hours are eligible. For older orders, please contact executive support.'}
+                                                    ? `تظهر هنا فقط الطلبات بحالة تم التسليم ضمن آخر ${ELIGIBILITY_WINDOW_HOURS} ساعة (نافذة الإرجاع/النزاع). للطلبات الأقدم يرجى التواصل مع الدعم.` 
+                                                    : `Only orders in Delivered status within the last ${ELIGIBILITY_WINDOW_HOURS} hours are eligible for return or dispute. For older orders, contact support.`}
                                             </p>
                                         </div>
                                         <button 

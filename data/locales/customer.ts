@@ -350,7 +350,12 @@ export const customer = {
       address: {
         name: 'الاسم الكامل', phone: 'رقم الجوال', email: 'البريد الإلكتروني', country: 'الدولة', city: 'المدينة', address: 'تفاصيل العنوان',
         alertTitle: 'تنبيه: يجب الموافقة على الشروط',
-        alertText: 'تم قبول جميع العروض بنجاح! الآن يجب الموافقة على الشروط والأحكام و سياسة الإرجاع والاستبدال للقطع الثقيلة (أكثر من 100 كجم) يُفضل إدخال عنوان الورشة أو الكراج لتسهيل الشحن ، ويمكنك تعديل العنوان لاحقًا للطلبات الأخرى للمتابعة.',
+        alertTextLines: [
+          'تم قبول جميع العروض بنجاح! الآن يجب الموافقة على الشروط والأحكام و سياسة الإرجاع والاستبدال',
+          'للقطع الثقيلة (أكثر من 100 كجم)',
+          'يُفضل إدخال عنوان الورشة أو الكراج لتسهيل الشحن',
+          'ويمكنك تعديل العنوان لاحقًا للطلبات الأخرى للمتابعة.',
+        ],
         termsCheckboxStart: 'أوافق على ',
         termsCheckboxLink: 'الشروط والأحكام الخاصة بمنصة إي تشليح',
         policyCheckboxStart: 'أوافق على ',
@@ -402,7 +407,9 @@ export const customer = {
           GATEWAY_FEE: 'رسوم بوابة الدفع 💳',
           REFUND_FEE: 'رسوم الاسترداد 🔄',
           SHIPPING_FEE: 'تكاليف الشحن 🚚',
-          FRAUD_PENALTY: 'غرامة احتيال 🚫'
+          FRAUD_PENALTY: 'غرامة احتيال 🚫',
+          ADJUDICATION_FEE: 'رسوم حكم إداري ⚖️',
+          SHIPPING_LIABILITY: 'مسؤولية شحن (معلقة) 🚚'
         }
       },
       settings: {
@@ -1275,7 +1282,12 @@ export const customer = {
       address: {
         name: 'Full Name', phone: 'Phone Number', email: 'Email', country: 'Country', city: 'City', address: 'Address Details',
         alertTitle: 'Attention: Terms Agreement Required',
-        alertText: 'All offers accepted successfully! Now you must agree to the Terms & Conditions and the Return & Exchange Policy. For heavy parts (over 100 kg), it is preferable to enter a workshop or garage address to facilitate shipping. You can edit the address later for other orders to continue.',
+        alertTextLines: [
+          'All offers accepted successfully! Now you must agree to the Terms & Conditions and the Return & Exchange Policy.',
+          'For heavy parts (over 100 kg)',
+          'It is preferable to enter a workshop or garage address to facilitate shipping.',
+          'You can edit the address later for other orders to continue.',
+        ],
         termsCheckboxStart: 'I agree to the ',
         termsCheckboxLink: 'Terms & Conditions of the E-TASHLEH platform',
         policyCheckboxStart: 'I agree to the ',
@@ -1327,7 +1339,9 @@ export const customer = {
           GATEWAY_FEE: 'Gateway Fee 💳',
           REFUND_FEE: 'Refund Processing Fee 🔄',
           SHIPPING_FEE: 'Shipping Cost 🚚',
-          FRAUD_PENALTY: 'Fraud Penalty 🚫'
+          FRAUD_PENALTY: 'Fraud Penalty 🚫',
+          ADJUDICATION_FEE: 'Adjudication Fee ⚖️',
+          SHIPPING_LIABILITY: 'Shipping Liability (pending) 🚚'
         }
       },
       settings: {

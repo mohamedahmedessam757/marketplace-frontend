@@ -31,8 +31,6 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
         deleteOrder, 
         renewOrder, 
         canCancelOrder,
-        startRealtime,
-        stopRealtime
     } = useOrderStore();
     const { shipments, fetchShipments } = useShipmentsStore();
     const { user } = useProfileStore();
@@ -46,18 +44,12 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
     const ArrowIcon = language === 'ar' ? ChevronLeft : ChevronRight;
 
     useEffect(() => {
-        // startRealtime takes (userId, role)
-        if (user?.id) {
-            startRealtime(user.id, 'customer');
-        } else {
+        // Realtime owned by DashboardLayout; refresh list if store is empty
+        if (!user?.id) {
             fetchOrders();
         }
         fetchShipments();
-
-        return () => {
-            stopRealtime();
-        };
-    }, [user?.id, startRealtime, stopRealtime, fetchOrders, fetchShipments]);
+    }, [user?.id, fetchOrders, fetchShipments]);
 
 
 
@@ -332,7 +324,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ onNavigate }) => {
                                                                 return (
                                                                     <div className="flex items-center gap-2">
                                                                         <Badge status={shipment.status as StatusType} className="animate-in fade-in zoom-in duration-500" />
-                                                                        <OrderCountdown updatedAt={order.updatedAt} status={order.status} />
+                                                                        <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} />
                                                                     </div>
                                                                 );
                                                             }

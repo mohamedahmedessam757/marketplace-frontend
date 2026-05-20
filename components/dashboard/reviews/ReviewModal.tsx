@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Star, UploadCloud, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -9,36 +9,68 @@ interface ReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   orderId: string | number;
-  storeId: string;
-  merchantName: string;
-  partName: string;
+  storeId?: string;
+  merchantName?: string;
+  partName?: string;
+  onSuccess?: (review: {
+    id: string;
+    rating: number;
+    comment?: string;
+    adminStatus?: string;
+    createdAt?: string;
+  }) => void;
 }
 
-export const ReviewModal: React.FC<ReviewModalProps> = ({ isOpen, onClose, orderId, storeId, merchantName, partName }) => {
+export const ReviewModal: React.FC<ReviewModalProps> = ({
+  isOpen,
+  onClose,
+  orderId,
+  storeId = '',
+  merchantName = 'Store',
+  partName = 'Part',
+  onSuccess,
+}) => {
   const { t, language } = useLanguage();
-  const { submitReview, isLoading, error } = useReviewStore();
+  const { submitReview, isSubmitting, error, clearReviewError } = useReviewStore();
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  const busy = pending || isSubmitting;
+  const canSubmit = Boolean(storeId?.trim()) && rating > 0 && !busy;
+
+  useEffect(() => {
+    if (isOpen) {
+      clearReviewError();
+      setIsSuccess(false);
+    }
+  }, [isOpen, clearReviewError]);
 
   const handleSubmit = async () => {
-    if (rating === 0) return;
-    
-    const success = await submitReview({
-        orderId: String(orderId),
-        storeId,
-        rating,
-        comment,
-    });
+    if (!canSubmit) return;
 
-    if (success) {
-        setIsSuccess(true);
-        setTimeout(() => {
-            onClose();
-            setIsSuccess(false);
-            setRating(0);
-            setComment('');
-        }, 2500);
+    setPending(true);
+    try {
+      const created = await submitReview({
+          orderId: String(orderId),
+          storeId: storeId.trim(),
+          rating,
+          comment,
+      });
+
+      if (created) {
+          onSuccess?.(created);
+          setIsSuccess(true);
+          setTimeout(() => {
+              onClose();
+              setIsSuccess(false);
+              setRating(0);
+              setComment('');
+          }, 700);
+      }
+    } finally {
+      setPending(false);
     }
   };
 
@@ -146,16 +178,24 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({ isOpen, onClose, order
                             />
                         </div>
 
+                        {!storeId?.trim() && (
+                            <p className="text-amber-400 text-xs font-bold text-center">
+                                {language === 'ar'
+                                    ? 'تعذر تحديد المتجر لهذا الطلب. حدّث الصفحة أو تواصل مع الدعم.'
+                                    : 'Store could not be resolved for this order. Refresh or contact support.'}
+                            </p>
+                        )}
+
                         {error && <p className="text-red-500 text-xs font-bold text-center animate-shake">{error}</p>}
 
                         <motion.button 
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={handleSubmit}
-                            disabled={rating === 0 || isLoading}
+                            disabled={!canSubmit}
                             className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 disabled:from-white/5 disabled:to-white/5 disabled:text-white/20 text-white rounded-2xl font-black uppercase tracking-tighter text-sm flex items-center justify-center gap-2 shadow-xl shadow-gold-500/10"
                         >
-                            {isLoading ? <Loader2 className="animate-spin" size={18} /> : null}
+                            {busy ? <Loader2 className="animate-spin" size={18} /> : null}
                             {t.dashboard.reviews?.submit || (language === 'ar' ? 'إرسال التقييم' : 'Submit Review')}
                         </motion.button>
                     </div>

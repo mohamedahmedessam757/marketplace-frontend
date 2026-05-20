@@ -124,80 +124,84 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         .from('users')
         .select('id, name, email, phone, role, avatar, withdrawals_frozen, withdrawal_freeze_note, order_limit, restriction_alert_message, violation_score, total_delivered_orders, total_return_dispute_orders, cached_return_rate')
         .eq('id', userId)
-        .maybeSingle(); 
+        .maybeSingle();
 
-      if (userError) {
-        // Fallback: Try fetching profile from our Custom Backend API (Bypasses RLS)
-        // This is critical if RLS policies are broken or missing or if the user hasn't run the migration script yet.
+      const loadProfileFromApi = async (): Promise<UserProfile | null> => {
         try {
           const { authApi } = await import('../services/api/auth');
-          const apiProfile = await authApi.getProfile();
-
-          if (apiProfile) {
-            // Success! We recovered the profile. 
-            // We do NOT log the original RLS error to keep the console clean for the user.
-            // console.debug('[useProfileStore] RLS Bypass successful');
-
-            set({
-              user: {
-                id: apiProfile.id,
-                name: apiProfile.name, // Ensure this field exists in response
-                email: apiProfile.email,
-                phone: apiProfile.phone,
-                role: apiProfile.role,
-                avatar: apiProfile.avatar,
-                withdrawalsFrozen: apiProfile.withdrawalsFrozen,
-                withdrawalFreezeNote: apiProfile.withdrawalFreezeNote,
-                orderLimit: apiProfile.orderLimit,
-                restrictionAlertMessage: apiProfile.restrictionAlertMessage,
-                violationScore: apiProfile.violationScore,
-                totalDeliveredOrders: apiProfile.totalDeliveredOrders,
-                totalReturnDisputeOrders: apiProfile.totalReturnDisputeOrders,
-                cachedReturnRate: apiProfile.cachedReturnRate
-              },
-              loading: false
-            });
-            return; // Return early, effectively suppressing the throw userError
-          }
-        } catch (apiErr) {
-          // Only log if BOTH fail
-          console.warn('[useProfileStore] API Fallback attempt failed:', apiErr);
+          const p = await authApi.getProfile();
+          if (!p) return null;
+          return {
+            id: p.id,
+            name: p.name,
+            email: p.email,
+            phone: p.phone,
+            role: p.role,
+            avatar: p.avatar,
+            withdrawalsFrozen: p.withdrawalsFrozen,
+            withdrawalFreezeNote: p.withdrawalFreezeNote,
+            orderLimit: p.orderLimit,
+            restrictionAlertMessage: p.restrictionAlertMessage,
+            violationScore: p.violationScore,
+            totalDeliveredOrders: p.totalDeliveredOrders,
+            totalReturnDisputeOrders: p.totalReturnDisputeOrders,
+            cachedReturnRate: p.cachedReturnRate
+          };
+        } catch (e) {
+          console.warn('[useProfileStore] API profile fetch failed:', e);
+          return null;
         }
+      };
 
-        // If we reach here, both Supabase AND Fallback failed. Now it's a real error.
-        console.error('[useProfileStore] User fetch error:', userError);
-        throw userError;
-      }
+      let resolvedUser: UserProfile | null = null;
 
-      if (!userData) {
-        console.warn('[useProfileStore] User found in auth but record missing in DB');
-        // Fallback to minimal user info from token if DB fetch fails/is empty
-        const tokenUser = getCurrentUser();
-        if (tokenUser) {
-          set({
-            user: {
+      if (!userError && userData) {
+        resolvedUser = {
+          id: userData.id,
+          name: userData.name || '',
+          email: userData.email || '',
+          phone: userData.phone || '',
+          role: userData.role || 'CUSTOMER',
+          avatar: userData.avatar,
+          withdrawalsFrozen: userData.withdrawals_frozen,
+          withdrawalFreezeNote: userData.withdrawal_freeze_note,
+          orderLimit: userData.order_limit,
+          restrictionAlertMessage: userData.restriction_alert_message,
+          violationScore: userData.violation_score,
+          totalDeliveredOrders: userData.total_delivered_orders,
+          totalReturnDisputeOrders: userData.total_return_dispute_orders,
+          cachedReturnRate: userData.cached_return_rate
+        };
+      } else {
+        const fromApi = await loadProfileFromApi();
+        if (fromApi) {
+          resolvedUser = fromApi;
+        } else if (userError) {
+          console.error('[useProfileStore] User fetch error:', userError);
+          throw userError;
+        } else {
+          const tokenUser = getCurrentUser();
+          if (tokenUser) {
+            resolvedUser = {
               id: tokenUser.id,
-              name: 'User', // Placeholder
+              name: 'User',
               email: tokenUser.email,
               phone: '',
-              role: 'CUSTOMER', // Default role
+              role: tokenUser.role || 'CUSTOMER',
               avatar: undefined
-            },
-            loading: false
-          });
-          return;
+            };
+          } else {
+            throw new Error('User record not found');
+          }
         }
-        throw new Error('User record not found');
       }
 
-      // 2. Fetch settings (Independent, non-blocking)
       const { data: settingsData } = await supabase
         .from('user_settings')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
 
-      // Handle settings (might be null if new user)
       let currentSettings = get().settings;
       if (settingsData) {
         currentSettings = {
@@ -213,27 +217,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       }
 
       set({
-        user: {
-          id: userData.id,
-          name: userData.name || '',
-          email: userData.email || '',
-          phone: userData.phone || '',
-          role: userData.role || 'CUSTOMER',
-          avatar: userData.avatar,
-          withdrawalsFrozen: userData.withdrawals_frozen,
-          withdrawalFreezeNote: userData.withdrawal_freeze_note,
-          orderLimit: userData.order_limit,
-          restrictionAlertMessage: userData.restriction_alert_message,
-          violationScore: userData.violation_score,
-          totalDeliveredOrders: userData.total_delivered_orders,
-          totalReturnDisputeOrders: userData.total_return_dispute_orders,
-          cachedReturnRate: userData.cached_return_rate
-        },
+        user: resolvedUser,
         settings: currentSettings,
         loading: false
       });
-
-
     } catch (err: any) {
       console.error('[useProfileStore] Failed to fetch profile:', err);
       set({ loading: false, error: err.message || 'Failed to load profile' });

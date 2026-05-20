@@ -109,7 +109,7 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
     const [isExporting, setIsExporting] = useState<string | null>(null);
 
     const isMerchant = role === 'MERCHANT';
-
+    const isCustomer = role === 'CUSTOMER';
 
     const isSystemAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
 
@@ -547,7 +547,12 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                 </div>
 
                 {/* ═══ SECTION 6: FINAL TOTAL ═══ */}
-                <div className="bg-gradient-to-r from-gold-500/20 to-black/40 rounded-xl p-6 sm:p-8 border-2 border-gold-500 mt-8 shadow-[0_0_30px_rgba(184,134,11,0.15)] inv-total-box flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div
+                    className={`bg-gradient-to-r from-gold-500/20 to-black/40 rounded-xl p-6 sm:p-8 border-2 border-gold-500 mt-8 shadow-[0_0_30px_rgba(184,134,11,0.15)] inv-total-box flex flex-col sm:flex-row items-center gap-6 ${
+                        isCustomer ? 'justify-center' : 'justify-between'
+                    }`}
+                >
+                    {!isCustomer && (
                     <div className="w-full sm:w-1/2 space-y-3">
                         {isMerchant ? (
                             <div className="flex justify-between text-base font-bold text-gold-500 uppercase tracking-widest pt-2">
@@ -575,8 +580,13 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
                             </>
                         )}
                     </div>
+                    )}
 
-                    <div className="w-full sm:w-auto text-center sm:text-right bg-black/40 px-6 py-4 rounded-xl border border-gold-500/30 min-w-[200px]">
+                    <div
+                        className={`w-full text-center bg-black/40 px-6 py-4 rounded-xl border border-gold-500/30 ${
+                            isCustomer ? 'max-w-md' : 'sm:w-auto sm:text-right min-w-[200px]'
+                        }`}
+                    >
                         <p className="text-[10px] font-black text-gold-500 uppercase tracking-widest mb-1">
                             {isMerchant ? (isAr ? 'صافي أرباح التاجر' : 'Net Merchant Earnings') : (isAr ? 'الإجمالي النهائي للعملية' : 'Final Invoice Amount')}
                         </p>

@@ -6,8 +6,8 @@ export const storesApi = {
         return response.data;
     },
 
-    updateDocumentStatus: async (storeId: string, docType: string, status: 'approved' | 'rejected', reason?: string) => {
-        const response = await client.patch(`/stores/${storeId}/documents/${docType}/status`, { status, reason });
+    updateDocumentStatus: async (storeId: string, docType: string, status: string, reason?: string, adminName?: string, adminSignature?: string) => {
+        const response = await client.patch(`/stores/${storeId}/documents/${docType}/status`, { status, reason, adminName, adminSignature });
         return response.data;
     },
 

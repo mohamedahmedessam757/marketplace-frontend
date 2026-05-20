@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, MapPin, Clock, FileText, UploadCloud, Edit3, Save, CheckCircle2, User, Phone, Mail, Shield, ShieldCheck, Fingerprint, Globe, RefreshCw, Eye, Archive, CreditCard, ExternalLink, AlertTriangle, Star } from 'lucide-react';
+import { Store, MapPin, Clock, FileText, UploadCloud, Edit3, Save, CheckCircle2, User, Phone, Mail, Shield, ShieldCheck, Fingerprint, Globe, RefreshCw, Eye, Archive, CreditCard, ExternalLink, AlertTriangle, Star, ShieldAlert, Info, PenTool } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { useReviewStore } from '../../../stores/useReviewStore';
@@ -357,6 +357,55 @@ export const MerchantProfile: React.FC = () => {
                         exit={{ opacity: 0, y: -10 }}
                         className="space-y-8"
                     >
+                        {/* Real-time Re-upload Alerts (2026) */}
+                        {Object.entries(documents).some(([_, d]: any) => d?.status === 'reupload_requested') && (
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className="mb-8"
+                            >
+                                <GlassCard className="p-6 bg-red-600/10 border-red-500/30 border-2 shadow-[0_0_30px_rgba(239,68,68,0.1)] relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/5 blur-3xl -mr-32 -mt-32" />
+                                    <div className="flex items-start gap-4">
+                                        <div className="p-4 bg-red-500 text-white rounded-2xl shadow-xl shadow-red-500/40 animate-bounce">
+                                            <ShieldAlert size={24} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="text-lg font-black text-white uppercase tracking-tighter mb-2 flex items-center gap-2">
+                                                {language === 'ar' ? 'تنبيه عاجل: مستند يحتاج إلى تصحيح' : 'Urgent: Document Correction Required'}
+                                                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                                            </h4>
+                                            <div className="space-y-4">
+                                                {Object.entries(documents).filter(([_, d]: any) => d?.status === 'reupload_requested').map(([key, d]: any) => (
+                                                    <div key={key} className="p-4 bg-black/40 rounded-xl border border-red-500/20">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <div className="text-red-400 text-xs font-black uppercase tracking-widest">
+                                                                {key.toUpperCase()}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-[10px] text-white/30 font-mono italic">
+                                                                <PenTool size={10} />
+                                                                {d.adminName || 'Compliance Officer'}
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-white/80 text-sm font-medium italic mb-2 leading-relaxed">
+                                                            "{d.reuploadMessage || d.rejectionReason || (language === 'ar' ? 'يرجى مراجعة بيانات هذا المستند وإعادة رفعه' : 'Please review this document and re-upload.')}"
+                                                        </p>
+                                                        {d.adminSignature && (
+                                                            <div className="flex justify-end">
+                                                                <div className="text-[9px] text-white/20 border border-white/5 px-2 py-0.5 rounded italic">
+                                                                    Digitally Signed Authorization
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </GlassCard>
+                            </motion.div>
+                        )}
+
                         {showSaveSuccess && (
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
@@ -725,15 +774,18 @@ export const MerchantProfile: React.FC = () => {
                                                     ? new Date(doc.lastUpdated).toLocaleDateString('en-GB') 
                                                     : '---';
 
-                                            const hasActiveBusiness = (performance?.activeOrdersCount || 0) > 0;
+                                            const activeOrdersCount = performance?.activeOrdersCount || 0;
+                                            const hasActiveBusiness = activeOrdersCount > 0;
 
                                             return (
-                                                <div key={docItem.key} className="group/doc relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white/[0.02] rounded-2xl border border-white/5 hover:border-white/10 transition-all hover:bg-white/[0.04]">
+                                                <div key={docItem.key} className={`group/doc relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white/[0.02] rounded-2xl border border-white/5 hover:border-white/10 transition-all hover:bg-white/[0.04] ${
+                                                    displayStatus === 'reupload_requested' ? 'shadow-[0_0_20px_rgba(239,68,68,0.3)] border-red-500/40' : ''
+                                                }`}>
                                                     <div className="flex items-center gap-4 min-w-0">
                                                         <div className={`p-3 rounded-xl ${
                                                             displayStatus === 'approved' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
                                                             displayStatus === 'expired' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
-                                                            displayStatus === 'rejected' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 
+                                                            (displayStatus === 'rejected' || displayStatus === 'reupload_requested') ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 
                                                             'bg-white/5 text-white/30 border border-white/10'
                                                         }`}>
                                                             <FileText size={20} />
@@ -745,14 +797,15 @@ export const MerchantProfile: React.FC = () => {
                                                                     displayStatus === 'approved' ? 'text-green-400 bg-green-500/5 border-green-500/20' :
                                                                     displayStatus === 'expired' ? 'text-orange-400 bg-orange-500/5 border-orange-500/20 animate-pulse' :
                                                                     displayStatus === 'pending' || displayStatus === 'uploading' ? 'text-blue-400 bg-blue-500/5 border-blue-500/20' :
-                                                                    displayStatus === 'rejected' ? 'text-red-400 bg-red-500/5 border-red-500/20' :
+                                                                    (displayStatus === 'rejected' || displayStatus === 'reupload_requested') ? 'text-red-400 bg-red-500/5 border-red-500/20' :
                                                                     'text-white/20 bg-white/5 border-white/10'
                                                                 }`}>
                                                                     {displayStatus === 'approved' ? (language === 'ar' ? 'مفعل' : 'Active') : 
                                                                      displayStatus === 'expired' ? (language === 'ar' ? 'منتهي الصلاحية' : 'Expired') :
-                                                                     displayStatus === 'pending' ? (language === 'ar' ? 'قيد المراجعة' : 'In Review') : 
+                                                                     displayStatus === 'pending' ? (language === 'ar' ? 'بانتظار الموافقة' : 'Pending Approval') : 
                                                                      displayStatus === 'uploading' ? (language === 'ar' ? 'جاري الرفع' : 'Uploading') :
                                                                      displayStatus === 'rejected' ? (language === 'ar' ? 'مرفوض' : 'Rejected') : 
+                                                                     displayStatus === 'reupload_requested' ? (language === 'ar' ? 'مطلوب إعادة رفع' : 'Re-upload Requested') :
                                                                      (language === 'ar' ? 'غير متوفر' : 'Not Provided')}
                                                                 </span>
                                                                 <span className="text-[10px] text-white/20">•</span>
@@ -780,22 +833,20 @@ export const MerchantProfile: React.FC = () => {
                                                             </button>
                                                         )}
 
-                                                        <label className={`p-2.5 rounded-xl transition-all relative group/btn ${
-                                                            hasActiveBusiness 
-                                                                ? 'bg-white/5 text-white/10 cursor-not-allowed border border-white/5'
-                                                                : displayStatus === 'expired' || displayStatus === 'rejected' || displayStatus === 'empty'
-                                                                    ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 animate-pulse cursor-pointer'
-                                                                    : 'bg-gold-500/5 hover:bg-gold-500/10 text-gold-500/40 hover:text-gold-500 border border-transparent cursor-pointer'
+                                                        <label className={`p-2.5 rounded-xl transition-all relative group/btn cursor-pointer ${
+                                                            displayStatus === 'expired' || displayStatus === 'rejected' || displayStatus === 'reupload_requested' || displayStatus === 'empty'
+                                                                ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 animate-pulse'
+                                                                : 'bg-gold-500/5 hover:bg-gold-500/10 text-gold-500/40 hover:text-gold-500 border border-transparent'
                                                         }`} title={
                                                             hasActiveBusiness 
-                                                                ? (language === 'ar' ? 'لا يمكن التعديل بوجود (طلبات نشطة، شحنات، نزاعات، إرجاعات)' : 'Cannot edit. Active orders, shipments, disputes, or returns in progress.')
+                                                                ? (language === 'ar' ? 'يمكن الرفع الآن، وسيتم بدء المراجعة بعد اكتمال طلباتك النشطة' : 'Upload enabled; formal review will begin after your active orders are completed.')
                                                                 : (language === 'ar' ? 'تحديث المستند' : 'Update Document')
                                                         }>
                                                             <input 
                                                                 type="file" 
                                                                 className="hidden" 
                                                                 accept=".pdf,.jpg,.png"
-                                                                disabled={hasActiveBusiness}
+                                                                disabled={false}
                                                                 onChange={(e) => {
                                                                     const file = e.target.files?.[0];
                                                                     if (file) {

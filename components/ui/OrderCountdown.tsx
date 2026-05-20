@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../utils/orderSla';
 
 interface OrderCountdownProps {
     updatedAt: string | Date;
@@ -20,7 +21,8 @@ export const OrderCountdown: React.FC<OrderCountdownProps> = ({ updatedAt, statu
 
         const calculateTime = () => {
             const deliveredDate = new Date(updatedAt).getTime();
-            const expirationDate = deliveredDate + (3 * 24 * 60 * 60 * 1000); // 72 hours
+            const expirationDate =
+                deliveredDate + POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
             const now = new Date().getTime();
             const difference = expirationDate - now;
 
@@ -44,7 +46,7 @@ export const OrderCountdown: React.FC<OrderCountdownProps> = ({ updatedAt, statu
         return () => clearInterval(timer);
     }, [updatedAt, status]);
 
-    if (status !== 'DELIVERED') return null;
+    if (status !== 'DELIVERED' && status !== 'DELIVERED_TO_CUSTOMER') return null;
 
     if (isExpired) {
         return (

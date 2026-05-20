@@ -8,6 +8,8 @@ import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { useReviewStore } from '../../../stores/useReviewStore';
+import { useResolutionStore } from '../../../stores/useResolutionStore';
+import { MerchantShippingPayAlert } from './MerchantShippingPayAlert';
 
 interface MerchantHomeProps {
     onNavigate: (path: string, id?: number) => void;
@@ -25,14 +27,19 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
     // Fetch Dashboard Stats on Mount
     const { fetchDashboardStats, fetchVendorProfile } = useVendorStore();
     const { fetchImpactRules, impactRules } = useReviewStore();
+    const { cases: resolutionCases, fetchMerchantCases } = useResolutionStore();
     const fetchLock = useRef(false);
 
     useEffect(() => {
         if (fetchLock.current) return;
         fetchLock.current = true;
-        Promise.all([fetchDashboardStats(), fetchVendorProfile(), fetchImpactRules()])
-            .finally(() => fetchLock.current = false);
-    }, [fetchDashboardStats, fetchVendorProfile, fetchImpactRules]);
+        Promise.all([
+            fetchDashboardStats(),
+            fetchVendorProfile(),
+            fetchImpactRules(),
+            fetchMerchantCases(true),
+        ]).finally(() => fetchLock.current = false);
+    }, [fetchDashboardStats, fetchVendorProfile, fetchImpactRules, fetchMerchantCases]);
 
     // --- LOGIC: Alerts ---
     const activeAlerts = [];
@@ -61,6 +68,35 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
             });
         }
     }
+
+    // 1.1 Review Queued Alert (2026 Governance)
+    const hasPendingDocs = Object.values(documents).some((d: any) => d?.status === 'pending');
+    const hasActiveOrders = (performance?.activeOrdersCount || 0) > 0;
+    
+    if (hasPendingDocs && hasActiveOrders && vendorStatus === 'ACTIVE') {
+        activeAlerts.push({
+            type: 'warning',
+            title: isAr ? 'المراجعة الإدارية مجدولة' : 'Administrative Review Queued',
+            msg: isAr 
+                ? 'لقد قمت بتحديث مستنداتك. ستبدأ المراجعة الرسمية فور اكتمال طلباتك النشطة لضمان عدم توقف عملك.'
+                : 'Documents updated. Formal review will begin automatically once your active orders are completed to ensure business continuity.',
+            icon: Clock,
+            onClick: () => onNavigate('profile')
+        });
+    }
+
+    // 2. Re-upload Requests (2026 UX)
+    Object.entries(documents).filter(([_, d]: any) => d?.status === 'reupload_requested').forEach(([key, d]: any) => {
+        activeAlerts.push({
+            type: 'error',
+            title: isAr ? 'مطلوب إعادة رفع مستند!' : 'Document Re-upload Required!',
+            msg: isAr 
+                ? `المستند (${key.toUpperCase()}) يحتاج إلى تصحيح: ${d.reuploadMessage || (isAr ? 'يرجى مراجعة بيانات المستند.' : 'Please review document details.')}` 
+                : `Document (${key.toUpperCase()}) needs correction: ${d.reuploadMessage || 'Please review document details.'}`,
+            icon: ShieldAlert,
+            onClick: () => onNavigate('profile')
+        });
+    });
 
     // --- LOGIC: Stats & Categories ---
     // 1. New Requests (Global Marketplace - specialization filtered)
@@ -310,6 +346,11 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
                     ))}
                 </div>
             </div>
+
+            <MerchantShippingPayAlert
+                cases={resolutionCases}
+                onNavigate={(path, id) => onNavigate(path as any, id as any)}
+            />
 
             {/* System Notifications / Alerts (Conditional) */}
             {activeAlerts.length > 0 && (

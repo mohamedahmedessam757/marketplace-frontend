@@ -17,10 +17,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
-import { useNotificationStore } from '../../../stores/useNotificationStore';
-import { useOrderStore } from '../../../stores/useOrderStore';
 import { FileUploader } from '../../ui/FileUploader';
-import { GlassCard } from '../../ui/GlassCard';
 
 interface ReturnRequestModalProps {
     isOpen: boolean;
@@ -46,8 +43,6 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
     const { requestReturn } = useReturnsStore();
-    const { addNotification } = useNotificationStore();
-    const { getOrder } = useOrderStore();
 
     // Form State
     const [reason, setReason] = useState(initialReason || '');
@@ -81,29 +76,12 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
         setIsSubmitting(true);
 
         const success = await requestReturn(String(orderId), orderPartId, reason, description, usageCondition, files);
+        setIsSubmitting(false);
 
         if (success) {
-            const orderData = getOrder(orderId);
-            if (orderData?.merchantId) {
-                addNotification({
-                    recipientId: orderData.merchantId,
-                    recipientRole: 'MERCHANT',
-                    type: 'DISPUTE',
-                    titleEn: 'New Return Request',
-                    titleAr: 'طلب إرجاع جديد',
-                    messageEn: `New Return Request for Order #${orderData.orderNumber || orderId}. Reason: ${reason}`,
-                    messageAr: `طلب إرجاع جديد للطلب #${orderData.orderNumber || orderId}. السبب: ${t.dashboard.resolution.reasons[reason as keyof typeof t.dashboard.resolution.reasons] || reason}`,
-                    link: `/dashboard/orders/${orderId}`,
-                    metadata: {
-                        orderId: orderId,
-                        fileCount: files.length,
-                    }
-                });
-            }
-            onSuccess();
             onClose();
+            onSuccess();
         }
-        setIsSubmitting(false);
     };
 
     if (!isOpen) return null;

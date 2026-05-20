@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
-import { getCurrentUserId } from '../utils/auth';
+import { reviewsApi, type ReviewSubmitResult } from '../services/api/reviews.api';
+import { parseApiErrorPayload } from '../utils/parseApiError';
 
 export interface Review {
   id: string;
@@ -11,7 +12,7 @@ export interface Review {
   comment: string;
   adminStatus: 'PENDING' | 'PUBLISHED' | 'REJECTED';
   createdAt: string;
-  customerCode: string; // From backend transformation
+  customerCode: string;
   store?: { name: string; storeName?: string };
   customer?: { id: string; name: string; avatar?: string };
   order?: { orderNumber: string };
@@ -42,20 +43,24 @@ interface ReviewState {
     storeRank: number;
   } | null;
   isLoading: boolean;
+  isSubmitting: boolean;
   error: string | null;
+  impactRulesError: string | null;
   fetchAdminReviews: () => Promise<void>;
   fetchMerchantReviews: () => Promise<void>;
   fetchMerchantStats: () => Promise<void>;
-  submitReview: (data: { orderId: string; storeId: string; rating: number; comment: string }) => Promise<boolean>;
+  submitReview: (data: {
+    orderId: string;
+    storeId: string;
+    rating: number;
+    comment: string;
+  }) => Promise<ReviewSubmitResult | null>;
   updateReviewStatus: (id: string, status: 'PENDING' | 'PUBLISHED' | 'REJECTED') => Promise<void>;
-  
-  // Rating Impact Rules
+  clearReviewError: () => void;
   fetchImpactRules: () => Promise<void>;
   createImpactRule: (data: Partial<RatingImpactRule>) => Promise<boolean>;
   updateImpactRule: (id: string, data: Partial<RatingImpactRule>) => Promise<boolean>;
   deleteImpactRule: (id: string) => Promise<boolean>;
-
-  // Real-time
   reviewsSubscription: any;
   subscribeToMerchantReviews: (storeId: string) => void;
   subscribeToAdminReviews: () => void;
@@ -63,151 +68,137 @@ interface ReviewState {
   unsubscribeFromAdminReviews: () => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  const anyErr = error as {
+    response?: { data?: unknown };
+    message?: string;
+  };
+  if (anyErr?.response?.data) {
+    return parseApiErrorPayload(anyErr.response.data, fallback);
+  }
+  if (typeof anyErr?.message === 'string' && anyErr.message.trim()) {
+    return anyErr.message;
+  }
+  return fallback;
+}
 
 export const useReviewStore = create<ReviewState>((set, get) => ({
   reviews: [],
   impactRules: [],
   merchantStats: null,
   isLoading: false,
+  isSubmitting: false,
   error: null,
+  impactRulesError: null,
   reviewsSubscription: null,
 
   fetchAdminReviews: async () => {
     set({ isLoading: true });
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews/admin`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const { client } = await import('../services/api/client');
+      const { data } = await client.get<Review[]>('/reviews/admin');
+      set({ reviews: data, isLoading: false, error: null });
+    } catch (error: unknown) {
+      set({
+        error: getApiErrorMessage(error, 'Failed to fetch reviews'),
+        isLoading: false,
       });
-      if (!response.ok) throw new Error('Failed to fetch reviews');
-      const data = await response.json();
-      set({ reviews: data, isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
     }
   },
 
   fetchMerchantReviews: async () => {
     set({ isLoading: true });
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews/merchant`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const { client } = await import('../services/api/client');
+      const { data } = await client.get<Review[]>('/reviews/merchant');
+      set({ reviews: data, isLoading: false, error: null });
+    } catch (error: unknown) {
+      set({
+        error: getApiErrorMessage(error, 'Failed to fetch reviews'),
+        isLoading: false,
       });
-      if (!response.ok) throw new Error('Failed to fetch reviews');
-      const data = await response.json();
-      set({ reviews: data, isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
     }
   },
 
   fetchMerchantStats: async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews/merchant/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch stats');
-      const data = await response.json();
+      const { client } = await import('../services/api/client');
+      const { data } = await client.get('/reviews/merchant/stats');
       set({ merchantStats: data });
-    } catch (error: any) {
-      console.error('Fetch Stats Error:', error.message);
+    } catch (error: unknown) {
+      console.error('Fetch Stats Error:', getApiErrorMessage(error, 'Failed'));
     }
   },
 
-  submitReview: async (data) => {
-    set({ isLoading: true });
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-      });
+  clearReviewError: () => set({ error: null }),
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Failed to submit review');
+  submitReview: async (data) => {
+    set({ isSubmitting: true, error: null });
+    try {
+      if (!data.storeId?.trim()) {
+        throw new Error(
+          'Store is missing for this order. Please refresh the page or contact support.',
+        );
       }
 
-      set({ isLoading: false });
-      return true;
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
-      return false;
+      const created = await reviewsApi.submit({
+        orderId: data.orderId,
+        storeId: data.storeId.trim(),
+        rating: data.rating,
+        comment: data.comment?.trim() || '—',
+      });
+
+      set({ error: null });
+      return created;
+    } catch (error: unknown) {
+      set({
+        error: getApiErrorMessage(error, 'Failed to submit review'),
+      });
+      return null;
+    } finally {
+      set({ isSubmitting: false });
     }
   },
 
   updateReviewStatus: async (id, status) => {
-    // 1. Store previous state for rollback
     const previousReviews = get().reviews;
-
-    // 2. Optimistic Update (Immediate UI response)
-    set(state => ({
-      reviews: state.reviews.map(r => r.id === id ? { ...r, adminStatus: status } : r)
+    set((state) => ({
+      reviews: state.reviews.map((r) =>
+        r.id === id ? { ...r, adminStatus: status } : r,
+      ),
     }));
 
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews/${id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update status on server');
-      }
-
-      // Success - no action needed, local state is already correct
-      console.log(`✅ Review ${id} status optimized to ${status}`);
-    } catch (error: any) {
-      console.error('❌ Optimistic Update Error:', error.message);
+      const { client } = await import('../services/api/client');
+      await client.patch(`/reviews/${id}/status`, { status });
+    } catch (error: unknown) {
+      console.error('Review status update failed:', getApiErrorMessage(error, 'Failed'));
       set({ reviews: previousReviews });
     }
   },
 
   fetchImpactRules: async () => {
-    set({ isLoading: true });
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews/admin/impact-rules`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const data = await reviewsApi.listImpactRules();
+      set({ impactRules: data, impactRulesError: null });
+    } catch (error: unknown) {
+      set({
+        impactRules: [],
+        impactRulesError: getApiErrorMessage(error, 'Failed to fetch impact rules'),
       });
-      if (!response.ok) throw new Error('Failed to fetch impact rules');
-      const data = await response.json();
-      set({ impactRules: data, isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
     }
   },
 
   createImpactRule: async (data) => {
     set({ isLoading: true });
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews/admin/impact-rules`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) throw new Error('Failed to create impact rule');
+      const { client } = await import('../services/api/client');
+      await client.post('/reviews/admin/impact-rules', data);
       await get().fetchImpactRules();
       set({ isLoading: false });
       return true;
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+    } catch (error: unknown) {
+      set({ error: getApiErrorMessage(error, 'Failed to create impact rule'), isLoading: false });
       return false;
     }
   },
@@ -215,21 +206,13 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
   updateImpactRule: async (id, data) => {
     set({ isLoading: true });
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews/admin/impact-rules/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) throw new Error('Failed to update impact rule');
+      const { client } = await import('../services/api/client');
+      await client.patch(`/reviews/admin/impact-rules/${id}`, data);
       await get().fetchImpactRules();
       set({ isLoading: false });
       return true;
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+    } catch (error: unknown) {
+      set({ error: getApiErrorMessage(error, 'Failed to update impact rule'), isLoading: false });
       return false;
     }
   },
@@ -237,17 +220,13 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
   deleteImpactRule: async (id) => {
     set({ isLoading: true });
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/reviews/admin/impact-rules/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to delete impact rule');
+      const { client } = await import('../services/api/client');
+      await client.delete(`/reviews/admin/impact-rules/${id}`);
       await get().fetchImpactRules();
       set({ isLoading: false });
       return true;
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+    } catch (error: unknown) {
+      set({ error: getApiErrorMessage(error, 'Failed to delete impact rule'), isLoading: false });
       return false;
     }
   },
@@ -256,26 +235,25 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
     const { reviewsSubscription, fetchMerchantReviews, fetchMerchantStats } = get();
     if (reviewsSubscription || !storeId) return;
 
-    console.log(`📡 Subscribing to Reviews for Store: ${storeId}`);
-    const channel = supabase.channel(`merchant-reviews-${storeId}`)
+    const channel = supabase
+      .channel(`merchant-reviews-${storeId}`)
       .on(
         'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'reviews', 
-          filter: `store_id=eq.${storeId}` 
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reviews',
+          filter: `store_id=eq.${storeId}`,
         },
         (payload) => {
-          console.log('🔔 Review update received:', payload.eventType);
-          
-          // Re-fetch only if status became PUBLISHED or something was deleted/inserted
-          // This keeps the "Published Only" rule strictly enforced in real-time
-          if (payload.eventType !== 'UPDATE' || (payload.new as any).admin_status === 'PUBLISHED') {
+          if (
+            payload.eventType !== 'UPDATE' ||
+            (payload.new as { admin_status?: string }).admin_status === 'PUBLISHED'
+          ) {
             fetchMerchantReviews();
             fetchMerchantStats();
           }
-        }
+        },
       )
       .subscribe();
 
@@ -286,19 +264,14 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
     const { reviewsSubscription, fetchAdminReviews } = get();
     if (reviewsSubscription) return;
 
-    console.log(`📡 Subscribing to Global Admin Reviews`);
-    const channel = supabase.channel(`admin-reviews-global`)
+    const channel = supabase
+      .channel('admin-reviews-global')
       .on(
         'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'reviews'
-        },
-        (payload) => {
-          console.log('🔔 Admin Review update received:', payload.eventType);
+        { event: '*', schema: 'public', table: 'reviews' },
+        () => {
           fetchAdminReviews();
-        }
+        },
       )
       .subscribe();
 
@@ -319,5 +292,5 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
       supabase.removeChannel(reviewsSubscription);
       set({ reviewsSubscription: null });
     }
-  }
+  },
 }));

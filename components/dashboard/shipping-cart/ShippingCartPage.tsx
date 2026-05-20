@@ -24,7 +24,14 @@ export const ShippingCartPage: React.FC = () => {
         setSelectedOfferIds([]);
     }, [items.length]);
 
+    const selectableItems = useMemo(
+        () => items.filter((i) => i.canSelectForShipping !== false),
+        [items],
+    );
+
     const handleSelectToggle = (offerId: string) => {
+        const item = items.find((i) => i.offerId === offerId);
+        if (item && item.canSelectForShipping === false) return;
         setSelectedOfferIds(prev => 
             prev.includes(offerId) 
                 ? prev.filter(id => id !== offerId) 
@@ -33,10 +40,13 @@ export const ShippingCartPage: React.FC = () => {
     };
 
     const handleSelectAll = () => {
-        if (selectedOfferIds.length === items.length) {
+        const selectableIds = selectableItems.map((i) => i.offerId);
+        if (selectableIds.length === 0) return;
+        const allSelected = selectableIds.every((id) => selectedOfferIds.includes(id));
+        if (allSelected) {
             setSelectedOfferIds([]);
         } else {
-            setSelectedOfferIds(items.map(i => i.offerId));
+            setSelectedOfferIds(selectableIds);
         }
     };
 
@@ -81,8 +91,8 @@ export const ShippingCartPage: React.FC = () => {
                             onClick={handleSelectAll}
                             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-colors text-sm font-medium"
                         >
-                            {selectedOfferIds.length === items.length ? <CheckSquare size={16} className="text-gold-500" /> : <Square size={16} />}
-                            {selectedOfferIds.length === items.length ? 'إلغاء الكل' : 'تحديد الكل'}
+                            {selectableItems.length > 0 && selectableItems.every((i) => selectedOfferIds.includes(i.offerId)) ? <CheckSquare size={16} className="text-gold-500" /> : <Square size={16} />}
+                            {selectableItems.length > 0 && selectableItems.every((i) => selectedOfferIds.includes(i.offerId)) ? 'إلغاء الكل' : 'تحديد الجاهز'}
                         </button>
                     )}
                     <div className="bg-white/5 px-4 py-2 rounded-lg border border-white/10">

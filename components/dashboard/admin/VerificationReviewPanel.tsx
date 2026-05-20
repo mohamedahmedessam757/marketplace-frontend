@@ -45,8 +45,58 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
 
     const activeDoc = documents?.[0];
     const isPending = status === 'VERIFICATION' || status === 'CORRECTION_SUBMITTED';
+    const expectsVerificationData = [
+        'VERIFICATION',
+        'CORRECTION_SUBMITTED',
+        'VERIFICATION_SUCCESS',
+        'NON_MATCHING',
+        'CORRECTION_PERIOD',
+    ].includes(status);
 
-    if (!documents || documents.length === 0) return null;
+    if (!documents || documents.length === 0) {
+        if (!expectsVerificationData) return null;
+        return (
+            <GlassCard className="p-6 border-l-4 border-l-amber-500/50 bg-amber-500/5 mb-6 animate-pulse">
+                <motion.div className="space-y-4">
+                    <motion.div className="h-6 w-2/3 bg-white/10 rounded-lg" />
+                    <motion.div className="h-4 w-1/2 bg-white/5 rounded-lg" />
+                    <motion.div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-6">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="aspect-square rounded-xl bg-white/5 border border-white/10" />
+                        ))}
+                    </motion.div>
+                    <p className="text-xs text-white/40 text-center pt-2">
+                        {isAr ? 'جاري تحميل وثائق التوثيق...' : 'Loading verification documents...'}
+                    </p>
+                </motion.div>
+            </GlassCard>
+        );
+    }
+
+    const isListOnlyStub =
+        activeDoc &&
+        activeDoc.images === undefined &&
+        activeDoc.videoUrl === undefined &&
+        activeDoc.description === undefined &&
+        activeDoc.recipientName === undefined;
+
+    if (isListOnlyStub) {
+        return (
+            <GlassCard className="p-6 border-l-4 border-l-amber-500/50 bg-amber-500/5 mb-6 animate-pulse">
+                <motion.div className="space-y-4">
+                    <div className="h-6 w-2/3 bg-white/10 rounded-lg" />
+                    <motion.div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="aspect-square rounded-xl bg-white/5 border border-white/10" />
+                        ))}
+                    </motion.div>
+                    <p className="text-xs text-white/40 text-center">
+                        {isAr ? 'جاري تحميل تفاصيل الوثائق...' : 'Loading document details...'}
+                    </p>
+                </motion.div>
+            </GlassCard>
+        );
+    }
 
     const uploadFile = async (file: File | Blob, folder: string): Promise<string> => {
         const formData = new FormData();

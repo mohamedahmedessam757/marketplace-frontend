@@ -30,7 +30,13 @@ import { VerificationOrderSummary } from './verification/VerificationOrderSummar
 import { VerificationComparisonGrid } from './verification/VerificationComparisonGrid';
 import { VerificationActivityTimeline } from './verification/VerificationActivityTimeline';
 import { VerificationImageGrid } from './verification/VerificationImageGrid';
-import { asImageUrls, getCustomerReferenceImages } from './verification/verificationTaskHelpers';
+import {
+  asImageUrls,
+  getCustomerReferenceImages,
+  getFieldPhotoUrlsFromTask,
+  VERIFICATION_TASK_DECISION_LABEL,
+  VERIFICATION_TASK_STATUS_LABEL,
+} from './verification/verificationTaskHelpers';
 
 async function openVerificationTaskReport(params: {
   taskId: string;
@@ -339,18 +345,43 @@ export const VerificationTaskDetails: React.FC<VerificationTaskDetailsProps> = (
               <div className="space-y-4">
                 {task.orderTaskHistory.map((h: any) => (
                   <div key={h.id} className="p-4 bg-white/5 border border-white/10 rounded-xl">
-                    <div className="flex justify-between items-center mb-2 text-xs text-white/50">
-                      <span>
-                        {isAr ? 'دورة' : 'Cycle'} {h.cycleNumber} · {h.status}
+                    <div className="flex flex-wrap justify-between items-center gap-2 mb-2 text-xs">
+                      <span className="text-white/70 font-bold">
+                        {isAr ? 'دورة' : 'Cycle'} {h.cycleNumber}
+                        {h.decision && (
+                          <span
+                            className={`mr-2 ml-2 px-2 py-0.5 rounded ${
+                              h.decision === 'NON_MATCHING' ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'
+                            }`}
+                          >
+                            {isAr
+                              ? VERIFICATION_TASK_DECISION_LABEL[h.decision]?.ar || h.decision
+                              : VERIFICATION_TASK_DECISION_LABEL[h.decision]?.en || h.decision}
+                          </span>
+                        )}
                       </span>
-                      <span>{h.completedAt ? new Date(h.completedAt).toLocaleDateString() : '—'}</span>
+                      <span className="text-white/40">
+                        {isAr
+                          ? VERIFICATION_TASK_STATUS_LABEL[h.status]?.ar || h.status
+                          : VERIFICATION_TASK_STATUS_LABEL[h.status]?.en || h.status}
+                        {' · '}
+                        {h.completedAt ? new Date(h.completedAt).toLocaleDateString() : '—'}
+                      </span>
                     </div>
+                    {h.officer?.name || h.officer?.email ? (
+                      <p className="text-[11px] text-white/45 mb-2">
+                        {isAr ? 'الموظف:' : 'Officer:'} {h.officer.name || h.officer.email}
+                      </p>
+                    ) : null}
                     {h.decisionReason && (
                       <p className="text-sm text-white mb-2">
                         <span className="text-white/40">{isAr ? 'السبب:' : 'Reason:'}</span> {h.decisionReason}
                       </p>
                     )}
-                    <VerificationImageGrid images={asImageUrls(h.officerPhotos)} emptyLabel="" columns={4} />
+                    {h.officerNotes ? (
+                      <p className="text-sm text-white/70 mb-2 whitespace-pre-wrap">{h.officerNotes}</p>
+                    ) : null}
+                    <VerificationImageGrid images={getFieldPhotoUrlsFromTask(h)} emptyLabel="" columns={4} />
                     {(h.reportUrl || h.completedAt) && (
                       <button
                         type="button"
@@ -520,17 +551,21 @@ export const VerificationTaskDetails: React.FC<VerificationTaskDetailsProps> = (
 function CompletedState({ task, isAr }: { task: any; isAr: boolean }) {
   const [reportOpening, setReportOpening] = useState(false);
 
-  const matched =
-    ['COMPLETED_MATCH', 'AWAITING_ADMIN_APPROVAL'].includes(task.status) || task.decision === 'MATCHING';
-  const rejected =
-    ['COMPLETED_NON_MATCH', 'AWAITING_CORRECTION'].includes(task.status) || task.decision === 'NON_MATCHING';
+  const matched = task.decision === 'MATCHING';
+  const rejected = task.decision === 'NON_MATCHING';
+  const pendingAdmin = task.status === 'AWAITING_ADMIN_APPROVAL' || task.status === 'AWAITING_CORRECTION';
 
   const canOpenReport =
     !!task.completedAt ||
     !!task.reportUrl ||
-    ['AWAITING_ADMIN_APPROVAL', 'AWAITING_CORRECTION', 'COMPLETED_MATCH', 'COMPLETED_NON_MATCH'].includes(
-      task.status,
-    );
+    [
+      'AWAITING_ADMIN_APPROVAL',
+      'AWAITING_CORRECTION',
+      'ADMIN_APPROVED',
+      'ADMIN_REJECTED',
+      'COMPLETED_MATCH',
+      'COMPLETED_NON_MATCH',
+    ].includes(task.status);
 
   return (
     <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
@@ -542,23 +577,23 @@ function CompletedState({ task, isAr }: { task: any; isAr: boolean }) {
         {matched ? <CheckCircle size={24} /> : rejected ? <XCircle size={24} /> : <ShieldCheck size={24} />}
       </div>
       <h4 className="font-bold text-white mb-1">
-        {task.status === 'AWAITING_ADMIN_APPROVAL'
-          ? isAr
-            ? 'تمت المطابقة — بانتظار اعتماد الإدارة'
-            : 'Matched — awaiting admin'
-          : task.status === 'AWAITING_CORRECTION'
+        {pendingAdmin
+          ? rejected
             ? isAr
-              ? 'غير مطابق — فترة تصحيح 48 ساعة'
-              : 'Non-match — 48h correction'
-            : matched
+              ? 'توصية: غير مطابق — بانتظار اعتماد الإدارة'
+              : 'Recommended: non-match — awaiting admin'
+            : isAr
+              ? 'توصية: مطابق — بانتظار اعتماد الإدارة'
+              : 'Recommended: match — awaiting admin'
+          : matched
+            ? isAr
+              ? 'مطابق'
+              : 'Matching'
+            : rejected
               ? isAr
-                ? 'مطابق'
-                : 'Matching'
-              : rejected
-                ? isAr
-                  ? 'غير مطابق'
-                  : 'Not matching'
-                : task.status}
+                ? 'غير مطابق'
+                : 'Not matching'
+              : task.status}
       </h4>
       {canOpenReport && (
         <div className="mt-4">

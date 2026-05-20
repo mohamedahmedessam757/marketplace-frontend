@@ -27,6 +27,10 @@ export interface CartItemType {
     totalPaid: number;
     shippingAddress: any | null;
     isMyOffer?: boolean; // Merchant highlight
+    fulfillmentStatus?: string;
+    canSelectForShipping?: boolean;
+    lockReasonAr?: string;
+    lockReasonEn?: string;
 }
 
 interface CartState {

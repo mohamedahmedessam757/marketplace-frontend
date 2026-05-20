@@ -17,6 +17,8 @@ import {
   getCustomerReferenceImages,
   isMultiPartOrder,
   resolveMerchantStore,
+  taskHasFieldOfficerReport,
+  VERIFICATION_TASK_DECISION_LABEL,
 } from './verificationTaskHelpers';
 import { VerificationImageGrid } from './VerificationImageGrid';
 import { VerificationVideoPlayer } from './VerificationVideoPlayer';
@@ -104,6 +106,20 @@ export const VerificationOrderSummary: React.FC<VerificationOrderSummaryProps> =
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge status={task.status} />
+            {taskHasFieldOfficerReport(task) && task.decision && (
+              <span
+                className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
+                  task.decision === 'NON_MATCHING'
+                    ? 'bg-red-500/10 text-red-400 border-red-500/30'
+                    : 'bg-green-500/10 text-green-400 border-green-500/30'
+                }`}
+              >
+                {isAr ? 'قرار الميدان:' : 'Field:'}{' '}
+                {isAr
+                  ? VERIFICATION_TASK_DECISION_LABEL[task.decision]?.ar || task.decision
+                  : VERIFICATION_TASK_DECISION_LABEL[task.decision]?.en || task.decision}
+              </span>
+            )}
             {statusLabel && (
               <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-white/5 border border-white/10 text-white/70">
                 {isAr ? 'حالة العميل:' : 'Customer:'} {isAr ? statusLabel.ar : statusLabel.en}

@@ -83,11 +83,17 @@ NotificationItem.displayName = 'NotificationItem';
 
 export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose, onNavigate, role }) => {
     const { t, language } = useLanguage();
-    const { notifications, markAsRead, markAllAsRead, isLoading } = useNotificationStore();
+    const { notifications, dismissNotification, markAsRead, markAllAsRead, shouldShowAsPopup, isLoading } = useNotificationStore();
 
-    const handleNotifClick = (notif: Notification) => {
+    const handleNotifClick = async (notif: Notification) => {
         const uid = getCurrentUserId();
-        if (uid && !notif.isRead) markAsRead(notif.id, uid);
+        if (uid && !notif.isRead) {
+            if (shouldShowAsPopup(notif)) {
+                await dismissNotification(notif.id);
+            } else {
+                await markAsRead(notif.id, uid);
+            }
+        }
 
         if (notif.link) {
             if (notif.metadata?.orderId) {

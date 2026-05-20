@@ -7,10 +7,13 @@ export type MerchantStatus = 'IDLE' | 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | '
 
 export interface DocState {
   file: File | null;
-  status: 'empty' | 'uploading' | 'completed' | 'approved' | 'rejected' | 'expired' | 'pending';
+  status: 'empty' | 'uploading' | 'completed' | 'approved' | 'rejected' | 'expired' | 'pending' | 'reupload_requested';
   progress: number;
   expiryDate?: string; // ISO Date String
   rejectionReason?: string;
+  reuploadMessage?: string;
+  adminName?: string;
+  adminSignature?: string;
   lastUpdated?: string;
   fileUrl?: string | null;
   fileName?: string;
@@ -499,11 +502,11 @@ export const useVendorStore = create<VendorState>()(
             status: 'pending_review'
           },
           documents: {
-            cr: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'CR')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'CR')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'CR')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'CR')?.updatedAt },
-            license: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'LICENSE')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'LICENSE')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'LICENSE')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'LICENSE')?.updatedAt },
-            id: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'ID')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'ID')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'ID')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'ID')?.updatedAt },
-            iban: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'IBAN')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'IBAN')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'IBAN')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'IBAN')?.updatedAt },
-            authLetter: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.updatedAt }
+            cr: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'CR')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'CR')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'CR')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'CR')?.updatedAt, reuploadMessage: data.documents?.find((d: any) => d.docType === 'CR')?.reuploadMessage, adminName: data.documents?.find((d: any) => d.docType === 'CR')?.adminName, adminSignature: data.documents?.find((d: any) => d.docType === 'CR')?.adminSignature },
+            license: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'LICENSE')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'LICENSE')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'LICENSE')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'LICENSE')?.updatedAt, reuploadMessage: data.documents?.find((d: any) => d.docType === 'LICENSE')?.reuploadMessage, adminName: data.documents?.find((d: any) => d.docType === 'LICENSE')?.adminName, adminSignature: data.documents?.find((d: any) => d.docType === 'LICENSE')?.adminSignature },
+            id: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'ID')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'ID')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'ID')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'ID')?.updatedAt, reuploadMessage: data.documents?.find((d: any) => d.docType === 'ID')?.reuploadMessage, adminName: data.documents?.find((d: any) => d.docType === 'ID')?.adminName, adminSignature: data.documents?.find((d: any) => d.docType === 'ID')?.adminSignature },
+            iban: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'IBAN')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'IBAN')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'IBAN')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'IBAN')?.updatedAt, reuploadMessage: data.documents?.find((d: any) => d.docType === 'IBAN')?.reuploadMessage, adminName: data.documents?.find((d: any) => d.docType === 'IBAN')?.adminName, adminSignature: data.documents?.find((d: any) => d.docType === 'IBAN')?.adminSignature },
+            authLetter: { ...initialDocState, fileUrl: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.fileUrl, status: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.status || 'empty', expiryDate: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.expiresAt, lastUpdated: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.updatedAt, reuploadMessage: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.reuploadMessage, adminName: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.adminName, adminSignature: data.documents?.find((d: any) => d.docType === 'AUTH_LETTER')?.adminSignature }
           },
           withdrawalsFrozen: data.owner?.withdrawalsFrozen || false,
           withdrawalFreezeNote: data.owner?.withdrawalFreezeNote || '',

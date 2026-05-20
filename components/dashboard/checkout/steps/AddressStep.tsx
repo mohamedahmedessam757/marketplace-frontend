@@ -79,11 +79,15 @@ export const AddressStep: React.FC<{ showValidationErrors?: boolean; order?: any
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
 
             {/* Warning Alert */}
-            <div className="bg-orange-500/10 border border-orange-500/50 rounded-xl p-4 flex gap-4 rtl:flex-row-reverse" dir={isAr ? 'rtl' : 'ltr'}>
-                <AlertTriangle className="text-orange-500 shrink-0 mt-1" size={24} />
-                <div>
-                    <h4 className="font-bold text-orange-500 mb-1">{tC.address.alertTitle}</h4>
-                    <p className="text-sm text-orange-200/80 leading-relaxed text-right ltr:text-left">{tC.address.alertText}</p>
+            <div className="bg-orange-500/10 border border-orange-500/50 rounded-xl px-4 py-3 flex items-start gap-3 rtl:flex-row-reverse" dir={isAr ? 'rtl' : 'ltr'}>
+                <AlertTriangle className="text-orange-500 shrink-0 size-5 mt-0.5" aria-hidden />
+                <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-orange-500 text-sm mb-1.5 leading-snug">{tC.address.alertTitle}</h4>
+                    <ul className="m-0 p-0 list-none space-y-1 text-sm text-orange-200/80 leading-normal text-right ltr:text-left">
+                        {(tC.address.alertTextLines as string[]).map((line, i) => (
+                            <li key={i}>{line}</li>
+                        ))}
+                    </ul>
                 </div>
             </div>
 

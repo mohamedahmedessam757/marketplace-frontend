@@ -8,14 +8,17 @@ import { StripePaymentForm } from '../StripePaymentForm';
 import { supabase } from '../../../../services/supabase';
 import { cardsApi, UserCard } from '../../../../services/api/cards';
 import { CreditCard } from 'lucide-react';
+import {
+  areAllAcceptedOffersPaid,
+  getAcceptedOffersFromList,
+  isOfferPaid,
+} from '../../../../utils/checkoutPaymentHelpers';
 
 export const PaymentStep: React.FC = () => {
   const { t, language } = useLanguage();
   const isAr = language === 'ar';
   const tPay = t.dashboard.checkout.payment;
   const tFR = t.dashboard.checkout.finalReview;
-  const acceptedStatuses = useMemo(() => new Set(['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED', 'PREPARATION', 'PARTIALLY_PAID', 'accepted', 'completed', 'shipped', 'delivered', 'preparation', 'partially_paid']), []);
-
   const { 
     orderId, 
     createPaymentIntent, 
@@ -26,7 +29,7 @@ export const PaymentStep: React.FC = () => {
     isOnline,
     setIsOnline,
     resetPaymentState,
-    fetchPaymentStatus
+    syncPaidOffersForOrder,
   } = useCheckoutStore();
   const { orders } = useOrderStore();
 
@@ -37,6 +40,8 @@ export const PaymentStep: React.FC = () => {
   const [isPreparing, setIsPreparing] = useState(false);
   const [savedCards, setSavedCards] = useState<UserCard[]>([]);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  /** Client secrets from expand-prefetch — avoids a second create-intent on Pay click */
+  const [prefetchedSecrets, setPrefetchedSecrets] = useState<Record<string, string>>({});
 
   // UI state
   const [expandedOfferId, setExpandedOfferId] = useState<string | null>(null);
@@ -50,10 +55,15 @@ export const PaymentStep: React.FC = () => {
 
   const requiredPartsArray = currentOrder?.parts || [];
 
-  const acceptedOffers = useMemo(() => {
-    if (!currentOrder?.offers) return [];
-    return currentOrder.offers.filter((o: any) => acceptedStatuses.has(String(o.status || '').toUpperCase()) || acceptedStatuses.has(String(o.status || '')));
-  }, [acceptedStatuses, currentOrder]);
+  const acceptedOffers = useMemo(
+    () => getAcceptedOffersFromList(currentOrder?.offers),
+    [currentOrder?.offers],
+  );
+
+  useEffect(() => {
+    if (!orderId || acceptedOffers.length === 0) return;
+    void syncPaidOffersForOrder(acceptedOffers.map((o) => String(o.id)));
+  }, [orderId, acceptedOffers, syncPaidOffersForOrder]);
 
   const formatCondition = (cond: string) => {
     if (!cond || cond === '---') return '---';
@@ -154,10 +164,12 @@ export const PaymentStep: React.FC = () => {
         },
         (payload) => {
           if (payload.new.status === 'SUCCESS') {
-            const offerId = payload.new.offer_id;
-            if (!paidOfferIds.includes(offerId)) {
+            const offerId = String(payload.new.offer_id);
+            if (!isOfferPaid(offerId, paidOfferIds)) {
               useCheckoutStore.setState((state) => ({
-                paidOfferIds: [...state.paidOfferIds, offerId]
+                paidOfferIds: [
+                  ...new Set([...state.paidOfferIds.map(String), offerId]),
+                ],
               }));
               
               if (activePaymentOfferId === offerId) {
@@ -180,11 +192,14 @@ export const PaymentStep: React.FC = () => {
    * Pre-fetching Logic: Prepare intent when card is expanded (Speed Optimization)
    */
   const handlePreFetchIntent = async (offerId: string) => {
-    // Only pre-fetch if not already paid and no active payment
-    if (paidOfferIds.includes(offerId) || activePaymentOfferId) return;
+    if (isOfferPaid(offerId, paidOfferIds) || activePaymentOfferId) return;
+    if (prefetchedSecrets[offerId]) return;
 
     const currentOrderId = String(currentOrder?.id || orderId);
-    await createPaymentIntent(currentOrderId, offerId);
+    const secret = await createPaymentIntent(currentOrderId, offerId);
+    if (secret) {
+      setPrefetchedSecrets((prev) => ({ ...prev, [offerId]: secret }));
+    }
   };
 
   /**
@@ -194,33 +209,41 @@ export const PaymentStep: React.FC = () => {
     clearPaymentError();
     setSuccessMessage(null);
     setActivePaymentOfferId(offerId);
+    setIsPreparing(true);
 
     const currentOrderId = String(currentOrder?.id || orderId);
     
-    // Fetch the active offer object to get the calculated price
     const offer = acceptedOffers.find((o: any) => o.id === offerId);
-    
-    // offer.price = finalPrice (unitPrice + shippingCost + commission)
     const price = Number(offer?.price || 0);
-    const totalAmount = price;
-    setActiveAmount(totalAmount);
+    setActiveAmount(price);
 
-    const secret = await createPaymentIntent(currentOrderId, offerId);
-    if (secret) {
-      setActiveClientSecret(secret);
-    } else {
-      setActivePaymentOfferId(null);
+    try {
+      const cached = prefetchedSecrets[offerId];
+      const secret = cached ?? (await createPaymentIntent(currentOrderId, offerId));
+      if (secret) {
+        setActiveClientSecret(secret);
+        if (!cached) {
+          setPrefetchedSecrets((prev) => ({ ...prev, [offerId]: secret }));
+        }
+      } else {
+        setActivePaymentOfferId(null);
+      }
+    } finally {
+      setIsPreparing(false);
     }
   };
 
   /**
    * Step 2: Final Success (Callback from Stripe Component)
    */
-  const handlePaymentSuccess = (paymentIntent: any) => {
-    // Add to paid list locally (webhook will eventually confirm server-side)
+  const handlePaymentSuccess = async () => {
+    const paidId = String(activePaymentOfferId!);
     useCheckoutStore.setState((state) => ({
-      paidOfferIds: [...state.paidOfferIds, activePaymentOfferId!]
+      paidOfferIds: [
+        ...new Set([...state.paidOfferIds.map(String), paidId]),
+      ],
     }));
+    await syncPaidOffersForOrder([paidId]);
 
     setSuccessMessage(
       isAr
@@ -233,9 +256,11 @@ export const PaymentStep: React.FC = () => {
     setExpandedOfferId(null);
   };
 
-  const paidCount = paidOfferIds.length;
   const totalOffers = acceptedOffers.length;
-  const allPaid = paidCount >= totalOffers && totalOffers > 0;
+  const paidCount = acceptedOffers.filter((o) =>
+    isOfferPaid(o.id, paidOfferIds),
+  ).length;
+  const allPaid = areAllAcceptedOffersPaid(acceptedOffers, paidOfferIds);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300" dir={isAr ? 'rtl' : 'ltr'}>
@@ -375,7 +400,7 @@ export const PaymentStep: React.FC = () => {
         <h3 className="text-lg font-bold text-white mb-2">{tFR.orderDetails}</h3>
 
         {acceptedOffers.map((offer: any) => {
-          const isPaid = paidOfferIds.includes(offer.id);
+          const isPaid = isOfferPaid(offer.id, paidOfferIds);
           const isPreparing = activePaymentOfferId === offer.id && !activeClientSecret;
           const isReadyToPay = activePaymentOfferId === offer.id && !!activeClientSecret;
           const isExpanded = expandedOfferId === offer.id;

@@ -17,6 +17,8 @@ import {
   EyeOff,
   Lock,
   Mail,
+  Phone,
+  Globe,
   User as UserIcon,
   ChevronRight,
   Save,
@@ -30,6 +32,10 @@ import {
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useAdminPermissionsStore } from '../../../stores/useAdminPermissionsStore';
 import { PERMISSION_PAGES, GRANULAR_PERMISSIONS } from '../../../utils/permissions';
+import {
+  PHONE_COUNTRY_OPTIONS,
+  parseStoredPhone,
+} from '../../../utils/phoneCountries';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Types ---
@@ -37,6 +43,9 @@ interface AdminAccount {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  countryCode?: string;
+  country?: string;
   role: string;
   status: string;
   createdAt: string;
@@ -69,6 +78,9 @@ export const AdminAccessControl: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone: '',
+    countryCode: '+966',
+    country: 'Saudi Arabia',
     password: '',
     confirmPassword: '',
     role: 'ADMIN' as 'ADMIN' | 'SUPPORT' | 'VERIFICATION_OFFICER',
@@ -76,6 +88,8 @@ export const AdminAccessControl: React.FC = () => {
     supportCategories: [] as string[],
     blurredSections: [] as string[]
   });
+
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [newPassword, setNewPassword] = useState('');
 
@@ -122,13 +136,17 @@ export const AdminAccessControl: React.FC = () => {
 
   const handleOpenCreate = () => {
     setEditingAdmin(null);
+    setFormError(null);
     setFormData({
       name: '',
       email: '',
+      phone: '',
+      countryCode: '+966',
+      country: 'Saudi Arabia',
       password: '',
       confirmPassword: '',
       role: 'ADMIN',
-      permissions: initializePermissions(),
+      permissions: applyRoleDefaults('ADMIN', initializePermissions()),
       supportCategories: [],
       blurredSections: []
     });
@@ -153,11 +171,16 @@ export const AdminAccessControl: React.FC = () => {
       });
 
       const role = (admin.role as 'ADMIN' | 'SUPPORT' | 'VERIFICATION_OFFICER') || 'ADMIN';
+      const parsedPhone = parseStoredPhone(admin.phone, admin.countryCode, admin.country);
 
       setEditingAdmin(admin);
+      setFormError(null);
       setFormData({
         name: admin.name || '',
         email: admin.email,
+        phone: parsedPhone.phone,
+        countryCode: parsedPhone.countryCode,
+        country: parsedPhone.country,
         password: '',
         confirmPassword: '',
         role,
@@ -175,48 +198,78 @@ export const AdminAccessControl: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setIsSaving(true);
     
     try {
+      if (!formData.phone || formData.phone.replace(/\D/g, '').length < 8) {
+        setFormError(language === 'ar' ? 'رقم الجوال مطلوب (8–12 رقم)' : 'Phone number is required (8–12 digits)');
+        setActiveTab('basic');
+        setIsSaving(false);
+        return;
+      }
+
       if (editingAdmin) {
         if (editingAdmin.role === 'SUPER_ADMIN' && formData.role !== 'SUPER_ADMIN') {
-          alert(language === 'ar' ? 'لا يمكن تغيير دور Super Admin من هنا' : 'Cannot change Super Admin role here');
+          setFormError(language === 'ar' ? 'لا يمكن تغيير دور Super Admin من هنا' : 'Cannot change Super Admin role here');
           setIsSaving(false);
           return;
         }
-        const success = await updatePermissions(editingAdmin.id, {
+        await updatePermissions(editingAdmin.id, {
           role: formData.role,
+          phone: formData.phone.replace(/\D/g, ''),
+          countryCode: formData.countryCode,
+          country: formData.country,
           permissions: formData.permissions,
           supportTicketCategories: formData.supportCategories,
           blurredSections: formData.blurredSections
         });
-        if (success) setShowCreateModal(false);
+        setShowCreateModal(false);
       } else {
-        if (formData.password !== formData.confirmPassword) {
-          alert(language === 'ar' ? 'كلمات المرور غير متطابقة' : 'Passwords do not match');
+        if (formData.password.length < 8) {
+          setFormError(language === 'ar' ? 'كلمة المرور 8 أحرف على الأقل' : 'Password must be at least 8 characters');
+          setActiveTab('basic');
           setIsSaving(false);
           return;
         }
-        const success = await createAdmin({
-          name: formData.name,
-          email: formData.email,
+        if (formData.password !== formData.confirmPassword) {
+          setFormError(language === 'ar' ? 'كلمات المرور غير متطابقة' : 'Passwords do not match');
+          setActiveTab('basic');
+          setIsSaving(false);
+          return;
+        }
+        await createAdmin({
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          phone: formData.phone.replace(/\D/g, ''),
+          countryCode: formData.countryCode,
+          country: formData.country,
           password: formData.password,
           role: formData.role,
           permissions: formData.permissions,
           supportTicketCategories: formData.supportCategories,
           blurredSections: formData.blurredSections
         });
-        if (success) {
-          setShowCreateModal(false);
-        } else {
-          alert(language === 'ar' ? 'فشل إنشاء الحساب' : 'Failed to create account');
-        }
+        setShowCreateModal(false);
       }
     } catch (err: any) {
-      alert(err?.message || (language === 'ar' ? 'فشل الحفظ' : 'Save failed'));
+      setFormError(err?.message || (language === 'ar' ? 'فشل الحفظ' : 'Save failed'));
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCountryCodeChange = (code: string) => {
+    const option = PHONE_COUNTRY_OPTIONS.find((c) => c.code === code);
+    setFormData((prev) => ({
+      ...prev,
+      countryCode: code,
+      country: option
+        ? language === 'ar'
+          ? option.countryAr
+          : option.country
+        : prev.country,
+    }));
   };
 
   const togglePermission = (page: string, action: 'view' | 'edit') => {
@@ -624,6 +677,12 @@ export const AdminAccessControl: React.FC = () => {
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-6">
                 <form onSubmit={handleSubmit} id="admin-form" className="space-y-6">
+                  {formError && (
+                    <motion.div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-start gap-3">
+                      <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+                      <span>{formError}</span>
+                    </motion.div>
+                  )}
                   {/* TAB: Basic Info */}
                   {activeTab === 'basic' && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
@@ -659,6 +718,66 @@ export const AdminAccessControl: React.FC = () => {
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2 md:col-span-2">
+                          <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest px-1">
+                            {language === 'ar' ? 'رقم الجوال' : 'Mobile Number'} *
+                          </label>
+                          <div className="flex gap-2">
+                            <div className="relative shrink-0">
+                              <select
+                                value={formData.countryCode}
+                                onChange={(e) => handleCountryCodeChange(e.target.value)}
+                                className="h-full min-h-[48px] bg-white/5 border border-white/10 rounded-xl py-3 pl-3 pr-8 text-white text-sm focus:border-red-500/50 outline-none appearance-none cursor-pointer"
+                              >
+                                {PHONE_COUNTRY_OPTIONS.map((c) => (
+                                  <option key={c.code} value={c.code} className="bg-[#0a0a0a]">
+                                    {c.flag} {c.code}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="relative flex-1">
+                              <Phone className="absolute left-3 top-3 w-5 h-5 text-white/20" />
+                              <input
+                                type="tel"
+                                required
+                                inputMode="numeric"
+                                pattern="[0-9]{8,12}"
+                                value={formData.phone}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    phone: e.target.value.replace(/\D/g, '').slice(0, 12),
+                                  })
+                                }
+                                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:border-red-500/50 outline-none transition-all"
+                                placeholder={language === 'ar' ? '5xxxxxxxx' : '5xxxxxxxx'}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest px-1">
+                            {language === 'ar' ? 'البلد' : 'Country'} *
+                          </label>
+                          <div className="relative">
+                            <Globe className="absolute left-3 top-3 w-5 h-5 text-white/20" />
+                            <input
+                              required
+                              readOnly
+                              value={
+                                language === 'ar'
+                                  ? PHONE_COUNTRY_OPTIONS.find((c) => c.code === formData.countryCode)?.countryAr ||
+                                    formData.country
+                                  : formData.country
+                              }
+                              className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white/70 outline-none cursor-default"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       {!editingAdmin && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2">
@@ -668,6 +787,7 @@ export const AdminAccessControl: React.FC = () => {
                               <input 
                                 type="password"
                                 required
+                                minLength={8}
                                 value={formData.password}
                                 onChange={(e) => setFormData({...formData, password: e.target.value})}
                                 className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:border-red-500/50 outline-none transition-all"
@@ -681,6 +801,7 @@ export const AdminAccessControl: React.FC = () => {
                               <input 
                                 type="password"
                                 required
+                                minLength={8}
                                 value={formData.confirmPassword}
                                 onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
                                 className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:border-red-500/50 outline-none transition-all"

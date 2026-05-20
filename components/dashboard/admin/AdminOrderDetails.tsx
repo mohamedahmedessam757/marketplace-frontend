@@ -11,6 +11,8 @@ import { ShipmentTracker } from '../shipments/ShipmentTracker';
 import { OrderCountdown } from '../../ui/OrderCountdown';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
+import { useOrderById } from '../../../hooks/useOrderById';
+import { useOrderRealtimeSync } from '../../../hooks/useOrderRealtimeSync';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import {
     ChevronLeft, ChevronRight, User, Store, DollarSign, Settings2, ShieldAlert,
@@ -22,6 +24,7 @@ import { VerificationTaskManager } from './VerificationTaskManager';
 import { ordersApi } from '../../../services/api/orders';
 import { OrderInvoicesPanel } from '../shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from '../shared/OrderWaybillsPanel';
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../../utils/orderSla';
 
 interface AdminOrderDetailsProps {
     orderId: any;
@@ -196,20 +199,20 @@ const EditOfferModal = ({ offer, onClose, onSave }: { offer: any, onClose: () =>
 
 export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
-    const { getOrder, fetchOrder, transitionOrder, forceStatus, getValidTransitions } = useOrderStore();
+    const { transitionOrder, forceStatus, getValidTransitions, fetchOrder } = useOrderStore();
     const { currentAdmin } = useAdminStore();
 
-    const order = getOrder(orderId);
+    const order = useOrderById(orderId ? String(orderId) : undefined);
+    useOrderRealtimeSync(orderId ? String(orderId) : undefined);
+
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronRight : ChevronLeft;
 
-    const [isLoadingDetail, setIsLoadingDetail] = useState(true);
+    const [isLoadingDetail, setIsLoadingDetail] = useState(!order);
 
     useEffect(() => {
-        if (!orderId) return;
-        setIsLoadingDetail(true);
-        fetchOrder(String(orderId)).finally(() => setIsLoadingDetail(false));
-    }, [orderId, fetchOrder]);
+        if (order) setIsLoadingDetail(false);
+    }, [order]);
 
     const [activeMedia, setActiveMedia] = useState<{ type: 'image' | 'video', url: string } | null>(null);
     const [showTracking, setShowTracking] = useState(false);
@@ -273,9 +276,10 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
     };
 
     const getReturnDeadline = () => {
-        if (!order.deliveredAt) return '';
-        const d = new Date(order.deliveredAt);
-        d.setHours(d.getHours() + 72); // 3 Day Protection Window
+        const baseDate = order.deliveredAt || order.updatedAt;
+        if (!baseDate || (order.status !== 'DELIVERED' && order.status !== 'DELIVERED_TO_CUSTOMER')) return '';
+        const d = new Date(baseDate);
+        d.setHours(d.getHours() + POST_DELIVERY_RETURN_DISPUTE_HOURS);
         return d.toISOString();
     };
 
@@ -536,7 +540,14 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                     )}
 
                     {/* Temporary Links for Verification Tasks */}
-                    {['VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING'].includes(order.status) && (
+                    {[
+                        'VERIFICATION',
+                        'VERIFICATION_SUCCESS',
+                        'READY_FOR_SHIPPING',
+                        'CORRECTION_PERIOD',
+                        'NON_MATCHING',
+                        'CORRECTION_SUBMITTED',
+                    ].includes(order.status) && (
                         <VerificationTaskManager orderId={order.id} />
                     )}
 

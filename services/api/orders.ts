@@ -72,9 +72,29 @@ export const ordersApi = {
         return response.data;
     },
 
-    // Mark order as Prepared
-    markPrepared: async (id: string) => {
-        const response = await client.patch(`/orders/${id}/prepare`);
+    // Mark order/offer as Prepared (offerId required for multi-part)
+    markPrepared: async (id: string, offerId?: string) => {
+        const response = await client.patch(`/orders/${id}/prepare`, offerId ? { offerId } : {});
+        return response.data;
+    },
+
+    markOfferPrepared: async (orderId: string, offerId: string) => {
+        const response = await client.patch(`/orders/${orderId}/offers/${offerId}/prepared`);
+        return response.data;
+    },
+
+    submitOfferVerification: async (orderId: string, offerId: string, payload: any) => {
+        const response = await client.post(`/orders/${orderId}/offers/${offerId}/verification`, payload);
+        return response.data;
+    },
+
+    markOfferReadyForShipping: async (orderId: string, offerId: string) => {
+        const response = await client.patch(`/orders/${orderId}/offers/${offerId}/ready-for-shipping`);
+        return response.data;
+    },
+
+    getFulfillmentSummary: async (orderId: string) => {
+        const response = await client.get(`/orders/${orderId}/fulfillment-summary`);
         return response.data;
     },
 

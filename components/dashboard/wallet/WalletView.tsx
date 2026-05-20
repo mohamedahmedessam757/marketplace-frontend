@@ -895,7 +895,9 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                                                 'GATEWAY_FEE': { icon: ShieldAlert, color: 'text-orange-400' },
                                                                 'REFUND_FEE': { icon: RotateCcw, color: 'text-rose-400' },
                                                                 'SHIPPING_FEE': { icon: Truck, color: 'text-cyan-400' },
-                                                                'FRAUD_PENALTY': { icon: AlertOctagon, color: 'text-red-600' }
+                                                                'FRAUD_PENALTY': { icon: AlertOctagon, color: 'text-red-600' },
+                                                                'ADJUDICATION_FEE': { icon: Scale, color: 'text-orange-400' },
+                                                                'SHIPPING_LIABILITY': { icon: Truck, color: 'text-purple-400' }
                                                             };
 
                                                             const config = iconConfig[type] || { icon: AlertCircle, color: 'text-white/40' };

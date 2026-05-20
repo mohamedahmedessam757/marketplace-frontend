@@ -78,9 +78,13 @@ export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get)
       await client.post('/admin-permissions/create-admin', data);
       await get().fetchAdminList();
       return true;
-    } catch (error) {
-      console.error('Failed to create admin', error);
-      return false;
+    } catch (error: any) {
+      const msg = error?.response?.data?.message;
+      const text = Array.isArray(msg)
+        ? msg.join(', ')
+        : msg || 'Failed to create admin account';
+      console.error('Failed to create admin', text, error);
+      throw new Error(text);
     }
   },
 

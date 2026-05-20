@@ -415,9 +415,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             color="#22d3ee"
                         />
                         <StatCard 
-                            label={isAr ? 'الالتزامات المعلقة' : 'Pending Liabilities'}
+                            label={isAr ? 'أرصدة مستخدمين (التزامات)' : 'User Wallet Liabilities'}
                             value={`${(kpis.pendingLiabilities || 0).toLocaleString()} AED`}
-                            subValue={isAr ? 'نقاط الولاء وأرباح المستخدمين غير المسحوبة' : 'Unwithdrawn loyalty & referral points'}
+                            subValue={isAr ? `نقاط ولاء: ${((kpis as any).loyaltyPointsOutstanding || 0).toLocaleString()}` : `Loyalty pts: ${((kpis as any).loyaltyPointsOutstanding || 0).toLocaleString()}`}
                             icon={AlertOctagon}
                             color="#eab308"
                         />

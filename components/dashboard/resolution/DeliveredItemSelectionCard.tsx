@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../../ui/GlassCard';
 import { Package } from 'lucide-react';
 
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../../utils/orderSla';
+
 interface DeliveredItemSelectionCardProps {
     item: any;
     language: string;
@@ -27,7 +29,7 @@ export const DeliveredItemSelectionCard: React.FC<DeliveredItemSelectionCardProp
 
             const expiry = item.returnExpiryDate
                 ? new Date(item.returnExpiryDate)
-                : new Date(new Date(item.deliveredAt || item.updatedAt || item.createdAt).getTime() + 3 * 24 * 60 * 60 * 1000);
+                : new Date(new Date(item.deliveredAt || item.updatedAt || item.createdAt).getTime() + POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000);
 
             const now = new Date();
             const difference = expiry.getTime() - now.getTime();
@@ -200,7 +202,9 @@ export const DeliveredItemSelectionCard: React.FC<DeliveredItemSelectionCardProp
                         {isExpired ? (
                             <div className="bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 inline-block">
                                 <span className="text-red-400 font-bold text-sm block">
-                                    {language === 'ar' ? 'تجاوز 3 أيام' : 'Exceeded 3 Days'}
+                                    {language === 'ar'
+                                        ? `تجاوز ${POST_DELIVERY_RETURN_DISPUTE_HOURS} ساعة`
+                                        : `Window expired (${POST_DELIVERY_RETURN_DISPUTE_HOURS}h)`}
                                 </span>
                                 <span className="text-red-400/60 text-[10px] mt-0.5 block">غير متاح للإرجاع</span>
                             </div>
