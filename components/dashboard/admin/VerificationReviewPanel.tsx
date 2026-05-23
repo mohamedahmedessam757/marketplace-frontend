@@ -7,6 +7,7 @@ import {
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { GlassCard } from '../../ui/GlassCard';
 import { AdminSignatureModal } from './AdminSignatureModal';
+import { isVerificationFlowStatus } from '../../../utils/orderVerificationVisibility';
 
 interface VerificationReviewPanelProps {
     orderId: string;
@@ -44,17 +45,17 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
     const vidInputRef = useRef<HTMLInputElement>(null);
 
     const activeDoc = documents?.[0];
+    const hasDocuments = (documents?.length ?? 0) > 0;
     const isPending = status === 'VERIFICATION' || status === 'CORRECTION_SUBMITTED';
-    const expectsVerificationData = [
-        'VERIFICATION',
-        'CORRECTION_SUBMITTED',
-        'VERIFICATION_SUCCESS',
-        'NON_MATCHING',
-        'CORRECTION_PERIOD',
-    ].includes(status);
+    const isHistoricalRecord = hasDocuments && !isVerificationFlowStatus(status);
+    const showPanel = hasDocuments || isVerificationFlowStatus(status);
+    const isApprovedRecord =
+        status === 'VERIFICATION_SUCCESS' || activeDoc?.adminStatus === 'APPROVED';
+    const isRejectedRecord =
+        status === 'NON_MATCHING' || activeDoc?.adminStatus === 'REJECTED';
 
-    if (!documents || documents.length === 0) {
-        if (!expectsVerificationData) return null;
+    if (!hasDocuments) {
+        if (!showPanel) return null;
         return (
             <GlassCard className="p-6 border-l-4 border-l-amber-500/50 bg-amber-500/5 mb-6 animate-pulse">
                 <motion.div className="space-y-4">
@@ -216,8 +217,8 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
 
     return (
         <GlassCard className={`p-6 border-l-4 mb-6 ${
-            status === 'NON_MATCHING' ? 'border-l-red-500 bg-red-500/5' :
-            status === 'VERIFICATION_SUCCESS' ? 'border-l-green-500 bg-green-500/5' :
+            isRejectedRecord ? 'border-l-red-500 bg-red-500/5' :
+            isApprovedRecord ? 'border-l-green-500 bg-green-500/5' :
             'border-l-amber-500 bg-amber-500/5'
         }`}>
             {/* Header */}
@@ -225,13 +226,21 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
                 <div>
                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
                         <ShieldCheck className={
-                            status === 'NON_MATCHING' ? 'text-red-400' :
-                            status === 'VERIFICATION_SUCCESS' ? 'text-green-400' : 'text-amber-400'
+                            isRejectedRecord ? 'text-red-400' :
+                            isApprovedRecord ? 'text-green-400' : 'text-amber-400'
                         } size={24} />
-                        {isAr ? 'المراجعة والوثائق الإلزامية قبل التسليم' : 'Mandatory Handover Verification Review'}
+                        {isHistoricalRecord
+                            ? (isAr ? 'سجل المطابقة والتوثيق' : 'Verification & Matching Record')
+                            : (isAr ? 'المراجعة والوثائق الإلزامية قبل التسليم' : 'Mandatory Handover Verification Review')}
                     </h3>
                     <p className="text-sm text-white/50 mt-1">
-                        {status === 'NON_MATCHING'
+                        {isHistoricalRecord
+                            ? isApprovedRecord
+                                ? (isAr ? 'سجل المطابقة المعتمد — محفوظ للمراجعة والتدقيق' : 'Approved verification record — kept for audit review')
+                                : isRejectedRecord
+                                    ? (isAr ? 'سجل رفض المطابقة — محفوظ للمراجعة والتدقيق' : 'Rejection record — kept for audit review')
+                                    : (isAr ? 'سجل توثيق المطابقة — محفوظ للمراجعة والتدقيق' : 'Verification record — kept for audit review')
+                            : status === 'NON_MATCHING'
                             ? (isAr ? 'تم رفض توثيق القطعة وينتظر إعادة الإرسال من التاجر' : 'Part verification rejected, awaiting merchant correction')
                             : status === 'VERIFICATION_SUCCESS'
                             ? (isAr ? 'تم الموافقة على التوثيق، الشحنة جاهزة' : 'Verification Approved, Ready for Shipment')
@@ -241,17 +250,19 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
                     </p>
                 </div>
                 <div className={`px-3 py-1 border rounded-lg text-xs font-bold shrink-0 ${
-                    status === 'NON_MATCHING' ? 'bg-red-500/10 border-red-500/20 text-red-500' :
-                    status === 'VERIFICATION_SUCCESS' ? 'bg-green-500/10 border-green-500/20 text-green-500' :
+                    isRejectedRecord ? 'bg-red-500/10 border-red-500/20 text-red-500' :
+                    isApprovedRecord ? 'bg-green-500/10 border-green-500/20 text-green-500' :
                     'bg-amber-500/10 border-amber-500/20 text-amber-500'
                 }`}>
-                    {isAr ? (
-                        status === 'VERIFICATION' ? 'قيد التوثيق' :
-                        status === 'VERIFICATION_SUCCESS' ? 'التوثيق ناجح' :
-                        status === 'NON_MATCHING' ? 'طلب مراجعة' :
-                        status === 'CORRECTION_PERIOD' ? 'فترة التصحيح' : 
-                        status === 'CORRECTION_SUBMITTED' ? 'تم إرسال التصحيح' : status
-                    ) : status}
+                    {isHistoricalRecord
+                        ? (isAr ? 'سجل محفوظ' : 'Archived Record')
+                        : isAr ? (
+                            status === 'VERIFICATION' ? 'قيد التوثيق' :
+                            status === 'VERIFICATION_SUCCESS' ? 'التوثيق ناجح' :
+                            status === 'NON_MATCHING' ? 'طلب مراجعة' :
+                            status === 'CORRECTION_PERIOD' ? 'فترة التصحيح' :
+                            status === 'CORRECTION_SUBMITTED' ? 'تم إرسال التصحيح' : status
+                        ) : status}
                 </div>
             </div>
 

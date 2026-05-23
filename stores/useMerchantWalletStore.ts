@@ -39,6 +39,9 @@ interface MerchantWalletState {
     frozen: number;
     totalSales: number;
     netEarnings: number;
+    totalWalletBalance: number;
+    ledgerNetProfit: number;
+    merchantShareTotal: number;
     completedOrders: number;
     loyaltyTier: string;
     performanceScore: number;
@@ -82,6 +85,9 @@ export const useMerchantWalletStore = create<MerchantWalletState>((set, get) => 
     frozen: 0,
     totalSales: 0,
     netEarnings: 0,
+    totalWalletBalance: 0,
+    ledgerNetProfit: 0,
+    merchantShareTotal: 0,
     completedOrders: 0,
     loyaltyTier: 'BASIC',
     performanceScore: 0,

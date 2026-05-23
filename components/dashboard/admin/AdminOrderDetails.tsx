@@ -25,6 +25,7 @@ import { ordersApi } from '../../../services/api/orders';
 import { OrderInvoicesPanel } from '../shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from '../shared/OrderWaybillsPanel';
 import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../../utils/orderSla';
+import { shouldShowAdminVerificationSections } from '../../../utils/orderVerificationVisibility';
 
 interface AdminOrderDetailsProps {
     orderId: any;
@@ -518,7 +519,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
 
                     {/* OVERVIEW CONTENT */}
                     <div className={`space-y-6 ${activeTab === 'overview' ? 'block' : 'hidden'}`}>
-                    {['VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED'].includes(order.status) && (
+                    {shouldShowAdminVerificationSections(order) && (
                         <VerificationReviewPanel
                             orderId={order.id}
                             status={order.status}
@@ -539,15 +540,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                         />
                     )}
 
-                    {/* Temporary Links for Verification Tasks */}
-                    {[
-                        'VERIFICATION',
-                        'VERIFICATION_SUCCESS',
-                        'READY_FOR_SHIPPING',
-                        'CORRECTION_PERIOD',
-                        'NON_MATCHING',
-                        'CORRECTION_SUBMITTED',
-                    ].includes(order.status) && (
+                    {shouldShowAdminVerificationSections(order) && (
                         <VerificationTaskManager orderId={order.id} />
                     )}
 

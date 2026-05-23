@@ -1,5 +1,38 @@
 import { create } from 'zustand';
 
+export const CREATE_ORDER_PREFILL_KEY = 'create_order_prefill';
+
+export interface CreateOrderPrefillPayload {
+  make: string;
+  model: string;
+  year?: string;
+  sourceOrderId?: string;
+  sourcePartId?: string;
+}
+
+export function writeCreateOrderPrefill(payload: CreateOrderPrefillPayload): void {
+  sessionStorage.setItem(CREATE_ORDER_PREFILL_KEY, JSON.stringify(payload));
+}
+
+export function consumeCreateOrderPrefill(): CreateOrderPrefillPayload | null {
+  try {
+    const raw = sessionStorage.getItem(CREATE_ORDER_PREFILL_KEY);
+    sessionStorage.removeItem(CREATE_ORDER_PREFILL_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed.make !== 'string' || typeof parsed.model !== 'string') return null;
+    return {
+      make: parsed.make,
+      model: parsed.model,
+      year: typeof parsed.year === 'string' ? parsed.year : undefined,
+      sourceOrderId: typeof parsed.sourceOrderId === 'string' ? parsed.sourceOrderId : undefined,
+      sourcePartId: typeof parsed.sourcePartId === 'string' ? parsed.sourcePartId : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface PartItem {
   id: string;
   name: string;
@@ -50,6 +83,7 @@ export interface OrderState {
 
   updatePreferences: (field: string, value: any) => void;
   reset: () => void;
+  prefillVehicle: (data: { make: string; model: string; year?: string }) => void;
   submitOrder: () => Promise<string>;
   setShowErrors: (show: boolean) => void;
 }
@@ -157,6 +191,24 @@ export const useCreateOrderStore = create<OrderState>((set, get) => ({
     isSubmitting: false,
     showErrors: false
   }),
+
+  prefillVehicle: (data) =>
+    set({
+      step: 1,
+      vehicle: {
+        make: data.make,
+        model: data.model,
+        year: data.year ?? '',
+        vin: '',
+        vinImage: null,
+      },
+      requestType: 'single',
+      shippingType: 'separate',
+      parts: [getInitialPart()],
+      preferences: { condition: null },
+      isSubmitting: false,
+      showErrors: false,
+    }),
 
   setShowErrors: (show) => set({ showErrors: show }),
 

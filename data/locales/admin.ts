@@ -263,8 +263,8 @@ export const admin = {
         cancel: 'إلغاء',
         placeholderNotes: 'أضف أي ملاحظات إضافية هنا...',
         conditions: {
-          new: 'جديد',
-          used_clean: 'مستعمل - نظيف',
+          new: 'جديد (أصلي)',
+          used_clean: 'مستعمل (أصلي)',
           used_scratched: 'مستعمل - مخدوش',
           for_parts: 'للقطع (سكراب)'
         },
@@ -697,6 +697,8 @@ export const admin = {
     billing: {
       title: 'مركز المالية',
       subtitle: 'التحكم المالي والسيولة — رؤية 2026',
+      tabProtectedTitle: 'تبويب {tab} محمي',
+      tabProtectedDescription: 'لا تملك صلاحية الوصول لهذا التبويب. يرجى التواصل مع الإدارة العليا لتوسيع نطاق وصولك.',
       totalRevenue: 'إجمالي الدخل',
       pendingPayouts: 'تحويلات معلقة',
       netIncome: 'صافي الأرباح',
@@ -707,18 +709,56 @@ export const admin = {
       date: 'التاريخ',
       frozen: 'أموال مجمدة (نزاعات)',
       searchPlaceholder: 'بحث في السجلات المالية...',
+      export: 'تصدير',
+      bankModal: {
+        title: 'البيانات البنكية',
+        noDetails: 'لم يقم المستخدم بإضافة بيانات بنكية بعد.',
+        verificationStatus: 'حالة التوثيق',
+        verified: 'موثق',
+        unverified: 'غير موثق',
+        accountHolder: 'اسم صاحب الحساب',
+        verifyFailed: 'فشل التوثيق',
+        verifying: 'جاري التوثيق...',
+        verifyAction: 'توثيق البيانات البنكية للعميل',
+      },
       kpis: {
         totalSales: 'إجمالي المبيعات',
-        netProfit: 'صافي أرباح المنصة',
-        logisticsRevenue: 'أرباح الشحن واللوجستيات',
-        referralEcosystem: 'أرباح الإحالات والنمو',
-        activeReferrals: 'إحالة نشطة',
+        netProfit: 'الربح الصافي الحقيقي',
+        netProfitSub: 'عمولة المنصة بعد خصم المصاريف',
+        netPlatformPosition: 'صافي ربح المنصة (بعد الاسترداد)',
+        netPlatformSub: 'الربح الفعلي المحقق بعد جميع المصاريف',
+        logisticsRevenue: 'رسوم الشحن المحصّلة',
+        logisticsSub: 'تُحوّل للتاجر — ليست ربح المنصة',
+        referralEcosystem: 'مدفوعات الإحالات',
+        referralSub: 'مصروفات مدفوعة للمُحيلين',
+        loyaltyCashback: 'كاش باك الولاء المدفوع',
+        loyaltySub: 'مصروفات ولاء للعملاء',
+        activeReferrals: 'إحالة مكتملة',
         withdrawalQueue: 'سحوبات قيد المعالجة',
         pendingRequests: 'طلب معلق',
-        escrowLocked: 'أموال النزاعات المجمدة',
+        escrowLocked: 'أموال البوابات المجمدة',
+        userLiabilities: 'أرصدة مستخدمين (التزامات)',
+        loyaltyPointsSub: 'نقاط ولاء',
+        gatewayFees: 'التكاليف التشغيلية (البوابات)',
+        totalRefunds: 'إجمالي المبالغ المستردة',
+        failedUnsettled: 'عمليات فاشلة لم يتم استردادها',
+        failedUnsettledSub: 'عمليات فورية',
         activityLoad: 'معاملات الـ 24 ساعة الماضية',
         realtimeOps: 'عمليات فورية',
-        revenueVelocity: 'سرعة الإيرادات (Velocity)'
+        revenueVelocity: 'سرعة الإيرادات (Velocity)',
+        reconciliationWarning: 'تنبيه: فرق محاسبي بين العمولة المحسوبة وسجل المنصة',
+        reconciliationDelta: 'فرق التسوية'
+      },
+      leaderboards: {
+        topSpenders: 'الأعلى إنفاقاً',
+        topMerchants: 'التجار الأعلى مبيعاً',
+        grossSales: 'مبيعات إجمالية',
+        noData: 'لا توجد بيانات',
+        orders: 'طلبات'
+      },
+      charts: {
+        salesTrend: 'اتجاه المبيعات (الرؤية المالية)',
+        salesTrendSub: 'نظرة شاملة على أداء المنصة المالي'
       },
       panels: {
         overview: 'نظرة عامة',
@@ -738,13 +778,24 @@ export const admin = {
         globalGuardrails: 'ضوابط الصرف العالمية'
       },
       ledger: {
+        filterTypes: {
+          all: 'جميع العمليات',
+          payments: 'المدفوعات',
+          refunds: 'المرتجعات',
+          escrow: 'الضمان',
+          withdrawals: 'السحوبات',
+          manualPayouts: 'تحويلات يدوية',
+          loyaltyCashback: 'كاش باك الولاء',
+          referralPayouts: 'مدفوعات الإحالة',
+          commissions: 'عمولات المنصة',
+        },
         filters: {
           directions: 'كل الاتجاهات',
           debit: 'صادر (مدين)',
           credit: 'وارد (دائن)',
           roles: 'كل الأدوار',
           vendors: 'التجار فقط',
-          customers: 'العملاء فقط'
+          customers: 'العملاء فقط',
         },
         table: {
           node: 'عقدة المعاملة',
@@ -755,11 +806,19 @@ export const admin = {
           transaction: 'العملية / المصدر',
           details: 'التفاصيل والارتباطات',
           amount: 'القيمة (AED)',
+          breakdown: 'التفصيل المالي',
+          balanceAfter: 'الرصيد بعد',
+          refs: 'المراجع',
           status_header: 'الحالة',
           scanning: 'جاري فحص السجل الآمن...',
-          noRecords: 'لم يتم رصد سجلات مطابقة'
+          noRecords: 'لم يتم رصد سجلات مطابقة',
+          viewAudit: 'عرض سجل التدقيق المالي'
         },
         loadMore: 'تحميل المزيد من العمليات الموحدة',
+        scanningMore: 'جاري تحميل المزيد من السجل...',
+        financialImpact: 'التأثير المالي',
+        expandDetails: 'عرض التفاصيل',
+        collapseDetails: 'إخفاء التفاصيل',
         auditDrawer: {
           title: 'تدقيق مالي للطلب',
           totalPaid: 'إجمالي المدفوع',
@@ -775,18 +834,33 @@ export const admin = {
         }
       },
       withdrawals: {
+        filters: {
+          pending: 'معلقة',
+          approved: 'موافق عليها',
+          completed: 'مكتملة',
+          rejected: 'مرفوضة',
+          all: 'كل الطلبات'
+        },
         table: {
           target: 'الجهة المستهدفة',
           amount: 'المبلغ المطلوب',
           method: 'بروتوكول التحويل',
           timestamp: 'الطابع الزمني',
           status: 'حالة التدفق',
-          actions: 'إجراءات استراتيجية'
+          balanceAtRequest: 'الرصيد عند الطلب',
+          balanceCurrent: 'الرصيد الحالي',
+          processedAt: 'تاريخ المعالجة',
+          adminNotes: 'ملاحظات الإدارة',
+          stripeId: 'Stripe ID',
+          requestId: 'رقم الطلب',
+          actions: 'إجراءات استراتيجية',
+          viewBank: 'عرض البيانات البنكية'
         },
         actions: {
           execute: 'تنفيذ التحويل',
           invalidate: 'إبطال الطلب',
-          empty: 'قائمة السحب فارغة',
+          emptyPending: 'لا توجد طلبات سحب معلقة',
+          emptyAll: 'لا توجد سجلات سحب مطابقة',
           rejectPrompt: 'بروتوكول الأمان: أدخل سبب الرفض'
         }
       },
@@ -1258,8 +1332,8 @@ export const admin = {
         cancel: 'Cancel',
         placeholderNotes: 'Add any additional notes here...',
         conditions: {
-          new: 'New',
-          used_clean: 'Used - Clean',
+          new: 'New (Original)',
+          used_clean: 'Used (Original)',
           used_scratched: 'Used - Scratched',
           for_parts: 'For Parts (Scrap)'
         },
@@ -1643,6 +1717,8 @@ export const admin = {
     billing: {
       title: 'Financial Center',
       subtitle: 'Financial Control & Liquidity — 2026 Vision',
+      tabProtectedTitle: '{tab} Tab Protected',
+      tabProtectedDescription: 'You do not have permission to access this tab. Please contact senior management to expand your access scope.',
       totalRevenue: 'Total Revenue',
       pendingPayouts: 'Pending Payouts',
       netIncome: 'Net Income',
@@ -1653,18 +1729,56 @@ export const admin = {
       date: 'Date',
       frozen: 'Frozen Funds (Disputes)',
       searchPlaceholder: 'Search financial records...',
+      export: 'Export',
+      bankModal: {
+        title: 'Bank Details',
+        noDetails: 'User has not added bank details yet.',
+        verificationStatus: 'Verification Status',
+        verified: 'Verified',
+        unverified: 'Unverified',
+        accountHolder: 'Account Holder',
+        verifyFailed: 'Verification failed',
+        verifying: 'Verifying...',
+        verifyAction: 'Verify Bank Details',
+      },
       kpis: {
         totalSales: 'Total Gross Volume',
-        netProfit: 'Net Marketplace Profit',
-        logisticsRevenue: 'Logistics Revenue',
-        referralEcosystem: 'Referral Ecosystem',
-        activeReferrals: 'Active Referrals',
+        netProfit: 'True Net Profit',
+        netProfitSub: 'Commission after platform expenses',
+        netPlatformPosition: 'Net Platform Position (After Refunds)',
+        netPlatformSub: 'Actual realized profit after all expenses',
+        logisticsRevenue: 'Shipping Collected',
+        logisticsSub: 'Transferred to merchants — not platform profit',
+        referralEcosystem: 'Referral Payouts',
+        referralSub: 'Paid out to referrers (expense)',
+        loyaltyCashback: 'Loyalty Cashback Paid',
+        loyaltySub: 'Customer loyalty expense',
+        activeReferrals: 'Completed Referrals',
         withdrawalQueue: 'Withdrawal Queue',
         pendingRequests: 'Pending Requests',
         escrowLocked: 'Escrow Locked Funds',
+        userLiabilities: 'User Wallet Liabilities',
+        loyaltyPointsSub: 'Loyalty pts',
+        gatewayFees: 'Gateway Fees',
+        totalRefunds: 'Total Refunds',
+        failedUnsettled: 'Failed Unsettled Ops',
+        failedUnsettledSub: 'Immediate operations',
         activityLoad: '24H Activity Load',
         realtimeOps: 'Real-time Operations',
-        revenueVelocity: 'Revenue Velocity'
+        revenueVelocity: 'Revenue Velocity',
+        reconciliationWarning: 'Accounting delta between computed commission and platform ledger',
+        reconciliationDelta: 'Reconciliation Delta'
+      },
+      leaderboards: {
+        topSpenders: 'Top Spenders',
+        topMerchants: 'Top Merchants by Gross Sales',
+        grossSales: 'Gross Sales',
+        noData: 'No data',
+        orders: 'Orders'
+      },
+      charts: {
+        salesTrend: 'Sales Trend (Financial Vision)',
+        salesTrendSub: 'Overview of platform financial performance'
       },
       panels: {
         overview: 'Intelligence Overview',
@@ -1684,6 +1798,17 @@ export const admin = {
         globalGuardrails: 'Global Payout Guardrails'
       },
       ledger: {
+        filterTypes: {
+          all: 'All Events',
+          payments: 'Payments',
+          refunds: 'Refunds',
+          escrow: 'Escrow',
+          withdrawals: 'Withdrawals',
+          manualPayouts: 'Manual Payouts',
+          loyaltyCashback: 'Loyalty Cashback',
+          referralPayouts: 'Referral Payouts',
+          commissions: 'Platform Commissions',
+        },
         filters: {
           directions: 'All Directions',
           debit: 'Debit (Outflow)',
@@ -1701,11 +1826,19 @@ export const admin = {
           transaction: 'Transaction / Source',
           details: 'Details & Relations',
           amount: 'Amount (AED)',
+          breakdown: 'Financial Breakdown',
+          balanceAfter: 'Balance After',
+          refs: 'References',
           status_header: 'Status',
           scanning: 'Scanning Secure Ledger...',
-          noRecords: 'No matching records detected'
+          noRecords: 'No matching records detected',
+          viewAudit: 'View Financial Audit Trail'
         },
         loadMore: 'Load More Unified Transactions',
+        scanningMore: 'Loading more ledger records...',
+        financialImpact: 'Financial Impact',
+        expandDetails: 'Show details',
+        collapseDetails: 'Hide details',
         auditDrawer: {
           title: 'Order Financial Audit',
           totalPaid: 'Total Paid',
@@ -1721,18 +1854,33 @@ export const admin = {
         }
       },
       withdrawals: {
+        filters: {
+          pending: 'Pending',
+          approved: 'Approved',
+          completed: 'Completed',
+          rejected: 'Rejected',
+          all: 'All Requests'
+        },
         table: {
           target: 'Target Entity',
           amount: 'Requested Amount',
           method: 'Protocol Method',
           timestamp: 'Timestamp',
           status: 'Flow Status',
-          actions: 'Strategic Actions'
+          balanceAtRequest: 'Balance at Request',
+          balanceCurrent: 'Current Balance',
+          processedAt: 'Processed Date',
+          adminNotes: 'Admin Notes',
+          stripeId: 'Stripe ID',
+          requestId: 'Request ID',
+          actions: 'Strategic Actions',
+          viewBank: 'View Bank Details'
         },
         actions: {
           execute: 'Execute Payout',
           invalidate: 'Invalidate Request',
-          empty: 'Withdrawal Queue Empty',
+          emptyPending: 'No pending withdrawal requests',
+          emptyAll: 'No matching withdrawal records',
           rejectPrompt: 'Security Protocol: Enter Rejection Reason'
         }
       },

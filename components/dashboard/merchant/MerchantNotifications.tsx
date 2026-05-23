@@ -5,8 +5,16 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNotificationStore, NotificationType } from '../../../stores/useNotificationStore';
 import { getCurrentUserId } from '../../../utils/auth';
 import { MerchantPreferencesTab } from './MerchantPreferencesTab';
+import {
+    resolveNotificationNavigation,
+    setViolationNavContext,
+} from '../../../utils/violationNavigation';
 
-export const MerchantNotifications: React.FC = () => {
+interface MerchantNotificationsProps {
+    onNavigate?: (path: string, id?: string) => void;
+}
+
+export const MerchantNotifications: React.FC<MerchantNotificationsProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const { notifications, markAsRead, markAllAsRead } = useNotificationStore();
     const [activeTab, setActiveTab] = useState<'prefs' | 'notifications'>('notifications');
@@ -40,7 +48,20 @@ export const MerchantNotifications: React.FC = () => {
     const handleMarkRead = (id: string) => {
         const uid = getCurrentUserId();
         if (uid) markAsRead(id, uid);
-    }
+    };
+
+    const handleNotifClick = (notif: (typeof notifications)[0]) => {
+        handleMarkRead(notif.id);
+        if (!onNavigate) return;
+        const nav = resolveNotificationNavigation(notif);
+        if (!nav) return;
+        if (nav.context) setViolationNavContext(nav.context);
+        if (notif.metadata?.orderId) {
+            onNavigate('orders', notif.metadata.orderId);
+        } else {
+            onNavigate(nav.path);
+        }
+    };
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
@@ -121,7 +142,7 @@ export const MerchantNotifications: React.FC = () => {
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0 }}
-                                        onClick={() => handleMarkRead(notif.id)}
+                                        onClick={() => handleNotifClick(notif)}
                                         className={`
                                             p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-4 group
                                             ${!notif.isRead

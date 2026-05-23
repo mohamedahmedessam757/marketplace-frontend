@@ -206,15 +206,32 @@ export interface UnifiedFinancialEvent {
   amount: number;
   currency: string;
   direction: 'CREDIT' | 'DEBIT' | 'HOLD' | 'RELEASE' | 'FREEZE';
+  unitPrice?: number;
+  shippingCost?: number;
+  commission?: number;
+  gatewayFee?: number;
+  refundedAmount?: number;
+  balanceAfter?: number;
+  userRole?: string;
+  merchantAmount?: number;
+  escrowStatus?: string;
+  payoutMethod?: string;
+  adminNotes?: string;
+  stripeTransferId?: string;
+  processedAt?: string;
+  paymentId?: string;
+  walletTxId?: string;
+  transactionNumber?: string;
+  financialImpact?: string;
   eventType: string;
   eventTypeAr: string;
   eventTypeEn: string;
   status: string;
   description?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt?: string;
-  isNew?: boolean; // For glow effect
+  isNew?: boolean;
 }
 
 export interface VehicleModel {
@@ -265,8 +282,8 @@ export interface AdminState {
   financialFeed: UnifiedFinancialEvent[];
   isFeedLoading: boolean;
   feedHasMore: boolean;
-  feedPage: number;
-  feedFilters: { type: string; search: string; startDate?: string; endDate?: string };
+  feedCursor: string | null;
+  feedFilters: { type: string; search: string; startDate?: string; endDate?: string; role?: string };
   fetchFinancialFeed: (reset?: boolean, silent?: boolean) => Promise<void>;
   setFeedFilters: (filters: Partial<AdminState['feedFilters']>) => void;
   markFeedItemAsSeen: (id: string) => void;
@@ -346,9 +363,11 @@ export interface AdminState {
     role?: string;
     status?: string;
     search?: string;
+    withdrawalStatus?: string;
   };
   fetchAdminFinancials: (filters?: any, silent?: boolean) => Promise<void>;
   exportFinancialCSV: (filters?: any) => Promise<void>;
+  exportUnifiedFinancialCSV: (filters?: any) => Promise<void>;
   sendManualPayout: (dto: any) => Promise<{ success: boolean; message: string }>;
   setFinancialFilters: (filters: any) => void;
   financialSubscription: any;
@@ -424,8 +443,8 @@ export const useAdminStore = create<AdminState>()(
       financialFeed: [],
       isFeedLoading: false,
       feedHasMore: true,
-      feedPage: 1,
-      feedFilters: { type: 'ALL', search: '' },
+      feedCursor: null,
+      feedFilters: { type: 'ALL', search: '', role: 'ALL' },
       newEventsCount: 0,
       financialToasts: [],
       financialFilters: {
@@ -434,7 +453,8 @@ export const useAdminStore = create<AdminState>()(
         type: 'ALL',
         role: 'ALL',
         status: 'ALL',
-        search: ''
+        search: '',
+        withdrawalStatus: 'PENDING',
       },
       financialSubscription: null,
       activitySubscription: null,
@@ -989,8 +1009,18 @@ export const useAdminStore = create<AdminState>()(
         if (!silent) set({ isLoadingWithdrawals: true });
         try {
           const token = localStorage.getItem('access_token');
-          const res = await fetch(`${API_URL}/payments/withdrawals`, {
-            headers: { Authorization: `Bearer ${token}` }
+          const { financialFilters } = get();
+          const params = new URLSearchParams();
+          const status = financialFilters.withdrawalStatus || 'PENDING';
+          params.set('status', status);
+          if (financialFilters.startDate) params.set('startDate', financialFilters.startDate);
+          if (financialFilters.endDate) params.set('endDate', financialFilters.endDate);
+          if (financialFilters.search) params.set('search', financialFilters.search);
+          if (financialFilters.role && financialFilters.role !== 'ALL') {
+            params.set('role', financialFilters.role);
+          }
+          const res = await fetch(`${API_URL}/payments/withdrawals?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
             const data = await res.json();
@@ -1247,8 +1277,22 @@ export const useAdminStore = create<AdminState>()(
 
       // Admin Financial Hub Methods
       setFinancialFilters: (filters) => {
-        set({ financialFilters: { ...get().financialFilters, ...filters } });
-        get().fetchAdminFinancials(undefined, false); // Explicit user filter change = show loading
+        const next = { ...get().financialFilters, ...filters };
+        set({
+          financialFilters: next,
+          feedFilters: {
+            ...get().feedFilters,
+            startDate: next.startDate,
+            endDate: next.endDate,
+            search: next.search ?? get().feedFilters.search,
+            role: next.role ?? get().feedFilters.role,
+          },
+        });
+        get().fetchAdminFinancials(undefined, false);
+        get().fetchFinancialFeed(true);
+        if (filters.withdrawalStatus !== undefined || filters.startDate || filters.endDate || filters.search) {
+          get().fetchWithdrawals(true);
+        }
       },
 
       financialFeedSubscription: null,
@@ -1325,58 +1369,66 @@ export const useAdminStore = create<AdminState>()(
       },
 
       setFeedFilters: (filters) => {
-        set({ feedFilters: { ...get().feedFilters, ...filters }, feedPage: 1 });
+        const next = { ...get().feedFilters, ...filters };
+        set({
+          feedFilters: next,
+          feedCursor: null,
+          financialFilters: {
+            ...get().financialFilters,
+            ...(filters.search !== undefined ? { search: filters.search } : {}),
+          },
+        });
         get().fetchFinancialFeed(true);
       },
 
       fetchFinancialFeed: async (reset = false, silent = false) => {
-        const { feedPage, feedFilters, financialFeed } = get();
-        const page = reset ? 1 : feedPage;
-        
+        const { feedCursor, feedFilters, financialFeed, financialFilters } = get();
+        const cursor = reset ? null : feedCursor;
+
         if (!silent) {
           if (!reset) set({ isFeedLoading: true });
-          else set({ isFeedLoading: true, financialFeed: [] });
+          else set({ isFeedLoading: true, financialFeed: [], feedCursor: null });
         }
 
         try {
           const token = localStorage.getItem('access_token');
           const queryParams = new URLSearchParams({
-            page: page.toString(),
-            limit: '15', // 2026 Performance Standard: Small chunks for instant loading
-            ...feedFilters,
-            ...(feedFilters.startDate ? { startDate: feedFilters.startDate } : {}),
-            ...(feedFilters.endDate ? { endDate: feedFilters.endDate } : {})
-          } as any).toString();
+            limit: '15',
+            type: feedFilters.type || 'ALL',
+            search: feedFilters.search || '',
+            ...(feedFilters.startDate || financialFilters.startDate
+              ? { startDate: feedFilters.startDate || financialFilters.startDate || '' }
+              : {}),
+            ...(feedFilters.endDate || financialFilters.endDate
+              ? { endDate: feedFilters.endDate || financialFilters.endDate || '' }
+              : {}),
+            ...(feedFilters.role && feedFilters.role !== 'ALL' ? { role: feedFilters.role } : {}),
+            ...(cursor ? { cursor } : {}),
+          } as Record<string, string>).toString();
 
           const res = await fetch(`${API_URL}/payments/admin/financial-feed?${queryParams}`, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
           });
 
           if (res.ok) {
-            const { data, hasMore } = await res.json();
-            
-            // Handle Seen/Unseen logic for Glow Effect
+            const { data, hasMore, nextCursor } = await res.json();
+
             const seenIds = JSON.parse(sessionStorage.getItem('seen_financial_ids') || '[]');
-            const enrichedData = data.map((item: any) => ({
+            const enrichedData = data.map((item: UnifiedFinancialEvent) => ({
               ...item,
-              isNew: !seenIds.includes(item.id)
+              isNew: !seenIds.includes(item.id),
             }));
 
-            // Smart Update: Prepend if silent refresh of page 1, otherwise append
-            let newFeed = financialFeed;
-            if (reset) {
-              newFeed = enrichedData;
-            } else {
-              // Append next page
-              newFeed = [...financialFeed, ...enrichedData];
-            }
+            const newFeed = reset ? enrichedData : [...financialFeed, ...enrichedData];
 
             set({
               financialFeed: newFeed,
               feedHasMore: hasMore,
-              feedPage: page + 1,
-              isFeedLoading: false
+              feedCursor: nextCursor || null,
+              isFeedLoading: false,
             });
+          } else {
+            set({ isFeedLoading: false });
           }
         } catch (error) {
           console.error('Failed to fetch financial feed', error);
@@ -1444,30 +1496,52 @@ export const useAdminStore = create<AdminState>()(
       },
 
       exportFinancialCSV: async (filters) => {
+        get().exportUnifiedFinancialCSV(filters);
+      },
+
+      exportUnifiedFinancialCSV: async (filters) => {
         try {
           const token = localStorage.getItem('access_token');
-          const currentFilters = { ...(filters || get().financialFilters), limit: 100000 };
-          const queryParams = new URLSearchParams(currentFilters as any).toString();
-          const res = await fetch(`${API_URL}/payments/admin/financials/export${queryParams ? `?${queryParams}` : ''}`, {
-            headers: { Authorization: `Bearer ${token}` }
+          const ff = get().financialFilters;
+          const fd = get().feedFilters;
+          const currentFilters = {
+            ...(filters || {}),
+            startDate: ff.startDate,
+            endDate: ff.endDate,
+            search: fd.search || ff.search || '',
+            type: fd.type || 'ALL',
+            role: fd.role || ff.role || 'ALL',
+            limit: '100000',
+          };
+          const queryParams = new URLSearchParams(
+            Object.fromEntries(
+              Object.entries(currentFilters).filter(([, v]) => v !== undefined && v !== ''),
+            ) as Record<string, string>,
+          ).toString();
+          const res = await fetch(`${API_URL}/payments/admin/financial-feed/export?${queryParams}`, {
+            headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
             const data = await res.json();
             if (!data || data.length === 0) return;
             const headers = Object.keys(data[0]).join(',');
-            const csvRows = data.map((row: any) => Object.values(row).map(val => `"${val}"`).join(','));
-            const csvString = [headers, ...csvRows].join('\n');
+            const csvRows = data.map((row: Record<string, unknown>) =>
+              Object.values(row)
+                .map((val) => `"${String(val ?? '').replace(/"/g, '""')}"`)
+                .join(','),
+            );
+            const csvString = '\ufeff' + [headers, ...csvRows].join('\n');
             const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `financials_export_${new Date().getTime()}.csv`);
+            link.setAttribute('download', `financial_ledger_export_${Date.now()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
           }
         } catch (error) {
-          console.error("Failed to export financials CSV", error);
+          console.error('Failed to export financial ledger CSV', error);
         }
       },
 

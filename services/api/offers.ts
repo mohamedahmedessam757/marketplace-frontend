@@ -29,5 +29,10 @@ export const offersApi = {
     withdraw: async (offerId: string) => {
         const response = await client.post(`/offers/${offerId}/withdraw`);
         return response.data;
-    }
+    },
+
+    voluntaryWithdraw: async (offerId: string) => {
+        const response = await client.post(`/offers/${offerId}/voluntary-withdraw`);
+        return response.data;
+    },
 };

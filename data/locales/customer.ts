@@ -234,6 +234,17 @@ export const customer = {
         desc: 'نعتذر منك لعدم توفر عروض حالياً على الطلب رقم (#{orderNumber}) لقطعة ({partName}). يمكنك إعادة إرسال الطلب خلال أيام العمل من الاثنين إلى الخميس.',
         dontShow: 'لا تظهر هذه الرسالة مرة أخرى',
         understood: 'موافق'
+      },
+      selectionExpiredModal: {
+        title: 'انتهت مهلة اختيار العرض',
+        desc: 'انتهت المهلة المتاحة لاختيار عرض للطلب رقم (#{orderNumber}). تم إغلاق الطلب تلقائياً. يمكنك إنشاء طلب جديد خلال أيام العمل من الاثنين إلى الخميس.',
+        dontShow: 'لا تظهر هذه الرسالة مرة أخرى',
+        understood: 'موافق'
+      },
+      partNoOffers: {
+        message: 'نعتذر منك لعدم توفر عروض يرجى اعاده الطلب مره أخرى',
+        reorderBtn: 'إعادة الطلب',
+        waiting: 'لا توجد عروض لهذه القطعة بعد'
       }
     },
     offers: {
@@ -246,10 +257,9 @@ export const customer = {
       shippingIncluded: 'شامل الشحن',
       offerNotes: 'ملاحظات المتجر',
       conditions: {
-        new: 'جديد / بكرتونه',
+        new: 'جديد (أصلي)',
         used: 'مستعمل',
-        used_clean: 'مستعمل نظيف (أصلي)',
-        used_avg: 'مستعمل (متوسط)',
+        used_clean: 'مستعمل (أصلي)',
         remanufactured: 'مجدد'
       },
       delivery: {
@@ -410,6 +420,25 @@ export const customer = {
           FRAUD_PENALTY: 'غرامة احتيال 🚫',
           ADJUDICATION_FEE: 'رسوم حكم إداري ⚖️',
           SHIPPING_LIABILITY: 'مسؤولية شحن (معلقة) 🚚'
+        },
+        walletDashboard: {
+          availableBalance: 'الرصيد المتاح',
+          totalPurchases: 'إجمالي المشتريات',
+          completedOrders: 'الطلبات المكتملة',
+          refunded: 'المبالغ المستردة',
+          loyaltyPoints: 'نقاط الولاء',
+          tier: 'المستوى',
+          pendingCashback: 'كاش باك (قيد الانتظار)',
+          pendingReferral: 'إحالات (قيد الانتظار)',
+          monthlyCashback: 'كاش باك هذا الشهر',
+          monthlyReferral: 'إحالات هذا الشهر',
+          orderCompletionRate: 'نسبة إكمال الطلبات',
+          tierCashbackRate: 'نسبة الكاش باك',
+          totalRewardsEarned: 'إجمالي المكافآت المكتسبة',
+          pointsResetLabel: 'آخر إعادة تعيين للنقاط',
+          pointsResetNote: 'تُعاد النقاط يدوياً من الإدارة. المستوى لا يتأثر.',
+          earningsLog: 'سجل الارباح والطلبات',
+          searchPlaceholder: 'بحث برقم الطلب...',
         }
       },
       settings: {
@@ -1163,6 +1192,17 @@ export const customer = {
         desc: 'We apologize for the unavailability of offers at the moment for order number (#{orderNumber}) for the part ({partName}). You can resubmit the request during business days from Monday to Thursday.',
         dontShow: 'Do not show this message again',
         understood: 'OK'
+      },
+      selectionExpiredModal: {
+        title: 'Selection Period Expired',
+        desc: 'The deadline to select an offer for order (#{orderNumber}) has passed and the request was closed automatically. You may create a new request during business days from Monday to Thursday.',
+        dontShow: 'Do not show this message again',
+        understood: 'OK'
+      },
+      partNoOffers: {
+        message: 'We apologize — no offers were available. Please submit a new request.',
+        reorderBtn: 'Reorder',
+        waiting: 'No offers yet for this part'
       }
     },
     offers: {
@@ -1175,10 +1215,9 @@ export const customer = {
       shippingIncluded: 'Shipping Included',
       offerNotes: 'Vendor Notes',
       conditions: {
-        new: 'New / In Box',
+        new: 'New (Original)',
         used: 'Used',
-        used_clean: 'Used Clean (Genuine)',
-        used_avg: 'Used (Average)',
+        used_clean: 'Used (Original)',
         remanufactured: 'Remanufactured'
       },
       delivery: {
@@ -1342,6 +1381,25 @@ export const customer = {
           FRAUD_PENALTY: 'Fraud Penalty 🚫',
           ADJUDICATION_FEE: 'Adjudication Fee ⚖️',
           SHIPPING_LIABILITY: 'Shipping Liability (pending) 🚚'
+        },
+        walletDashboard: {
+          availableBalance: 'Available Balance',
+          totalPurchases: 'Total Purchases',
+          completedOrders: 'Completed Orders',
+          refunded: 'Refunded',
+          loyaltyPoints: 'Loyalty Points',
+          tier: 'Tier',
+          pendingCashback: 'Cashback (Pending)',
+          pendingReferral: 'Referrals (Pending)',
+          monthlyCashback: 'Cashback (This Month)',
+          monthlyReferral: 'Referrals (This Month)',
+          orderCompletionRate: 'Order Completion Rate',
+          tierCashbackRate: 'Tier Cashback Rate',
+          totalRewardsEarned: 'Total Rewards Earned',
+          pointsResetLabel: 'Last Points Reset',
+          pointsResetNote: 'Points reset is admin-triggered. Tier is unaffected.',
+          earningsLog: 'Earnings & Orders Log',
+          searchPlaceholder: 'Search Order Number...',
         }
       },
       settings: {

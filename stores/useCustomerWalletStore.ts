@@ -19,6 +19,8 @@ export interface WalletStats {
   totalSpent: number;
   totalPurchases: number;
   monthlyRewards: number;
+  monthlyLoyaltyRewards?: number;
+  monthlyReferralRewards?: number;
   loyaltyPoints: number;
   loyaltyTier: string;
   referralCode: string;
@@ -27,9 +29,16 @@ export interface WalletStats {
   completedOrders: number;
   totalOrdersCount: number;
   acceptanceRate: number;
+  orderCompletionRate?: number;
   refundedAmount: number;
   pendingRewards: number;
+  pendingLoyaltyRewards?: number;
+  pendingReferralRewards?: number;
   profitPercentage: number;
+  tierCashbackRate?: number;
+  totalRewardsEarned?: number;
+  netRewardsEarned?: number;
+  walletDeductions?: number;
   referralRate?: number;
   referralWindowDays?: number;
   name?: string;

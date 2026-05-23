@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Check } from 'lucide-react';
-import { useCreateOrderStore } from '../../../stores/useCreateOrderStore';
+import { useCreateOrderStore, consumeCreateOrderPrefill } from '../../../stores/useCreateOrderStore';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
@@ -19,7 +19,7 @@ interface CreateOrderWizardProps {
 }
 
 export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete, onNavigate }) => {
-  const { step, setStep, submitOrder, reset, vehicle, parts, preferences, setShowErrors, requestType } = useCreateOrderStore();
+  const { step, setStep, submitOrder, reset, prefillVehicle, vehicle, parts, preferences, setShowErrors, requestType } = useCreateOrderStore();
   const { systemConfig, fetchPublicConfig } = useAdminStore(); // Hook into admin config
   const { addNotification } = useNotificationStore();
   const { t, language } = useLanguage();
@@ -32,10 +32,19 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({ onComplete
   const [createdOrderId, setCreatedOrderId] = React.useState<string | null>(null);
 
   useEffect(() => {
-    reset(); // Clear store on mount
-    fetchPublicConfig(); // Load platform rules (real-time 2026 sync)
+    const prefill = consumeCreateOrderPrefill();
+    if (prefill) {
+      prefillVehicle({
+        make: prefill.make,
+        model: prefill.model,
+        year: prefill.year,
+      });
+    } else {
+      reset();
+    }
+    fetchPublicConfig();
     setIsReady(true);
-  }, [fetchPublicConfig]);
+  }, [fetchPublicConfig, prefillVehicle, reset]);
 
   // Use Dynamic Config
   const SHOW_PREFERENCES_STEP = systemConfig.general.enablePreferencesStep;

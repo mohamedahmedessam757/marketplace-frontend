@@ -142,7 +142,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, ord
 
     /* ── translation maps ── */
     const conditionMap: Record<string, string> = {
-        'used_clean': 'مستعمل نظيف', 'used': 'مستعمل', 'new': 'جديد', 'refurbished': 'مجدد'
+        'used_clean': 'مستعمل (أصلي)', 'used': 'مستعمل', 'new': 'جديد', 'refurbished': 'مجدد'
     };
     const partTypeMap: Record<string, string> = {
         'normal': 'قطعة عادية', 'commercial': 'تجاري', 'original': 'أصلي', 'aftermarket': 'تجاري (ما بعد البيع)'

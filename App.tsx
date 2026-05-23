@@ -627,7 +627,7 @@ function AppContent() {
                     {dashboardPath === 'resolution' && <CustomerResolutionCenter onNavigate={handleDashboardNavigate} />}
                     {dashboardPath === 'dispute-details' && <CustomerDisputeDetails caseId={viewId} onBack={() => handleDashboardNavigate('resolution')} onNavigate={handleDashboardNavigate} />}
                     {dashboardPath === 'support' && <SupportPage onNavigate={handleDashboardNavigate} />}
-                    {dashboardPath === 'preferences' && <PreferencesPage />}
+                    {dashboardPath === 'preferences' && <PreferencesPage onNavigate={handleDashboardNavigate} />}
                     {dashboardPath === 'loyalty' && <LoyaltyPage />}
                     {dashboardPath === 'rewards' && <RewardsPage />}
                     {dashboardPath === 'violations' && <ViolationsPage role="customer" />}
@@ -658,7 +658,7 @@ function AppContent() {
                       {dashboardPath === 'shipment-details' && <ShipmentDetailsPage shipmentId={viewId} onBack={() => handleDashboardNavigate('shipments')} role="merchant" />}
                       {dashboardPath === 'settings' && <MerchantSettings />}
                       {dashboardPath === 'support' && <MerchantSupportPage onNavigate={handleDashboardNavigate} />}
-                      {dashboardPath === 'notifications' && <MerchantNotifications />}
+                      {dashboardPath === 'notifications' && <MerchantNotifications onNavigate={handleDashboardNavigate} />}
                       {dashboardPath === 'chats' && <ChatLayout viewId={viewId} onNavigateToCheckout={() => { }} />}
                       {dashboardPath === 'shipping-cart' && <MerchantShippingCartPage />}
                       {dashboardPath === 'billing' && <BillingPage />}

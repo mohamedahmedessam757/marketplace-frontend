@@ -14,6 +14,8 @@ import { useOrderStore, Order, OrderOffer } from '../../stores/useOrderStore';
 import { useOrderById } from '../../hooks/useOrderById';
 import { useOrderRealtimeSync } from '../../hooks/useOrderRealtimeSync';
 import { isAcceptedOfferStatus, isRejectedOfferStatus } from '../../utils/offerStatusHelpers';
+import { getOrderExpiryScenario, getExpiredPartsWithoutOffers, type OrderExpiryScenario } from '../../utils/orderExpiryHelpers';
+import { writeCreateOrderPrefill } from '../../stores/useCreateOrderStore';
 import { useOrderChatStore } from '../../stores/useOrderChatStore';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { TrackingView } from './tracking/TrackingView';
@@ -169,6 +171,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const [showReturnModal, setShowReturnModal] = useState(false);
     const [showDisputeModal, setShowDisputeModal] = useState(false);
     const [showExpiredModal, setShowExpiredModal] = useState(false);
+    const [expiredModalVariant, setExpiredModalVariant] = useState<OrderExpiryScenario>('no_offers');
+    const [expiryTick, setExpiryTick] = useState(0);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'waybills'>('overview');
     const [returnInitialReason, setReturnInitialReason] = useState<string | undefined>(undefined);
@@ -208,21 +212,44 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
         ordersApi.getFulfillmentSummary(orderId).then(setFulfillmentSummary).catch(() => setFulfillmentSummary(null));
     }, [orderId, order?.status, order?.requestType, order?.offers?.map((o) => `${o.id}:${o.fulfillmentStatus}`).join('|')]);
 
-    // Show Expired Modal Logic
+    // Re-check selection/offer/collection deadlines while customer stays on the page
     useEffect(() => {
-        if (!order || order.status !== 'CANCELLED') return;
+        if (!order) return;
+        if (!['AWAITING_SELECTION', 'AWAITING_OFFERS', 'CANCELLED', 'COLLECTING_OFFERS'].includes(order.status)) return;
+        const id = setInterval(() => setExpiryTick((t) => t + 1), 30000);
+        return () => clearInterval(id);
+    }, [order?.status]);
 
-        // Only show if it was cancelled AND has no offers (indicating it expired via cron job 24h limit)
-        const hasNoOffers = !order.offers || order.offers.length === 0;
-        if (!hasNoOffers) return;
+    // Show expired modal when pre-payment window closes (no offers or selection timeout)
+    useEffect(() => {
+        if (!order) return;
+
+        const visible = order.offers?.filter((o: any) => !isRejectedOfferStatus(o.status)) || [];
+        const accepted = order.offers?.filter((o: any) => isAcceptedOfferStatus(o.status)) || [];
+        const scenario = getOrderExpiryScenario({
+            order: {
+                status: order.status,
+                createdAt: order.createdAt,
+                date: order.date,
+                requestType: order.requestType,
+                selectionDeadlineAt: order.selectionDeadlineAt,
+                revealOffersAt: order.revealOffersAt,
+            },
+            offers: order.offers,
+            parts: order.parts?.map((p) => ({ id: p.id, name: p.name })) ?? [],
+            visibleOffersCount: visible.length,
+            acceptedOffersCount: accepted.length,
+        });
+
+        if (!scenario) return;
 
         const storageKey = `expired_modal_seen_${order.id}`;
-        if (!localStorage.getItem(storageKey)) {
-            // Small timeout to allow transition to finish
-            const timer = setTimeout(() => setShowExpiredModal(true), 500);
-            return () => clearTimeout(timer);
-        }
-    }, [order]);
+        if (localStorage.getItem(storageKey)) return;
+
+        setExpiredModalVariant(scenario);
+        const timer = setTimeout(() => setShowExpiredModal(true), 500);
+        return () => clearTimeout(timer);
+    }, [order, order?.status, order?.offers, expiryTick]);
 
     useEffect(() => {
         if (orderId) {
@@ -277,11 +304,49 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
     const visibleOffers = order.offers?.filter((o: any) => !isRejectedOfferStatus(o.status)) || [];
     const acceptedOffers = order.offers?.filter((o: any) => isAcceptedOfferStatus(o.status)) || [];
+    const orderExpiryContext = {
+        status: order.status,
+        createdAt: order.createdAt,
+        date: order.date,
+        requestType: order.requestType,
+        selectionDeadlineAt: order.selectionDeadlineAt,
+        revealOffersAt: order.revealOffersAt,
+    };
+    const expiryScenario = getOrderExpiryScenario({
+        order: orderExpiryContext,
+        offers: order.offers,
+        parts: order.parts?.map((p) => ({ id: p.id, name: p.name })) ?? [],
+        visibleOffersCount: visibleOffers.length,
+        acceptedOffersCount: acceptedOffers.length,
+    });
     const firstAcceptedOffer = acceptedOffers[0];
 
     const BackIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
     const isMultiPartOrder = (order.parts?.length ?? 0) > 1;
+
+    const expiredPartsWithoutOffers = isMultiPartOrder
+        ? getExpiredPartsWithoutOffers(
+              orderExpiryContext,
+              order.offers,
+              order.parts?.map((p) => ({ id: p.id, name: p.name })) ?? [],
+          )
+        : [];
+    const expiredPartIdsWithoutOffers = new Set(expiredPartsWithoutOffers.map((p) => p.id));
+
+    const handleReorderPart = (sourcePartId?: string) => {
+        const make = order.vehicle?.make;
+        const model = order.vehicle?.model;
+        if (!make || !model) return;
+        writeCreateOrderPrefill({
+            make,
+            model,
+            year: order.vehicle?.year ? String(order.vehicle.year) : undefined,
+            sourceOrderId: order.id,
+            sourcePartId: sourcePartId,
+        });
+        onNavigate('create-order');
+    };
 
     const openCheckout = (accOffer?: typeof firstAcceptedOffer) => {
         const checkout = useCheckoutStore.getState();
@@ -578,6 +643,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 orderId={order.id}
                 orderNumber={order.orderNumber}
                 partName={order.part}
+                variant={expiredModalVariant}
                 onClose={handleCloseExpiredModal}
             />
 
@@ -1089,20 +1155,31 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         </GlassCard>
                     )}
 
-                    {/* STATE: EXPIRED / CANCELLED WITH 0 OFFERS */}
-                    {((order.status === 'AWAITING_OFFERS' && isExpired) || (order.status === 'CANCELLED' && visibleOffers.length === 0)) && (
+                    {/* STATE: EXPIRED — no offers or selection deadline passed */}
+                    {expiryScenario && (
                         <GlassCard className="flex flex-col items-center justify-center text-center py-16 border-dashed border-red-500/20 bg-red-500/5">
                             <div className="w-20 h-20 bg-red-950/20 rounded-full flex items-center justify-center mb-6 relative border border-red-500/10">
                                 <div className="absolute inset-0 bg-red-500 rounded-full opacity-10 animate-pulse" />
                                 <AlertTriangle size={32} className="text-red-400 relative z-10" />
                             </div>
                             <h3 className="text-xl font-bold text-white mb-2">
-                                {language === 'ar' ? 'نعتذر منك لعدم توفر عروض حالياً' : 'We apologize for the lack of offers'}
+                                {expiryScenario === 'selection_expired'
+                                    ? ((t.dashboard.orders as any)?.selectionExpiredModal?.title ||
+                                        (language === 'ar' ? 'انتهت مهلة اختيار العرض' : 'Selection Period Expired'))
+                                    : (language === 'ar' ? 'نعتذر منك لعدم توفر عروض حالياً' : 'We apologize for the lack of offers')}
                             </h3>
                             <p className="text-white/60 max-w-md mx-auto mb-4 text-sm">
-                                {language === 'ar' 
-                                   ? 'يمكنك اعادة أرسال الطلب خلال أيام العمل من الاثنين الى الخميس'
-                                   : 'You can resubmit the order during working days from Monday to Thursday'}
+                                {expiryScenario === 'selection_expired'
+                                    ? ((t.dashboard.orders as any)?.selectionExpiredModal?.desc
+                                        ?.replace('#{orderNumber}', order.orderNumber || order.id)
+                                        ?.replace('({partName})', order.part ? `(${order.part})` : '')
+                                        ?.replace(' ( )', '') ||
+                                        (language === 'ar'
+                                            ? 'انتهت المهلة المتاحة لاختيار عرض وتم إغلاق الطلب تلقائياً.'
+                                            : 'The deadline to select an offer has passed and the request was closed.'))
+                                    : (language === 'ar'
+                                        ? 'يمكنك اعادة أرسال الطلب خلال أيام العمل من الاثنين الى الخميس'
+                                        : 'You can resubmit the order during working days from Monday to Thursday')}
                             </p>
                         </GlassCard>
                     )}
@@ -1211,12 +1288,37 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                                 </div>
                                             </div>
 
-                                            {/* No offers hint */}
+                                            {/* No offers hint / expired part reorder */}
                                             {!hasOffers && (
-                                                <div className="border-t border-white/5 px-5 py-3 text-xs text-white/25 flex items-center gap-2">
-                                                    <Search size={11} />
-                                                    <span>{language === 'ar' ? 'لا توجد عروض لهذه القطعة بعد' : 'No offers yet for this part'}</span>
-                                                </div>
+                                                expiredPartIdsWithoutOffers.has(p.id) ? (
+                                                    <div className="border-t border-red-500/20 px-5 py-4 bg-red-500/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                        <p className="text-sm text-red-300/90 font-medium leading-relaxed">
+                                                            {(t.dashboard.orders as any)?.partNoOffers?.message ||
+                                                                (language === 'ar'
+                                                                    ? 'نعتذر منك لعدم توفر عروض يرجى اعاده الطلب مره أخرى'
+                                                                    : 'We apologize — no offers were available. Please submit a new request.')}
+                                                        </p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleReorderPart(p.id)}
+                                                            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-gold-500/15 hover:bg-gold-500/25 text-gold-400 border border-gold-500/30 transition-all whitespace-nowrap shrink-0"
+                                                        >
+                                                            <RefreshCcw size={15} />
+                                                            {(t.dashboard.orders as any)?.partNoOffers?.reorderBtn ||
+                                                                (language === 'ar' ? 'إعادة الطلب' : 'Reorder')}
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="border-t border-white/5 px-5 py-3 text-xs text-white/25 flex items-center gap-2">
+                                                        <Search size={11} />
+                                                        <span>
+                                                            {(t.dashboard.orders as any)?.partNoOffers?.waiting ||
+                                                                (language === 'ar'
+                                                                    ? 'لا توجد عروض لهذه القطعة بعد'
+                                                                    : 'No offers yet for this part')}
+                                                        </span>
+                                                    </div>
+                                                )
                                             )}
                                         </GlassCard>
                                     );
@@ -1640,13 +1742,6 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
             <DisputeModal 
                 isOpen={showDisputeModal}
                 onClose={() => setShowDisputeModal(false)}
-                orderId={order.id}
-            />
-
-            {/* Expired Modal */}
-            <OrderExpiredModal 
-                isOpen={showExpiredModal}
-                onClose={() => setShowExpiredModal(false)}
                 orderId={order.id}
             />
         </div >

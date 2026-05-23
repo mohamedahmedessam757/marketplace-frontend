@@ -35,6 +35,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAdminPermissionsStore } from '../../../stores/useAdminPermissionsStore';
 import { BlurredSection } from './BlurredSection';
+import { consumeViolationNavContext } from '../../../utils/violationNavigation';
 
 export const AdminViolations: React.FC = () => {
     const { t, language } = useLanguage();
@@ -95,6 +96,7 @@ export const AdminViolations: React.FC = () => {
     const [isDropModalOpen, setIsDropModalOpen] = useState(false);
     const [droppingViolation, setDroppingViolation] = useState<Violation | null>(null);
     const [dropReason, setDropReason] = useState('');
+    const [highlightId, setHighlightId] = useState<string | null>(null);
     // Form State for Violation Issuance
     const [formData, setFormData] = useState({
         targetUserId: '',
@@ -129,6 +131,20 @@ export const AdminViolations: React.FC = () => {
     const { customers, fetchCustomers: fetchAllCustomers } = useCustomerStore();
 
     useEffect(() => {
+        const nav = consumeViolationNavContext();
+        if (nav?.tab) {
+            const tabMap: Record<string, typeof activeTab> = {
+                violations: 'violations',
+                penalties: 'penalties',
+                appeals: 'appeals',
+                loyalty_reviews: 'loyalty_reviews',
+                history: 'violations',
+            };
+            const mapped = tabMap[nav.tab];
+            if (mapped) setActiveTab(mapped);
+        }
+        if (nav?.highlightId) setHighlightId(nav.highlightId);
+
         fetchViolations();
         fetchViolationTypes();
         fetchThresholds();
@@ -535,7 +551,7 @@ export const AdminViolations: React.FC = () => {
                             {activeTab === 'violations' && (
                                 <div className="grid gap-4">
                                     {filteredViolations.length > 0 ? filteredViolations.map(v => (
-                                        <GlassCard key={v.id} className="p-6 border-white/5 hover:border-red-500/20 group transition-all relative overflow-hidden">
+                                        <GlassCard key={v.id} className={`p-6 border-white/5 hover:border-red-500/20 group transition-all relative overflow-hidden ${highlightId === v.id ? 'ring-2 ring-gold-500/50 border-gold-500/40' : ''}`}>
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 blur-[80px] -z-10 group-hover:bg-red-500/10 transition-colors" />
                                             <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr_1fr_0.5fr] items-center gap-8 relative z-10">
                                                 <div className="flex items-center gap-5">

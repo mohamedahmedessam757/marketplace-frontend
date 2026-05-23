@@ -27,7 +27,7 @@ export const TierProgressCard: React.FC<TierProgressCardProps> = ({
             { id: 'SILVER',  label: t.dashboard.profile.loyalty.tiers.silver,  limit: 3000,   rate: '3%' },
             { id: 'GOLD',    label: t.dashboard.profile.loyalty.tiers.gold,    limit: 10000,  rate: '4%' },
             { id: 'VIP',     label: t.dashboard.profile.loyalty.tiers.vip,     limit: 20000,  rate: '5%' },
-            { id: 'PARTNER', label: t.dashboard.profile.loyalty.tiers.partner, limit: 100000, rate: '6%' },
+            { id: 'PARTNER', label: t.dashboard.profile.loyalty.tiers.partner, limit: 20000, rate: '6%' },
         ];
         const currentIdx = Math.max(0, tiers.findIndex(x => x.id === (loyaltyTier || 'BASIC')));
         const next = currentIdx < tiers.length - 1 ? tiers[currentIdx + 1] : null;

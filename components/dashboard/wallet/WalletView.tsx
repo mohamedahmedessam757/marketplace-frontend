@@ -211,6 +211,7 @@ const BankDetailsModal = ({
 export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
     const { language, t } = useLanguage();
     const isAr = language === 'ar';
+    const wd = t.dashboard.profile.wallet.walletDashboard;
     const { 
         stats, 
         transactions, 
@@ -665,7 +666,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                 type="text" 
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder={isAr ? 'بحث برقم الطلب...' : 'Search Order ID...'} 
+                                placeholder={wd.searchPlaceholder}
                                 className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-xs outline-none focus:border-gold-500/50 transition-all w-full md:w-56"
                             />
                         </div>
@@ -695,7 +696,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
             {/* 2. Primary Stat Cards (Legacy Restoration) */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
                 <StatCard 
-                    label={isAr ? 'الرصيد المتاح' : 'Available Balance'}
+                    label={wd.availableBalance}
                     value={Number(stats?.customerBalance || 0).toLocaleString()}
                     unit="AED"
                     icon={Wallet}
@@ -704,7 +705,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     borderClass="border-emerald-500/10"
                 />
                 <StatCard 
-                    label={isAr ? 'إجمالي المشتريات' : 'Total Purchases'}
+                    label={wd.totalPurchases}
                     value={Number(stats?.totalPurchases || 0).toLocaleString()}
                     unit="AED"
                     icon={ShoppingBag}
@@ -712,13 +713,13 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     colorClass="text-blue-300"
                 />
                 <StatCard 
-                    label={isAr ? 'الطلبات المكتملة' : 'Completed Orders'}
+                    label={wd.completedOrders}
                     value={stats?.completedOrders || 0}
                     unit={isAr ? 'طلب' : 'Orders'}
                     icon={ClipboardCheck}
                 />
                 <StatCard 
-                    label={isAr ? 'المبالغ المستردة' : 'Refunded'}
+                    label={wd.refunded}
                     value={Number(stats?.refundedAmount || 0).toLocaleString()}
                     unit="AED"
                     icon={RotateCcw}
@@ -727,7 +728,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     borderClass="border-rose-500/10"
                 />
                 <StatCard 
-                    label={isAr ? 'نقاط الولاء' : 'Points'}
+                    label={wd.loyaltyPoints}
                     value={stats?.loyaltyPoints || 0}
                     unit=""
                     icon={Star}
@@ -736,7 +737,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     borderClass="border-gold-500/10"
                 />
                 <StatCard 
-                    label={isAr ? 'المستوى' : 'Tier'}
+                    label={wd.tier}
                     value={stats?.loyaltyTier || 'BASIC'}
                     unit={`[${stats?.referralCount || 0} ${isAr ? 'إحالة' : 'Ref'}]`}
                     icon={Crown}
@@ -756,13 +757,13 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     </div>
                 )}
                 
-                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 transition-all duration-500 ${stats?.withdrawalsFrozen ? 'filter blur-sm grayscale opacity-30 select-none pointer-events-none' : ''}`}>
+                <motion.div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 transition-all duration-500 ${stats?.withdrawalsFrozen ? 'filter blur-sm grayscale opacity-30 select-none pointer-events-none' : ''}`}>
                 <GlassCard className="p-5 sm:p-6 relative overflow-hidden group bg-gradient-to-br from-white/[0.04] to-transparent">
                     <div className="flex justify-between items-start relative z-10">
                         <div>
-                            <p className="text-white/40 text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2">{isAr ? 'أرباح مكافآت (قيد الانتظار)' : 'Loyalty Profits (Pending)'}</p>
+                            <p className="text-white/40 text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2">{wd.pendingCashback}</p>
                             <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-baseline gap-2">
-                                {Number(stats?.pendingRewards || 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
+                                {Number(stats?.pendingLoyaltyRewards ?? stats?.pendingRewards ?? 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
                             </h2>
                         </div>
                         <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 shadow-lg shadow-amber-500/5 group-hover:bg-amber-500/20 transition-colors">
@@ -774,9 +775,23 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                 <GlassCard className="p-5 sm:p-6 relative overflow-hidden group bg-gradient-to-br from-white/[0.04] to-transparent">
                     <div className="flex justify-between items-start relative z-10">
                         <div>
-                            <p className="text-white/40 text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2">{isAr ? 'أرباح مكافآت هذا الشهر' : 'Loyalty Profits (Monthly)'}</p>
+                            <p className="text-white/40 text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2">{wd.pendingReferral}</p>
                             <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-baseline gap-2">
-                                {Number(stats?.monthlyRewards || 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
+                                {Number(stats?.pendingReferralRewards ?? 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
+                            </h2>
+                        </div>
+                        <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 shadow-lg shadow-blue-500/5 group-hover:bg-blue-500/20 transition-colors">
+                            <LinkIcon className="text-blue-400" size={20} />
+                        </div>
+                    </div>
+                </GlassCard>
+
+                <GlassCard className="p-5 sm:p-6 relative overflow-hidden group bg-gradient-to-br from-white/[0.04] to-transparent">
+                    <div className="flex justify-between items-start relative z-10">
+                        <div>
+                            <p className="text-white/40 text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2">{wd.monthlyCashback}</p>
+                            <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-baseline gap-2">
+                                {Number(stats?.monthlyLoyaltyRewards ?? stats?.monthlyRewards ?? 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
                             </h2>
                         </div>
                         <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 shadow-lg shadow-emerald-500/5 group-hover:bg-emerald-500/20 transition-colors">
@@ -785,25 +800,39 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                     </div>
                 </GlassCard>
 
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 md:col-span-2 lg:col-span-1">
+                <GlassCard className="p-5 sm:p-6 relative overflow-hidden group bg-gradient-to-br from-white/[0.04] to-transparent">
+                    <div className="flex justify-between items-start relative z-10">
+                        <div>
+                            <p className="text-white/40 text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2">{wd.monthlyReferral}</p>
+                            <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-baseline gap-2">
+                                {Number(stats?.monthlyReferralRewards ?? 0).toLocaleString()} <span className="text-xs text-white/30 font-medium">AED</span>
+                            </h2>
+                        </div>
+                        <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 shadow-lg shadow-purple-500/5 group-hover:bg-purple-500/20 transition-colors">
+                            <UserPlus className="text-purple-400" size={20} />
+                        </div>
+                    </div>
+                </GlassCard>
+
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 md:col-span-2 lg:col-span-4">
                     <GlassCard className="p-4 flex flex-col justify-center bg-white/[0.02] border-white/5 border-l-2 border-l-emerald-500/30">
-                        <p className="text-[10px] text-white/30 uppercase font-black">{isAr ? 'نسبة القبول' : 'Acceptance'}</p>
+                        <p className="text-[10px] text-white/30 uppercase font-black">{wd.orderCompletionRate}</p>
                         <div className="flex items-center gap-2 mt-1.5 text-emerald-400">
                             <ShieldCheck size={16} />
-                            <span className="text-lg font-bold sm:text-xl tracking-tighter">{stats?.acceptanceRate ?? 0}%</span>
+                            <span className="text-lg font-bold sm:text-xl tracking-tighter">{stats?.orderCompletionRate ?? stats?.acceptanceRate ?? 0}%</span>
                         </div>
                     </GlassCard>
                     <GlassCard className="p-4 flex flex-col justify-center bg-white/[0.02] border-white/5 border-l-2 border-l-purple-500/30">
-                        <p className="text-[10px] text-white/30 uppercase font-black">{isAr ? 'نسبة الربح' : 'Profit Rate'}</p>
+                        <p className="text-[10px] text-white/30 uppercase font-black">{wd.tierCashbackRate}</p>
                         <div className="flex items-center gap-2 mt-1.5 text-purple-400">
                             <Percent size={16} />
                             <span className="text-lg font-bold sm:text-xl tracking-tighter">
-                                {stats?.profitPercentage ?? 2}%
+                                {stats?.tierCashbackRate ?? stats?.profitPercentage ?? 2}%
                             </span>
                         </div>
                     </GlassCard>
                 </div>
-            </div>
+            </motion.div>
         </div>
 
             {/* 4. Main Content Area */}
@@ -943,7 +972,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                             { id: 'SILVER', label: t.dashboard.profile.loyalty.tiers.silver, limit: 3000, rate: '3%' },
                             { id: 'GOLD', label: t.dashboard.profile.loyalty.tiers.gold, limit: 10000, rate: '4%' },
                             { id: 'VIP', label: t.dashboard.profile.loyalty.tiers.vip, limit: 20000, rate: '5%' },
-                            { id: 'PARTNER', label: t.dashboard.profile.loyalty.tiers.partner, limit: 100000, rate: '6%' },
+                            { id: 'PARTNER', label: t.dashboard.profile.loyalty.tiers.partner, limit: 20000, rate: '6%' },
                         ];
                         
                         const currentTierIdx = tiers.findIndex(tier => tier.id === (stats?.loyaltyTier || 'BASIC'));
@@ -1086,10 +1115,10 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                                                     </div>
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-white">
-                                                            {isAr ? 'دورة نقاط الولاء' : 'Loyalty Points Cycle'}
+                                                            {wd.pointsResetLabel}
                                                         </span>
                                                         <span className={`text-[9px] sm:text-[10px] font-bold mt-1 ${isResetNear ? 'text-orange-400/80' : 'text-white/40'}`}>
-                                                            {isAr ? '⏰ تتم إعادة تعيين النقاط كل 6 أشهر. المستوى لا يتأثر.' : '⏰ Points reset every 6 months. Tier is unaffected.'}
+                                                            {wd.pointsResetNote}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1517,14 +1546,14 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                         <div className="space-y-6 relative z-10">
                             <div>
                                 <div className="flex justify-between items-end mb-2">
-                                    <p className="text-[9px] text-white/40 uppercase font-black tracking-widest">{isAr ? 'أرباح الولاء المكتسبة' : 'Total Loyalty Profits'}</p>
+                                    <p className="text-[9px] text-white/40 uppercase font-black tracking-widest">{wd.totalRewardsEarned}</p>
                                     <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
                                         <Star size={10} />
                                         <span className="text-[10px] font-black">{stats?.loyaltyPoints || 0} pts</span>
                                     </div>
                                 </div>
                                 <h2 className="text-2xl font-black text-white tracking-tighter">
-                                    {Number(stats?.customerBalance || 0).toLocaleString()} 
+                                    {Number(stats?.totalRewardsEarned ?? 0).toLocaleString()} 
                                     <span className="text-xs text-gold-500/60 font-medium ml-2">AED</span>
                                 </h2>
                             </div>

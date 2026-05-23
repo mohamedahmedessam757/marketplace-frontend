@@ -8,7 +8,7 @@ import { CartItemType } from '../../../stores/useCartStore';
 const conditionMap: Record<string, string> = {
     'new': 'جديد',
     'used': 'مستعمل',
-    'used_clean': 'مستعمل ونظيف',
+    'used_clean': 'مستعمل (أصلي)',
     'refurbished': 'مجدد',
 };
 

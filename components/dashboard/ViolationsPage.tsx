@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomerReliabilityMeter } from './customer/CustomerReliabilityMeter';
+import { consumeViolationNavContext } from '../../utils/violationNavigation';
 
 interface ViolationsPageProps {
     role: 'customer' | 'merchant';
@@ -58,6 +59,7 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
     const [uploadingFile, setUploadingFile] = useState(false);
     const [isTransparencyAccepted, setIsTransparencyAccepted] = useState(false);
     const [activeTab, setActiveTab] = useState<'history' | 'reliability'>('history');
+    const [highlightId, setHighlightId] = useState<string | null>(null);
     
     const [appealData, setAppealData] = useState({
         reason: '',
@@ -65,6 +67,10 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
     });
 
     useEffect(() => {
+        const nav = consumeViolationNavContext();
+        if (nav?.highlightId) setHighlightId(nav.highlightId);
+        if (nav?.tab === 'history' || nav?.tab === 'violations') setActiveTab('history');
+
         fetchMyViolations();
         fetchMyScore();
         fetchThresholds(role.toUpperCase());
@@ -291,7 +297,7 @@ export const ViolationsPage: React.FC<ViolationsPageProps> = ({ role }) => {
 
                 <div className="grid gap-4">
                     {myViolations.length > 0 ? myViolations.map((v) => (
-                        <GlassCard key={v.id} className="p-8 border-white/5 hover:border-white/10 transition-all relative group">
+                        <GlassCard key={v.id} className={`p-8 border-white/5 hover:border-white/10 transition-all relative group ${highlightId === v.id ? 'ring-2 ring-gold-500/50 border-gold-500/40' : ''}`}>
                             {/* Card Background Glow */}
                             <div className="absolute top-0 left-0 w-32 h-32 bg-red-500/5 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity" />
 

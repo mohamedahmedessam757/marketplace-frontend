@@ -106,8 +106,18 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     const [selectedWithdrawalReq, setSelectedWithdrawalReq] = useState<any>(null);
     const [processingRejectId, setProcessingRejectId] = useState<string | null>(null);
     const [isVerifyingBank, setIsVerifyingBank] = useState(false);
+    const [expandedFeedIds, setExpandedFeedIds] = useState<Set<string>>(new Set());
     
     const observerTarget = React.useRef(null);
+
+    const toggleFeedExpand = (id: string) => {
+        setExpandedFeedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
 
     React.useEffect(() => {
         const observer = new IntersectionObserver(
@@ -142,11 +152,9 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
             useAdminStore.getState().fetchAdminFinancials(); 
         }
 
-        // WITHDRAWALS Tab
-        if (pendingWithdrawals.length === 0) {
-            fetchWithdrawals();
-        } else {
-            fetchWithdrawals(true); // Silent refresh
+        // WITHDRAWALS Tab — refetch when tab active or filters change
+        if (activeTab === 'WITHDRAWALS') {
+            fetchWithdrawals(true);
         }
         
         subscribeToFinancials();
@@ -199,31 +207,30 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
     }, [visibleTabs, activeTab]);
 
     const kpis = adminFinancials?.kpis || {
-        totalSales: 0, netCommission: 0, netPlatformPosition: 0, shippingProfit: 0, referralEarnings: 0,
-        referralCount: 0, pendingWithdrawals: 0, pendingWithdrawalsCount: 0,
-        frozenFunds: 0, todayTransactionsCount: 0,
-        totalRefunds: 0, gatewayFees: 0, pendingLiabilities: 0
+        totalSales: 0, netCommission: 0, netPlatformPosition: 0,
+        shippingCollected: 0, shippingProfit: 0, referralPaidOut: 0, referralEarnings: 0,
+        referralCount: 0, loyaltyCashbackPaid: 0, pendingWithdrawals: 0, pendingWithdrawalsCount: 0,
+        frozenFunds: 0, opsLast24h: 0, todayTransactionsCount: 0,
+        totalRefunds: 0, gatewayFees: 0, pendingLiabilities: 0,
+        loyaltyPointsOutstanding: 0, failedUnsettledCount: 0, reconciliationDelta: 0,
     };
 
-    const transactions = adminFinancials?.transactions || [];
+    const salesTrendFromApi: { date: string; grossSales: number }[] = adminFinancials?.salesTrend || [];
     const topSpenders: any[] = adminFinancials?.topSpenders || [];
     const topEarners: any[] = adminFinancials?.topEarners || [];
 
-    // Widgets Data
     const salesTrendData = useMemo(() => {
-        const grouped = transactions.reduce((acc: Record<string, number>, tx: any) => {
-            const dateStr = new Date(tx.date).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
-            if (!acc[dateStr]) acc[dateStr] = 0;
-            acc[dateStr] += tx.amount;
-            return acc;
-        }, {});
+        return salesTrendFromApi.slice(-14).map((point) => ({
+            label: new Date(point.date).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
+                month: 'short',
+                day: 'numeric',
+            }),
+            value: point.grossSales,
+        }));
+    }, [salesTrendFromApi, isAr]);
 
-        const labels = Object.keys(grouped).reverse();
-        return labels.map(label => ({
-            label,
-            value: grouped[label]
-        })).slice(-14);
-    }, [transactions, isAr]);
+    const showReconciliationWarning =
+        Math.abs(Number(kpis.reconciliationDelta || 0)) > 0.01;
 
     const handleSaveCommission = () => {
         setCommissionRate(tempRate);
@@ -358,14 +365,28 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
 
             <BlurredSection
                 isBlurred={visibleTabs.find(t => t.id === activeTab)?.isLocked}
-                titleAr={`تبويب ${visibleTabs.find(t => t.id === activeTab)?.label} محمي`}
-                titleEn={`${visibleTabs.find(t => t.id === activeTab)?.label} Tab Protected`}
-                descriptionAr="لا تملك صلاحية الوصول لهذا التبويب. يرجى التواصل مع الإدارة العليا لتوسيع نطاق وصولك."
-                descriptionEn="You do not have permission to access this tab. Please contact senior management to expand your access scope."
+                titleAr={t.admin.billing.tabProtectedTitle.replace('{tab}', visibleTabs.find(tab => tab.id === activeTab)?.label || '')}
+                titleEn={t.admin.billing.tabProtectedTitle.replace('{tab}', visibleTabs.find(tab => tab.id === activeTab)?.label || '')}
+                descriptionAr={t.admin.billing.tabProtectedDescription}
+                descriptionEn={t.admin.billing.tabProtectedDescription}
             >
 
             {activeTab === 'OVERVIEW' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+
+                    {showReconciliationWarning && (
+                        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-6 py-4 flex items-start gap-3">
+                            <AlertTriangle size={20} className="text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-black text-amber-300">
+                                    {t.admin.billing.kpis.reconciliationWarning}
+                                </p>
+                                <p className="text-xs text-amber-200/70 mt-1 font-mono">
+                                    {t.admin.billing.kpis.reconciliationDelta}: {Number(kpis.reconciliationDelta).toLocaleString()} AED
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     
                     {/* 2. KPI Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -376,23 +397,32 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             color="#3b82f6"
                         />
                         <StatCard 
-                            label={isAr ? 'الربح الصافي الحقيقي' : 'True Net Profit'}
+                            label={t.admin.billing.kpis.netProfit}
                             value={`${(kpis.netCommission || 0).toLocaleString()} AED`}
+                            subValue={t.admin.billing.kpis.netProfitSub}
                             icon={DollarSign}
                             color="#d4af37"
                         />
                         <StatCard 
                             label={t.admin.billing.kpis.logisticsRevenue}
-                            value={`${(kpis.shippingProfit || 0).toLocaleString()} AED`}
+                            value={`${(kpis.shippingCollected ?? kpis.shippingProfit ?? 0).toLocaleString()} AED`}
+                            subValue={t.admin.billing.kpis.logisticsSub}
                             icon={Activity}
                             color="#10b981"
                         />
                         <StatCard 
                             label={t.admin.billing.kpis.referralEcosystem}
-                            value={`${(kpis.referralEarnings || 0).toLocaleString()} AED`}
-                            subValue={`${kpis.referralCount || 0} ${t.admin.billing.kpis.activeReferrals}`}
+                            value={`${(kpis.referralPaidOut ?? kpis.referralEarnings ?? 0).toLocaleString()} AED`}
+                            subValue={`${kpis.referralCount || 0} ${t.admin.billing.kpis.activeReferrals} · ${t.admin.billing.kpis.referralSub}`}
                             icon={Users}
                             color="#8b5cf6"
+                        />
+                        <StatCard 
+                            label={t.admin.billing.kpis.loyaltyCashback}
+                            value={`${(kpis.loyaltyCashbackPaid || 0).toLocaleString()} AED`}
+                            subValue={t.admin.billing.kpis.loyaltySub}
+                            icon={TrendingUp}
+                            color="#a855f7"
                         />
                         <StatCard 
                             label={t.admin.billing.kpis.withdrawalQueue}
@@ -408,34 +438,41 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             color="#ef4444"
                         />
                         <StatCard 
-                            label={isAr ? 'صافي ربح المنصة (بعد الاسترداد)' : 'Net Platform Position (After Refunds)'}
+                            label={t.admin.billing.kpis.netPlatformPosition}
                             value={`${(kpis.netPlatformPosition || 0).toLocaleString()} AED`}
-                            subValue={isAr ? 'الربح الفعلي المحقق بعد جميع المصاريف' : 'Actual realized profit after all expenses'}
+                            subValue={t.admin.billing.kpis.netPlatformSub}
                             icon={ShieldCheck}
                             color="#22d3ee"
                         />
                         <StatCard 
-                            label={isAr ? 'أرصدة مستخدمين (التزامات)' : 'User Wallet Liabilities'}
+                            label={t.admin.billing.kpis.userLiabilities}
                             value={`${(kpis.pendingLiabilities || 0).toLocaleString()} AED`}
-                            subValue={isAr ? `نقاط ولاء: ${((kpis as any).loyaltyPointsOutstanding || 0).toLocaleString()}` : `Loyalty pts: ${((kpis as any).loyaltyPointsOutstanding || 0).toLocaleString()}`}
+                            subValue={`${t.admin.billing.kpis.loyaltyPointsSub}: ${((kpis as any).loyaltyPointsOutstanding || 0).toLocaleString()}`}
                             icon={AlertOctagon}
                             color="#eab308"
                         />
                         <StatCard 
-                            label={isAr ? 'التكاليف التشغيلية (البوابات)' : 'Gateway Fees'}
+                            label={t.admin.billing.kpis.gatewayFees}
                             value={`${(kpis.gatewayFees || 0).toLocaleString()} AED`}
                             icon={CreditCard}
                             color="#94a3b8"
                         />
                         <StatCard 
-                            label={isAr ? 'إجمالي المبالغ المستردة' : 'Total Refunds'}
+                            label={t.admin.billing.kpis.totalRefunds}
                             value={`${(kpis.totalRefunds || 0).toLocaleString()} AED`}
                             icon={ArrowDownLeft}
                             color="#f87171"
                         />
                         <StatCard 
+                            label={t.admin.billing.kpis.failedUnsettled}
+                            value={String(kpis.failedUnsettledCount ?? 0)}
+                            subValue={t.admin.billing.kpis.failedUnsettledSub}
+                            icon={RefreshCw}
+                            color="#64748b"
+                        />
+                        <StatCard 
                             label={t.admin.billing.kpis.activityLoad}
-                            value={kpis.todayTransactionsCount.toString()}
+                            value={String(kpis.opsLast24h ?? kpis.todayTransactionsCount ?? 0)}
                             subValue={t.admin.billing.kpis.realtimeOps}
                             icon={RefreshCw}
                             color="#ffffff"
@@ -450,14 +487,14 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 <div className="flex justify-between items-center mb-6">
                                     <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white/30 flex items-center gap-3`}>
                                         <Users size={16} className="text-blue-400" />
-                                        {isAr ? 'الأعلى إنفاقاً' : 'Top Spenders'}
+                                        {t.admin.billing.leaderboards.topSpenders}
                                     </h4>
                                 </div>
                                 <div className="space-y-4">
                                     {topSpenders.length === 0 ? (
                                         <div className="py-10 text-center opacity-20">
                                             <Users size={32} className="mx-auto mb-2" />
-                                            <p className="text-[10px] font-black uppercase">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
+                                            <p className="text-[10px] font-black uppercase">{t.admin.billing.leaderboards.noData}</p>
                                         </div>
                                     ) : topSpenders.map((item: any, idx: number) => (
                                         <div 
@@ -487,7 +524,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                 </BlurredSection>
                                                 <div className="flex items-center gap-2 text-[9px] text-white/30 font-bold uppercase mt-0.5">
                                                     <Package size={10} />
-                                                    <span>{item.ordersCount} {isAr ? 'عمليات' : 'Orders'}</span>
+                                                    <span>{item.ordersCount} {t.admin.billing.leaderboards.orders}</span>
                                                 </div>
                                             </div>
 
@@ -507,14 +544,14 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 <div className="flex justify-between items-center mb-6">
                                     <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white/30 flex items-center gap-3`}>
                                         <Crown size={16} className="text-gold-400" />
-                                        {isAr ? 'التجار الأعلى أرباحاً' : 'Top Earning Merchants'}
+                                        {t.admin.billing.leaderboards.topMerchants}
                                     </h4>
                                 </div>
                                 <div className="space-y-4">
                                     {topEarners.length === 0 ? (
                                         <div className="py-10 text-center opacity-20">
                                             <Crown size={32} className="mx-auto mb-2" />
-                                            <p className="text-[10px] font-black uppercase">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
+                                            <p className="text-[10px] font-black uppercase">{t.admin.billing.leaderboards.noData}</p>
                                         </div>
                                     ) : topEarners.map((item: any, idx: number) => (
                                         <div 
@@ -552,13 +589,13 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[9px] text-white/30 font-bold uppercase">
                                                     <Package size={10} />
-                                                    <span>{item.ordersCount} {isAr ? 'طلبات' : 'Orders'}</span>
+                                                    <span>{item.ordersCount} {t.admin.billing.leaderboards.orders}</span>
                                                 </div>
                                             </div>
 
                                             <div className="text-right">
                                                 <span className="block text-xs font-black text-white font-mono">{item.totalEarned.toLocaleString()} <span className="text-[9px] text-gold-500">AED</span></span>
-                                                <span className="text-[8px] text-green-400 font-black uppercase tracking-tighter">Growth</span>
+                                                <span className="text-[8px] text-green-400 font-black uppercase tracking-tighter">{t.admin.billing.leaderboards.grossSales}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -572,10 +609,10 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 <div>
                                     <h4 className={`text-xs font-black uppercase ${isAr ? 'tracking-normal' : 'tracking-[0.3em]'} text-white flex items-center gap-3`}>
                                         <TrendingUp size={18} className="text-gold-500" />
-                                        {isAr ? 'اتجاه المبيعات (نظرة لحظية)' : 'Sales Trend (Realtime)'}
+                                        {t.admin.billing.charts.salesTrend}
                                     </h4>
                                     <p className="text-[10px] text-white/30 uppercase mt-2">
-                                        {isAr ? 'نظرة شاملة على أداء المنصة المالي' : 'Overview of platform financial performance'}
+                                        {t.admin.billing.charts.salesTrendSub}
                                     </p>
                                 </div>
                                 <div className="text-right">
@@ -612,10 +649,10 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 <Search size={16} className={`absolute top-1/2 -translate-y-1/2 ${isAr ? 'right-4' : 'left-4'} text-white/20 group-focus-within:text-gold-500 transition-colors`} />
                                 <input
                                     type="text"
-                                    placeholder={isAr ? 'بحث سريع...' : 'Quick search...'}
+                                    placeholder={t.admin.billing.searchPlaceholder}
                                     className={`w-full md:w-64 bg-[#050505] border border-white/10 rounded-xl ${isAr ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-3 text-xs text-white focus:border-gold-500/50 focus:bg-[#080808] outline-none transition-all placeholder:text-white/10 font-bold shadow-inner`}
                                     value={feedFilters.search || ''}
-                                    onChange={e => setFeedFilters({ search: e.target.value })}
+                                    onChange={e => setFinancialFilters({ search: e.target.value })}
                                 />
                             </div>
 
@@ -625,7 +662,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 className="flex items-center gap-2 px-6 py-3 bg-gold-500 hover:bg-gold-600 active:bg-gold-700 text-black font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-2xl shadow-gold-500/20 active:scale-95 group"
                             >
                                 <Download size={16} className="group-hover:bounce" />
-                                <span>{isAr ? 'تصدير' : 'Export'}</span>
+                                <span>{t.admin.billing.export}</span>
                             </button>
                         </div>
                     </div>
@@ -660,27 +697,36 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             <table className="w-full text-left whitespace-nowrap border-collapse">
                                 <thead className="bg-white/[0.03] text-[10px] text-white/30 uppercase font-black sticky top-0 z-10 backdrop-blur-md">
                                     <tr className="border-b border-white/5">
-                                        <th className="px-8 py-6 text-right w-[35%]">{t.admin.billing.ledger.table.transaction}</th>
-                                        <th className="px-8 py-6 text-right w-[25%]">{t.admin.billing.ledger.table.details}</th>
-                                        <th className="px-8 py-6 text-center w-[15%]">{t.admin.billing.ledger.table.amount}</th>
-                                        <th className="px-8 py-6 text-center w-[15%]">{t.admin.billing.ledger.table.timestamp}</th>
-                                        <th className="px-8 py-6 text-center w-[10%]">{t.admin.billing.ledger.table.status_header}</th>
-                                        <th className="px-8 py-6"></th>
+                                        <th className="px-6 py-6 text-right">{t.admin.billing.ledger.table.transaction}</th>
+                                        <th className="px-6 py-6 text-right">{t.admin.billing.ledger.table.details}</th>
+                                        <th className="px-6 py-6 text-center">{t.admin.billing.ledger.table.amount}</th>
+                                        <th className="px-6 py-6 text-center">{t.admin.billing.ledger.table.breakdown}</th>
+                                        <th className="px-6 py-6 text-center">{t.admin.billing.ledger.table.balanceAfter}</th>
+                                        <th className="px-6 py-6 text-center">{t.admin.billing.ledger.table.timestamp}</th>
+                                        <th className="px-6 py-6 text-center">{t.admin.billing.ledger.table.status_header}</th>
+                                        <th className="px-6 py-6 text-center">{t.admin.billing.ledger.table.refs}</th>
+                                        <th className="px-4 py-6"></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {isFeedLoading && financialFeed.length === 0 ? (
-                                        <tr><td colSpan={5} className="px-8 py-20 text-center text-white/20 font-black text-xs uppercase animate-pulse">{t.admin.billing.ledger.table.scanning}</td></tr>
+                                        <tr><td colSpan={9} className="px-8 py-20 text-center text-white/20 font-black text-xs uppercase animate-pulse">{t.admin.billing.ledger.table.scanning}</td></tr>
                                     ) : financialFeed.length === 0 ? (
-                                        <tr><td colSpan={5} className="px-8 py-20 text-center text-white/10 font-bold text-xs uppercase ">{t.admin.billing.ledger.table.noRecords}</td></tr>
+                                        <tr><td colSpan={9} className="px-8 py-20 text-center text-white/10 font-bold text-xs uppercase ">{t.admin.billing.ledger.table.noRecords}</td></tr>
                                     ) : financialFeed.map((item) => {
                                         const isCredit = item.direction === 'CREDIT' || item.direction === 'RELEASE';
                                         const isDebit = item.direction === 'DEBIT';
-                                        const isEscrow = item.source === 'ESCROW';
+                                        const isExpanded = expandedFeedIds.has(item.id);
+                                        const breakdownParts: string[] = [];
+                                        if (item.commission != null && item.commission > 0) breakdownParts.push(`C:${item.commission}`);
+                                        if (item.shippingCost != null && item.shippingCost > 0) breakdownParts.push(`S:${item.shippingCost}`);
+                                        if (item.gatewayFee != null && item.gatewayFee > 0) breakdownParts.push(`G:${item.gatewayFee}`);
+                                        if (item.refundedAmount != null && item.refundedAmount > 0) breakdownParts.push(`R:${item.refundedAmount}`);
+                                        if (item.unitPrice != null && item.unitPrice > 0) breakdownParts.push(`U:${item.unitPrice}`);
                                         
                                         return (
+                                            <React.Fragment key={item.id}>
                                             <tr 
-                                                key={item.id} 
                                                 onClick={() => {
                                                     markFeedItemAsSeen(item.id);
                                                     if (item.orderId) setSelectedOrderIdForTimeline(item.orderId);
@@ -741,10 +787,18 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                                     </span>
                                                                 </BlurredSection>
                                                             )}
+                                                            {item.userRole && (
+                                                                <span className="text-[9px] text-white/25 uppercase">{item.userRole}</span>
+                                                            )}
                                                         </div>
+                                                        {item.financialImpact && (
+                                                            <span className="inline-flex mt-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-gold-500/10 text-gold-400 border border-gold-500/20">
+                                                                {t.admin.billing.ledger.financialImpact}: {item.financialImpact}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 text-center">
+                                                <td className="px-6 py-6 text-center">
                                                     <div className={`font-mono text-lg font-black flex items-center justify-center gap-2 ${
                                                         isCredit ? 'text-emerald-400' : isDebit ? 'text-rose-400' : 'text-white/60'
                                                     }`}>
@@ -754,12 +808,20 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                         <span className="text-[10px] opacity-30 font-bold uppercase">{item.currency}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 font-mono text-xs text-white/40 text-center">
+                                                <td className="px-6 py-6 text-center">
+                                                    <span className="font-mono text-[10px] text-white/50">
+                                                        {breakdownParts.length > 0 ? breakdownParts.join(' · ') : '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-6 text-center font-mono text-xs text-white/50">
+                                                    {item.balanceAfter != null ? Number(item.balanceAfter).toLocaleString() : '—'}
+                                                </td>
+                                                <td className="px-6 py-6 font-mono text-xs text-white/40 text-center">
                                                     {new Date(item.createdAt).toLocaleString(isAr ? 'ar-EG' : 'en-US', { 
                                                         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
                                                     })}
                                                 </td>
-                                                <td className="px-8 py-6">
+                                                <td className="px-6 py-6">
                                                     <div className="flex items-center justify-center gap-2">
                                                         <div className={`w-2 h-2 rounded-full ${
                                                             item.status === 'COMPLETED' || item.status === 'SUCCESS' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
@@ -770,20 +832,78 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 text-left">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (item.orderId) setSelectedOrderIdForTimeline(item.orderId);
-                                                        }}
-                                                        disabled={!item.orderId}
-                                                        className="p-2 rounded-xl bg-white/5 hover:bg-gold-500 hover:text-black transition-all disabled:opacity-20 disabled:cursor-not-allowed group/btn shadow-lg border border-white/5"
-                                                        title={isAr ? 'عرض سجل التدقيق المالي' : 'View Financial Audit Trail'}
-                                                    >
-                                                        <History size={16} className="group-hover/btn:rotate-[360deg] transition-all duration-700" />
-                                                    </button>
+                                                <td className="px-6 py-6 text-center font-mono text-[9px] text-white/30">
+                                                    {item.transactionNumber && <div>TXN:{item.transactionNumber.slice(-8)}</div>}
+                                                    {item.orderNumber && <div>ORD:{item.orderNumber}</div>}
+                                                    {!item.transactionNumber && !item.orderNumber && '—'}
+                                                </td>
+                                                <td className="px-4 py-6 text-left">
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleFeedExpand(item.id);
+                                                            }}
+                                                            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/5"
+                                                            title={isExpanded ? t.admin.billing.ledger.collapseDetails : t.admin.billing.ledger.expandDetails}
+                                                        >
+                                                            <ChevronDown size={16} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (item.orderId) setSelectedOrderIdForTimeline(item.orderId);
+                                                            }}
+                                                            disabled={!item.orderId}
+                                                            className="p-2 rounded-xl bg-white/5 hover:bg-gold-500 hover:text-black transition-all disabled:opacity-20 disabled:cursor-not-allowed group/btn shadow-lg border border-white/5"
+                                                            title={t.admin.billing.ledger.table.viewAudit}
+                                                        >
+                                                            <History size={16} className="group-hover/btn:rotate-[360deg] transition-all duration-700" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
+                                            {isExpanded && (
+                                                <tr className="bg-white/[0.02]">
+                                                    <td colSpan={9} className="px-8 py-4">
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[10px] font-mono text-white/50">
+                                                            {item.unitPrice != null && (
+                                                                <div><span className="text-white/25 block uppercase mb-1">{t.admin.billing.invoiceViewer.unitPrice}</span>{Number(item.unitPrice).toLocaleString()} AED</div>
+                                                            )}
+                                                            {item.commission != null && (
+                                                                <div><span className="text-white/25 block uppercase mb-1">{t.admin.billing.ledger.auditDrawer.platformFee}</span>{Number(item.commission).toLocaleString()} AED</div>
+                                                            )}
+                                                            {item.shippingCost != null && (
+                                                                <div><span className="text-white/25 block uppercase mb-1">{t.admin.billing.kpis.logisticsRevenue}</span>{Number(item.shippingCost).toLocaleString()} AED</div>
+                                                            )}
+                                                            {item.gatewayFee != null && (
+                                                                <div><span className="text-white/25 block uppercase mb-1">{t.admin.billing.kpis.gatewayFees}</span>{Number(item.gatewayFee).toLocaleString()} AED</div>
+                                                            )}
+                                                            {item.refundedAmount != null && (
+                                                                <div><span className="text-white/25 block uppercase mb-1">{t.admin.billing.kpis.totalRefunds}</span>{Number(item.refundedAmount).toLocaleString()} AED</div>
+                                                            )}
+                                                            {item.balanceAfter != null && (
+                                                                <div><span className="text-white/25 block uppercase mb-1">{t.admin.billing.ledger.table.balanceAfter}</span>{Number(item.balanceAfter).toLocaleString()} AED</div>
+                                                            )}
+                                                            {item.financialImpact && (
+                                                                <div><span className="text-white/25 block uppercase mb-1">{t.admin.billing.ledger.financialImpact}</span>{item.financialImpact}</div>
+                                                            )}
+                                                            {item.transactionNumber && (
+                                                                <div><span className="text-white/25 block uppercase mb-1">TXN</span>{item.transactionNumber}</div>
+                                                            )}
+                                                            {item.metadata && typeof item.metadata === 'object' && Object.keys(item.metadata as object).length > 0 && (
+                                                                <div className="col-span-2 sm:col-span-4">
+                                                                    <span className="text-white/25 block uppercase mb-1">metadata</span>
+                                                                    <pre className="text-[9px] whitespace-pre-wrap break-all">{JSON.stringify(item.metadata, null, 2)}</pre>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            </React.Fragment>
                                         );
                                     })}
                                 </tbody>
@@ -795,12 +915,12 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                             {isFeedLoading && (
                                 <div className="flex items-center gap-3 text-gold-500/50 font-black text-[10px] uppercase tracking-tighter animate-pulse">
                                     <RefreshCw size={14} className="animate-spin" />
-                                    Scanning blockchain ledger...
+                                    {t.admin.billing.ledger.scanningMore}
                                 </div>
                             )}
                             {!feedHasMore && financialFeed.length > 0 && (
                                 <div className="text-white/10 font-black text-[10px] uppercase tracking-tighter">
-                                    End of financial trail reached
+                                    {t.admin.billing.ledger.loadMore}
                                 </div>
                             )}
                         </div>
@@ -811,24 +931,59 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
 
             {activeTab === 'WITHDRAWALS' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
+                    <div className="flex flex-wrap gap-2">
+                        {(['PENDING', 'APPROVED', 'COMPLETED', 'REJECTED', 'ALL'] as const).map((status) => {
+                            const active = (financialFilters.withdrawalStatus || 'PENDING') === status;
+                            const labelKey =
+                                status === 'ALL' ? 'all'
+                                : status === 'PENDING' ? 'pending'
+                                : status === 'APPROVED' ? 'approved'
+                                : status === 'COMPLETED' ? 'completed'
+                                : 'rejected';
+                            return (
+                                <button
+                                    key={status}
+                                    type="button"
+                                    onClick={() => setFinancialFilters({ withdrawalStatus: status })}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase border transition-all ${
+                                        active
+                                            ? 'bg-gold-500 text-black border-gold-500'
+                                            : 'bg-white/5 text-white/50 border-white/10 hover:border-white/20'
+                                    }`}
+                                >
+                                    {t.admin.billing.withdrawals.filters[labelKey]}
+                                </button>
+                            );
+                        })}
+                    </div>
                     <GlassCard className="p-0 overflow-hidden bg-black/20 border-white/5 shadow-2xl">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left whitespace-nowrap">
                                 <thead className="bg-white/[0.03] text-[10px] text-white/30 uppercase  font-black">
                                     <tr>
-                                        <th className="px-8 py-6">{t.admin.billing.withdrawals.table.target}</th>
-                                        <th className="px-8 py-6">{t.admin.billing.withdrawals.table.amount}</th>
-                                        <th className="px-8 py-6">{t.admin.billing.withdrawals.table.method}</th>
-                                        <th className="px-8 py-6">{t.admin.billing.withdrawals.table.timestamp}</th>
-                                        <th className="px-8 py-6">{t.admin.billing.withdrawals.table.status}</th>
-                                        <th className="px-8 py-6 text-right">{t.admin.billing.withdrawals.table.actions}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.target}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.amount}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.balanceAtRequest}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.balanceCurrent}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.method}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.timestamp}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.processedAt}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.adminNotes}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.stripeId}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.status}</th>
+                                        <th className="px-6 py-6">{t.admin.billing.withdrawals.table.requestId}</th>
+                                        <th className="px-6 py-6 text-right">{t.admin.billing.withdrawals.table.actions}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {isLoadingWithdrawals ? (
-                                        <tr><td colSpan={6} className="px-8 py-20 text-center text-white/20 font-black  text-xs uppercase animate-pulse">{t.admin.billing.withdrawals.actions.empty}</td></tr>
+                                        <tr><td colSpan={12} className="px-8 py-20 text-center text-white/20 font-black  text-xs uppercase animate-pulse">{t.admin.billing.ledger.table.scanning}</td></tr>
                                     ) : pendingWithdrawals.length === 0 ? (
-                                        <tr><td colSpan={6} className="px-8 py-20 text-center text-white/10 font-bold text-xs uppercase ">{t.admin.billing.withdrawals.actions.empty}</td></tr>
+                                        <tr><td colSpan={12} className="px-8 py-20 text-center text-white/10 font-bold text-xs uppercase ">
+                                            {(financialFilters.withdrawalStatus || 'PENDING') === 'PENDING'
+                                                ? t.admin.billing.withdrawals.actions.emptyPending
+                                                : t.admin.billing.withdrawals.actions.emptyAll}
+                                        </td></tr>
                                     ) : pendingWithdrawals.map((req: any) => (
                                         <tr key={req.id} className="hover:bg-white/[0.02] transition-colors group">
                                             <td className="px-8 py-6">
@@ -844,13 +999,19 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6 font-mono font-black text-gold-500 text-lg">
+                                            <td className="px-6 py-6 font-mono font-black text-gold-500 text-lg">
                                                 <BlurredSection isBlurred={isSectionBlurred('billing_amounts')}>
                                                     <span>{Number(req.amount).toLocaleString()}</span>
                                                 </BlurredSection>
                                                 <span className="text-[10px] text-white/20 uppercase ml-1">AED</span>
                                             </td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-6 py-6 font-mono text-xs text-white/50">
+                                                {req.balanceAtRequest != null ? Number(req.balanceAtRequest).toLocaleString() : '—'}
+                                            </td>
+                                            <td className="px-6 py-6 font-mono text-xs text-white/50">
+                                                {req.balanceCurrent != null ? Number(req.balanceCurrent).toLocaleString() : '—'}
+                                            </td>
+                                            <td className="px-6 py-6">
                                                 <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[9px] uppercase  border ${
                                                     req.payoutMethod === 'STRIPE' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-gold-500/10 text-gold-500 border-gold-500/20'
                                                 }`}>
@@ -858,28 +1019,42 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                     {req.payoutMethod}
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6 font-mono text-xs text-white/40">
+                                            <td className="px-6 py-6 font-mono text-xs text-white/40">
                                                 {new Date(req.createdAt).toLocaleDateString()}
                                             </td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-6 py-6 font-mono text-xs text-white/40">
+                                                {req.processedAt ? new Date(req.processedAt).toLocaleDateString() : '—'}
+                                            </td>
+                                            <td className="px-6 py-6 max-w-[160px]">
+                                                <span className="text-[10px] text-white/50 line-clamp-2" title={req.adminNotes || ''}>
+                                                    {req.adminNotes || '—'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-6 font-mono text-[9px] text-white/40 max-w-[120px] truncate" title={req.stripeTransferId || ''}>
+                                                {req.stripeTransferId || '—'}
+                                            </td>
+                                            <td className="px-6 py-6">
                                                 <span className={`text-[9px] px-3 py-1.5 rounded-lg font-black uppercase  border ${
                                                     req.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                    req.status === 'APPROVED' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
                                                     req.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse' : 
                                                     'bg-rose-500/10 text-rose-400 border-rose-500/20'
                                                 }`}>
                                                     {req.status}
                                                 </span>
                                             </td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-6 py-6 font-mono text-[9px] text-white/30">
+                                                #{req.id.slice(-8).toUpperCase()}
+                                            </td>
+                                            <td className="px-6 py-6">
                                                 <div className="flex gap-2 justify-end">
-                                                    {/* Bank Details Button — always visible for any withdrawal */}
                                                     <button 
                                                         onClick={() => {
                                                             setSelectedWithdrawalReq(req);
                                                             setShowBankModal(true);
                                                         }} 
                                                         className="w-11 h-11 bg-blue-500/10 hover:bg-blue-500 text-blue-500 hover:text-white rounded-xl transition-all border border-blue-500/20 flex items-center justify-center group/btn"
-                                                        title={isAr ? 'عرض البيانات البنكية' : 'View Bank Details'}
+                                                        title={t.admin.billing.withdrawals.table.viewBank}
                                                     >
                                                         <Landmark size={20} className="group-hover/btn:scale-110 transition-transform" />
                                                     </button>
@@ -963,7 +1138,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                 </div>
                                 <div>
                                     <h2 className="text-lg font-black text-blue-500 tracking-wider">
-                                        {isAr ? 'البيانات البنكية' : 'Bank Details'}
+                                        {t.admin.billing.bankModal.title}
                                     </h2>
                                 </div>
                             </div>
@@ -981,7 +1156,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                     return (
                                         <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-500">
                                             <AlertOctagon size={24} />
-                                            <span className="text-sm font-bold">{isAr ? 'لم يقم المستخدم بإضافة بيانات بنكية بعد.' : 'User has not added bank details yet.'}</span>
+                                            <span className="text-sm font-bold">{t.admin.billing.bankModal.noDetails}</span>
                                         </div>
                                     );
                                 }
@@ -989,19 +1164,19 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                     <div className="space-y-4">
                                         <div className="bg-[#14151A] p-4 rounded-xl border border-white/5 space-y-3">
                                             <div className="flex justify-between items-center pb-3 border-b border-white/5">
-                                                <span className="text-xs text-white/40 uppercase">{isAr ? 'حالة التوثيق' : 'Verification Status'}</span>
+                                                <span className="text-xs text-white/40 uppercase">{t.admin.billing.bankModal.verificationStatus}</span>
                                                 {entity.bankDetailsVerified ? (
                                                     <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md">
-                                                        <CheckCircle2 size={12} /> {isAr ? 'موثق' : 'Verified'}
+                                                        <CheckCircle2 size={12} /> {t.admin.billing.bankModal.verified}
                                                     </span>
                                                 ) : (
                                                     <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md">
-                                                        <AlertOctagon size={12} /> {isAr ? 'غير موثق' : 'Unverified'}
+                                                        <AlertOctagon size={12} /> {t.admin.billing.bankModal.unverified}
                                                     </span>
                                                 )}
                                             </div>
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-[10px] text-white/40 uppercase">{isAr ? 'اسم صاحب الحساب' : 'Account Holder'}</span>
+                                                <span className="text-[10px] text-white/40 uppercase">{t.admin.billing.bankModal.accountHolder}</span>
                                                 <BlurredSection isBlurred={isSectionBlurred('merchant_bank_details')}>
                                                     <span className="text-sm font-bold text-white">{entity.bankAccountHolder || '---'}</span>
                                                 </BlurredSection>
@@ -1028,7 +1203,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                             const res = await verifyBankDetails(entity.id || entity.ownerId, freshReq.role);
                                                             setIsVerifyingBank(false);
                                                             if (!res.success) {
-                                                                alert(isAr ? 'فشل التوثيق' : 'Verification failed');
+                                                                alert(t.admin.billing.bankModal.verifyFailed);
                                                             }
                                                         }}
                                                         className="w-full py-3 px-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 text-emerald-500 hover:text-white transition-all text-sm font-black tracking-wider uppercase flex items-center justify-center gap-2 group/verifybtn disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1038,7 +1213,7 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
                                                         ) : (
                                                             <ShieldCheck size={18} className="group-hover/verifybtn:scale-110 transition-transform" />
                                                         )}
-                                                        {isAr ? (isVerifyingBank ? 'جاري التوثيق...' : 'توثيق البيانات البنكية للعميل') : (isVerifyingBank ? 'Verifying...' : 'Verify Bank Details')}
+                                                        {isVerifyingBank ? t.admin.billing.bankModal.verifying : t.admin.billing.bankModal.verifyAction}
                                                     </button>
                                                 </div>
                                             )}

@@ -212,7 +212,7 @@ export const OrderFinancialDrawer: React.FC<OrderFinancialDrawerProps> = ({ orde
                       <div className="flex flex-col items-center gap-2 flex-1">
                         <div className="flex -space-x-4 rtl:space-x-reverse">
                           {orderTimeline.merchants.map((m: any, idx: number) => (
-                            <div key={m.id} className="w-14 h-14 rounded-2xl bg-[#0A0908] border border-white/10 p-0.5 shadow-2xl relative" style={{ zIndex: 10 - idx }}>
+                            <div key={`merchant-${m.id}-${idx}`} className="w-14 h-14 rounded-2xl bg-[#0A0908] border border-white/10 p-0.5 shadow-2xl relative" style={{ zIndex: 10 - idx }}>
                               {m.logo ? (
                                 <img src={m.logo} className="w-full h-full rounded-[0.9rem] object-cover" />
                               ) : (
@@ -249,7 +249,7 @@ export const OrderFinancialDrawer: React.FC<OrderFinancialDrawerProps> = ({ orde
                       <div className={`absolute top-2 bottom-2 ${isAr ? 'right-[15px]' : 'left-[15px]'} w-[2px] bg-gradient-to-b from-gold-500/40 via-white/5 to-white/[0.02]`} />
 
                       {orderTimeline.timeline.map((event: any, idx: number) => (
-                        <div key={idx} className="relative group">
+                        <div key={event.id ?? `timeline-${idx}`} className="relative group">
                           {/* Point */}
                           <div className={`absolute top-1 ${isAr ? '-right-[21px]' : '-left-[21px]'} w-[10px] h-[10px] rounded-full border-2 border-[#0A0908] z-10 transition-transform group-hover:scale-125 ${
                             event.status === 'SUCCESS' || event.status === 'RELEASED' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :

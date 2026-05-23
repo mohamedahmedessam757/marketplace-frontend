@@ -1,10 +1,14 @@
 
 import React, { memo, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, CheckCircle2, DollarSign, MessageSquare, AlertTriangle, Package, RotateCcw, Truck } from 'lucide-react';
+import { X, Bell, CheckCircle2, DollarSign, MessageSquare, AlertTriangle, Package, RotateCcw, Truck, ShieldAlert } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNotificationStore, NotificationType, Notification } from '../../../stores/useNotificationStore';
 import { getCurrentUserId } from '../../../utils/auth';
+import {
+    resolveNotificationNavigation,
+    setViolationNavContext,
+} from '../../../utils/violationNavigation';
 
 interface NotificationDrawerProps {
     isOpen: boolean;
@@ -35,6 +39,10 @@ const NotificationItem = memo(({
             case 'RETURN': return <RotateCcw size={18} className="text-orange-400" />;
             case 'DOC_EXPIRY': return <AlertTriangle size={18} className="text-orange-400" />;
             case 'SECURITY': return <AlertTriangle size={18} className="text-red-500" />;
+            case 'VIOLATION':
+            case 'LOYALTY_REVIEW':
+            case 'CHAT_VIOLATION':
+                return <ShieldAlert size={18} className="text-amber-400" />;
             default: return <Bell size={18} />;
         }
     };
@@ -95,16 +103,21 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
             }
         }
 
-        if (notif.link) {
+        const nav = resolveNotificationNavigation(notif);
+        if (nav) {
+            if (nav.context) {
+                setViolationNavContext(nav.context);
+            }
             if (notif.metadata?.orderId) {
                 onNavigate('order-details', notif.metadata.orderId);
             } else if (notif.metadata?.caseId) {
                 const detailPath = role === 'admin' ? 'admin-dispute-details' : 'dispute-details';
                 onNavigate(detailPath, notif.metadata.caseId);
             } else {
-                onNavigate(notif.link.replace(/^\//, ''));
+                onNavigate(nav.path);
             }
             onClose();
+            return;
         }
     };
 

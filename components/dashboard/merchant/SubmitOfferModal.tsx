@@ -938,7 +938,6 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                     >
                                                         <option value="new" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.new}</option>
                                                         <option value="used_clean" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.used_clean}</option>
-                                                        <option value="used_avg" className="bg-[#1A1814]">{t.dashboard.merchant.offerModal.conditions.used_avg}</option>
                                                     </select>
                                                     <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-white/20 group-hover:text-gold-500 transition-colors">
                                                         <ChevronDown size={16} />

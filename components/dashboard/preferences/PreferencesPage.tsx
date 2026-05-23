@@ -6,7 +6,7 @@ import { NotificationCenterTab } from './NotificationCenterTab';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const PreferencesPage: React.FC = () => {
+export const PreferencesPage: React.FC<{ onNavigate?: (path: string, id?: any) => void }> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
     const [activeTab, setActiveTab] = useState<'settings' | 'notifications'>('settings');
 
@@ -53,7 +53,7 @@ export const PreferencesPage: React.FC = () => {
                     {activeTab === 'settings' ? (
                         <SettingsTab key="settings" />
                     ) : (
-                        <NotificationCenterTab key="notifications" role="customer" />
+                        <NotificationCenterTab key="notifications" role="customer" onNavigate={onNavigate} />
                     )}
                 </AnimatePresence>
             </GlassCard>

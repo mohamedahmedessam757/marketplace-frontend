@@ -59,7 +59,29 @@ export const merchant = {
       recentTx: 'أحدث المعاملات',
       noTx: 'لا توجد معاملات حتى الآن',
       export: 'تصدير كشف حساب',
-      today: 'تاريخ اليوم'
+      today: 'تاريخ اليوم',
+      availableBalance: 'الرصيد المستحق',
+      pendingBalance: 'الرصيد المعلق',
+      frozenFunds: 'أرصدة مجمدة',
+      totalSales: 'إجمالي المبيعات',
+      totalSalesHint: 'مجموع أسعار قطعك (unitPrice)',
+      netEarnings: 'صافي الأرباح',
+      netEarningsHint: 'صافي السجل المحاسبي',
+      totalWalletBalance: 'إجمالي الرصيد',
+      completedOrders: 'الطلبات الناجحة',
+      storeTier: 'مستوى المتجر',
+      storeTierHint: 'يُحدَّث من تقييم الأداء — ليس نظام ولاء',
+      referralPersonalBalance: 'رصيد الإحالات الشخصي',
+      referralEscrowNote: 'أرباح الإحالات في رصيدك الشخصي، وليس رصيد المتجر',
+      viewTierDetails: 'عرض تفاصيل المستوى',
+      referralProfits: 'أرباح الإحالات',
+      searchOrderPlaceholder: 'بحث برقم الطلب...',
+      walletSubtitle: 'إدارة الرصيد والسحب والإحالات',
+      tierProgressionTitle: 'تطور مستوى المتجر',
+      progressToNext: 'مسار التقدم للمستوى القادم',
+      maxStoreTier: 'لقد وصلت إلى أعلى مستوى متاح!',
+      eliteInviteOnly: 'مستوى ELITE بدعوة من المنصة فقط',
+      nextTierBenefits: 'مزايا المستوى القادم',
     },
     audit: {
       title: 'سجل النشاط',
@@ -389,9 +411,8 @@ export const merchant = {
       submit: 'إرسال العرض',
       cancel: 'إلغاء',
       conditions: {
-        new: 'جديد / بكرتونه',
-        used_clean: 'مستعمل نظيف (أصلي)',
-        used_avg: 'مستعمل (متوسط)'
+        new: 'جديد (أصلي)',
+        used_clean: 'مستعمل (أصلي)'
       },
       warranties: {
         '15days': '15 يوم',
@@ -403,6 +424,23 @@ export const merchant = {
         d1_3: '1 - 3 أيام',
         d3_5: '3 - 5 أيام',
         d5_7: '5 - 7 أيام'
+      }
+    },
+    exploreOffer: {
+      freeEditWindow: 'مهلة التعديل المجاني',
+      voluntaryWithdrawBtn: 'إلغاء والانسحاب من الطلب',
+      voluntaryWithdrawCountdown: 'المتبقي للانسحاب من الطلب',
+      voluntaryWithdrawDialog: {
+        title: 'إلغاء والانسحاب من الطلب؟',
+        body: 'إذا انسحبت بإرادتك من هذا الطلب، سيُعتبر الطلب ملغياً بالنسبة لك ولن تتمكن من تقديم أي عرض آخر عليه. يمكنك التقديم على طلبات أخرى.',
+        confirm: 'تأكيد الانسحاب',
+        cancel: 'تراجع (الاحتفاظ بالعرض)'
+      },
+      blockedFromOrder: 'لقد انسحبت من هذا الطلب ولا يمكنك تقديم عرض جديد عليه.',
+      governance: {
+        editWindow: 'لديك 15 دقيقة لتعديل أو حذف عرضك بعد الإرسال مباشرة.',
+        voluntaryWindow: 'بعد 15 دقيقة يمكنك الانسحاب الطوعي من الطلب حتى ساعة قبل مرحلة اختيار العميل. الانسحاب يمنعك من التقديم على هذا الطلب فقط.',
+        cutoff: 'يتوقف النظام عن استقبال العروض قبل 15 دقيقة من نهاية الـ 24 ساعة.'
       }
     },
     menu: {
@@ -749,7 +787,29 @@ export const merchant = {
       recentTx: 'Recent Transactions',
       noTx: 'No transactions yet',
       export: 'Export Statement',
-      today: 'Today'
+      today: 'Today',
+      availableBalance: 'Available Balance',
+      pendingBalance: 'Pending Balance',
+      frozenFunds: 'Frozen Funds',
+      totalSales: 'Total Sales',
+      totalSalesHint: 'Sum of your part prices (unitPrice)',
+      netEarnings: 'Net Earnings',
+      netEarningsHint: 'Ledger net (credits − debits)',
+      totalWalletBalance: 'Total Wallet Balance',
+      completedOrders: 'Successful Orders',
+      storeTier: 'Store Tier',
+      storeTierHint: 'Updated from performance rating — not a loyalty program',
+      referralPersonalBalance: 'Personal Referral Balance',
+      referralEscrowNote: 'Referral earnings go to your personal balance, not store escrow',
+      viewTierDetails: 'View tier details',
+      referralProfits: 'Referral Profits',
+      searchOrderPlaceholder: 'Search Order Number...',
+      walletSubtitle: 'Manage balance, withdrawals, and referrals',
+      tierProgressionTitle: 'Store Tier Progression',
+      progressToNext: 'Progress to Next Tier',
+      maxStoreTier: 'You have reached the highest available tier!',
+      eliteInviteOnly: 'ELITE tier is invite-only',
+      nextTierBenefits: 'Next Tier Benefits',
     },
     audit: {
       title: 'Activity Log',
@@ -1059,9 +1119,8 @@ export const merchant = {
       submit: 'Submit Offer',
       cancel: 'Cancel',
       conditions: {
-        new: 'New / In Box',
-        used_clean: 'Used Clean (Genuine)',
-        used_avg: 'Used (Average)'
+        new: 'New (Original)',
+        used_clean: 'Used (Original)'
       },
       warranties: {
         '15days': '15 Days',
@@ -1096,6 +1155,23 @@ export const merchant = {
               ip: 'IP Address',
               userAgent: 'User Agent'
           }
+      }
+    },
+    exploreOffer: {
+      freeEditWindow: 'Free Edit Window',
+      voluntaryWithdrawBtn: 'Cancel & Withdraw from Request',
+      voluntaryWithdrawCountdown: 'Time left to withdraw from request',
+      voluntaryWithdrawDialog: {
+        title: 'Cancel & Withdraw from Request?',
+        body: 'If you voluntarily withdraw from this request, it will be cancelled for you and you cannot submit any further offer on it. You may still bid on other requests.',
+        confirm: 'Confirm Withdrawal',
+        cancel: 'Keep Offer'
+      },
+      blockedFromOrder: 'You have withdrawn from this request and cannot submit a new offer on it.',
+      governance: {
+        editWindow: 'You have 15 minutes to edit or delete your offer immediately after submission.',
+        voluntaryWindow: 'After 15 minutes you may voluntarily withdraw until 1 hour before customer selection. Withdrawal blocks you from this request only.',
+        cutoff: 'The system stops accepting offers 15 minutes before the 24-hour collection ends.'
       }
     },
     menu: {

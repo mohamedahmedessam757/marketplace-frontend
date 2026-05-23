@@ -1,9 +1,13 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, CheckCircle2, DollarSign, MessageSquare, AlertTriangle, Package, Truck } from 'lucide-react';
+import { Bell, CheckCircle2, DollarSign, MessageSquare, AlertTriangle, Package, Truck, ShieldAlert } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNotificationStore, NotificationType } from '../../../stores/useNotificationStore';
 import { getCurrentUserId } from '../../../utils/auth';
+import {
+    resolveNotificationNavigation,
+    setViolationNavContext,
+} from '../../../utils/violationNavigation';
 
 interface NotificationCenterTabProps {
     role?: 'customer' | 'merchant' | 'admin' | string;
@@ -32,6 +36,10 @@ export const NotificationCenterTab: React.FC<NotificationCenterTabProps> = ({ ro
             case 'DISPUTE': return <AlertTriangle size={18} className="text-red-400" />;
             case 'DOC_EXPIRY': return <AlertTriangle size={18} className="text-orange-400" />;
             case 'SECURITY': return <AlertTriangle size={18} className="text-red-500" />;
+            case 'VIOLATION':
+            case 'LOYALTY_REVIEW':
+            case 'CHAT_VIOLATION':
+                return <ShieldAlert size={18} className="text-amber-400" />;
             default: return <Bell size={18} />;
         }
     };
@@ -77,12 +85,16 @@ export const NotificationCenterTab: React.FC<NotificationCenterTabProps> = ({ ro
                                         const uid = getCurrentUserId();
                                         if (uid && !notif.isRead) markAsRead(notif.id, uid);
 
-                                        if (notif.link && onNavigate) {
-                                            if (notif.metadata?.orderId) {
-                                                onNavigate('order-details', notif.metadata.orderId);
-                                            } else {
-                                                onNavigate(notif.link.replace('/', ''));
-                                            }
+                                        if (!onNavigate) return;
+                                        const nav = resolveNotificationNavigation(notif);
+                                        if (!nav) return;
+                                        if (nav.context) setViolationNavContext(nav.context);
+                                        if (notif.metadata?.orderId) {
+                                            onNavigate('order-details', notif.metadata.orderId);
+                                        } else if (notif.metadata?.caseId) {
+                                            onNavigate('dispute-details', notif.metadata.caseId);
+                                        } else {
+                                            onNavigate(nav.path);
                                         }
                                     }}
                                     className={`p-5 hover:bg-white/5 cursor-pointer transition-colors relative flex gap-4 ${!notif.isRead ? 'bg-gold-500/5' : ''}`}
