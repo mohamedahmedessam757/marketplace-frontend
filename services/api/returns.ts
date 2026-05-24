@@ -7,13 +7,9 @@ export interface MerchantResolutionResponse {
 
 export const returnsApi = {
     // Customer
-    requestReturn: (data: FormData) => client.post('/returns/request', data, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    }),
+    requestReturn: (data: FormData) => client.post('/returns/request', data),
     
-    escalateDispute: (data: FormData) => client.post('/returns/dispute', data, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    }),
+    escalateDispute: (data: FormData) => client.post('/returns/dispute', data),
 
     getUserReturns: () => client.get('/returns/my-requests'),
     
@@ -42,9 +38,7 @@ export const returnsApi = {
         if (evidence) {
             (evidence as File[]).forEach(file => formData.append('files', file));
         }
-        return client.post(`/returns/${id}/respond-return`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        return client.post(`/returns/${id}/respond-return`, formData);
     },
 
     respondToDispute: (
@@ -67,9 +61,7 @@ export const returnsApi = {
         if (evidence) {
             (evidence as File[]).forEach((file) => formData.append('files', file));
         }
-        return client.post(`/returns/${id}/respond-dispute`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        return client.post(`/returns/${id}/respond-dispute`, formData);
     },
 
     // Admin

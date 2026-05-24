@@ -81,6 +81,8 @@ interface ProfileState {
   subscribeToProfile: () => (() => void);
 }
 
+let profileRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+
 export const useProfileStore = create<ProfileState>((set, get) => ({
   user: null,
   addresses: [],
@@ -451,8 +453,21 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     const userId = getCurrentUserId();
     if (!userId) return () => {};
 
-    const subscription = supabase
-      .channel(`profile-${userId}`)
+    const channelName = `profile-${userId}`;
+
+    if (profileRealtimeChannel) {
+      supabase.removeChannel(profileRealtimeChannel);
+      profileRealtimeChannel = null;
+    }
+
+    supabase.getChannels().forEach((ch) => {
+      if (ch.topic === `realtime:${channelName}`) {
+        supabase.removeChannel(ch);
+      }
+    });
+
+    profileRealtimeChannel = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -481,7 +496,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(subscription);
+      if (profileRealtimeChannel) {
+        supabase.removeChannel(profileRealtimeChannel);
+        profileRealtimeChannel = null;
+      }
     };
   }
 }));

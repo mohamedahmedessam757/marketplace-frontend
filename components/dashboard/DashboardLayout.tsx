@@ -107,6 +107,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       unsubscribeFromNotifications();
       unsubscribeFromCases();
       if (profileUnsub) profileUnsub();
+      if (permissionsUnsubRef.current) {
+        permissionsUnsubRef.current();
+        permissionsUnsubRef.current = null;
+      }
       stopRealtime();
       if (role === 'merchant') {
         useVendorStore.getState().unsubscribeFromVendorProfile();
@@ -180,11 +184,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
     // Start Realtime WebSockets for zero-latency sync (replaces legacy polling)
     startRealtime(getCurrentUserId() || undefined, role);
-    const stopProfileSub = useProfileStore.getState().subscribeToProfile();
 
     return () => {
       stopRealtime();
-      stopProfileSub();
     };
   }, [role, startRealtime, stopRealtime]);
 

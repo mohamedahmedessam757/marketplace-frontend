@@ -45,7 +45,6 @@ export const verificationTasksApi = {
     return client.post<{ urls: string[]; success: boolean }>(
       `/verification-tasks/${taskId}/field-photos`,
       fd,
-      { headers: { 'Content-Type': 'multipart/form-data' } },
     );
   },
 

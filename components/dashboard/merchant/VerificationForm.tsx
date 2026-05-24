@@ -164,11 +164,10 @@ export const VerificationForm: React.FC<VerificationFormProps> = ({
         formData.append('orderId', orderId.toString());
         formData.append('folder', folder);
 
-        const { data } = await client.post('/uploads/verification', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
+        const { data } = await client.post('/uploads/verification', formData);
+        if (!data?.url) {
+            throw new Error('Upload did not return a URL');
+        }
         return data.url;
     };
 
@@ -207,10 +206,16 @@ export const VerificationForm: React.FC<VerificationFormProps> = ({
                 setUploadProgress(10 + Math.floor((40 / images.length) * (i + 1)));
             }
 
+            if (!finalImageUrls.every((url) => url.startsWith('http'))) {
+                throw new Error(isAr ? 'يجب رفع جميع الصور قبل الإرسال' : 'All images must be uploaded before submitting');
+            }
+
             // Upload new video if exists
             let finalVideoUrl = videoUrl;
             if (video) {
                 finalVideoUrl = await uploadFile(video, 'videos');
+            } else if (finalVideoUrl && !finalVideoUrl.startsWith('http')) {
+                throw new Error(isAr ? 'يجب رفع الفيديو قبل الإرسال' : 'Video must be uploaded before submitting');
             }
             setUploadProgress(80);
 
@@ -239,9 +244,19 @@ export const VerificationForm: React.FC<VerificationFormProps> = ({
 
             await onSubmit(payload);
             setUploadProgress(100);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Submission error:', error);
-            setErrors({ submit: isAr ? 'حدث خطأ أثناء رفع الملفات، يرجى المحاولة مرة أخرى.' : 'Error uploading files, please try again.' });
+            const apiMsg =
+                error?.response?.data?.message ||
+                (Array.isArray(error?.response?.data?.message)
+                    ? error.response.data.message.join(', ')
+                    : null);
+            setErrors({
+                submit:
+                    apiMsg ||
+                    error?.message ||
+                    (isAr ? 'حدث خطأ أثناء رفع الملفات، يرجى المحاولة مرة أخرى.' : 'Error uploading files, please try again.'),
+            });
         } finally {
             setIsSubmitting(false);
             setUploadProgress(0);

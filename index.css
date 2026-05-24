@@ -1,10 +1,41 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@source "./index.html";
+@source "./**/*.{tsx,ts,jsx,js}";
+
+@theme {
+  --font-sans: "IBM Plex Sans Arabic", sans-serif;
+
+  --color-gold-100: #F9F1D8;
+  --color-gold-200: #E8D8A8;
+  --color-gold-300: #D6C07F;
+  --color-gold-400: #C4A95C;
+  --color-gold-500: #A88B3E;
+  --color-gold-600: #866D2D;
+  --color-gold-700: #655020;
+  --color-gold-800: #463614;
+  --color-gold-900: #2A200B;
+
+  --color-brand-dark: #1a1814;
+  --color-brand-panel: #2C2A26;
+
+  --color-primary-100: #F9F1D8;
+  --color-primary-200: #E8D8A8;
+  --color-primary-300: #D6C07F;
+  --color-primary-400: #C4A95C;
+  --color-primary-500: #A88B3E;
+  --color-primary-600: #866D2D;
+  --color-primary-700: #655020;
+
+  --color-luxury-gradient: #8E7950;
+
+  --background-image-luxury-gradient: linear-gradient(135deg, #8E7950 0%, #5A4D33 100%);
+  --background-image-glass-shine: linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.05) 25%, transparent 30%);
+}
 
 body {
-  background-color: #5A4D33;
-  /* Fallback */
+  background-color: #1A1814;
+  font-family: var(--font-sans);
   margin: 0;
   overflow-x: hidden;
 }

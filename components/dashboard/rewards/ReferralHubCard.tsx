@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Share2, Copy, CheckCircle2, Clock, UserPlus, Star,
-    MessageCircle, Send, Twitter, Facebook, Mail, Share
+    MessageCircle, Send, Mail, Share, AtSign, Users
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -121,7 +121,7 @@ export const ReferralHubCard: React.FC<ReferralHubCardProps> = ({
             {
                 id: 'twitter',
                 label: 'X / Twitter',
-                icon: Twitter,
+                icon: AtSign,
                 href: `https://twitter.com/intent/tweet?text=${enc(shareText)}&url=${enc(referralUrl)}`,
                 gradient: 'from-[#000000] to-[#333333]',
                 shadow: 'shadow-white/10',
@@ -130,7 +130,7 @@ export const ReferralHubCard: React.FC<ReferralHubCardProps> = ({
             {
                 id: 'facebook',
                 label: 'Facebook',
-                icon: Facebook,
+                icon: Users,
                 href: `https://www.facebook.com/sharer/sharer.php?u=${enc(referralUrl)}`,
                 gradient: 'from-[#1877F2] to-[#0C59CF]',
                 shadow: 'shadow-[#1877F2]/20',

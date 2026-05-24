@@ -100,9 +100,7 @@ export const violationsApi = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('violationId', violationId);
-    const response = await client.post('/uploads/appeals', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const response = await client.post('/uploads/appeals', formData);
     return response.data;
   },
 

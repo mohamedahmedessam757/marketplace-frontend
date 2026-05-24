@@ -13,6 +13,10 @@ client.interceptors.request.use((config) => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    // Let the browser set multipart boundary — manual Content-Type breaks uploads
+    if (config.data instanceof FormData) {
+        delete config.headers['Content-Type'];
+    }
     return config;
 });
 

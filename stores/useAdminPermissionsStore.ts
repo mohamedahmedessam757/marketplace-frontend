@@ -45,6 +45,8 @@ interface AdminPermissionsState {
   subscribeToPermissions: (userId: string) => () => void;
 }
 
+let permissionsRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+
 export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get) => ({
   myPermissions: null,
   adminList: [],
@@ -227,8 +229,21 @@ export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get)
   },
 
   subscribeToPermissions: (userId) => {
-    const channel = supabase
-      .channel(`admin_permissions:${userId}`)
+    const channelName = `admin_permissions:${userId}`;
+
+    if (permissionsRealtimeChannel) {
+      supabase.removeChannel(permissionsRealtimeChannel);
+      permissionsRealtimeChannel = null;
+    }
+
+    supabase.getChannels().forEach((ch) => {
+      if (ch.topic === `realtime:${channelName}`) {
+        supabase.removeChannel(ch);
+      }
+    });
+
+    permissionsRealtimeChannel = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         { 
@@ -246,7 +261,10 @@ export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get)
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (permissionsRealtimeChannel) {
+        supabase.removeChannel(permissionsRealtimeChannel);
+        permissionsRealtimeChannel = null;
+      }
     };
   }
 }));
