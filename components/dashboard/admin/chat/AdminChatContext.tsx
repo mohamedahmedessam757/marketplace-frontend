@@ -12,6 +12,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { escapeHtml } from '../../../../utils/htmlSanitize';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -172,9 +173,9 @@ export const AdminChatContext: React.FC = () => {
                             // Customer: RIGHT side (flex-start in RTL)
                             return `
                                 <div style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 15px;">
-                                    <span style="font-size: 10px; font-weight: 700; color: #b8860b; margin-bottom: 4px;">${senderName}</span>
+                                    <span style="font-size: 10px; font-weight: 700; color: #b8860b; margin-bottom: 4px;">${escapeHtml(senderName)}</span>
                                     <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 15px 0px 15px 15px; padding: 12px 16px; max-width: 80%; text-align: right;">
-                                        <p style="font-size: 13px; color: #1f2937; margin: 0; line-height: 1.6;">${msg.text || ''}</p>
+                                        <p style="font-size: 13px; color: #1f2937; margin: 0; line-height: 1.6;">${escapeHtml(msg.text || '')}</p>
                                     </div>
                                     <span style="font-size: 9px; color: #9CA3AF; margin-top: 4px;">${time}</span>
                                 </div>
@@ -183,9 +184,9 @@ export const AdminChatContext: React.FC = () => {
                             // Vendor: LEFT side (flex-end in RTL)
                             return `
                                 <div style="display: flex; flex-direction: column; align-items: flex-end; margin-bottom: 15px;">
-                                    <span style="font-size: 10px; font-weight: 700; color: #374151; margin-bottom: 4px;">${senderName}</span>
+                                    <span style="font-size: 10px; font-weight: 700; color: #374151; margin-bottom: 4px;">${escapeHtml(senderName)}</span>
                                     <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 0px 15px 15px 15px; padding: 12px 16px; max-width: 80%; text-align: left;">
-                                        <p style="font-size: 13px; color: #1f2937; margin: 0; line-height: 1.6;">${msg.text || ''}</p>
+                                        <p style="font-size: 13px; color: #1f2937; margin: 0; line-height: 1.6;">${escapeHtml(msg.text || '')}</p>
                                     </div>
                                     <span style="font-size: 9px; color: #9CA3AF; margin-top: 4px;">${time}</span>
                                 </div>

@@ -11,6 +11,7 @@ import { Badge } from '../../ui/Badge';
 import { SubmitOfferModal } from './SubmitOfferModal';
 import { CountdownTimer } from '../OrderDetails';
 import { getDynamicOrderDeadline, isOrderExpired } from '../../../utils/dateUtils';
+import { getActiveOffersForStore } from '../../../utils/merchantOffers';
 
 interface MerchantMarketplaceProps {
     onNavigate?: (path: string, id?: any) => void;
@@ -78,7 +79,7 @@ export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavi
         const matchesModel = !hasModels || selectedModelsLower.includes(model);
 
         // 2. Advanced Logic: Visibility overrides
-        const myOffers = storeId ? (o.offers || []).filter((of: any) => String(of.storeId) === String(storeId)) : [];
+        const myOffers = getActiveOffersForStore(o.offers, storeId);
         const hasOfferByMe = myOffers.length > 0;
         const hasAcceptedByMe = myOffers.some((of: any) => of.status === 'accepted' || of.status === 'ACCEPTED');
 
@@ -227,7 +228,7 @@ export const MerchantMarketplace: React.FC<MerchantMarketplaceProps> = ({ onNavi
                                 transition={{ delay: idx * 0.05 }}
                             >
                                 {(() => {
-                                    const myOffersOnThisOrder = storeId ? (req.offers || []).filter((of: any) => String(of.storeId) === String(storeId)) : [];
+                                    const myOffersOnThisOrder = getActiveOffersForStore(req.offers, storeId);
                                     const hasMyOffer = myOffersOnThisOrder.length > 0;
 
                                     return (

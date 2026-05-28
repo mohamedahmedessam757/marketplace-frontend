@@ -18,6 +18,7 @@ import { NavigationDrawer } from './NavigationDrawer';
 import { VerdictPopUp } from './resolution/VerdictPopUp';
 import { RestrictionAlertBanner } from './shared/RestrictionAlertBanner';
 import { getCurrentUserId } from '../../utils/auth';
+import { clearAuthStorage } from '../../utils/clearAuthStorage';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -126,8 +127,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // SECURITY: AUTO-LOGOUT LOGIC
   const handleSystemLogout = () => {
-    // 1. Clear LocalStorage Leakage
-    localStorage.removeItem('merchant_store_id');
+    clearAuthStorage();
     
     // 2. Reset Global Stores
     useVendorStore.getState().reset();

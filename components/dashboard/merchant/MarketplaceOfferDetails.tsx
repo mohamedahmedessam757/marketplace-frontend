@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
+import { getOfferModificationMetrics, isActiveMerchantOffer } from '../../../utils/merchantOffers';
 import { useOrderById } from '../../../hooks/useOrderById';
 import { useOrderRealtimeSync } from '../../../hooks/useOrderRealtimeSync';
 import { useVendorStore } from '../../../stores/useVendorStore';
@@ -31,6 +32,10 @@ import {
     merchantCanRequestReadyForShipping,
 } from '../../../utils/offerFulfillmentHelpers';
 import { getOfferGovernanceWindow } from '../../../utils/offerGovernance';
+
+function toDisplayImageUrls(images?: (string | File)[]): string[] {
+    return (images ?? []).filter((item): item is string => typeof item === 'string');
+}
 
 const MarketplaceDetailsSkeleton = ({ isAr }: { isAr: boolean }) => (
     <div className="space-y-6 animate-pulse">
@@ -75,7 +80,8 @@ interface MarketplaceOfferDetailsProps {
 
 export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = ({ orderId, onBack }) => {
     const { t, language } = useLanguage();
-    const { addOfferToOrder, patchOrderFromRealtime, fetchOrder } = useOrderStore();
+    const { addOfferToOrder, patchOrderFromRealtime, fetchOrder, removeOfferFromOrder, markOfferWithdrawnInOrder } =
+        useOrderStore();
     const order = useOrderById(orderId);
     const { storeId, performance, fetchDashboardStats } = useVendorStore();
     const { shipments, fetchShipments } = useShipmentsStore();
@@ -84,7 +90,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     const ArrowIcon = isAr ? ArrowRight : ArrowLeft;
 
     // Translation helpers matching OfferCard - Correct path for 2026 Merchant Dashboard
-    const offersT = (t.dashboard as any)?.merchant?.offerModal || (t.dashboard as any)?.offers || (t.offers as any);
+    const offersT = (t.dashboard as any)?.merchant?.offerModal;
     const exploreOfferT = (t.dashboard as any)?.merchant?.exploreOffer;
 
     const getConditionText = (val: string) => {
@@ -263,17 +269,19 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
     const myOffersByPart = useMemo(() => {
         const map = new Map<string, any>();
-        myOffers.forEach((o: any) => {
-            const partId = o.orderPartId || o.order_part_id;
-            if (partId) map.set(partId, o);
-        });
+        myOffers
+            .filter((o: any) => isActiveMerchantOffer(o))
+            .forEach((o: any) => {
+                const partId = o.orderPartId || o.order_part_id;
+                if (partId) map.set(partId, o);
+            });
         return map;
     }, [myOffers]);
 
     const getPartOfferEnriched = useCallback(
         (partId: string) => {
             const mine = myOffersByPart.get(partId);
-            if (!mine) return null;
+            if (!mine || !isActiveMerchantOffer(mine)) return null;
             const fromOrder = order?.offers?.find((o) => o.id === mine.id);
             return {
                 ...mine,
@@ -308,7 +316,12 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         return { label: isAr ? 'منخفض' : 'Low', color: 'text-green-400 bg-green-500/10 border-green-500/20', level: 'low' };
     };
 
-    const hasSubmittedAny = myOffers.length > 0;
+    const hasSubmittedAny = myOffers.some((o: any) => isActiveMerchantOffer(o));
+
+    const modificationMetrics = useMemo(
+        () => getOfferModificationMetrics(performance),
+        [performance.editCount, performance.withdrawalCount, performance.totalOffersSent],
+    );
 
     const getOfferDeadline = (dateStr: string) => {
         const d = new Date(dateStr);
@@ -377,6 +390,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         setIsCancelling(true);
         try {
             await offersApi.cancel(offerToCancel.id);
+            removeOfferFromOrder(offerToCancel.id);
+            await fetchDashboardStats();
             await fetchMyOffers();
             await fetchOrder(String(orderId));
             setIsCancelDialogOpen(false);
@@ -396,6 +411,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         setIsVoluntaryWithdrawing(true);
         try {
             await offersApi.voluntaryWithdraw(offerToVoluntaryWithdraw.id);
+            markOfferWithdrawnInOrder(offerToVoluntaryWithdraw.id);
+            await fetchDashboardStats();
             await fetchMyOffers();
             await fetchOrder(String(orderId));
             setIsVoluntaryWithdrawDialogOpen(false);
@@ -971,30 +988,30 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                             controlsList="nodownload"
                                                         />
                                                     </div>
-                                                ) : (part.images && part.images.length > 0) ? (
+                                                ) : toDisplayImageUrls(part.images).length > 0 ? (
                                                     <div
-                                                        onClick={() => handleOpenLightbox(part.images, 0)}
+                                                        onClick={() => handleOpenLightbox(toDisplayImageUrls(part.images), 0)}
                                                         className="aspect-square rounded-xl overflow-hidden bg-black/50 border border-white/10 relative group cursor-pointer"
                                                     >
-                                                        <img src={part.images[0]} alt={part.name || 'Part image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                                        {part.images.length > 1 && (
+                                                        <img src={toDisplayImageUrls(part.images)[0]} alt={part.name || 'Part image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                        {toDisplayImageUrls(part.images).length > 1 && (
                                                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <span className="text-white font-medium bg-black/50 px-3 py-1 rounded-full text-sm backdrop-blur-md">
-                                                                    +{part.images.length - 1} {isAr ? 'صور أخرى' : 'more'}
+                                                                    +{toDisplayImageUrls(part.images).length - 1} {isAr ? 'صور أخرى' : 'more'}
                                                                 </span>
                                                             </div>
                                                         )}
                                                     </div>
-                                                ) : (order.partImages && order.partImages.length > 0) ? (
+                                                ) : toDisplayImageUrls(order.partImages).length > 0 ? (
                                                     <div
-                                                        onClick={() => handleOpenLightbox(order.partImages, 0)}
+                                                        onClick={() => handleOpenLightbox(toDisplayImageUrls(order.partImages), 0)}
                                                         className="aspect-square rounded-xl overflow-hidden bg-black/50 border border-white/10 relative group cursor-pointer"
                                                     >
-                                                        <img src={order.partImages[0]} alt={part.name || 'Part image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                                        {order.partImages.length > 1 && (
+                                                        <img src={toDisplayImageUrls(order.partImages)[0]} alt={part.name || 'Part image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                        {toDisplayImageUrls(order.partImages).length > 1 && (
                                                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <span className="text-white font-medium bg-black/50 px-3 py-1 rounded-full text-sm backdrop-blur-md">
-                                                                    +{order.partImages.length - 1} {isAr ? 'صور أخرى' : 'more'}
+                                                                    +{toDisplayImageUrls(order.partImages).length - 1} {isAr ? 'صور أخرى' : 'more'}
                                                                 </span>
                                                             </div>
                                                         )}
@@ -1009,8 +1026,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
                                             {/* Content Area */}
                                             <div className="flex-1">
-                                                <h3 className="text-lg font-bold text-white mb-2">{part.name || order.partName || order.part}</h3>
-                                                <p className="text-white/60 text-sm mb-4 leading-relaxed">{part.description || order.partDescription || order.description || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
+                                                <h3 className="text-lg font-bold text-white mb-2">{part.name || order.part}</h3>
+                                                <p className="text-white/60 text-sm mb-4 leading-relaxed">{part.description || order.partDescription || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
 
                                                 {/* Your Offer Summary for this part */}
                                                 {hasOffer && (
@@ -1173,16 +1190,16 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 <div className="flex flex-col md:flex-row gap-6">
                                     {/* Media Preview Area for Single Part (Legacy/Fallback) */}
                                     <div className="w-full md:w-48 shrink-0">
-                                        {(order.partImages && order.partImages.length > 0) ? (
+                                        {toDisplayImageUrls(order.partImages).length > 0 ? (
                                             <div
-                                                onClick={() => handleOpenLightbox(order.partImages, 0)}
+                                                onClick={() => handleOpenLightbox(toDisplayImageUrls(order.partImages), 0)}
                                                 className="aspect-square rounded-xl overflow-hidden bg-black/50 border border-white/10 relative group cursor-pointer"
                                             >
-                                                <img src={order.partImages[0]} alt={order.partName || 'Part image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                                {order.partImages.length > 1 && (
+                                                <img src={toDisplayImageUrls(order.partImages)[0]} alt={order.part || 'Part image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                {toDisplayImageUrls(order.partImages).length > 1 && (
                                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <span className="text-white font-medium bg-black/50 px-3 py-1 rounded-full text-sm backdrop-blur-md">
-                                                            +{order.partImages.length - 1} {isAr ? 'صور أخرى' : 'more'}
+                                                            +{toDisplayImageUrls(order.partImages).length - 1} {isAr ? 'صور أخرى' : 'more'}
                                                         </span>
                                                     </div>
                                                 )}
@@ -1196,8 +1213,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                     </div>
 
                                     <div className="flex-1">
-                                        <h3 className="text-lg font-bold text-white mb-2">{order.partName || order.part}</h3>
-                                        <p className="text-white/60 text-sm mb-4 leading-relaxed">{order.partDescription || order.description || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
+                                        <h3 className="text-lg font-bold text-white mb-2">{order.part}</h3>
+                                        <p className="text-white/60 text-sm mb-4 leading-relaxed">{order.partDescription || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
                                     </div>
                                 </div>
                             </GlassCard>
@@ -1693,23 +1710,42 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                             <div className="mt-4 pt-4 border-t border-white/5">
                                 <div className="flex items-center justify-between text-[10px] mb-2">
                                     <span className="text-white/40 uppercase font-bold">{isAr ? 'معدل التعديل الحالي' : 'Current Mod Rate'}</span>
-                                    <span className={`font-bold ${((performance.editCount + performance.withdrawalCount) / Math.max(performance.totalOffersSent, 1)) > 0.05 ? 'text-red-400' : 'text-gold-400'}`}>
-                                        {performance.totalOffersSent > 0 
-                                            ? `${(((performance.editCount + performance.withdrawalCount) / performance.totalOffersSent) * 100).toFixed(1)}%`
+                                    <span
+                                        className={`font-bold ${modificationMetrics.exceedsThreshold ? 'text-red-400' : 'text-gold-400'}`}
+                                    >
+                                        {modificationMetrics.hasSample
+                                            ? `${modificationMetrics.percentLabel}%`
                                             : '0%'}
                                     </span>
                                 </div>
-                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                    <motion.div 
+                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden relative">
+                                    <div className="absolute inset-y-0 left-[100%] w-px bg-red-500/40 -translate-x-px z-10" title="5%" />
+                                    <motion.div
+                                        key={`${modificationMetrics.modActions}-${modificationMetrics.total}`}
                                         initial={{ width: 0 }}
-                                        animate={{ width: `${Math.min(((performance.editCount + performance.withdrawalCount) / Math.max(performance.totalOffersSent, 1)) * 100, 100)}%` }}
-                                        className={`h-full transition-colors ${((performance.editCount + performance.withdrawalCount) / Math.max(performance.totalOffersSent, 1)) > 0.05 ? 'bg-red-500' : 'bg-gold-500/40'}`} 
+                                        animate={{ width: `${modificationMetrics.barPercent}%` }}
+                                        transition={{ duration: 0.6, ease: 'easeOut' }}
+                                        className={`h-full transition-colors ${modificationMetrics.exceedsThreshold ? 'bg-red-500' : 'bg-gold-500/40'}`}
                                     />
                                 </div>
-                                <p className="text-[9px] text-white/30 mt-2 italic">
-                                    {isAr 
-                                        ? `* الحد الأقصى المسموح به هو 5% لتجنب المخالفات.`
-                                        : `* Maximum allowed modification rate is 5% to avoid violations.`}
+                                <p className="text-[9px] text-white/30 mt-2">
+                                    {modificationMetrics.hasSample ? (
+                                        isAr ? (
+                                            <>
+                                                {modificationMetrics.modActions} تعديل/سحب من أصل{' '}
+                                                {modificationMetrics.total} عرض · الحد 5%
+                                            </>
+                                        ) : (
+                                            <>
+                                                {modificationMetrics.modActions} mods/withdrawals of{' '}
+                                                {modificationMetrics.total} offers · 5% cap
+                                            </>
+                                        )
+                                    ) : isAr ? (
+                                        'يُحسب المعدل بعد تقديم أول عرض.'
+                                    ) : (
+                                        'Rate is calculated after your first submitted offer.'
+                                    )}
                                 </p>
                             </div>
                         </div>
@@ -1958,12 +1994,26 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
             <SubmitOfferModal
                 isOpen={isBidding}
                 onClose={() => setIsBidding(false)}
-                requestDetails={order}
+                requestDetails={
+                    order
+                        ? {
+                              id: order.id,
+                              car: order.car,
+                              part: order.part,
+                              parts: order.parts,
+                              vehicle: order.vehicle,
+                              vin: order.vin,
+                              date: order.date,
+                              createdAt: order.createdAt,
+                              offers: order.offers,
+                          }
+                        : null
+                }
                 existingOffers={myOffers} // Pass offers back so modal enforces locks
-                onSubmit={() => {
+                onSubmit={async () => {
                     setIsBidding(false);
-                    // Re-fetch my offers to update indicators after submission
-                    fetchMyOffers();
+                    await fetchDashboardStats();
+                    await fetchMyOffers();
                 }}
             />
         </motion.div>

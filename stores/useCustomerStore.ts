@@ -21,7 +21,7 @@ export interface Customer {
   name: string;
   email: string;
   phone: string;
-  status: 'ACTIVE' | 'SUSPENDED';
+  status: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED';
   joinedAt?: string; // Kept for legacy if needed
   createdAt: string;
   avatar?: string;
@@ -72,7 +72,7 @@ interface CustomerState {
   error: string | null;
   fetchCustomers: () => Promise<void>;
   fetchCustomerById: (id: string) => Promise<Customer | null>;
-  toggleStatus: (id: string, reason?: string) => Promise<void>;
+  toggleStatus: (id: string, reason?: string, currentStatus?: Customer['status']) => Promise<void>;
   updateNotes: (id: string, notes: string) => Promise<void>;
   updateCustomer: (id: string, data: Partial<Customer>) => Promise<void>;
   updateCustomerRestrictions: (id: string, data: any) => Promise<void>;
@@ -113,18 +113,25 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     return response.json();
   },
 
-  toggleStatus: async (id: string, reason?: string) => {
-    const customer = get().customers.find(c => c.id === id);
-    if (!customer) return;
+  toggleStatus: async (id: string, reason?: string, currentStatus?: Customer['status']) => {
+    let status = currentStatus ?? get().customers.find(c => c.id === id)?.status;
 
-    const newStatus = customer.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    if (!status) {
+      const fetched = await get().fetchCustomerById(id);
+      if (!fetched) throw new Error('Customer not found');
+      status = fetched.status;
+    }
 
-    // Optimistic Update
-    set((state) => ({
-      customers: state.customers.map(c =>
-        c.id === id ? { ...c, status: newStatus } : c
-      )
-    }));
+    const newStatus: Customer['status'] = status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const previousCustomers = get().customers;
+
+    if (previousCustomers.some(c => c.id === id)) {
+      set((state) => ({
+        customers: state.customers.map(c =>
+          c.id === id ? { ...c, status: newStatus, suspendReason: newStatus === 'SUSPENDED' ? reason : undefined } : c
+        )
+      }));
+    }
 
     try {
       const token = localStorage.getItem('access_token');
@@ -140,7 +147,10 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
       if (!response.ok) throw new Error('Failed to toggle status');
     } catch (err) {
       console.error(err);
-      get().fetchCustomers();
+      if (previousCustomers.some(c => c.id === id)) {
+        set({ customers: previousCustomers });
+      }
+      throw err;
     }
   },
 

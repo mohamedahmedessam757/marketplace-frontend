@@ -1,25 +1,16 @@
-import { supabase } from './supabase';
+import { client } from './api/client';
 
 export const storageService = {
     uploadFile: async (file: File, bucket = 'marketplace-uploads', folder = 'orders') => {
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-
-            const { data, error } = await supabase.storage
-                .from(bucket)
-                .upload(fileName, file);
-
-            if (error) {
-                throw error;
+            if (bucket !== 'marketplace-uploads') {
+                throw new Error('Unsupported bucket for client-side upload');
             }
-
-            // Get Public URL
-            const { data: { publicUrl } } = supabase.storage
-                .from(bucket)
-                .getPublicUrl(fileName);
-
-            return publicUrl;
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('folder', folder);
+            const { data } = await client.post<{ url: string }>('/uploads/order-draft', formData);
+            return data.url;
         } catch (err) {
             console.error('Upload Error:', err);
             throw err;

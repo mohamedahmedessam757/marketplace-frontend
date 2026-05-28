@@ -8,7 +8,6 @@ import { MessageBubble } from './MessageBubble';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { CountdownTimer } from '../OrderDetails';
-import { supabase } from '../../../services/supabase';
 import { client as api } from '../../../services/api/client';
 import { useOrderStore } from '../../../stores/useOrderStore'; // ADDED
 import { Badge } from '../../ui/Badge'; // ADDED
@@ -178,24 +177,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
 
       try {
         if (pendingAttachment) {
-          const roleFolder = user?.role?.toLowerCase() || 'general';
-          const chatFolder = orderChat?.id || 'uncategorized';
-          const fileName = `${roleFolder}/${chatFolder}/${Date.now()}_${pendingAttachment.file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
-
-          const { data, error } = await supabase.storage
-            .from('chat_media')
-            .upload(fileName, pendingAttachment.file, { upsert: true });
-
-          if (error) {
+          const formData = new FormData();
+          formData.append('file', pendingAttachment.file);
+          formData.append('chatId', orderChat?.id || '');
+          try {
+            const { data } = await api.post<{ url: string }>('/uploads/chat', formData);
+            uploadedMediaUrl = data.url;
+          } catch (error) {
             console.error('Upload Error:', error);
             alert('Failed to upload attachment. It might be too large or invalid format.');
             setIsUploading(false);
             return;
-          }
-
-          if (data) {
-            const { data: publicData } = supabase.storage.from('chat_media').getPublicUrl(data.path);
-            uploadedMediaUrl = publicData.publicUrl;
           }
         }
 

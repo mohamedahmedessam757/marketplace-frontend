@@ -37,7 +37,7 @@ import {
     AlertOctagon
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
-import { useCustomerWalletStore, subscribeToWalletUpdates } from '../../../stores/useCustomerWalletStore';
+import { useCustomerWalletStore } from '../../../stores/useCustomerWalletStore';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { getCurrentUserId } from '../../../utils/auth';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -251,10 +251,6 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
         fetchWalletData();
         fetchWithdrawals();
         fetchBankDetails();
-        const sub = subscribeToWalletUpdates();
-        return () => {
-            sub?.unsubscribe();
-        };
     }, [fetchWalletData, fetchWithdrawals, fetchBankDetails]);
 
     // --- STRIPE CONNECT RETURN HANDLER ---

@@ -263,14 +263,15 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }));
 
     try {
-      // Check if setting row exists
-      const { data: existing } = await supabase.from('user_settings').select('user_id').eq('user_id', userId).single();
-
-      if (existing) {
-        await supabase.from('user_settings').update(data).eq('user_id', userId);
-      } else {
-        await supabase.from('user_settings').insert({ user_id: userId, ...data });
-      }
+      const token = localStorage.getItem('access_token');
+      await fetch(`${import.meta.env.VITE_API_URL}/users/settings/me`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(data),
+      });
     } catch (err: any) {
       console.error('Failed to update settings:', err);
     }
@@ -375,25 +376,17 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ loading: true });
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}/${Date.now()}.${fileExt}`;
+      const token = localStorage.getItem('access_token');
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // 2. Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('profile')
-        .upload(fileName, file, {
-          upsert: true
-        });
-
-      if (uploadError) throw uploadError;
-
-      // 3. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('profile')
-        .getPublicUrl(fileName);
-
-      // 4. Update User Profile in DB (Via Backend to Bypass RLS)
-      // const { error: dbError } = await supabase.from('users').update({ avatar: publicUrl }).eq('id', userId);
+      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/uploads/avatar`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!uploadRes.ok) throw new Error('Avatar upload failed');
+      const { url: publicUrl } = await uploadRes.json();
 
       try {
         const { authApi } = await import('../services/api/auth');

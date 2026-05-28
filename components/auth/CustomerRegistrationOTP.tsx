@@ -4,7 +4,7 @@ import { Loader2, Mail, MessageSquare, RefreshCcw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface CustomerRegistrationOTPProps {
-    onVerify: () => void;
+    onVerify: () => void | Promise<void>;
     email: string;
     phone: string;
 }
@@ -65,13 +65,13 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
 
     const isComplete = emailOtp.every(d => d !== '') && whatsappOtp.every(d => d !== '');
 
-    const handleVerify = () => {
+    const handleVerify = async () => {
         setIsVerifying(true);
-        // Simulate verification delay for both OTPs
-        setTimeout(() => {
-            onVerify();
+        try {
+            await onVerify();
+        } catch {
             setIsVerifying(false);
-        }, 1500);
+        }
     };
 
     const renderOtpBlock = (
@@ -137,7 +137,14 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
                 disabled={!isComplete || isVerifying}
                 className="w-full py-4 bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 disabled:from-white/10 disabled:to-white/5 disabled:text-white/30 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-[0_4px_20px_rgba(168,139,62,0.3)] flex items-center justify-center gap-2"
             >
-                {isVerifying ? <Loader2 className="animate-spin" /> : (language === 'ar' ? 'تأكيد التسجيل وإنشاء حساب' : 'Verify & Create Account')}
+                {isVerifying ? (
+                    <>
+                        <Loader2 className="animate-spin" />
+                        {language === 'ar' ? 'جاري إنشاء الحساب...' : 'Creating account...'}
+                    </>
+                ) : (
+                    language === 'ar' ? 'تأكيد التسجيل وإنشاء حساب' : 'Verify & Create Account'
+                )}
             </button>
 
             <div className="text-center">

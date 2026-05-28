@@ -195,12 +195,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           method={activationMethod}
           onVerify={async (code) => {
             try {
-              setIsLoading(true);
               let response;
-              
+
               if (activationMethod === 'whatsapp') {
                 const fullPhone = `${countryCode}${phone}`;
-                // Pass fingerprint to ensure unique session mapping
                 response = await authApi.verifyMobileLogin(fullPhone, code, fingerprint || undefined);
               } else {
                 response = await authApi.verifyEmailLogin(userEmail, code, fingerprint || undefined);
@@ -215,8 +213,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             } catch (err: any) {
               console.error('Verify Failed', err);
               alert(t.auth.errors?.invalidCode || (language === 'ar' ? 'رمز التحقق غير صحيح' : 'Invalid verification code'));
-            } finally {
-              setIsLoading(false);
+              throw err;
             }
           }}
         />

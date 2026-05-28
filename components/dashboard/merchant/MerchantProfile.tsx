@@ -9,6 +9,7 @@ import { MultiSelectDropdown } from '../../ui/MultiSelectDropdown';
 import { useCatalogStore } from '../../../stores/useCatalogStore';
 import { PrintTemplate } from '../admin/PrintTemplate';
 import { printHtml } from '../../../utils/print';
+import { sanitizeHtml } from '../../../utils/htmlSanitize';
 import { renderToString } from 'react-dom/server';
 
 export const MerchantProfile: React.FC = () => {
@@ -106,9 +107,9 @@ export const MerchantProfile: React.FC = () => {
                     <div 
                         className="text-[10pt] leading-relaxed whitespace-pre-wrap text-gray-700 text-justify font-serif"
                         dangerouslySetInnerHTML={{ 
-                            __html: language === 'ar' 
+                            __html: sanitizeHtml(language === 'ar' 
                                 ? contractAcceptance.contentArSnapshot 
-                                : contractAcceptance.contentEnSnapshot 
+                                : contractAcceptance.contentEnSnapshot)
                         }}
                     />
                 </section>
@@ -915,9 +916,9 @@ export const MerchantProfile: React.FC = () => {
                                             <div 
                                                 className="prose prose-invert max-w-none text-sm text-white/70 whitespace-pre-wrap leading-relaxed"
                                                 dangerouslySetInnerHTML={{ 
-                                                    __html: language === 'ar' 
+                                                    __html: sanitizeHtml(language === 'ar' 
                                                         ? contractAcceptance.contentArSnapshot 
-                                                        : contractAcceptance.contentEnSnapshot 
+                                                        : contractAcceptance.contentEnSnapshot)
                                                 }}
                                             />
                                         </div>

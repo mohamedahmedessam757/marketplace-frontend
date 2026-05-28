@@ -302,6 +302,12 @@ function AppContent() {
     setCurrentView('role-selection');
     pushView('role-selection');
   };
+
+  const handleSecureLogout = () => {
+    import('./utils/clearAuthStorage').then(({ clearAuthStorage }) => clearAuthStorage());
+    setUserRole(null);
+    handleBackToHome();
+  };
   const handleBackToLogin = () => {
     // Intelligent back navigation
     if (previousView === 'customer-login' || currentView === 'customer-register') {
@@ -607,7 +613,7 @@ function AppContent() {
                 {userRole === 'customer' && (
                   <DashboardLayout
                     role="customer"
-                    onLogout={() => { setUserRole(null); handleBackToHome(); }}
+                    onLogout={handleSecureLogout}
                     currentPath={dashboardPath}
                     onNavigate={handleDashboardNavigate}
                     onBack={handleDashboardBack}
@@ -640,7 +646,7 @@ function AppContent() {
                   <MerchantStatusGuard>
                     <DashboardLayout
                       role="merchant"
-                      onLogout={() => { setUserRole(null); handleBackToHome(); }}
+                      onLogout={handleSecureLogout}
                       currentPath={dashboardPath}
                       onNavigate={handleDashboardNavigate}
                       onBack={handleDashboardBack}
@@ -675,7 +681,7 @@ function AppContent() {
                 {userRole === 'admin' && (
                   <DashboardLayout
                     role="admin"
-                    onLogout={() => { setUserRole(null); handleBackToHome(); }}
+                    onLogout={handleSecureLogout}
                     currentPath={dashboardPath}
                     onNavigate={handleDashboardNavigate}
                     onBack={handleDashboardBack}

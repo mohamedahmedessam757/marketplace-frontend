@@ -221,12 +221,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       unreadCount: state.unreadCount + 1
     }));
 
-    // DB Insert
-    try {
-      await supabase.from('notifications').insert(newNotif);
-    } catch (e) {
-      console.error('Failed to add notification', e);
-    }
+    // Notifications are persisted server-side via WebSocket/API only (no direct Supabase insert)
   },
 
   subscribeToNotifications: (userId: string, role: string) => {

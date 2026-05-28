@@ -189,7 +189,6 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
   // Step 2: Actually register the user after OTPs are verified
   const handleOtpVerify = async () => {
     try {
-      setIsLoading(true);
       const fullPhone = `${countryCode}${phone}`;
       const generatedPassword = generateSecurePassword();
 
@@ -201,7 +200,7 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
       const pendingReferralCode = sessionStorage.getItem('pending_referral_code') || undefined;
 
       // Register the user
-      const registerResponse = await authApi.registerCustomer({
+      await authApi.registerCustomer({
         email: formData.email,
         password: generatedPassword,
         name: formData.name,
@@ -228,8 +227,7 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
       console.error("Registration failed after OTP", error);
       alert(language === 'ar' ? 'حدث خطأ أثناء التسجيل' : 'An error occurred during registration.');
       setOtpStep('none'); // Return to form
-    } finally {
-      setIsLoading(false);
+      throw error;
     }
   };
 

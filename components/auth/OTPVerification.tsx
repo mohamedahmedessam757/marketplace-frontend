@@ -4,7 +4,7 @@ import { Loader2, MessageSquare, Mail, RefreshCcw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface OTPVerificationProps {
-  onVerify: (code: string) => void;
+  onVerify: (code: string) => void | Promise<void>;
   email: string;
   phone?: string;
   method?: 'email' | 'whatsapp';
@@ -25,30 +25,31 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
   }, []);
 
   const handleChange = (index: number, value: string) => {
-    if (isNaN(Number(value))) return;
+    if (isVerifying || isNaN(Number(value))) return;
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
 
-    // Auto focus next
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (isVerifying) return;
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     setIsVerifying(true);
     const code = otp.join('');
-    setTimeout(() => {
-      onVerify(code);
+    try {
+      await onVerify(code);
+    } catch {
       setIsVerifying(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -69,11 +70,13 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
             key={index}
             ref={(el) => { inputRefs.current[index] = el; }}
             type="text"
+            inputMode="numeric"
             maxLength={1}
             value={digit}
+            disabled={isVerifying}
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
-            className="w-10 h-12 md:w-12 md:h-14 rounded-xl bg-white/5 border border-white/10 text-center text-xl font-bold text-white focus:border-gold-500 outline-none transition-all focus:bg-white/10"
+            className="w-10 h-12 md:w-12 md:h-14 rounded-xl bg-white/5 border border-white/10 text-center text-xl font-bold text-white focus:border-gold-500 outline-none transition-all focus:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
           />
         ))}
       </div>
@@ -83,7 +86,14 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
         disabled={otp.some(d => !d) || isVerifying}
         className="w-full py-3 md:py-4 bg-gold-500 hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-[0_4px_20px_rgba(168,139,62,0.3)] flex items-center justify-center gap-2"
       >
-        {isVerifying ? <Loader2 className="animate-spin" /> : t.auth.otp.verify}
+        {isVerifying ? (
+          <>
+            <Loader2 className="animate-spin" />
+            {t.auth.otp.verifying}
+          </>
+        ) : (
+          t.auth.otp.verify
+        )}
       </button>
 
       <div className="space-y-3">
@@ -92,7 +102,11 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
             {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
           </div>
         ) : (
-          <button className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white text-sm transition-colors py-2">
+          <button
+            type="button"
+            disabled={isVerifying}
+            className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white text-sm transition-colors py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <RefreshCcw size={14} />
             {t.auth.otp.resend}
           </button>

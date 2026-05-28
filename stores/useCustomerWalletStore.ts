@@ -236,20 +236,47 @@ export const useCustomerWalletStore = create<CustomerWalletState>((set, get) => 
 // Setup zero-lag realtime listener
 import { supabase } from '../services/supabase';
 import { getCurrentUserId } from '../utils/auth';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+
+let walletRealtimeRefCount = 0;
+let walletRealtimeChannels: RealtimeChannel[] = [];
+let walletRealtimeUserId: string | null = null;
 
 export const subscribeToWalletUpdates = () => {
     const userId = getCurrentUserId();
     if (!userId) return;
 
-    // 1. Listen for new transactions (Delta Update: Instant UI update, no re-fetch)
-    const txSub = supabase
-        .channel('public:payment_transactions')
+    // Re-use existing channels when already subscribed (DashboardLayout + WalletView both call this)
+    if (walletRealtimeRefCount > 0 && walletRealtimeUserId === userId) {
+        walletRealtimeRefCount += 1;
+        return {
+            unsubscribe: () => {
+                walletRealtimeRefCount = Math.max(0, walletRealtimeRefCount - 1);
+                if (walletRealtimeRefCount === 0) {
+                    walletRealtimeChannels.forEach((ch) => supabase.removeChannel(ch));
+                    walletRealtimeChannels = [];
+                    walletRealtimeUserId = null;
+                }
+            },
+        };
+    }
+
+    // Different user or stale channels — tear down before re-subscribing
+    if (walletRealtimeChannels.length > 0) {
+        walletRealtimeChannels.forEach((ch) => supabase.removeChannel(ch));
+        walletRealtimeChannels = [];
+    }
+
+    walletRealtimeUserId = userId;
+    walletRealtimeRefCount = 1;
+
+    const txChannel = supabase
+        .channel(`wallet-payment-tx-${userId}`)
         .on(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'payment_transactions', filter: `customer_id=eq.${userId}` },
             (payload) => {
                 const newTx = payload.new as any;
-                // Add instantly to UI (v2026 Mapping Hardening)
                 useCustomerWalletStore.getState().addTransactionLocally({
                     id: newTx.id,
                     orderId: newTx.order_id,
@@ -259,24 +286,19 @@ export const subscribeToWalletUpdates = () => {
                     currency: newTx.currency,
                     status: newTx.status,
                     createdAt: newTx.created_at,
-                    order: newTx.order, // Usually null in raw CDC payload
+                    order: newTx.order,
                     metadata: newTx.metadata
                 });
-                
-                // Trigger a silent background sync to ensure relations (like order details) are fully populated
                 useCustomerWalletStore.getState().fetchWalletData(true);
             }
-        )
-        .subscribe();
+        );
 
-    // 2. Listen for balance/points/tier updates (Instant Sync)
-    const userSub = supabase
-        .channel('public:users')
+    const userChannel = supabase
+        .channel(`wallet-user-${userId}`)
         .on(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${userId}` },
             (payload) => {
-                // Update stats instantly from DB payload
                 useCustomerWalletStore.getState().updateStatsLocally({
                     customerBalance: Number(payload.new.customer_balance),
                     loyaltyPoints: Number(payload.new.loyalty_points),
@@ -291,18 +313,15 @@ export const subscribeToWalletUpdates = () => {
                     pointsLastResetAt: payload.new.points_last_reset_at
                 });
             }
-        )
-        .subscribe();
+        );
 
-    // 3. Listen for Wallet Transactions (Rewards, Commissions, P2P)
-    const walletSub = supabase
-        .channel('public:wallet_transactions')
+    const walletChannel = supabase
+        .channel(`wallet-tx-${userId}`)
         .on(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'wallet_transactions', filter: `user_id=eq.${userId}` },
             (payload) => {
                 const newTx = payload.new as any;
-                // Add to list and trigger full sync to update all calculated stats (monthly rewards etc)
                 useCustomerWalletStore.getState().addTransactionLocally({
                     id: newTx.id,
                     amount: Number(newTx.amount),
@@ -314,16 +333,12 @@ export const subscribeToWalletUpdates = () => {
                     description: newTx.description,
                     metadata: newTx.metadata
                 });
-                
-                // Silent sync to refresh monthly rewards and balance from the server ground truth
                 useCustomerWalletStore.getState().fetchWalletData(true);
             }
-        )
-        .subscribe();
+        );
 
-    // 4. Listen for Withdrawal Requests (Status changes)
-    const withdrawalSub = supabase
-        .channel('public:withdrawal_requests')
+    const withdrawalChannel = supabase
+        .channel(`wallet-withdrawals-${userId}`)
         .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `user_id=eq.${userId}` },
@@ -340,22 +355,24 @@ export const subscribeToWalletUpdates = () => {
                         createdAt: req.created_at,
                         updatedAt: req.updated_at
                     });
-                    
-                    // If approved, refresh balance
                     if (req.status === 'COMPLETED' || req.status === 'APPROVED') {
                         useCustomerWalletStore.getState().fetchWalletData(true);
                     }
                 }
             }
-        )
-        .subscribe();
+        );
+
+    walletRealtimeChannels = [txChannel, userChannel, walletChannel, withdrawalChannel];
+    walletRealtimeChannels.forEach((ch) => ch.subscribe());
 
     return {
         unsubscribe: () => {
-            txSub.unsubscribe();
-            userSub.unsubscribe();
-            walletSub.unsubscribe();
-            withdrawalSub.unsubscribe();
-        }
+            walletRealtimeRefCount = Math.max(0, walletRealtimeRefCount - 1);
+            if (walletRealtimeRefCount === 0) {
+                walletRealtimeChannels.forEach((ch) => supabase.removeChannel(ch));
+                walletRealtimeChannels = [];
+                walletRealtimeUserId = null;
+            }
+        },
     };
 };

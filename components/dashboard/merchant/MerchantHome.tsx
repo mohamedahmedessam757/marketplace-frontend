@@ -10,14 +10,25 @@ import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { useReviewStore } from '../../../stores/useReviewStore';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { MerchantShippingPayAlert } from './MerchantShippingPayAlert';
+import {
+    belongsToMerchantStore,
+    getMerchantOrderProgress,
+    getMerchantStatusLabel,
+    isMerchantCompleted,
+    isMerchantInProgress,
+    isMerchantMarketplaceOpen,
+    isMerchantNegotiating,
+    MERCHANT_LIVE_TRACKING_STATUSES,
+    MERCHANT_TERMINAL_STATUSES,
+} from '../../../utils/merchantOrderBuckets';
 
 interface MerchantHomeProps {
-    onNavigate: (path: string, id?: number) => void;
+    onNavigate: (path: string, id?: string | number) => void;
 }
 
 export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
     const { t, language } = useLanguage();
-    const { orders } = useOrderStore();
+    const { orders, fetchOrders } = useOrderStore();
     const { performance, documents, vendorStatus, storeId: myStoreId, storeInfo, withdrawalsFrozen, offerLimit, dailyOfferCount, visibilityRestricted, visibilityRate, restrictionAlertMessage } = useVendorStore();
     const { addNotification, notifications } = useNotificationStore();
     const isAr = language === 'ar';
@@ -38,8 +49,9 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
             fetchVendorProfile(),
             fetchImpactRules(),
             fetchMerchantCases(true),
+            fetchOrders({ page: 1, limit: 100 }),
         ]).finally(() => fetchLock.current = false);
-    }, [fetchDashboardStats, fetchVendorProfile, fetchImpactRules, fetchMerchantCases]);
+    }, [fetchDashboardStats, fetchVendorProfile, fetchImpactRules, fetchMerchantCases, fetchOrders]);
 
     // --- LOGIC: Alerts ---
     const activeAlerts = [];
@@ -99,41 +111,30 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
     });
 
     // --- LOGIC: Stats & Categories ---
-    // 1. New Requests (Global Marketplace - specialization filtered)
+    const myOrders = orders.filter(o => belongsToMerchantStore(o, myStoreId));
+
+    // 1. New marketplace requests (open bidding — includes COLLECTING_OFFERS / AWAITING_SELECTION)
     const newRequests = orders.filter(o => {
-        if (o.status !== 'AWAITING_OFFERS') return false;
-        
-        // Exclude expired orders (24h)
+        if (!isMerchantMarketplaceOpen(o.status)) return false;
+
         const d = new Date(o.createdAt || o.date);
         d.setHours(d.getHours() + 24);
-        if (new Date().getTime() > d.getTime()) return false;
-        
+        if (new Date().getTime() > d.getTime() && o.status === 'AWAITING_OFFERS') return false;
+
         const make = (o.vehicle?.make || o.car || '').toLowerCase();
         const model = (o.vehicle?.model || '').toLowerCase();
-        
+
         const selectedMakesLower = (storeInfo?.selectedMakes || []).map((m: string) => m.toLowerCase());
         const selectedModelsLower = (storeInfo?.selectedModels || []).map((m: string) => m.toLowerCase());
-        
+
         const hasMakes = selectedMakesLower.length > 0;
         const hasModels = selectedModelsLower.length > 0;
 
-        const matchesSpecialization = !hasMakes || selectedMakesLower.includes(make);
-        const matchesModel = !hasModels || selectedModelsLower.includes(model);
+        const matchesSpecialization = !hasMakes || selectedMakesLower.some((m: string) => make.includes(m));
+        const matchesModel = !hasModels || selectedModelsLower.some((m: string) => model.includes(m));
 
         return matchesSpecialization && matchesModel;
     }).length;
-    
-    // 2. My Specific Orders (where I have an ACTIVE offer or am the assigned merchant)
-    const myOrders = orders.filter(o => {
-        if (!myStoreId) return false;
-        
-        const isAssigned = o.merchantId === myStoreId || (o.acceptedOffer && String(o.acceptedOffer.storeId) === String(myStoreId));
-        if (isAssigned) return true;
-        
-        // Return true if merchant has AT LEAST ONE offer that is NOT rejected
-        const merchantOffers = o.offers?.filter(off => String(off.storeId) === String(myStoreId)) || [];
-        return merchantOffers.length > 0 && merchantOffers.some(off => off.status?.toLowerCase() !== 'rejected');
-    });
     
     // 3. Orders Awaiting Verification Alert
     const preparedOrders = myOrders.filter(o => o.status === 'PREPARED');
@@ -149,20 +150,9 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
         });
     });
 
-    // Negotiation: AWAITING_PAYMENT (Client has offer but hasn't paid yet) OR AWAITING_OFFERS (Active bidding phase)
-    const negotiating = myOrders.filter(o => ['AWAITING_PAYMENT', 'AWAITING_OFFERS'].includes(o.status)).length;
-    
-    // In Progress: PREPARATION through SHIPPED, including Resolution phases
-    const inProgressStatuses = [
-        'PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 
-        'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 
-        'CORRECTION_SUBMITTED', 'DELAYED_PREPARATION', 'SHIPPED',
-        'DISPUTED', 'RETURN_REQUESTED', 'RETURN_APPROVED'
-    ];
-    const inProgress = myOrders.filter(o => inProgressStatuses.includes(o.status)).length;
-    
-    // Completed: COMPLETED, DELIVERED, RETURNED, or WARRANTY_ACTIVE
-    const completedCount = myOrders.filter(o => ['COMPLETED', 'DELIVERED', 'RETURNED', 'WARRANTY_ACTIVE'].includes(o.status)).length;
+    const negotiating = myOrders.filter(o => isMerchantNegotiating(o.status)).length;
+    const inProgress = myOrders.filter(o => isMerchantInProgress(o.status)).length;
+    const completedCount = myOrders.filter(o => isMerchantCompleted(o.status)).length;
     
     // Rejected: Count of orders where ALL of my offers were rejected
     const rejectedCount = orders.filter(o => {
@@ -189,39 +179,9 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
         { label: t.dashboard.merchant.kpi.offersRejected, value: offersRejectedTotal, icon: AlertTriangle, color: 'text-red-400' }
     ];
 
-    // Get live tracking order (most relevant active one)
-    const liveOrder = myOrders.find(o => {
-        const merchantOffers = o.offers?.filter(off => String(off.storeId) === String(myStoreId)) || [];
-        const hasValidOffer = merchantOffers.some(off => off.status?.toLowerCase() !== 'rejected');
-        // Prioritize what needs most attention or is actively moving
-        return hasValidOffer && ['PREPARATION', 'SHIPPED', 'AWAITING_PAYMENT'].includes(o.status);
-    }) || myOrders.find(o => ['PREPARATION', 'SHIPPED'].includes(o.status)); // Fallback to any active I'm assigned to
-
-    // Helper for progress
-    const getProgress = (status: string) => {
-        switch (status) {
-            case 'AWAITING_OFFERS': return 10;
-            case 'COLLECTING_OFFERS': return 20;
-            case 'AWAITING_SELECTION': return 30;
-            case 'AWAITING_PAYMENT': return 40;
-            case 'PARTIALLY_PAID': return 45;
-            case 'PREPARATION': return 50;
-            case 'DELAYED_PREPARATION': return 55;
-            case 'PREPARED': return 60;
-            case 'VERIFICATION': return 70;
-            case 'NON_MATCHING': return 72;
-            case 'CORRECTION_PERIOD': return 74;
-            case 'CORRECTION_SUBMITTED': return 76;
-            case 'VERIFICATION_SUCCESS': return 80;
-            case 'READY_FOR_SHIPPING': return 85;
-            case 'SHIPPED': return 90;
-            case 'DELIVERED': return 95;
-            case 'WARRANTY_ACTIVE': return 98;
-            case 'COMPLETED': return 100;
-            case 'CANCELLED': return 0;
-            default: return 0;
-        }
-    };
+    const liveOrder = MERCHANT_LIVE_TRACKING_STATUSES
+        .map(status => myOrders.find(o => o.status === status))
+        .find(Boolean) || myOrders.find(o => !MERCHANT_TERMINAL_STATUSES.includes(o.status as any));
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -426,12 +386,12 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
                                     <div>
                                         <div className="flex justify-between text-xs font-bold mb-3">
                                             <span className="text-white/40 uppercase tracking-widest">{t.dashboard.orders.status}</span>
-                                            <span className="text-gold-500">{getProgress(liveOrder.status)}%</span>
+                                            <span className="text-gold-500">{getMerchantOrderProgress(liveOrder.status)}%</span>
                                         </div>
                                         <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden p-[1px]">
                                             <motion.div 
                                                 initial={{ width: 0 }}
-                                                animate={{ width: `${getProgress(liveOrder.status)}%` }}
+                                                animate={{ width: `${getMerchantOrderProgress(liveOrder.status)}%` }}
                                                 className="h-full bg-gradient-to-r from-gold-600 to-gold-400 rounded-full shadow-[0_0_15px_rgba(212,175,55,0.3)]"
                                             />
                                         </div>
@@ -497,36 +457,24 @@ export const MerchantHome: React.FC<MerchantHomeProps> = ({ onNavigate }) => {
                             </button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                            {myOrders.filter(o => !['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(o.status)).length === 0 ? (
+                            {myOrders.filter(o => !MERCHANT_TERMINAL_STATUSES.includes(o.status as any)).length === 0 ? (
                                 <div className="flex flex-col items-center justify-center text-white/10 space-y-3 py-20">
                                     <Activity size={40} />
                                     <span className="text-sm font-medium">{t.common.noData}</span>
                                 </div>
                             ) : (
                                 myOrders
-                                    .filter(o => !['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(o.status))
+                                    .filter(o => !MERCHANT_TERMINAL_STATUSES.includes(o.status as any))
                                     .slice(0, 5)
                                     .map((order, i) => {
-                                        const myOffer = order.offers?.find(off => off.storeId === myStoreId);
-                                        
-                                        const getStatusLabel = (status: string) => {
-                                            switch (status) {
-                                                case 'AWAITING_OFFERS': return isAr ? 'في انتظار العروض' : 'Awaiting Offers';
-                                                case 'AWAITING_PAYMENT': return isAr ? 'في انتظار الدفع' : 'Awaiting Payment';
-                                                case 'PREPARATION': return isAr ? 'قيد التجهيز' : 'In Preparation';
-                                                case 'SHIPPED': return isAr ? 'تم الشحن' : 'Shipped';
-                                                default: return status;
-                                            }
-                                        };
+                                        const getStatusLabel = (status: string) => getMerchantStatusLabel(status, isAr);
 
                                         const getStatusColor = (status: string) => {
-                                            switch (status) {
-                                                case 'AWAITING_OFFERS': return 'bg-gold-500';
-                                                case 'AWAITING_PAYMENT': return 'bg-yellow-500';
-                                                case 'PREPARATION': return 'bg-orange-500';
-                                                case 'SHIPPED': return 'bg-blue-500';
-                                                default: return 'bg-gray-500';
-                                            }
+                                            if (isMerchantNegotiating(status)) return 'bg-yellow-500';
+                                            if (isMerchantInProgress(status)) return 'bg-orange-500';
+                                            if (isMerchantCompleted(status)) return 'bg-green-500';
+                                            if (isMerchantMarketplaceOpen(status)) return 'bg-gold-500';
+                                            return 'bg-gray-500';
                                         };
 
                                         return (

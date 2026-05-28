@@ -1,10 +1,8 @@
 
-import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { X, DollarSign, UploadCloud, Car, Settings, Loader2, Calculator, Info, Scale, ShieldCheck, PlayCircle, AlertCircle, Check, Package, ChevronRight, ChevronLeft, CheckCircle2, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useDeferredValue, memo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, DollarSign, UploadCloud, Car, Loader2, Calculator, ShieldCheck, PlayCircle, AlertCircle, Check, Package, CheckCircle2, ChevronDown } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { useOrderChatStore } from '../../../stores/useOrderChatStore';
-import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useVendorStore } from '../../../stores/useVendorStore';
@@ -15,7 +13,7 @@ interface SubmitOfferModalProps {
     isOpen: boolean;
     onClose: () => void;
     requestDetails: {
-        id: number;
+        id: string | number;
         car: string;
         part: string;
         parts?: any[];
@@ -61,13 +59,117 @@ const DEFAULT_FORM: PartFormData = {
 const EMPTY_PARTS: any[] = [];
 const EMPTY_OFFERS: any[] = [];
 
-export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onClose, requestDetails, existingOffers, onSubmit }) => {
+/** Stable thumbnail — avoids createObjectURL on every parent render. */
+const PartThumb = memo(function PartThumb({
+    src,
+    className,
+}: {
+    src: string | File;
+    className?: string;
+}) {
+    const [url, setUrl] = useState<string | null>(null);
+    useEffect(() => {
+        if (typeof src === 'string') {
+            setUrl(src);
+            return;
+        }
+        const objectUrl = URL.createObjectURL(src);
+        setUrl(objectUrl);
+        return () => URL.revokeObjectURL(objectUrl);
+    }, [src]);
+    if (!url) return null;
+    return <img src={url} className={className} alt="" loading="lazy" decoding="async" />;
+});
+
+type QuoteCalcResult = {
+    shipping: number;
+    subtotal: number;
+    commission: number;
+    finalPrice: number;
+    merchantEarnings: number;
+};
+
+const LivePriceCalculator = memo(function LivePriceCalculator({
+    calculations,
+    basePriceDisplay,
+    isPriceSyncing,
+    isAr,
+    calcTitle,
+    merchantNetLabel,
+    finalPriceLabel,
+}: {
+    calculations: QuoteCalcResult;
+    basePriceDisplay: string;
+    isPriceSyncing: boolean;
+    isAr: boolean;
+    calcTitle: string;
+    merchantNetLabel: string;
+    finalPriceLabel: string;
+}) {
+    return (
+        <div className="bg-[#12110F] rounded-3xl border border-gold-500/20 p-6 relative overflow-hidden shadow-2xl">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-transparent via-gold-500 to-transparent opacity-50" />
+            <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center text-gold-500 shadow-lg shadow-gold-500/5">
+                    <Calculator size={20} />
+                </div>
+                <div>
+                    <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-white/40">{calcTitle}</h3>
+                    <p className="text-[10px] text-gold-500/60 font-black uppercase tracking-tighter">
+                        {isAr ? 'تحديث حي' : 'Live Analytics'}
+                    </p>
+                </div>
+            </div>
+            <div className="space-y-6">
+                <div className="flex justify-between items-center group">
+                    <span className="text-xs font-bold text-white/30 uppercase tracking-wider group-hover:text-white/60 transition-colors">
+                        {merchantNetLabel}
+                    </span>
+                    <span
+                        className={`font-mono text-xl text-white font-black transition-opacity ${isPriceSyncing ? 'opacity-60' : 'opacity-100'}`}
+                    >
+                        {(parseFloat(basePriceDisplay || '0')).toLocaleString()}{' '}
+                        <span className="text-[10px] text-white/20 ml-1">AED</span>
+                    </span>
+                </div>
+                <div className="p-6 rounded-[2rem] bg-gradient-to-br from-gold-500/10 via-gold-500/[0.02] to-transparent border border-gold-500/20 shadow-inner">
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-black text-gold-500 uppercase tracking-widest">{finalPriceLabel}</span>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-[7px] text-green-500 font-black uppercase tracking-tighter">Live Price</span>
+                        </div>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <span
+                            className={`text-4xl font-black text-white font-mono tracking-tighter transition-opacity ${isPriceSyncing ? 'opacity-70' : 'opacity-100'}`}
+                        >
+                            {calculations.finalPrice.toLocaleString()}
+                        </span>
+                        <span className="text-sm font-black text-gold-500/40 font-mono">AED</span>
+                    </div>
+                </div>
+            </div>
+            <div className="mt-8 pt-6 border-t border-white/5">
+                <div className="flex items-center gap-2 text-[9px] font-bold text-white/20 uppercase tracking-[0.2em]">
+                    <ShieldCheck size={12} className="text-gold-500/30" />
+                    {isAr ? 'نظام تسعير ذكي معتمد' : 'Smart Certified Engine'}
+                </div>
+            </div>
+        </div>
+    );
+});
+
+const SubmitOfferModalInner: React.FC<SubmitOfferModalProps> = ({ onClose, requestDetails, existingOffers, onSubmit }) => {
     const { t, language } = useLanguage();
-    const { fetchChat } = useOrderChatStore();
-    const { addNotification } = useNotificationStore();
-    const { systemConfig, fetchPublicConfig } = useAdminStore();
-    const { getOrder, addOfferToOrder } = useOrderStore();
-    const { storeId, offerLimit, dailyOfferCount } = useVendorStore();
+    const shipmentTypes = useAdminStore((s) => s.systemConfig.logistics?.shipmentTypes) ?? [];
+    const financialConfig = useAdminStore((s) => s.systemConfig.financial);
+    const fetchPublicConfig = useAdminStore((s) => s.fetchPublicConfig);
+    const addOfferToOrder = useOrderStore((s) => s.addOfferToOrder);
+    const storeId = useVendorStore((s) => s.storeId);
+    const offerLimit = useVendorStore((s) => s.offerLimit);
+    const dailyOfferCount = useVendorStore((s) => s.dailyOfferCount);
+    const fetchDashboardStats = useVendorStore((s) => s.fetchDashboardStats);
 
     const isAr = language === 'ar';
     const offersT = t.dashboard.merchant.offerModal;
@@ -115,20 +217,22 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         return map;
     }, [parts, requestDetails?.offers, storeId]);
 
-    const getShipmentTypeById = useCallback((partType: string) => {
-        return systemConfig.logistics.shipmentTypes?.find((type: any) => type.id === partType)
-            || systemConfig.logistics.shipmentTypes?.find((type: any) => type.id === 'standard');
-    }, [systemConfig.logistics.shipmentTypes]);
+    const getShipmentTypeById = useCallback(
+        (partType: string) =>
+            shipmentTypes.find((type: any) => type.id === partType) ||
+            shipmentTypes.find((type: any) => type.id === 'standard'),
+        [shipmentTypes],
+    );
 
     useEffect(() => {
-        if (!isOpen) return;
+        if (shipmentTypes.length > 0) return;
         fetchPublicConfig();
-    }, [isOpen, fetchPublicConfig]);
+    }, [shipmentTypes.length, fetchPublicConfig]);
 
     // Initialize: auto-select single part or reset for multi-part
     // If existingOffers exist, pre-fill form data from them
     useEffect(() => {
-        if (!isOpen || !requestDetails) return;
+        if (!requestDetails) return;
 
         const buildFormFromOffer = (offer: any): PartFormData => {
             return {
@@ -177,7 +281,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             setActivePartId(partId);
             setFormDataMap({ [partId]: existingOffer ? buildFormFromOffer(existingOffer) : { ...DEFAULT_FORM } });
         }
-    }, [isOpen, requestDetails?.id, existingOfferMap]);
+    }, [requestDetails?.id, existingOfferMap, parts, awardedToOthersMap, safeExistingOffers]);
 
     // Get active form data
     const activeForm = activePartId ? (formDataMap[activePartId] || DEFAULT_FORM) : DEFAULT_FORM;
@@ -253,8 +357,8 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         }
 
         const subtotal = price + shippingCost;
-        const rate = (systemConfig.financial?.commissionRate || 25) / 100;
-        const minComm = systemConfig.financial?.minCommission || 100;
+        const rate = (financialConfig?.commissionRate || 25) / 100;
+        const minComm = financialConfig?.minCommission || 100;
         const percentCommission = Math.round(price * rate);
         const commission = price > 0 ? Math.max(percentCommission, minComm) : 0;
         const finalPrice = subtotal + commission;
@@ -266,32 +370,56 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             finalPrice,
             merchantEarnings: price 
         };
-    }, [getShipmentTypeById, systemConfig]);
+    }, [getShipmentTypeById, financialConfig]);
 
     // --- Calculations for active part (Optimized with Deferred Values) ---
     const calculations = useMemo(() => {
         return getQuoteCalculations(deferredBasePrice, deferredWeight, deferredPartType, deferredCylinders);
     }, [deferredBasePrice, deferredWeight, deferredPartType, deferredCylinders, getQuoteCalculations]);
 
-    // Toggle part selection
-    const togglePart = (partId: string) => {
-        if (awardedToOthersMap.get(partId)) return; // Prevent selecting awarded parts
-        if (existingOfferMap.has(partId)) return; // Prevent selecting parts we already bid on (Lock feature)
+    const togglePart = useCallback(
+        (partId: string) => {
+            if (awardedToOthersMap.get(partId)) return;
+            if (existingOfferMap.has(partId)) return;
 
-        setSelectedPartIds(prev => {
-            const next = new Set(prev);
-            if (next.has(partId)) {
-                next.delete(partId);
-                if (activePartId === partId) {
-                    setActivePartId(next.size > 0 ? Array.from(next)[0] : null);
+            setSelectedPartIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(partId)) {
+                    next.delete(partId);
+                    if (activePartId === partId) {
+                        setActivePartId(next.size > 0 ? Array.from(next)[0] : null);
+                    }
+                } else {
+                    next.add(partId);
+                    if (!activePartId) setActivePartId(partId);
                 }
-            } else {
-                next.add(partId);
-                if (!activePartId) setActivePartId(partId);
-            }
-            return next;
-        });
-    };
+                return next;
+            });
+        },
+        [activePartId, awardedToOthersMap, existingOfferMap],
+    );
+
+    const isPriceSyncing =
+        activeForm.basePrice !== deferredBasePrice ||
+        activeForm.weight !== deferredWeight ||
+        activeForm.partType !== deferredPartType ||
+        activeForm.cylinders !== deferredCylinders;
+
+    const activePartName = useMemo(() => {
+        if (!activePartId) return '';
+        if (activePartId === 'legacy' || activePartId === 'single') return requestDetails?.part || '';
+        return parts.find((p: any) => p.id === activePartId)?.name || '';
+    }, [activePartId, parts, requestDetails?.part]);
+
+    const activePartPreview = useMemo(() => {
+        if (!activePartId) return null;
+        return parts.find((p: any) => p.id === activePartId) ?? null;
+    }, [activePartId, parts]);
+
+    const shipmentTypeOptions = useMemo(
+        () => (shipmentTypes.length > 0 ? shipmentTypes : []),
+        [shipmentTypes],
+    );
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0 || !activePartId) return;
@@ -426,7 +554,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
 
                 // Optimistic UI Update
                 if (requestDetails?.id) {
-                    addOfferToOrder(requestDetails.id, {
+                    addOfferToOrder(String(requestDetails.id), {
                         storeId: resultData?.store?.id || resultData?.storeId || 'my-store-session',
                         offerNumber: resultData?.offerNumber || '---',
                         storeCode: resultData?.store?.storeCode || resultData?.storeCode || '---',
@@ -479,6 +607,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             }
             */
 
+            await fetchDashboardStats();
             onSubmit({});
 
             // Reset all form state
@@ -497,13 +626,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
         }
     };
 
-    const getActivePartName = (): string => {
-        if (!activePartId) return '';
-        if (activePartId === 'legacy' || activePartId === 'single') return requestDetails?.part || '';
-        return parts.find((p: any) => p.id === activePartId)?.name || '';
-    };
-
-    if (!isOpen || !requestDetails) return null;
+    if (!requestDetails) return null;
 
     return (
         <AnimatePresence>
@@ -511,14 +634,15 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                transition={{ duration: 0.15 }}
+                className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-[3px]"
             >
                 <motion.div
-                    initial={{ scale: 0.98, opacity: 0, y: 10 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.98, opacity: 0, y: 10 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    className="bg-[#1A1814] border border-gold-500/20 rounded-2xl w-full max-w-5xl shadow-[0_30px_100px_rgba(0,0,0,0.8)] relative flex flex-col max-h-[90vh] overflow-hidden will-change-transform"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className="bg-[#1A1814] border border-gold-500/20 rounded-2xl w-full max-w-5xl shadow-[0_30px_100px_rgba(0,0,0,0.8)] relative flex flex-col max-h-[90vh] overflow-hidden"
                 >
                     {/* Offer Limit Warning Banner [2026 Governance] */}
                     {offerLimit !== -1 && dailyOfferCount >= offerLimit && (
@@ -595,10 +719,9 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                 {isAwardedToOther ? <AlertCircle size={12} className="text-red-400" /> : isSelected ? <Check size={12} className="text-black" /> : hasExistingOffer ? <CheckCircle2 size={12} className="text-green-400" /> : null}
                                             </div>
                                             {p.images?.[0] && (
-                                                <img
-                                                    src={typeof p.images[0] === 'string' ? p.images[0] : URL.createObjectURL(p.images[0])}
+                                                <PartThumb
+                                                    src={p.images[0]}
                                                     className={`w-6 h-6 rounded object-cover ${isAwardedToOther ? 'grayscale' : ''}`}
-                                                    alt=""
                                                 />
                                             )}
                                             <span className="truncate max-w-[120px]">{p.name}</span>
@@ -650,7 +773,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                         <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
 
                             {/* LEFT SIDE: Order Details & Live Calc */}
-                            <div className="w-full lg:w-[45%] p-6 bg-white/5 border-b lg:border-b-0 lg:border-r border-white/10 overflow-y-auto">
+                            <div className="w-full lg:w-[45%] p-6 bg-white/5 border-b lg:border-b-0 lg:border-r border-white/10 overflow-y-auto overscroll-contain [contain:layout]">
 
                                 {/* Active Part Name Header */}
                                 <div className="mb-4 px-3 py-2.5 bg-gold-500/10 border border-gold-500/20 rounded-xl">
@@ -658,7 +781,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                         <Package size={14} />
                                         {isAr ? 'تقديم عرض على' : 'Bidding On'}
                                     </div>
-                                    <div className="text-white font-bold text-base">{getActivePartName()}</div>
+                                    <div className="text-white font-bold text-base">{activePartName}</div>
                                 </div>
 
                                 {/* Order Info */}
@@ -669,30 +792,27 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                     </div>
 
                                     {/* Show current part media only */}
-                                    {(() => {
-                                        const activePart = parts.find((p: any) => p.id === activePartId);
-                                        if (!activePart) {
-                                            return <h2 className="text-xl font-bold text-white mb-1 line-clamp-2">{requestDetails.part}</h2>;
-                                        }
-                                        return (
+                                    {activePartPreview ? (
                                             <div className="bg-white/5 p-3 rounded-lg space-y-2">
-                                                <div className="text-xs text-white/50 line-clamp-2">{activePart.description}</div>
+                                                <div className="text-xs text-white/50 line-clamp-2">{activePartPreview.description}</div>
                                                 <div className="flex gap-2 overflow-x-auto pb-1">
-                                                    {activePart.images?.map((img: string | File, i: number) => (
-                                                        <div
-                                                            key={i}
-                                                            className="w-12 h-12 shrink-0 rounded bg-black/40 border border-white/10 overflow-hidden cursor-pointer hover:border-gold-500/50"
-                                                            onClick={() => setActiveMedia({ type: 'image', url: typeof img === 'string' ? img : URL.createObjectURL(img) })}
-                                                        >
-                                                            <img src={typeof img === 'string' ? img : URL.createObjectURL(img)} className="w-full h-full object-cover" />
-                                                        </div>
-                                                    ))}
-                                                    {activePart.video && (
+                                                    {activePartPreview.images?.map((img: string | File, i: number) =>
+                                                        typeof img === 'string' ? (
+                                                            <div
+                                                                key={`img-${i}`}
+                                                                className="w-12 h-12 shrink-0 rounded bg-black/40 border border-white/10 overflow-hidden cursor-pointer hover:border-gold-500/50"
+                                                                onClick={() => setActiveMedia({ type: 'image', url: img })}
+                                                            >
+                                                                <img src={img} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                                                            </div>
+                                                        ) : null,
+                                                    )}
+                                                    {typeof activePartPreview.video === 'string' && activePartPreview.video && (
                                                         <div
                                                             className="w-12 h-12 shrink-0 rounded bg-black/40 border border-white/10 overflow-hidden cursor-pointer hover:border-gold-500/50 relative group"
-                                                            onClick={() => setActiveMedia({ type: 'video', url: typeof activePart.video === 'string' ? activePart.video : URL.createObjectURL(activePart.video) })}
+                                                            onClick={() => setActiveMedia({ type: 'video', url: activePartPreview.video as string })}
                                                         >
-                                                            <video src={typeof activePart.video === 'string' ? activePart.video : URL.createObjectURL(activePart.video)} className="w-full h-full object-cover opacity-50" />
+                                                            <video src={activePartPreview.video as string} className="w-full h-full object-cover opacity-50" preload="none" />
                                                             <div className="absolute inset-0 flex items-center justify-center">
                                                                 <PlayCircle size={16} className="text-white" />
                                                             </div>
@@ -700,8 +820,9 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                     )}
                                                 </div>
                                             </div>
-                                        );
-                                    })()}
+                                        ) : (
+                                            <h2 className="text-xl font-bold text-white mb-1 line-clamp-2">{requestDetails.part}</h2>
+                                        )}
 
                                     <p className="text-white/60 text-sm flex items-center gap-2 mt-3">
                                         <Car size={14} />
@@ -709,69 +830,19 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                     </p>
                                 </div>
 
-                                {/* ENHANCED LIVE CALCULATOR CARD */}
-                                <div className="bg-[#12110F] rounded-3xl border border-gold-500/20 p-6 relative overflow-hidden shadow-2xl">
-                                    <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-transparent via-gold-500 to-transparent opacity-50" />
-                                    <div className="absolute -right-8 -top-8 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl" />
-
-                                    <div className="flex items-center gap-3 mb-8">
-                                        <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center text-gold-500 shadow-lg shadow-gold-500/5">
-                                            <Calculator size={20} />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-white/40">{t.dashboard.merchant.offerModal.calc.title}</h3>
-                                            <p className="text-[10px] text-gold-500/60 font-black uppercase tracking-tighter">{isAr ? 'تحديث حي' : 'Live Analytics'}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-6">
-                                        <div className="flex justify-between items-center group">
-                                            <span className="text-xs font-bold text-white/30 uppercase tracking-wider group-hover:text-white/60 transition-colors">{t.dashboard.merchant.offerModal.calc.merchantNet}</span>
-                                            <motion.span 
-                                                animate={{ 
-                                                    scale: activeForm.basePrice !== deferredBasePrice ? 1.05 : 1,
-                                                    opacity: activeForm.basePrice !== deferredBasePrice ? 0.6 : 1
-                                                }}
-                                                className="font-mono text-xl text-white font-black"
-                                            >
-                                                {(parseFloat(activeForm.basePrice || '0')).toLocaleString()} <span className="text-[10px] text-white/20 ml-1">AED</span>
-                                            </motion.span>
-                                        </div>
-
-                                        <div className="p-6 rounded-[2rem] bg-gradient-to-br from-gold-500/10 via-gold-500/[0.02] to-transparent border border-gold-500/20 shadow-inner">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-[10px] font-black text-gold-500 uppercase tracking-widest">{t.dashboard.merchant.offerModal.calc.finalCustomerPrice}</span>
-                                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                                    <span className="text-[7px] text-green-500 font-black uppercase tracking-tighter">Live Price</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-baseline gap-2">
-                                                <motion.span 
-                                                    animate={{ 
-                                                        y: activeForm.basePrice !== deferredBasePrice ? -2 : 0,
-                                                        opacity: activeForm.basePrice !== deferredBasePrice ? 0.7 : 1
-                                                    }}
-                                                    className="text-4xl font-black text-white font-mono tracking-tighter"
-                                                >
-                                                    {calculations.finalPrice.toLocaleString()}
-                                                </motion.span>
-                                                <span className="text-sm font-black text-gold-500/40 font-mono">AED</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-8 pt-6 border-t border-white/5">
-                                        <div className="flex items-center gap-2 text-[9px] font-bold text-white/20 uppercase tracking-[0.2em]">
-                                            <ShieldCheck size={12} className="text-gold-500/30" />
-                                            {isAr ? 'نظام تسعير ذكي معتمد' : 'Smart Certified Engine'}
-                                        </div>
-                                    </div>
-                                </div>
+                                <LivePriceCalculator
+                                    calculations={calculations}
+                                    basePriceDisplay={activeForm.basePrice}
+                                    isPriceSyncing={isPriceSyncing}
+                                    isAr={isAr}
+                                    calcTitle={t.dashboard.merchant.offerModal.calc.title}
+                                    merchantNetLabel={t.dashboard.merchant.offerModal.calc.merchantNet}
+                                    finalPriceLabel={t.dashboard.merchant.offerModal.calc.finalCustomerPrice}
+                                />
                             </div>
 
                             {/* RIGHT SIDE: Offer Form */}
-                            <div className="w-full lg:w-[55%] flex flex-col min-h-0 bg-[#1A1814] overflow-y-auto">
+                            <div className="w-full lg:w-[55%] flex flex-col min-h-0 bg-[#1A1814] overflow-y-auto overscroll-contain [contain:layout]">
                                 <div className="p-8 border-b border-white/5 flex justify-between items-center bg-black/20">
                                     <div>
                                         <h3 className="text-xl font-black text-white uppercase tracking-tight">{t.dashboard.merchant.offerModal.yourOffer}</h3>
@@ -828,7 +899,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                         onChange={(e) => handlePartTypeChange(e.target.value)}
                                                         className="w-full bg-black/40 border border-white/5 hover:border-white/10 focus:border-gold-500/50 rounded-2xl py-4 px-4 text-white text-sm font-bold focus:bg-gold-500/5 outline-none appearance-none transition-all cursor-pointer"
                                                     >
-                                                        {(systemConfig.logistics?.shipmentTypes || []).map((type: any) => (
+                                                        {shipmentTypeOptions.map((type: any) => (
                                                             <option key={type.id} value={type.id} className="bg-[#1A1814]">
                                                                 {isAr ? type.nameAr : type.nameEn}
                                                             </option>
@@ -844,15 +915,11 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
 
                                     {/* 1.5 Cylinder Count (2026 Engine Logic) */}
                                     {(() => {
-                                        const activeType = systemConfig.logistics?.shipmentTypes?.find((t: any) => t.id === activeForm.partType);
+                                        const activeType = shipmentTypeOptions.find((t: any) => t.id === activeForm.partType);
                                         if (!activeType?.hasCylinders) return null;
 
                                         return (
-                                            <motion.div 
-                                                initial={{ y: 20, opacity: 0 }}
-                                                animate={{ y: 0, opacity: 1 }}
-                                                className="p-6 rounded-3xl bg-gold-500/5 border border-gold-500/20 shadow-inner"
-                                            >
+                                            <div className="p-6 rounded-3xl bg-gold-500/5 border border-gold-500/20 shadow-inner">
                                                 <label className="block text-[10px] font-black text-gold-500 mb-4 uppercase tracking-[0.2em]">
                                                     {offersT?.cylinderCount || (isAr ? 'عدد السلندرات' : 'Cylinder Count')}
                                                 </label>
@@ -875,14 +942,14 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                     <div className="w-1 h-1 rounded-full bg-gold-500/40" />
                                                     {offersT?.cylinderNote || (isAr ? '* شحن المكائن يعتمد على عدد السلندرات بسعر ثابت.' : '* Engine shipping cost is fixed based on cylinder count.')}
                                                 </div>
-                                            </motion.div>
+                                            </div>
                                         );
                                     })()}
 
                                     {/* 2. Weight */}
                                     <AnimatePresence>
                                         {(() => {
-                                            const activeType = systemConfig.logistics?.shipmentTypes?.find((t: any) => t.id === activeForm.partType);
+                                            const activeType = shipmentTypeOptions.find((t: any) => t.id === activeForm.partType);
                                             if (!activeType?.isWeightBound) return null;
                                             
                                             return (
@@ -959,9 +1026,13 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                                                 onClick={() => updateField('hasWarranty', !activeForm.hasWarranty)}
                                                 className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 ${activeForm.hasWarranty ? 'bg-green-500' : 'bg-white/20'}`}
                                             >
-                                                <motion.div
-                                                    className="w-4 h-4 bg-white rounded-full shadow-sm"
-                                                    animate={{ x: activeForm.hasWarranty ? (isAr ? -24 : 24) : 0 }}
+                                                <div
+                                                    className="w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-300"
+                                                    style={{
+                                                        transform: activeForm.hasWarranty
+                                                            ? `translateX(${isAr ? -24 : 24}px)`
+                                                            : 'translateX(0)',
+                                                    }}
                                                 />
                                             </button>
                                         </div>
@@ -1129,7 +1200,7 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
             {/* Lightbox Overlay */}
             {activeMedia && (
                 <div
-                    className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+                    className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/90 backdrop-blur-[3px]"
                     onClick={() => setActiveMedia(null)}
                 >
                     <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
@@ -1153,11 +1224,17 @@ export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = ({ isOpen, onCl
                             className="mt-4 px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
                             onClick={() => setActiveMedia(null)}
                         >
-                            {t.common.close || (isAr ? "إغلاق" : "Close")}
+                            {isAr ? 'إغلاق' : 'Close'}
                         </button>
                     </div>
                 </div>
             )}
         </AnimatePresence>
     );
+};
+
+/** Mount heavy form only while open — keeps marketplace page light when modal is closed. */
+export const SubmitOfferModal: React.FC<SubmitOfferModalProps> = (props) => {
+    if (!props.isOpen || !props.requestDetails) return null;
+    return <SubmitOfferModalInner key={String(props.requestDetails.id)} {...props} />;
 };

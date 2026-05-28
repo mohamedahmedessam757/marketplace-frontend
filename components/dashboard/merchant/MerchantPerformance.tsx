@@ -324,6 +324,12 @@ export const MerchantPerformance: React.FC = () => {
           ? 'أقصى مستوى'
           : 'Top tier';
 
+    const hasNoActivity =
+        performance.rankingBreakdown.rating <= 0 &&
+        performance.completedOrdersCount <= 0 &&
+        performance.lifetimeEarnings <= 0;
+    const progressPercent = hasNoActivity ? 0 : performance.progressToNext.percent;
+
     return (
         <div className="space-y-8 min-h-screen pb-20">
             {/* --- PROMPT A: Page shell & Header --- */}
@@ -388,7 +394,7 @@ export const MerchantPerformance: React.FC = () => {
                         <div className="space-y-6">
                             <div className="flex justify-between items-end">
                                 <p className="text-3xl font-black text-white">
-                                    {performance.progressToNext.percent}%
+                                    {progressPercent}%
                                     <span className="text-sm font-normal text-white/40 ml-3 tracking-normal">
                                         {isAr ? performance.progressToNext.summaryAr : performance.progressToNext.summaryEn}
                                     </span>
@@ -398,7 +404,7 @@ export const MerchantPerformance: React.FC = () => {
                             <div className="h-4 bg-white/5 rounded-full overflow-hidden border border-white/10 p-1">
                                 <motion.div
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${performance.progressToNext.percent}%` }}
+                                    animate={{ width: `${progressPercent}%` }}
                                     transition={{ duration: 2, ease: "circOut" }}
                                     className="h-full bg-gradient-to-r from-gold-600 via-gold-400 to-amber-300 rounded-full shadow-[0_0_20px_rgba(234,179,8,0.3)] relative"
                                 >
@@ -536,9 +542,6 @@ export const MerchantPerformance: React.FC = () => {
                                         <h4 className={`font-black text-lg ${tierInfo.color}`}>
                                             {isAr ? tierInfo.label.ar : tierInfo.label.en}
                                         </h4>
-                                        <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">
-                                            {isAr ? 'عمولة' : 'Fee'}: {(tier.rate * 100).toFixed(1)}%
-                                        </p>
                                     </div>
                                     <div className="w-full h-px bg-white/5"></div>
                                     <ul className="space-y-3 w-full">

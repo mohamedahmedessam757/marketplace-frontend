@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import { client } from '../services/api/client';
+import { getCurrentUser } from '../utils/auth';
 
 export interface AdminPermissions {
   id: string;
@@ -125,21 +126,8 @@ export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get)
 
   // Internal helper to get current role reliably
   _getRole: () => {
-    // Priority 1: localStorage (fastest)
-    const lsRole = localStorage.getItem('admin_role');
-    if (lsRole) return lsRole;
-
-    // Priority 2: sessionStorage (fallback)
-    const sessionData = sessionStorage.getItem('admin');
-    if (sessionData) {
-      try {
-        const user = JSON.parse(sessionData);
-        return user.role;
-      } catch (e) {}
-    }
-
-    // Priority 3: useAdminStore (reactive fallback)
-    return null;
+    const jwtUser = getCurrentUser();
+    return jwtUser?.role ?? null;
   },
 
   canView: (page) => {
@@ -219,9 +207,8 @@ export const useAdminPermissionsStore = create<AdminPermissionsState>((set, get)
   },
 
   getTicketCategories: () => {
-    // Admins see everything
-    const role = localStorage.getItem('admin_role');
-    if (role === 'SUPER_ADMIN' || role === 'ADMIN') return []; 
+    const role = get()._getRole();
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN') return [];
     
     const { myPermissions } = get();
     if (!myPermissions || !myPermissions.supportTicketCategories) return ['__NONE__']; // Strict default

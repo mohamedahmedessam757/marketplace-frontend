@@ -87,24 +87,23 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const handleVerifyOTP = async (code: string) => {
     try {
       // DEVELOPMENT BYPASS: Allow any code for testing
-      // await authApi.verifyOTP(email, code); 
+      // await authApi.verifyOTP(email, code);
       console.log('DEV MODE: OTP Bypassed with code', code);
 
-      // Validate login data before proceeding
       if (!loginData?.user || !loginData.user.id || !loginData.user.role) {
         console.error('[handleVerifyOTP] Invalid loginData:', loginData);
         setError(t.auth.errors?.invalidCredentials || 'Login session expired. Please try again.');
         setOtpStep('none');
-        return;
+        throw new Error('Login session expired');
       }
 
-      // Only login to store after full verification
       loginAdmin(loginData.user, loginData.permissions);
       onLoginSuccess();
     } catch (err) {
       console.error('OTP Verification Failed', err);
       setError(t.auth.errors?.invalidCredentials || 'Verification failed. Please try again.');
       setOtpStep('none');
+      throw err;
     }
   };
 

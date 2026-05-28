@@ -356,26 +356,30 @@ export const mapRealtimeOrderRow = (row: Record<string, unknown>): Partial<Order
     return partial;
 };
 
-const mergeOrderPreservingDetails = (existing: Order, incoming: Order): Order => {
-    const existingOfferCount = existing.offers?.length ?? 0;
-    const incomingOfferCount = incoming.offers?.length ?? 0;
-    const useExistingOffers =
-        existingOfferCount > 0 && incomingOfferCount < existingOfferCount;
+const mergeOfferLists = (
+    existing?: OrderOffer[],
+    incoming?: OrderOffer[],
+): OrderOffer[] | undefined => {
+    if (incoming === undefined) return existing;
+    // List payloads often omit offers — keep detail we already loaded
+    if (!incoming.length) return existing?.length ? existing : [];
+    return incoming.map((inc) => {
+        const prev = existing?.find((o) => String(o.id) === String(inc.id));
+        if (!prev) return inc;
+        return {
+            ...inc,
+            status: inc.status ?? prev.status,
+            offerImage: inc.offerImage || prev.offerImage,
+            storeRating: inc.storeRating || prev.storeRating,
+            storeReviewCount: inc.storeReviewCount || prev.storeReviewCount,
+            storeLogo: inc.storeLogo || prev.storeLogo,
+            isWithdrawn: inc.isWithdrawn ?? prev.isWithdrawn,
+        };
+    });
+};
 
-    const mergedOffers = useExistingOffers
-        ? existing.offers
-        : (incoming.offers?.map((inc) => {
-              const prev = existing.offers?.find((o) => String(o.id) === String(inc.id));
-              if (!prev) return inc;
-              return {
-                  ...inc,
-                  status: inc.status ?? prev.status,
-                  offerImage: inc.offerImage || prev.offerImage,
-                  storeRating: inc.storeRating || prev.storeRating,
-                  storeReviewCount: inc.storeReviewCount || prev.storeReviewCount,
-                  storeLogo: inc.storeLogo || prev.storeLogo,
-              };
-          }) ?? incoming.offers);
+const mergeOrderPreservingDetails = (existing: Order, incoming: Order): Order => {
+    const mergedOffers = mergeOfferLists(existing.offers, incoming.offers);
 
     const mergedParts = incoming.parts?.map((inc) => {
         const prev = existing.parts?.find((p) => String(p.id) === String(inc.id));
@@ -430,7 +434,7 @@ interface OrderState {
     setActiveOrderId: (id: string | null) => void;
     patchOrderFromRealtime: (orderId: string, partial: Partial<Order>) => void;
     patchVerificationFromRealtime: (orderId: string, docRow: Record<string, unknown>) => void;
-    fetchOrders: (params?: { search?: string; status?: string; page?: number; retry?: number }) => Promise<void>;
+    fetchOrders: (params?: { search?: string; status?: string; page?: number; limit?: number; retry?: number }) => Promise<void>;
     fetchOrder: (id: string) => Promise<void>;
     patchOrderReview: (
         orderId: string,
@@ -445,6 +449,8 @@ interface OrderState {
     resetForRole: (role: string) => void;
     addOrder: (order: Omit<Order, 'id' | 'date' | 'status' | 'offersCount' | 'createdAt' | 'updatedAt' | 'offers'>) => Promise<void>;
     addOfferToOrder: (orderId: string, offer: Omit<OrderOffer, 'id'>) => void;
+    removeOfferFromOrder: (offerId: string) => void;
+    markOfferWithdrawnInOrder: (offerId: string) => void;
     acceptOffer: (orderId: string, partId: string, offerId: string) => Promise<void>;
     rejectOffer: (orderId: string, offerId: string, reason: string, customReason?: string) => Promise<void>;
     transitionOrder: (id: string, targetStatus: StatusType, actor?: string, metadata?: any) => Promise<{ success: boolean; message?: string }>;
@@ -627,7 +633,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     },
 
     fetchOrders: async (params = {}) => {
-        const { search, status, page = 1 } = params;
+        const { search, status, page = 1, limit: requestedLimit } = params;
+        const limit = requestedLimit ?? get().limit;
         const { orders } = get();
         
         // 2026 SWR-like Pattern: Only show global loader if no data exists
@@ -749,6 +756,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     vinImage: o.vinImage
                 },
                 status: o.status,
+                merchantId: o.storeId || o.store?.id,
                 adminNotes: o.adminNotes ?? o.admin_notes ?? undefined,
                 date: new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
                 offersCount: o.offers ? o.offers.length : 0,
@@ -883,6 +891,35 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     offers: [...(o.offers || []), { id: `TMP-${Date.now()}`, submittedAt: new Date().toISOString(), ...offerData }]
                 };
             })
+        }));
+    },
+
+    removeOfferFromOrder: (offerId: string) => {
+        set((state) => ({
+            orders: state.orders.map((o) => {
+                const prev = o.offers || [];
+                const next = prev.filter((of) => String(of.id) !== String(offerId));
+                if (next.length === prev.length) return o;
+                return {
+                    ...o,
+                    offers: next,
+                    offersCount: next.length,
+                    _count: o._count ? { ...o._count, offers: next.length } : o._count,
+                };
+            }),
+        }));
+    },
+
+    markOfferWithdrawnInOrder: (offerId: string) => {
+        set((state) => ({
+            orders: state.orders.map((o) => ({
+                ...o,
+                offers: (o.offers || []).map((of) =>
+                    String(of.id) === String(offerId)
+                        ? { ...of, isWithdrawn: true, status: 'withdrawn' }
+                        : of,
+                ),
+            })),
         }));
     },
 
@@ -1021,6 +1058,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             const err = await response.json();
             throw new Error(err.message || 'Failed to delete offer by admin');
         }
+        get().removeOfferFromOrder(offerId);
         const { activeOrderId, fetchOrder, silentFetch } = get();
         if (activeOrderId) await fetchOrder(activeOrderId);
         else await silentFetch();
@@ -1039,6 +1077,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             const err = await response.json();
             throw new Error(err.message || 'Failed to withdraw offer');
         }
+        get().markOfferWithdrawnInOrder(offerId);
         const { activeOrderId, fetchOrder, silentFetch } = get();
         if (activeOrderId) await fetchOrder(activeOrderId);
         else await silentFetch();

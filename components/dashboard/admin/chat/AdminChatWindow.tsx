@@ -8,7 +8,7 @@ import {
     ShieldCheck, EyeOff, Info, AlertTriangle, Loader2,
     Video, Image as ImageIcon, FileText, Download, X, Paperclip, Globe, MessageSquare
 } from 'lucide-react';
-import { supabase } from '../../../../services/supabase';
+import { client } from '../../../../services/api/client';
 
 export const AdminChatWindow: React.FC = () => {
     const { language } = useLanguage();
@@ -79,19 +79,17 @@ export const AdminChatWindow: React.FC = () => {
 
         try {
             if (pendingAttachment) {
-                const fileName = `admin/oversight/${Date.now()}_${pendingAttachment.file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
-                const { data, error } = await supabase.storage.from('chat_media').upload(fileName, pendingAttachment.file, { upsert: true });
-                
-                if (error) {
+                const formData = new FormData();
+                formData.append('file', pendingAttachment.file);
+                formData.append('chatId', activeChat.id);
+                try {
+                    const { data } = await client.post<{ url: string }>('/uploads/chat', formData);
+                    uploadedMediaUrl = data.url;
+                } catch (error) {
                     console.error('Upload Error:', error);
                     alert(isAr ? 'فشل رفع المرفق. تأكد من الحجم والصيغة.' : 'Failed to upload attachment. Check size and format.');
                     setIsUploading(false);
                     return;
-                }
-                
-                if (data) {
-                    const { data: publicData } = supabase.storage.from('chat_media').getPublicUrl(data.path);
-                    uploadedMediaUrl = publicData.publicUrl;
                 }
             }
 

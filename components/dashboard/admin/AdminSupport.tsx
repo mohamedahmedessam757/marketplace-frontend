@@ -5,9 +5,10 @@ import { useAdminChatStore } from '../../../stores/useAdminChatStore';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Search, MessageSquare, User, CheckCircle2, Send, ChevronRight, ChevronLeft, Loader2, Download, Video, FileText, Image as ImageIcon, Inbox, X, Globe, Paperclip, ShieldCheck, Info, Layers, Store, Package, RefreshCcw, DollarSign, ShieldAlert, Lock } from 'lucide-react';
 import { useAdminPermissionsStore } from '../../../stores/useAdminPermissionsStore';
-import { supabase } from '../../../services/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BlurredSection } from './BlurredSection';
+import { getCurrentUser } from '../../../utils/auth';
+import { client } from '../../../services/api/client';
 
 export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
   const { t, language } = useLanguage();
@@ -75,7 +76,8 @@ export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
       
       // 2026 Governance: Filter by allowed categories
       const allowedCategories = getTicketCategories();
-      const isAdmin = localStorage.getItem('admin_role') === 'SUPER_ADMIN';
+      const role = getCurrentUser()?.role;
+      const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN';
       
       const matchesCategory = isAdmin || 
                              (allowedCategories.length > 0 && 
@@ -116,19 +118,17 @@ export const AdminSupport: React.FC<{ viewId?: string }> = ({ viewId }) => {
 
     try {
       if (pendingAttachment) {
-        const fileName = `admin/support/${Date.now()}_${pendingAttachment.file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
-        const { data, error } = await supabase.storage.from('chat_media').upload(fileName, pendingAttachment.file, { upsert: true });
-        
-        if (error) {
+        const formData = new FormData();
+        formData.append('file', pendingAttachment.file);
+        formData.append('chatId', activeChat.id);
+        try {
+          const { data } = await client.post<{ url: string }>('/uploads/chat', formData);
+          uploadedMediaUrl = data.url;
+        } catch (error) {
           console.error('Upload Error:', error);
           alert(isAr ? 'فشل رفع المرفق. تأكد من الحجم والصيغة.' : 'Failed to upload attachment. Check size and format.');
           setIsUploading(false);
           return;
-        }
-        
-        if (data) {
-          const { data: publicData } = supabase.storage.from('chat_media').getPublicUrl(data.path);
-          uploadedMediaUrl = publicData.publicUrl;
         }
       }
 

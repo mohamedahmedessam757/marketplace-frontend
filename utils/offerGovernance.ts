@@ -41,7 +41,7 @@ export function getOfferGovernanceWindow(
     isFreeCancelWindow: canEditUntilMs > 0 && now <= canEditUntilMs + FREE_CANCEL_BUFFER_MS,
     isVoluntaryWithdrawWindow:
       canEditUntilMs > 0 && now > canEditUntilMs && now < voluntaryEndMs,
-    voluntaryEndDate: new Date(voluntaryEndMs),
+    voluntaryEndDate: new Date(voluntaryEndMs).toISOString(),
     canEditUntilDate: offer.canEditUntil ? new Date(offer.canEditUntil) : null,
   };
 }

@@ -85,8 +85,15 @@ export const MerchantStoreTierProgress: React.FC<MerchantStoreTierProgressProps>
               ? storeTiers[currentTierIdx + 1]
               : null;
 
+    const ratingVal = performanceSnap?.rankingBreakdown?.rating ?? stats.rating ?? 0;
+    const ordersVal = performanceSnap?.completedOrdersCount ?? stats.completedOrders ?? 0;
+    const salesVal = Number(stats.totalSales || 0);
+    const hasNoActivity = ratingVal <= 0 && ordersVal <= 0 && salesVal <= 0;
+
     const segmentProgress = nextTier
-        ? Math.max(0, Math.min(performanceSnap?.progressToNext?.percent ?? 0, 100))
+        ? hasNoActivity
+            ? 0
+            : Math.max(0, Math.min(performanceSnap?.progressToNext?.percent ?? 0, 100))
         : 100;
 
     const totalProgress =

@@ -121,17 +121,18 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
     const handleToggleStatus = async () => {
         if (!customer) return;
 
-        // If already suspended, unban directly with loading
-        if (customer.status === 'SUSPENDED') {
+        if (customer.status === 'SUSPENDED' || customer.status === 'BLOCKED') {
             setIsBanning(true);
             try {
-                await toggleStatus(customer.id);
-                setCustomer(prev => prev ? { ...prev, status: 'ACTIVE' } : null);
+                await toggleStatus(customer.id, undefined, customer.status);
+                await loadData(true);
+                window.alert(isAr ? 'تم تنشيط الحساب بنجاح' : 'Account activated successfully');
+            } catch {
+                window.alert(isAr ? 'فشل تنشيط الحساب' : 'Failed to activate account');
             } finally {
                 setIsBanning(false);
             }
         } else {
-            // Open modal to ask for reason before banning
             setBanReason('');
             setIsBanModalOpen(true);
         }
@@ -141,9 +142,13 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
         if (!customer || !banReason.trim()) return;
         setIsBanning(true);
         try {
-            await toggleStatus(customer.id, banReason);
-            setCustomer(prev => prev ? { ...prev, status: 'SUSPENDED' } : null);
+            await toggleStatus(customer.id, banReason, customer.status);
+            await loadData(true);
             setIsBanModalOpen(false);
+            setBanReason('');
+            window.alert(isAr ? 'تم حظر الحساب بنجاح' : 'Account suspended successfully');
+        } catch {
+            window.alert(isAr ? 'فشل حظر الحساب' : 'Failed to suspend account');
         } finally {
             setIsBanning(false);
         }
@@ -369,8 +374,52 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
 
     if (!customer) return <div className="text-white p-8 text-center">{isAr ? 'العميل غير موجود' : 'Customer not found'}</div>;
 
+    const isCustomerBanned = customer.status === 'SUSPENDED' || customer.status === 'BLOCKED';
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+
+            {/* Account Ban Status Banner */}
+            {isCustomerBanned && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-1 rounded-3xl bg-gradient-to-r from-red-500/20 via-red-600/10 to-red-500/20 border border-red-500/30 overflow-hidden shadow-lg shadow-red-500/10"
+                >
+                    <div className="bg-[#0F0E0D]/80 backdrop-blur-xl p-5 rounded-[22px]">
+                        <div className="flex items-start gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-red-500/20 flex items-center justify-center border border-red-500/30 shrink-0">
+                                <Lock size={28} className="text-red-500" />
+                            </div>
+                            <div className="space-y-2 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="text-lg font-black text-white">
+                                        {isAr ? 'حظر على حساب العميل' : 'Customer Account Suspended'}
+                                    </h3>
+                                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                                        {isAr ? 'محظور' : 'Banned'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-white/50">
+                                    {isAr
+                                        ? 'لا يمكن للعميل الوصول إلى المنصة حتى يتم تنشيط الحساب.'
+                                        : 'The customer cannot access the platform until the account is reactivated.'}
+                                </p>
+                                {customer.suspendReason && (
+                                    <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1.5">
+                                            {isAr ? 'سبب الحظر' : 'Ban Reason'}
+                                        </p>
+                                        <p className="text-sm text-white/90 font-medium leading-relaxed">
+                                            {customer.suspendReason}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
 
             {/* Phase 3: Premium Hero Section (Identity + Actions + Metrics) */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1A1814] to-[#0A0908] border border-white/5 shadow-2xl">
@@ -411,6 +460,11 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                                             <Smartphone size={14} /> {customer.phone || '---'}
                                         </p>
                                     </BlurredSection>
+                                    {isCustomerBanned && (
+                                        <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30">
+                                            {isAr ? 'حساب محظور' : 'Account Banned'}
+                                        </span>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
@@ -446,7 +500,11 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between px-2 mb-1">
                                     <span className="text-[10px] font-black text-white/30 uppercase tracking-wide">{isAr ? 'مركز التحكم' : 'Action Hub'}</span>
-                                    <div className={`w-2 h-2 rounded-full ${customer.status === 'ACTIVE' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500 animate-pulse'}`} />
+                                    <div className={`w-2 h-2 rounded-full ${
+                                        customer.status === 'ACTIVE'
+                                            ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]'
+                                            : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-pulse'
+                                    }`} />
                                 </div>
                                 <button
                                     onClick={openEditModal}
@@ -467,13 +525,22 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                                     <button
                                         onClick={handleToggleStatus}
                                         disabled={isBanning}
-                                        className={`w-full py-3.5 font-black text-xs uppercase tracking-[0.1em] rounded-2xl hover:scale-[1.02] transition-all shadow-lg flex items-center justify-center gap-2 group disabled:opacity-50 disabled:scale-100 ${customer.status === 'ACTIVE'
+                                        className={`w-full py-3.5 font-black text-xs uppercase tracking-[0.1em] rounded-2xl hover:scale-[1.02] transition-all shadow-lg flex items-center justify-center gap-2 group disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed ${customer.status === 'ACTIVE'
                                                 ? 'bg-red-500 text-white shadow-red-500/20'
                                                 : 'bg-green-500 text-[#0F0E0D] shadow-green-500/20'
                                             }`}
                                     >
-                                        {isBanning ? <Loader2 size={16} className="animate-spin" /> : (customer.status === 'ACTIVE' ? <Lock size={16} /> : <Unlock size={16} />)}
-                                        {customer.status === 'ACTIVE' ? (isAr ? 'حظر الحساب' : 'Suspend Account') : (isAr ? 'تنشيط الحساب' : 'Activate Account')}
+                                        {isBanning ? (
+                                            <>
+                                                <Loader2 size={16} className="animate-spin" />
+                                                {isAr ? 'جاري التنفيذ...' : 'Processing...'}
+                                            </>
+                                        ) : (
+                                            <>
+                                                {customer.status === 'ACTIVE' ? <Lock size={16} /> : <Unlock size={16} />}
+                                                {customer.status === 'ACTIVE' ? (isAr ? 'حظر الحساب' : 'Suspend Account') : (isAr ? 'تنشيط الحساب' : 'Activate Account')}
+                                            </>
+                                        )}
                                     </button>
 
                                     <button
@@ -1453,7 +1520,8 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                                         <textarea
                                             value={banReason}
                                             onChange={(e) => setBanReason(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 focus:outline-none focus:border-red-500/50 transition-all font-medium min-h-[120px] resize-none"
+                                            disabled={isBanning}
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 focus:outline-none focus:border-red-500/50 transition-all font-medium min-h-[120px] resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                                             placeholder={isAr ? 'اكتب سبب الحظر هنا ليتم توثيقه...' : 'Enter the reason for suspension for the audit log...'}
                                         />
                                     </div>
@@ -1477,10 +1545,19 @@ export const AdminCustomerProfile: React.FC<AdminCustomerProfileProps> = ({ cust
                                     <button
                                         onClick={handleConfirmBan}
                                         disabled={isBanning || !banReason.trim()}
-                                        className="flex-[2] py-4 rounded-2xl bg-red-500 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-red-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+                                        className="flex-[2] py-4 rounded-2xl bg-red-500 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-red-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                     >
-                                        {isBanning ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
-                                        {isAr ? 'تأكيد الحظر' : 'Confirm Suspension'}
+                                        {isBanning ? (
+                                            <>
+                                                <Loader2 size={16} className="animate-spin" />
+                                                {isAr ? 'جاري تنفيذ الحظر...' : 'Applying ban...'}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Lock size={16} />
+                                                {isAr ? 'تأكيد الحظر' : 'Confirm Suspension'}
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             </div>

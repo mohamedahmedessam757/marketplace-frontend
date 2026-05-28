@@ -198,33 +198,28 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            // 1. Deduct points
-            const newBalance = currentPoints - amount;
-            const { error: updateError } = await supabase
-                .from('users')
-                .update({ loyalty_points: newBalance })
-                .eq('id', userId);
+            const token = localStorage.getItem('access_token');
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/loyalty/redeem`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ amount, description }),
+            });
 
-            if (updateError) throw updateError;
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.message || 'Failed to redeem points');
+            }
 
-            // 2. Add Transaction
-            const { data: tx, error: txError } = await supabase
-                .from('loyalty_transactions')
-                .insert([{
-                    user_id: userId,
-                    points: -amount,
-                    type: 'REDEEM',
-                    description: description
-                }])
-                .select()
-                .single();
-
-            if (txError) throw txError;
-
-            // 3. Update Local State
+            const data = await response.json();
             set(state => ({
-                points: newBalance,
-                transactions: [tx, ...state.transactions]
+                points: data.points,
+                loyaltyPoints: data.points,
+                transactions: data.transaction
+                    ? [data.transaction, ...state.transactions]
+                    : state.transactions,
             }));
 
             return true;

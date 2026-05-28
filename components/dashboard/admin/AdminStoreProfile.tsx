@@ -10,7 +10,7 @@ import {
     Wallet, Smartphone, Tablet, Monitor, Verified, Shield, Award, TrendingUp,
     Clock, ShieldAlert, ShoppingCart, Package, Sliders, Loader2, Lock, RotateCcw,
     MessageSquare, Truck, AlertOctagon, Scale, Gavel, Trophy, PlusCircle, AlertTriangle,
-    Link as LinkIcon, ArrowUpRight, RefreshCw
+    Link as LinkIcon, ArrowUpRight, RefreshCw, Edit3, Undo2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storesApi } from '../../../services/api/stores';
@@ -34,11 +34,43 @@ interface AdminStoreProfileProps {
     onNavigate?: (path: string, id?: any) => void;
 }
 
+type OfferGovernanceEvent = {
+    id: string;
+    kind: string;
+    orderId?: string | null;
+    orderNumber?: string | null;
+    offerNumber?: string | null;
+    timestamp: string;
+};
+
+function formatGovTimestamp(ts: string, isAr: boolean) {
+    return new Date(ts).toLocaleString(isAr ? 'ar-EG' : 'en-GB', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+}
+
+function getModificationKindLabel(kind: string, isAr: boolean) {
+    const labels: Record<string, { ar: string; en: string; color: string }> = {
+        EDIT: { ar: 'تعديل عرض', en: 'Offer edit', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+        CANCEL: { ar: 'إلغاء عرض (نافذة مجانية)', en: 'Offer cancelled (free window)', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+        VOLUNTARY_WITHDRAW: { ar: 'انسحاب طوعي', en: 'Voluntary withdrawal', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+        VIOLATION_WITHDRAW: { ar: 'سحب عرض (حوكمة)', en: 'Governance withdrawal', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+    };
+    const entry = labels[kind] || { ar: kind, en: kind, color: 'text-white/60 bg-white/5 border-white/10' };
+    return { label: isAr ? entry.ar : entry.en, color: entry.color };
+}
+
 export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, onBack, onNavigate }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
     const { currentStoreProfile, subscribeToStoreProfile, unsubscribeFromStoreProfile, silentFetchStoreProfile, isLoadingStores } = useAdminStore();
     const vendor = currentStoreProfile;
+    const offerGov = vendor?.offerGovernance;
     const isSectionBlurred = useAdminPermissionsStore(s => s.isSectionBlurred);
     const canViewTab = useAdminPermissionsStore(s => s.canViewTab);
 
@@ -46,8 +78,9 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
     const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'disputes' | 'reviews' | 'financial' | 'sessions' | 'contract' | 'restrictions'>('overview');
 
     // Local state for modal
-    const [selectedDoc, setSelectedDoc] = useState<{ type: string, title: string, url: string } | null>(null);
+    const [selectedDoc, setSelectedDoc] = useState<{ type: string; title: string; url: string; status?: string } | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [pendingStatusUpdate, setPendingStatusUpdate] = useState<'ACTIVE' | 'BLOCKED' | 'REJECTED' | 'SUSPENDED' | null>(null);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [isBanModalOpen, setIsBanModalOpen] = useState(false);
     const [pendingRestrictionAction, setPendingRestrictionAction] = useState<'UPDATE' | 'CLEAR' | null>(null);
@@ -75,6 +108,13 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
             isLocked: !canViewTab('STORE_PROFILE', tab.permissionKey)
         }));
     }, [canViewTab, isAr, t]);
+
+    const scrollToGovernance = () => {
+        setActiveTab('restrictions');
+        setTimeout(() => {
+            document.getElementById('governance-tab')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
+    };
 
     // Auto-switch logic: Only auto-switch if the user has NO allowed tabs at all
     // If they have locked tabs, let them see the locked state
@@ -115,6 +155,9 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
     // 2026 Admin Management Tools State
     const [isChatModalOpen, setIsChatModalOpen] = useState(false);
     const [financialSubTab, setFinancialSubTab] = useState<'ledger' | 'withdrawals'>('ledger');
+    const [suspensionCountdown, setSuspensionCountdown] = useState<string | null>(null);
+
+    const isBanActionLoading = pendingStatusUpdate === 'SUSPENDED' || pendingStatusUpdate === 'BLOCKED';
 
     // 2026 Re-verification Modal State
     const [reuploadModal, setReuploadModal] = useState<{
@@ -137,6 +180,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
 
     const handleStatusUpdate = async (newStatus: 'ACTIVE' | 'BLOCKED' | 'REJECTED' | 'SUSPENDED', reason?: string, days?: number) => {
         if (!vendorId) return;
+        setPendingStatusUpdate(newStatus);
         setIsUpdating(true);
         try {
             let suspendedUntil: string | undefined = undefined;
@@ -163,6 +207,7 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
             window.alert('Failed to update status');
         } finally {
             setIsUpdating(false);
+            setPendingStatusUpdate(null);
         }
     };
 
@@ -541,6 +586,43 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
         }
     }, [vendor?.id]); // Only reset when store changes
 
+    React.useEffect(() => {
+        if (vendor?.status !== 'SUSPENDED' || !vendor?.suspendedUntil) {
+            setSuspensionCountdown(null);
+            return;
+        }
+
+        const updateCountdown = () => {
+            const remainingMs = new Date(vendor.suspendedUntil).getTime() - Date.now();
+            if (remainingMs <= 0) {
+                setSuspensionCountdown(isAr ? 'انتهت مدة الإيقاف' : 'Suspension expired');
+                return;
+            }
+
+            const totalSeconds = Math.floor(remainingMs / 1000);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            if (days > 0) {
+                setSuspensionCountdown(
+                    isAr
+                        ? `${days} ${days === 1 ? 'يوم' : 'أيام'} ${hours} ${hours === 1 ? 'ساعة' : 'ساعات'} ${minutes} ${minutes === 1 ? 'دقيقة' : 'دقائق'}`
+                        : `${days}d ${hours}h ${minutes}m`
+                );
+            } else {
+                setSuspensionCountdown(
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+                );
+            }
+        };
+
+        updateCountdown();
+        const interval = setInterval(updateCountdown, 1000);
+        return () => clearInterval(interval);
+    }, [vendor?.status, vendor?.suspendedUntil, isAr]);
+
     if (isLoadingStores || !vendor) {
         return (
             <div className="flex flex-col items-center justify-center p-20 space-y-4 text-white/20">
@@ -627,9 +709,16 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                 <button
                                     onClick={() => handleStatusUpdate('REJECTED', rejectionReason)}
                                     disabled={!rejectionReason.trim() || isUpdating}
-                                    className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    {isAr ? 'تأكيد الرفض' : 'Confirm Reject'}
+                                    {pendingStatusUpdate === 'REJECTED' ? (
+                                        <>
+                                            <Loader2 size={16} className="animate-spin" />
+                                            {isAr ? 'جاري الرفض...' : 'Rejecting...'}
+                                        </>
+                                    ) : (
+                                        isAr ? 'تأكيد الرفض' : 'Confirm Reject'
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -656,15 +745,19 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                             <div className="space-y-6">
                                 <div className="grid grid-cols-2 gap-3">
                                     <button
+                                        type="button"
                                         onClick={() => setBanType('SUSPENDED')}
-                                        className={`p-4 rounded-xl border transition-all text-center ${banType === 'SUSPENDED' ? 'bg-orange-500/20 border-orange-500 text-white' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}
+                                        disabled={isBanActionLoading}
+                                        className={`p-4 rounded-xl border transition-all text-center disabled:opacity-50 disabled:cursor-not-allowed ${banType === 'SUSPENDED' ? 'bg-orange-500/20 border-orange-500 text-white' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}
                                     >
                                         <Activity className="mx-auto mb-2" />
                                         <div className="text-xs font-bold uppercase tracking-wider">{isAr ? 'إيقاف مؤقت' : 'Temporary'}</div>
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={() => setBanType('BLOCKED')}
-                                        className={`p-4 rounded-xl border transition-all text-center ${banType === 'BLOCKED' ? 'bg-red-500/20 border-red-500 text-white' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}
+                                        disabled={isBanActionLoading}
+                                        className={`p-4 rounded-xl border transition-all text-center disabled:opacity-50 disabled:cursor-not-allowed ${banType === 'BLOCKED' ? 'bg-red-500/20 border-red-500 text-white' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'}`}
                                     >
                                         <XCircle className="mx-auto mb-2" />
                                         <div className="text-xs font-bold uppercase tracking-wider">{isAr ? 'حظر دائم' : 'Permanent'}</div>
@@ -677,7 +770,8 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                         <select
                                             value={suspensionDays}
                                             onChange={(e) => setSuspensionDays(Number(e.target.value))}
-                                            className="w-full bg-[#0F0E0C] border border-white/10 rounded-xl p-4 text-white focus:border-orange-500/50 outline-none"
+                                            disabled={isBanActionLoading}
+                                            className="w-full bg-[#0F0E0C] border border-white/10 rounded-xl p-4 text-white focus:border-orange-500/50 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <option value={3}>3 {isAr ? 'أيام' : 'Days'}</option>
                                             <option value={7}>7 {isAr ? 'أيام' : 'Days'}</option>
@@ -693,29 +787,124 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                     <textarea
                                         value={rejectionReason}
                                         onChange={(e) => setRejectionReason(e.target.value)}
-                                        className="w-full h-24 bg-[#0F0E0C] border border-white/10 rounded-xl p-4 text-white text-sm focus:border-orange-500/50 outline-none resize-none"
+                                        disabled={isBanActionLoading}
+                                        className="w-full h-24 bg-[#0F0E0C] border border-white/10 rounded-xl p-4 text-white text-sm focus:border-orange-500/50 outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
                                 </div>
 
                                 <div className="flex gap-3 pt-4">
                                     <button
+                                        type="button"
                                         onClick={() => setIsBanModalOpen(false)}
-                                        className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all"
+                                        disabled={isBanActionLoading}
+                                        className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {t.admin.storeProfile.banModal.cancel}
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={() => handleStatusUpdate(banType, rejectionReason, suspensionDays)}
                                         disabled={!rejectionReason.trim() || isUpdating}
-                                        className={`flex-1 py-4 text-white font-black rounded-xl transition-all disabled:opacity-50 ${banType === 'SUSPENDED' ? 'bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20' : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20'}`}
+                                        className={`flex-1 py-4 text-white font-black rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${banType === 'SUSPENDED' ? 'bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20' : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20'}`}
                                     >
-                                        {t.admin.storeProfile.banModal.confirm}
+                                        {isBanActionLoading ? (
+                                            <>
+                                                <Loader2 size={16} className="animate-spin" />
+                                                {isAr ? 'جاري تنفيذ الإجراء...' : 'Applying action...'}
+                                            </>
+                                        ) : (
+                                            t.admin.storeProfile.banModal.confirm
+                                        )}
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </motion.div>
                 </div>
+            )}
+
+            {/* Store Ban / Suspension Status Banner */}
+            {(vendor.status === 'SUSPENDED' || vendor.status === 'BLOCKED') && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`mb-6 p-1 rounded-3xl border overflow-hidden shadow-lg ${
+                        vendor.status === 'BLOCKED'
+                            ? 'bg-gradient-to-r from-red-500/20 via-red-600/10 to-red-500/20 border-red-500/30 shadow-red-500/10'
+                            : 'bg-gradient-to-r from-orange-500/20 via-amber-500/10 to-orange-500/20 border-orange-500/30 shadow-orange-500/10'
+                    }`}
+                >
+                    <div className="bg-[#0F0E0D]/80 backdrop-blur-xl p-5 rounded-[22px] flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                        <div className="flex items-start gap-4 flex-1">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shrink-0 ${
+                                vendor.status === 'BLOCKED'
+                                    ? 'bg-red-500/20 border-red-500/30'
+                                    : 'bg-orange-500/20 border-orange-500/30'
+                            }`}>
+                                {vendor.status === 'BLOCKED' ? (
+                                    <Lock size={28} className="text-red-500" />
+                                ) : (
+                                    <Clock size={28} className="text-orange-500 animate-pulse" />
+                                )}
+                            </div>
+                            <div className="space-y-2 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="text-lg font-black text-white">
+                                        {vendor.status === 'BLOCKED'
+                                            ? (isAr ? 'حظر دائم على المتجر' : 'Store Permanently Blocked')
+                                            : (isAr ? 'إيقاف مؤقت على المتجر' : 'Store Temporarily Suspended')}
+                                    </h3>
+                                    <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${
+                                        vendor.status === 'BLOCKED'
+                                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                            : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                                    }`}>
+                                        {vendor.status === 'BLOCKED'
+                                            ? (isAr ? 'حظر دائم' : 'Permanent')
+                                            : (isAr ? 'إيقاف مؤقت' : 'Temporary')}
+                                    </span>
+                                </div>
+
+                                {vendor.status === 'SUSPENDED' && vendor.suspendedUntil && (
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-2">
+                                            <Clock size={14} className="text-orange-400" />
+                                            <span className="text-[10px] font-black text-orange-400/80 uppercase tracking-widest">
+                                                {isAr ? 'المدة المتبقية' : 'Time Remaining'}
+                                            </span>
+                                            <span className="text-lg font-mono font-black text-orange-300 tabular-nums" dir="ltr">
+                                                {suspensionCountdown || '—'}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] text-white/40 font-medium">
+                                            {isAr ? 'ينتهي في:' : 'Ends:'}{' '}
+                                            <span dir="ltr">
+                                                {new Date(vendor.suspendedUntil).toLocaleString(isAr ? 'ar-EG' : 'en-GB', {
+                                                    year: 'numeric',
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                })}
+                                            </span>
+                                        </span>
+                                    </div>
+                                )}
+
+                                {vendor.rejectionReason && (
+                                    <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1.5">
+                                            {isAr ? 'سبب الإجراء' : 'Action Reason'}
+                                        </p>
+                                        <p className="text-sm text-white/90 font-medium leading-relaxed">
+                                            {vendor.rejectionReason}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
             )}
 
             {/* Active Restrictions Banner */}
@@ -762,13 +951,60 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                         )}
 
                         <button
-                            onClick={() => {
-                                const el = document.getElementById('governance-tab');
-                                if (el) el.scrollIntoView({ behavior: 'smooth' });
-                            }}
+                            onClick={scrollToGovernance}
                             className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all"
                         >
                             {isAr ? 'إدارة القيود' : 'Manage Restrictions'}
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Offer modification rate alert */}
+            {offerGov && (offerGov.exceedsThreshold || (offerGov.events?.length ?? 0) > 0) && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`mb-6 p-1 rounded-3xl border overflow-hidden shadow-lg ${
+                        offerGov.exceedsThreshold
+                            ? 'bg-gradient-to-r from-orange-500/20 via-red-500/20 to-orange-500/20 border-orange-500/30 shadow-orange-500/10'
+                            : 'bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-blue-500/10 border-blue-500/20 shadow-blue-500/5'
+                    }`}
+                >
+                    <div className="bg-[#0F0E0D]/80 backdrop-blur-xl p-4 rounded-[22px] flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+                                offerGov.exceedsThreshold
+                                    ? 'bg-orange-500/20 border-orange-500/30'
+                                    : 'bg-blue-500/20 border-blue-500/30'
+                            }`}>
+                                <RefreshCw className={`${offerGov.exceedsThreshold ? 'text-orange-400 animate-pulse' : 'text-blue-400'}`} size={22} />
+                            </div>
+                            <div>
+                                <h4 className="text-white font-black uppercase tracking-widest text-sm">
+                                    {offerGov.exceedsThreshold
+                                        ? (isAr ? 'تنبيه: معدل تعديل العروض مرتفع' : 'Alert: High offer modification rate')
+                                        : (isAr ? 'سجل تعديلات العروض' : 'Offer modification log')}
+                                </h4>
+                                <p className="text-xs text-white/50 mt-1">
+                                    {isAr
+                                        ? `معدل التعديل الحالي: ${offerGov.modificationRatePercent}% — ${offerGov.editCount} تعديل + ${offerGov.withdrawalCount} سحب / ${offerGov.totalOffersSent} عرض`
+                                        : `Current rate: ${offerGov.modificationRatePercent}% — ${offerGov.editCount} edits + ${offerGov.withdrawalCount} withdrawals / ${offerGov.totalOffersSent} offers`}
+                                </p>
+                                {(offerGov.events?.length ?? 0) > 0 && (
+                                    <p className="text-[10px] text-white/30 mt-0.5">
+                                        {isAr
+                                            ? `${offerGov.events.length} حدث مسجّل — آخر: ${formatGovTimestamp(offerGov.events[0].timestamp, isAr)}`
+                                            : `${offerGov.events.length} logged event(s) — latest: ${formatGovTimestamp(offerGov.events[0].timestamp, isAr)}`}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        <button
+                            onClick={scrollToGovernance}
+                            className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all"
+                        >
+                            {isAr ? 'عرض التفاصيل' : 'View details'}
                         </button>
                     </div>
                 </motion.div>
@@ -808,6 +1044,17 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                     <p className="text-gold-500/60 font-mono text-sm uppercase tracking-wide flex items-center justify-center md:justify-start gap-2">
                                         <Hash size={14} /> {vendor.storeCode || 'ST-0000'}
                                     </p>
+                                    {(vendor.status === 'SUSPENDED' || vendor.status === 'BLOCKED') && (
+                                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${
+                                            vendor.status === 'BLOCKED'
+                                                ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                                                : 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                                        }`}>
+                                            {vendor.status === 'BLOCKED'
+                                                ? (isAr ? 'حظر دائم' : 'Permanently Blocked')
+                                                : (isAr ? 'إيقاف مؤقت' : 'Temporarily Suspended')}
+                                        </span>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
@@ -841,7 +1088,15 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                         <div className="w-full lg:w-72 space-y-3">
                             <div className="flex items-center justify-between px-2 mb-2">
                                 <span className="text-[10px] font-black text-white/30 uppercase tracking-wide">{isAr ? 'مركز التحكم' : 'Action Hub'}</span>
-                                <div className={`w-2 h-2 rounded-full ${vendor.status === 'ACTIVE' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500 animate-pulse'}`} />
+                                <div className={`w-2 h-2 rounded-full ${
+                                    vendor.status === 'ACTIVE'
+                                        ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]'
+                                        : vendor.status === 'BLOCKED'
+                                            ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-pulse'
+                                            : vendor.status === 'SUSPENDED'
+                                                ? 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)] animate-pulse'
+                                                : 'bg-yellow-500 animate-pulse'
+                                }`} />
                             </div>
 
                             <div className="grid grid-cols-1 gap-2">
@@ -849,10 +1104,19 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
                                     <button
                                         onClick={() => handleStatusUpdate('ACTIVE')}
                                         disabled={isUpdating}
-                                        className="w-full py-3.5 bg-green-500 text-[#0F0E0D] font-black text-xs uppercase tracking-[0.1em] rounded-2xl hover:bg-green-400 hover:scale-[1.02] transition-all shadow-lg shadow-green-500/20 flex items-center justify-center gap-2 group"
+                                        className="w-full py-3.5 bg-green-500 text-[#0F0E0D] font-black text-xs uppercase tracking-[0.1em] rounded-2xl hover:bg-green-400 hover:scale-[1.02] transition-all shadow-lg shadow-green-500/20 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
                                     >
-                                        <CheckCircle2 size={16} className="group-hover:rotate-12 transition-transform" />
-                                        {isAr ? 'تنشيط المتجر الآن' : 'Unleash Store (Approve)'}
+                                        {pendingStatusUpdate === 'ACTIVE' ? (
+                                            <>
+                                                <Loader2 size={16} className="animate-spin" />
+                                                {isAr ? 'جاري التنشيط...' : 'Activating store...'}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle2 size={16} className="group-hover:rotate-12 transition-transform" />
+                                                {isAr ? 'تنشيط المتجر الآن' : 'Unleash Store (Approve)'}
+                                            </>
+                                        )}
                                     </button>
                                 )}
 
@@ -2285,6 +2549,130 @@ export const AdminStoreProfile: React.FC<AdminStoreProfileProps> = ({ vendorId, 
 
                             {activeTab === 'restrictions' && (
                                 <div className="space-y-6">
+                                    {/* Offer governance — modification rate & per-order history */}
+                                    {offerGov && (
+                                        <div id="governance-tab">
+                                            <GlassCard className="p-6 space-y-6 relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                                                <RefreshCw size={80} />
+                                            </div>
+                                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-lg border ${
+                                                        offerGov.exceedsThreshold
+                                                            ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                                                            : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                                                    }`}>
+                                                        <RefreshCw size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-lg font-bold text-white">
+                                                            {isAr ? 'حوكمة العروض — معدل التعديل' : 'Offer governance — modification rate'}
+                                                        </h3>
+                                                        <p className="text-xs text-white/40 mt-0.5">
+                                                            {isAr
+                                                                ? 'كل تعديل / إلغاء / انسحاب يُسجّل مع رقم الطلب والوقت'
+                                                                : 'Each edit, cancel, or withdrawal is logged with order # and time'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className={`px-4 py-2 rounded-xl border text-center min-w-[120px] ${
+                                                    offerGov.exceedsThreshold
+                                                        ? 'bg-orange-500/10 border-orange-500/30'
+                                                        : 'bg-white/5 border-white/10'
+                                                }`}>
+                                                    <div className={`text-2xl font-black tabular-nums ${
+                                                        offerGov.exceedsThreshold ? 'text-orange-400' : 'text-white'
+                                                    }`}>
+                                                        {offerGov.modificationRatePercent}%
+                                                    </div>
+                                                    <div className="text-[9px] font-black text-white/40 uppercase tracking-widest">
+                                                        {isAr ? 'معدل التعديل' : 'Mod rate'}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                {[
+                                                    { label: isAr ? 'إجمالي العروض' : 'Total offers', value: offerGov.totalOffersSent, icon: Package },
+                                                    { label: isAr ? 'تعديلات' : 'Edits', value: offerGov.editCount, icon: Edit3 },
+                                                    { label: isAr ? 'سحوبات' : 'Withdrawals', value: offerGov.withdrawalCount, icon: Undo2 },
+                                                    {
+                                                        label: isAr ? 'الحد (5%)' : 'Threshold (5%)',
+                                                        value: offerGov.exceedsThreshold ? (isAr ? 'تجاوز' : 'Exceeded') : (isAr ? 'ضمن' : 'OK'),
+                                                        icon: AlertTriangle,
+                                                        warn: offerGov.exceedsThreshold,
+                                                    },
+                                                ].map((stat, i) => (
+                                                    <div key={i} className="bg-black/30 border border-white/5 rounded-2xl p-4 space-y-2">
+                                                        <div className="flex items-center gap-2 text-white/30">
+                                                            <stat.icon size={14} />
+                                                            <span className="text-[9px] font-black uppercase tracking-widest">{stat.label}</span>
+                                                        </div>
+                                                        <div className={`text-xl font-black tabular-nums ${stat.warn ? 'text-orange-400' : 'text-white'}`}>
+                                                            {stat.value}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">
+                                                    {isAr ? 'سجل التعديلات حسب الطلب' : 'Modification history by order'}
+                                                </h4>
+                                                {(offerGov.events?.length ?? 0) === 0 ? (
+                                                    <div className="text-center py-10 text-white/30 text-sm border border-dashed border-white/10 rounded-2xl">
+                                                        {isAr ? 'لا توجد تعديلات مسجّلة بعد' : 'No modification events recorded yet'}
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                                                        {offerGov.events.map((evt: OfferGovernanceEvent) => {
+                                                            const { label, color } = getModificationKindLabel(evt.kind, isAr);
+                                                            return (
+                                                                <div
+                                                                    key={evt.id}
+                                                                    className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-2xl transition-colors"
+                                                                >
+                                                                    <div className="flex items-center gap-3 min-w-0">
+                                                                        <span className={`text-[10px] font-black uppercase tracking-tighter px-2.5 py-1 rounded-lg border shrink-0 ${color}`}>
+                                                                            {label}
+                                                                        </span>
+                                                                        <div className="min-w-0">
+                                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                                <span className="text-sm font-bold text-white font-mono">
+                                                                                    #{evt.orderNumber || evt.orderId?.slice(0, 8) || '—'}
+                                                                                </span>
+                                                                                {evt.offerNumber && (
+                                                                                    <span className="text-[10px] text-white/30 font-mono">
+                                                                                        {isAr ? 'عرض' : 'Offer'} {evt.offerNumber}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <p className="text-[10px] text-white/40 mt-0.5" dir="ltr">
+                                                                                {formatGovTimestamp(evt.timestamp, isAr)}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    {evt.orderId && onNavigate && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => onNavigate('admin-order-details', evt.orderId)}
+                                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-black hover:bg-gold-500 border border-gold-500/30 rounded-xl transition-all shrink-0"
+                                                                        >
+                                                                            {isAr ? 'الطلب' : 'Order'}
+                                                                            <ArrowUpRight size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            </GlassCard>
+                                        </div>
+                                    )}
+
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {/* Financial Restrictions */}
                                         <GlassCard className="p-6 space-y-6 relative overflow-hidden group">

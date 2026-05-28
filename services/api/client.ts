@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_URL } from './config';
+import { clearAuthStorage } from '../../utils/clearAuthStorage';
 
 export const client = axios.create({
     baseURL: API_URL,
@@ -24,7 +25,10 @@ client.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            console.warn('Unauthorized');
+            clearAuthStorage();
+            if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+                window.location.href = '/';
+            }
         }
         return Promise.reject(error);
     }
