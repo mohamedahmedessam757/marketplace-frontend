@@ -275,22 +275,26 @@ export const subscribeToWalletUpdates = () => {
         .on(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'payment_transactions', filter: `customer_id=eq.${userId}` },
-            (payload) => {
-                const newTx = payload.new as any;
-                useCustomerWalletStore.getState().addTransactionLocally({
-                    id: newTx.id,
-                    orderId: newTx.order_id,
-                    amount: Number(newTx.amount),
-                    transactionType: newTx.transaction_type,
-                    type: newTx.type,
-                    currency: newTx.currency,
-                    status: newTx.status,
-                    createdAt: newTx.created_at,
-                    order: newTx.order,
-                    metadata: newTx.metadata
-                });
+            () => {
                 useCustomerWalletStore.getState().fetchWalletData(true);
             }
+        )
+        .on(
+            'postgres_changes',
+            {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'payment_transactions',
+                filter: `customer_id=eq.${userId}`,
+            },
+            (payload) => {
+                if (
+                    (payload.new as any).status === 'SUCCESS' &&
+                    (payload.old as any)?.status !== 'SUCCESS'
+                ) {
+                    useCustomerWalletStore.getState().fetchWalletData(true);
+                }
+            },
         );
 
     const userChannel = supabase

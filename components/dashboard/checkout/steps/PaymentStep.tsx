@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useCheckoutStore } from '../../../../stores/useCheckoutStore';
 import { useOrderStore } from '../../../../stores/useOrderStore';
 import { useLanguage } from '../../../../contexts/LanguageContext';
@@ -7,12 +7,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { StripePaymentForm } from '../StripePaymentForm';
 import { supabase } from '../../../../services/supabase';
 import { cardsApi, UserCard } from '../../../../services/api/cards';
+import { paymentsApi } from '../../../../services/api/payments';
 import { CreditCard } from 'lucide-react';
 import {
   areAllAcceptedOffersPaid,
+  collectPaidOfferIdsFromOrder,
   getAcceptedOffersFromList,
-  isOfferPaid,
+  isOfferConsideredPaid,
 } from '../../../../utils/checkoutPaymentHelpers';
+import { formatApiErrorMessage } from '../../../../utils/formatApiErrorMessage';
 
 export const PaymentStep: React.FC = () => {
   const { t, language } = useLanguage();
@@ -40,8 +43,11 @@ export const PaymentStep: React.FC = () => {
   const [isPreparing, setIsPreparing] = useState(false);
   const [savedCards, setSavedCards] = useState<UserCard[]>([]);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  /** When true, show Stripe PaymentElement instead of saved-card quick pay */
+  const [useNewCard, setUseNewCard] = useState(false);
   /** Client secrets from expand-prefetch — avoids a second create-intent on Pay click */
   const [prefetchedSecrets, setPrefetchedSecrets] = useState<Record<string, string>>({});
+  const paymentSuccessHandledRef = useRef(new Set<string>());
 
   // UI state
   const [expandedOfferId, setExpandedOfferId] = useState<string | null>(null);
@@ -60,10 +66,38 @@ export const PaymentStep: React.FC = () => {
     [currentOrder?.offers],
   );
 
+  const mergedPaidOfferIds = useMemo(() => {
+    const fromOrder = currentOrder
+      ? collectPaidOfferIdsFromOrder(currentOrder)
+      : [];
+    return [
+      ...new Set([...paidOfferIds.map(String), ...fromOrder]),
+    ];
+  }, [paidOfferIds, currentOrder]);
+
+  /** Active Stripe session — ignore stale lock on an offer already paid. */
+  const effectiveActivePaymentOfferId = useMemo(() => {
+    if (!activePaymentOfferId) return null;
+    if (isOfferConsideredPaid(activePaymentOfferId, mergedPaidOfferIds)) {
+      return null;
+    }
+    return activePaymentOfferId;
+  }, [activePaymentOfferId, mergedPaidOfferIds]);
+
   useEffect(() => {
     if (!orderId || acceptedOffers.length === 0) return;
     void syncPaidOffersForOrder(acceptedOffers.map((o) => String(o.id)));
   }, [orderId, acceptedOffers, syncPaidOffersForOrder]);
+
+  useEffect(() => {
+    if (
+      activePaymentOfferId &&
+      isOfferConsideredPaid(activePaymentOfferId, mergedPaidOfferIds)
+    ) {
+      setActivePaymentOfferId(null);
+      setActiveClientSecret(null);
+    }
+  }, [activePaymentOfferId, mergedPaidOfferIds]);
 
   const formatCondition = (cond: string) => {
     if (!cond || cond === '---') return '---';
@@ -137,9 +171,14 @@ export const PaymentStep: React.FC = () => {
         if (cards.length > 0) {
           const defaultCard = cards.find(c => c.isDefault) || cards[0];
           setSelectedCardId(defaultCard.id);
+          setUseNewCard(!defaultCard.stripePaymentMethodId);
+        } else {
+          setSelectedCardId(null);
+          setUseNewCard(true);
         }
       } catch (err) {
         console.error('Failed to fetch saved cards:', err);
+        setUseNewCard(true);
       }
     };
     fetchCards();
@@ -165,7 +204,7 @@ export const PaymentStep: React.FC = () => {
         (payload) => {
           if (payload.new.status === 'SUCCESS') {
             const offerId = String(payload.new.offer_id);
-            if (!isOfferPaid(offerId, paidOfferIds)) {
+            if (!isOfferConsideredPaid(offerId, mergedPaidOfferIds)) {
               useCheckoutStore.setState((state) => ({
                 paidOfferIds: [
                   ...new Set([...state.paidOfferIds.map(String), offerId]),
@@ -175,7 +214,6 @@ export const PaymentStep: React.FC = () => {
               if (activePaymentOfferId === offerId) {
                 setActivePaymentOfferId(null);
                 setActiveClientSecret(null);
-                setSuccessMessage(isAr ? '✅ تم تأكيد الدفع بنجاح!' : '✅ Payment confirmed successfully!');
               }
             }
           }
@@ -186,13 +224,19 @@ export const PaymentStep: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orderId, paidOfferIds, activePaymentOfferId, isAr]);
+  }, [orderId, mergedPaidOfferIds, activePaymentOfferId, isAr]);
 
   /**
    * Pre-fetching Logic: Prepare intent when card is expanded (Speed Optimization)
    */
   const handlePreFetchIntent = async (offerId: string) => {
-    if (isOfferPaid(offerId, paidOfferIds) || activePaymentOfferId) return;
+    if (isOfferConsideredPaid(offerId, mergedPaidOfferIds)) return;
+    if (
+      effectiveActivePaymentOfferId &&
+      effectiveActivePaymentOfferId !== offerId
+    ) {
+      return;
+    }
     if (prefetchedSecrets[offerId]) return;
 
     const currentOrderId = String(currentOrder?.id || orderId);
@@ -236,14 +280,39 @@ export const PaymentStep: React.FC = () => {
   /**
    * Step 2: Final Success (Callback from Stripe Component)
    */
-  const handlePaymentSuccess = async () => {
+  const handlePaymentSuccess = async (paymentIntent?: { id?: string }) => {
     const paidId = String(activePaymentOfferId!);
+    const dedupeKey = paymentIntent?.id ? `${paidId}:${paymentIntent.id}` : paidId;
+    if (paymentSuccessHandledRef.current.has(dedupeKey)) return;
+    paymentSuccessHandledRef.current.add(dedupeKey);
+
     useCheckoutStore.setState((state) => ({
       paidOfferIds: [
         ...new Set([...state.paidOfferIds.map(String), paidId]),
       ],
     }));
+
+    // Ensure backend ledger (payment, escrow, wallets) is fulfilled immediately — not only after delivery/webhook
+    if (paymentIntent?.id) {
+      try {
+        await paymentsApi.confirmIntent(paymentIntent.id);
+      } catch (err) {
+        console.warn('Payment confirm-intent:', err);
+      }
+    }
+
     await syncPaidOffersForOrder([paidId]);
+
+    // Sync saved card immediately so Quick Pay works on next offer
+    if (paymentIntent?.id) {
+      try {
+        await cardsApi.syncFromIntent(paymentIntent.id);
+        const cards = await cardsApi.getUserCards();
+        setSavedCards(cards);
+      } catch (err) {
+        console.warn('Card sync after payment:', err);
+      }
+    }
 
     setSuccessMessage(
       isAr
@@ -256,11 +325,19 @@ export const PaymentStep: React.FC = () => {
     setExpandedOfferId(null);
   };
 
+  const selectedSavedCard = selectedCardId
+    ? savedCards.find((c) => c.id === selectedCardId)
+    : null;
+  const activeSavedPaymentMethodId =
+    !useNewCard && selectedSavedCard?.stripePaymentMethodId
+      ? selectedSavedCard.stripePaymentMethodId
+      : null;
+
   const totalOffers = acceptedOffers.length;
   const paidCount = acceptedOffers.filter((o) =>
-    isOfferPaid(o.id, paidOfferIds),
+    isOfferConsideredPaid(o, mergedPaidOfferIds),
   ).length;
-  const allPaid = areAllAcceptedOffersPaid(acceptedOffers, paidOfferIds);
+  const allPaid = areAllAcceptedOffersPaid(acceptedOffers, mergedPaidOfferIds);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300" dir={isAr ? 'rtl' : 'ltr'}>
@@ -382,7 +459,7 @@ export const PaymentStep: React.FC = () => {
           >
             <div className="flex items-center gap-2 flex-1">
               <AlertTriangle size={16} />
-              {paymentError}
+              {formatApiErrorMessage(paymentError)}
             </div>
             <button 
               onClick={() => resetPaymentState()}
@@ -400,9 +477,11 @@ export const PaymentStep: React.FC = () => {
         <h3 className="text-lg font-bold text-white mb-2">{tFR.orderDetails}</h3>
 
         {acceptedOffers.map((offer: any) => {
-          const isPaid = isOfferPaid(offer.id, paidOfferIds);
-          const isPreparing = activePaymentOfferId === offer.id && !activeClientSecret;
-          const isReadyToPay = activePaymentOfferId === offer.id && !!activeClientSecret;
+          const isPaid = isOfferConsideredPaid(offer, mergedPaidOfferIds);
+          const isPreparing =
+            effectiveActivePaymentOfferId === offer.id && !activeClientSecret;
+          const isReadyToPay =
+            effectiveActivePaymentOfferId === offer.id && !!activeClientSecret;
           const isExpanded = expandedOfferId === offer.id;
 
           // Get the real part name from the order parts
@@ -450,7 +529,17 @@ export const PaymentStep: React.FC = () => {
                   if (!isPaid && !isReadyToPay) {
                     const nextExpanded = expandedOfferId === offer.id ? null : offer.id;
                     setExpandedOfferId(nextExpanded);
-                    if (nextExpanded) handlePreFetchIntent(offer.id);
+                    if (nextExpanded) {
+                      if (
+                        activePaymentOfferId &&
+                        activePaymentOfferId !== offer.id
+                      ) {
+                        setActivePaymentOfferId(null);
+                        setActiveClientSecret(null);
+                        clearPaymentError();
+                      }
+                      handlePreFetchIntent(offer.id);
+                    }
                   }
                 }}
               >
@@ -532,13 +621,13 @@ export const PaymentStep: React.FC = () => {
                     className="overflow-hidden bg-black/20"
                   >
                     <div className="px-5 pb-6 pt-2 space-y-4">
-                      {/* ── Saved Cards Quick Select (Visible early for UX) ── */}
+                      {/* ── Saved Cards Quick Select ── */}
                       {savedCards.length > 0 && !isPaid && (
                         <div className="space-y-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
                           <div className="flex items-center justify-between">
                             <p className="text-[10px] font-bold text-gold-500/80 uppercase tracking-widest flex items-center gap-2">
                               <CreditCard size={12} />
-                              {isAr ? 'الدفع السريع بالبطاقات المحفوظة' : 'Quick Pay with Saved Cards'}
+                              {isAr ? 'اختر بطاقة للدفع' : 'Choose a card to pay with'}
                             </p>
                             <span className="text-[9px] text-white/20 uppercase font-mono">
                               {savedCards.length} {isAr ? 'بطاقات' : 'Cards'}
@@ -548,11 +637,15 @@ export const PaymentStep: React.FC = () => {
                             {savedCards.map((card) => (
                               <motion.button
                                 key={card.id}
+                                type="button"
                                 whileHover={{ y: -2 }}
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => setSelectedCardId(card.id)}
+                                onClick={() => {
+                                  setSelectedCardId(card.id);
+                                  setUseNewCard(!card.stripePaymentMethodId);
+                                }}
                                 className={`flex-shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all duration-300 ${
-                                  selectedCardId === card.id
+                                  !useNewCard && selectedCardId === card.id
                                     ? 'bg-gold-500/10 border-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.1)]'
                                     : 'bg-white/5 border-white/5 hover:border-white/10'
                                 }`}
@@ -563,14 +656,43 @@ export const PaymentStep: React.FC = () => {
                                   {card.brand}
                                 </div>
                                 <p className="text-xs font-bold text-white">•••• {card.last4}</p>
-                                {selectedCardId === card.id && <CheckCircle2 size={12} className="text-gold-500" />}
+                                {!useNewCard && selectedCardId === card.id && (
+                                  <CheckCircle2 size={12} className="text-gold-500" />
+                                )}
                               </motion.button>
                             ))}
+                            <motion.button
+                              type="button"
+                              whileHover={{ y: -2 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                setUseNewCard(true);
+                                setSelectedCardId(null);
+                              }}
+                              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed transition-all duration-300 ${
+                                useNewCard
+                                  ? 'bg-gold-500/10 border-gold-500 text-gold-400'
+                                  : 'bg-white/[0.02] border-white/10 text-white/50 hover:border-gold-500/40 hover:text-gold-400'
+                              }`}
+                            >
+                              <CreditCard size={14} />
+                              <span className="text-xs font-bold whitespace-nowrap">
+                                {isAr ? 'بطاقة جديدة' : 'New Card'}
+                              </span>
+                            </motion.button>
                           </div>
+                          {!useNewCard && selectedSavedCard && !selectedSavedCard.stripePaymentMethodId && (
+                            <p className="text-[11px] text-amber-400/80 flex items-center gap-1.5">
+                              <AlertTriangle size={12} />
+                              {isAr
+                                ? 'هذه البطاقة غير مربوطة بـ Stripe — أدخل بياناتها أدناه أو اختر «بطاقة جديدة».'
+                                : 'This card is not linked to Stripe — enter details below or choose «New Card».'}
+                            </p>
+                          )}
                         </div>
                       )}
 
-                      {!activePaymentOfferId ? (
+                      {!effectiveActivePaymentOfferId ? (
                         <motion.button
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
@@ -578,9 +700,12 @@ export const PaymentStep: React.FC = () => {
                           className="w-full py-4 rounded-xl bg-gradient-to-r from-gold-600 via-gold-500 to-gold-600 bg-[length:200%_auto] hover:bg-right transition-all text-black font-extrabold text-sm shadow-[0_10px_20px_rgba(212,175,55,0.2)] flex items-center justify-center gap-2 active:scale-[0.98]"
                         >
                           <Lock size={16} />
-                          {selectedCardId ? (isAr ? 'تأكيد الدفع بالبطاقة المختارة' : 'Confirm & Pay with Card') : (tPay.payForOffer)} — AED {price.toLocaleString()}
+                          {useNewCard || !activeSavedPaymentMethodId
+                            ? (isAr ? 'متابعة الدفع' : 'Continue to Payment')
+                            : (isAr ? 'تأكيد الدفع بالبطاقة المختارة' : 'Confirm & Pay with Selected Card')
+                          } — AED {price.toLocaleString()}
                         </motion.button>
-                      ) : activePaymentOfferId === offer.id ? (
+                      ) : effectiveActivePaymentOfferId === offer.id ? (
                         <div>
                           {isPreparing ? (
                             <div className="flex flex-col items-center justify-center py-8 gap-3">
@@ -615,9 +740,17 @@ export const PaymentStep: React.FC = () => {
                                 <StripePaymentForm 
                                     clientSecret={activeClientSecret}
                                     amount={activeAmount}
-                                    savedPaymentMethodId={savedCards.find(c => c.id === selectedCardId)?.stripePaymentMethodId}
+                                    savedPaymentMethodId={activeSavedPaymentMethodId}
+                                    onSwitchToNewCard={() => {
+                                      setUseNewCard(true);
+                                      setSelectedCardId(null);
+                                    }}
                                     onSuccess={handlePaymentSuccess}
-                                    onError={(err) => useCheckoutStore.setState({ paymentError: err })}
+                                    onError={(err) =>
+                                      useCheckoutStore.setState({
+                                        paymentError: formatApiErrorMessage(err, 'Payment failed'),
+                                      })
+                                    }
                                 />
                             </div>
                           )}

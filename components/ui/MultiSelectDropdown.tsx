@@ -14,6 +14,7 @@ interface MultiSelectDropdownProps {
   searchPlaceholder?: string;
   customInputPlaceholder?: string;
   hasError?: boolean;
+  disabled?: boolean;
 }
 
 export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
@@ -27,6 +28,7 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
   searchPlaceholder,
   customInputPlaceholder,
   hasError = false,
+  disabled = false,
 }) => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
@@ -44,6 +46,10 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (disabled) setIsOpen(false);
+  }, [disabled]);
 
   const filteredItems = items.filter(item => {
     const searchLower = searchTerm.toLowerCase();
@@ -97,9 +103,15 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
       <div className="relative">
         {/* Main Trigger Button */}
         <div
-          onClick={() => setIsOpen(!isOpen)}
-          className={`w-full min-h-[56px] bg-white/5 border rounded-xl px-4 py-2 flex flex-wrap items-center gap-2 cursor-pointer transition-all ${
-            isOpen ? 'border-gold-500 bg-white/10 ring-2 ring-gold-500/20' : 
+          onClick={() => {
+            if (!disabled) setIsOpen(!isOpen);
+          }}
+          className={`w-full min-h-[56px] bg-white/5 border rounded-xl px-4 py-2 flex flex-wrap items-center gap-2 transition-all ${
+            disabled
+              ? 'opacity-50 cursor-not-allowed border-transparent'
+              : 'cursor-pointer'
+          } ${
+            isOpen && !disabled ? 'border-gold-500 bg-white/10 ring-2 ring-gold-500/20' : 
             hasError ? 'border-red-500 ring-2 ring-red-500/50 bg-red-500/5 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 
             'border-white/10 hover:bg-white/10 hover:border-white/20'
           }`}
@@ -116,8 +128,9 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
                   {getDisplayName(id)}
                   <button
                     type="button"
+                    disabled={disabled}
                     onClick={(e) => removeTag(id, e)}
-                    className="hover:text-gold-200 focus:outline-none"
+                    className="hover:text-gold-200 focus:outline-none disabled:pointer-events-none"
                   >
                     <X size={12} />
                   </button>
@@ -133,7 +146,7 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
 
         {/* Dropdown Menu */}
         <AnimatePresence>
-          {isOpen && (
+          {isOpen && !disabled && (
             <motion.div
               initial={{ opacity: 0, y: 10, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -215,7 +228,8 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
                     placeholder={customInputPlaceholder || (isAr ? 'اكتب إضافة مخصصة (أخرى)...' : 'Type custom value (Other)...')}
                     value={customValue || ''}
                     onChange={(e) => onCustomValueChange(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-gold-500 outline-none"
+                    disabled={disabled}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-gold-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
               )}

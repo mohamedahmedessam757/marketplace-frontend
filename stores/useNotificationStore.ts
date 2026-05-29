@@ -22,6 +22,19 @@ function newLocalNotificationId(): string {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+/** One payment-success notification per offer (hides legacy DB duplicates). */
+function dedupePaymentNotifications(rows: Notification[]): Notification[] {
+  const seenOfferIds = new Set<string>();
+  return rows.filter((n) => {
+    if (n.type !== 'payment') return true;
+    const offerId = n.metadata?.offerId != null ? String(n.metadata.offerId) : '';
+    if (!offerId) return true;
+    if (seenOfferIds.has(offerId)) return false;
+    seenOfferIds.add(offerId);
+    return true;
+  });
+}
+
 function mapNotificationRow(n: any): Notification {
   return {
     id: n.id,
@@ -101,7 +114,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     try {
       console.log(`[Notifications] Fetching for user: ${userId} (Role: ${role})`);
       const rows = await notificationsApi.list();
-      const mappedNotifications = (rows || []).map(mapNotificationRow);
+      const mappedNotifications = dedupePaymentNotifications(
+        (rows || []).map(mapNotificationRow),
+      );
 
       if (mappedNotifications.length === 0) {
         console.warn('[Notifications] No notifications returned from API for this user.');
@@ -283,6 +298,19 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       set((state) => {
         if (state.notifications.some((n) => n.id === mapped.id)) return state;
+
+        const paymentOfferId = mapped.metadata?.offerId != null ? String(mapped.metadata.offerId) : null;
+        if (
+          paymentOfferId &&
+          mapped.type === 'payment' &&
+          state.notifications.some(
+            (n) =>
+              n.type === 'payment' &&
+              String(n.metadata?.offerId ?? '') === paymentOfferId,
+          )
+        ) {
+          return state;
+        }
 
         return {
           notifications: [mapped, ...state.notifications],

@@ -158,15 +158,15 @@ export const AdminBilling: React.FC<AdminBillingProps> = ({ onNavigate }) => {
         }
         
         subscribeToFinancials();
-        
-        // TRANSACTIONS Tab logic
+        subscribeToFinancialFeed();
+
+        // TRANSACTIONS Tab — load / refresh ledger
         if (activeTab === 'TRANSACTIONS') {
             if (financialFeed.length === 0) {
-                fetchFinancialFeed(true); // Full initial fetch
+                fetchFinancialFeed(true);
             } else {
-                fetchFinancialFeed(true, true); // Silent refresh of first page
+                fetchFinancialFeed(true, true);
             }
-            subscribeToFinancialFeed();
         }
 
         const handleClickOutside = (event: MouseEvent) => {

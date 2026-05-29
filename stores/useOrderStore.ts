@@ -6,6 +6,7 @@ import { useBillingStore } from './useBillingStore';
 import { ordersApi } from '../services/api/orders';
 import { supabase } from '../services/supabase';
 import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../utils/orderSla';
+import { formatApiErrorMessage } from '../utils/formatApiErrorMessage';
 
 // Module-level debounce timer to prevent realtime spam and race conditions with DB transactions
 let realtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -22,7 +23,7 @@ const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     VERIFICATION: ['VERIFICATION_SUCCESS', 'NON_MATCHING', 'CANCELLED'],
     VERIFICATION_SUCCESS: ['READY_FOR_SHIPPING', 'CANCELLED'],
     READY_FOR_SHIPPING: ['SHIPPED', 'PARTIALLY_SHIPPED', 'CANCELLED'],
-    PARTIALLY_SHIPPED: ['PARTIALLY_SHIPPED', 'SHIPPED', 'CANCELLED'],
+    PARTIALLY_SHIPPED: ['PARTIALLY_SHIPPED', 'SHIPPED', 'DELIVERED', 'CANCELLED'],
     NON_MATCHING: ['CORRECTION_PERIOD', 'CANCELLED'],
     CORRECTION_PERIOD: ['CORRECTION_SUBMITTED', 'CANCELLED'],
     CORRECTION_SUBMITTED: ['VERIFICATION_SUCCESS', 'NON_MATCHING', 'CANCELLED'],
@@ -39,7 +40,7 @@ const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     RETURN_REQUESTED: ['RETURN_APPROVED', 'DISPUTED'],
     RETURN_APPROVED: ['RETURNED'],
     RESOLVED: ['COMPLETED'],
-    PARTIALLY_PAID: ['PREPARATION', 'CANCELLED'],
+    PARTIALLY_PAID: ['AWAITING_PAYMENT', 'PREPARATION', 'CANCELLED'],
     // Shipment Detailed Statuses (Managed via logistics system)
     RECEIVED_AT_HUB: [],
     QUALITY_CHECK_PASSED: [],
@@ -109,10 +110,26 @@ export interface OrderOffer {
     shippedFromCart?: boolean;
     shippedFromCartAt?: string;
     cartShipmentId?: string;
+    cartBatchType?: 'solo' | 'group' | null;
+    cartBatchSize?: number | null;
+    handoverPending?: boolean;
     fulfillmentStatus?: string;
     preparedAt?: string;
     verificationSubmittedAt?: string;
     readyForShippingAt?: string;
+}
+
+/** Grouped-order shipment batch (one customer selection = one shipment + waybill). */
+export interface ShipmentBatchSummary {
+    shipmentId: string;
+    waybillId?: string | null;
+    waybillNumber?: string | null;
+    offerIds: string[];
+    partNames: string[];
+    batchSize: number;
+    shippedAt?: string | null;
+    trigger?: string | null;
+    status?: string;
 }
 
 export interface Order {
@@ -203,6 +220,8 @@ export interface Order {
     waybillImage?: string | File;
     shipments?: any[];
     shippingWaybills?: any[];
+    /** Per cart-shipment batch for grouped orders (from API). */
+    shipmentBatches?: ShipmentBatchSummary[];
     invoices?: any[];
 
     // Returns
@@ -409,6 +428,10 @@ const mergeOrderPreservingDetails = (existing: Order, incoming: Order): Order =>
                 : existing.shippingWaybills,
         shipments:
             incoming.shipments?.length ? incoming.shipments : existing.shipments,
+        shipmentBatches:
+            incoming.shipmentBatches?.length
+                ? incoming.shipmentBatches
+                : existing.shipmentBatches,
     };
 };
 
@@ -663,7 +686,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             });
         } catch (err: any) {
             set({ 
-                error: err.response?.data?.message || 'Failed to fetch orders', 
+                error: formatApiErrorMessage(err, 'Failed to fetch orders'), 
                 isLoading: false 
             });
         }
@@ -796,6 +819,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                     shippedFromCart: !!offer.shippedFromCart,
                     shippedFromCartAt: offer.shippedFromCartAt,
                     cartShipmentId: offer.cartShipmentId,
+                    cartBatchType: offer.cartBatchType ?? null,
+                    cartBatchSize: offer.cartBatchSize ?? null,
+                    handoverPending: offer.handoverPending ?? offer.fulfillmentStatus === 'VERIFICATION_SUCCESS',
                     fulfillmentStatus: offer.fulfillmentStatus || offer.fulfillment_status,
                     preparedAt: offer.preparedAt || offer.prepared_at,
                     verificationSubmittedAt: offer.verificationSubmittedAt || offer.verification_submitted_at,
@@ -831,7 +857,29 @@ export const useOrderStore = create<OrderState>((set, get) => ({
                 verificationSubmittedAt: o.verificationSubmittedAt,
                 correctionDeadlineAt: o.correctionDeadlineAt,
                 shipments: o.shipments || [],
+                shippingAddresses: (o.shippingAddresses || []).map((a: any) => ({
+                    orderPartId: a.orderPartId ?? a.order_part_id ?? null,
+                    fullName: a.fullName ?? a.full_name ?? '',
+                    phone: a.phone ?? '',
+                    email: a.email ?? '',
+                    country: a.country ?? '',
+                    city: a.city ?? '',
+                    details: a.details ?? '',
+                })),
                 shippingWaybills: o.shippingWaybills || [],
+                shipmentBatches: Array.isArray(o.shipmentBatches)
+                    ? o.shipmentBatches.map((b: any) => ({
+                          shipmentId: b.shipmentId,
+                          waybillId: b.waybillId ?? null,
+                          waybillNumber: b.waybillNumber ?? null,
+                          offerIds: b.offerIds || [],
+                          partNames: b.partNames || [],
+                          batchSize: b.batchSize ?? (b.offerIds?.length || 0),
+                          shippedAt: b.shippedAt ?? null,
+                          trigger: b.trigger ?? null,
+                          status: b.status,
+                      }))
+                    : [],
                 invoices: o.invoices || [],
                 warranty_active_at: o.warranty_active_at || o.warrantyActiveAt,
                 warranty_end_at: o.warranty_end_at || o.warrantyEndAt,

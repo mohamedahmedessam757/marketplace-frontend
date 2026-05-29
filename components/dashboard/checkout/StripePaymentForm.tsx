@@ -18,9 +18,17 @@ interface StripePaymentFormProps {
   onError: (error: string) => void;
   amount: number;
   savedPaymentMethodId?: string | null;
+  onSwitchToNewCard?: () => void;
 }
 
-const CheckoutForm: React.FC<StripePaymentFormProps> = ({ onSuccess, onError, amount, savedPaymentMethodId, clientSecret }) => {
+const CheckoutForm: React.FC<StripePaymentFormProps> = ({
+  onSuccess,
+  onError,
+  amount,
+  savedPaymentMethodId,
+  clientSecret,
+  onSwitchToNewCard,
+}) => {
   const stripe = useStripe();
   const elements = useElements();
   const { language } = useLanguage();
@@ -73,8 +81,13 @@ const CheckoutForm: React.FC<StripePaymentFormProps> = ({ onSuccess, onError, am
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {!savedPaymentMethodId ? (
-        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-3">
           <PaymentElement options={{ layout: 'tabs' }} />
+          <p className="text-[11px] text-white/40 text-center">
+            {isAr
+              ? 'سيتم حفظ البطاقة تلقائياً بعد الدفع الناجح لاستخدامها لاحقاً.'
+              : 'Your card will be saved automatically after successful payment for future use.'}
+          </p>
         </div>
       ) : (
         <motion.div 
@@ -88,9 +101,18 @@ const CheckoutForm: React.FC<StripePaymentFormProps> = ({ onSuccess, onError, am
           <div>
             <p className="text-white font-bold">{isAr ? 'جاهز للدفع السريع' : 'Ready for Quick Pay'}</p>
             <p className="text-white/40 text-xs mt-1">
-              {isAr ? 'سيتم استخدام بطاقتك المحفوظة بأمان عبر Stripe' : 'Your saved card will be used securely via Stripe'}
+              {isAr ? 'سيتم استخدام البطاقة المختارة بأمان عبر Stripe' : 'Your selected saved card will be used securely via Stripe'}
             </p>
           </div>
+          {onSwitchToNewCard && (
+            <button
+              type="button"
+              onClick={onSwitchToNewCard}
+              className="text-xs text-gold-400 hover:text-gold-300 underline underline-offset-2 transition-colors"
+            >
+              {isAr ? 'استخدم بطاقة أخرى' : 'Use a different card'}
+            </button>
+          )}
         </motion.div>
       )}
       

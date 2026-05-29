@@ -254,6 +254,13 @@ export const subscribeToMerchantWalletUpdates = (userId: string, storeId?: strin
 
                 useMerchantWalletStore.getState().fetchWallet();
             }
+        )
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'escrow_transactions' },
+            () => {
+                useMerchantWalletStore.getState().fetchWallet();
+            },
         );
 
     if (storeId) {

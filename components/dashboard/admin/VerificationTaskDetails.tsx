@@ -126,7 +126,13 @@ export const VerificationTaskDetails: React.FC<VerificationTaskDetailsProps> = (
   }, []);
 
   const order = task?.order;
-  const doc = order?.verificationDocuments?.[0];
+  const doc = task?.merchantVerificationDoc ?? order?.verificationDocuments?.find(
+    (d: any) => d.offerId === task?.offerId,
+  ) ?? order?.verificationDocuments?.[0];
+  const partLabel =
+    task?.partLabel ||
+    task?.offer?.orderPart?.name ||
+    (isAr ? 'قطعة' : 'Part');
 
   const customerImages = useMemo(() => {
     if (!order) return [];
@@ -299,6 +305,9 @@ export const VerificationTaskDetails: React.FC<VerificationTaskDetailsProps> = (
               <span className="font-mono text-gold-400 text-lg">#{order.orderNumber}</span>
             )}
           </h1>
+          <p className="text-sm text-amber-400/90 font-bold mt-1">
+            {isAr ? 'القطعة:' : 'Part:'} {partLabel}
+          </p>
           {task.officer && (
             <p className="text-xs text-white/45 mt-1">
               {isAr ? 'الموظف:' : 'Officer:'} {task.officer.name} ({task.officer.email})

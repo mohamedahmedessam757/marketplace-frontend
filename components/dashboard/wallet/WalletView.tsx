@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { GlassCard } from '../../ui/GlassCard';
 import { useCustomerWalletStore } from '../../../stores/useCustomerWalletStore';
+import { PendingStoreReviewBanner } from '../shared/PendingStoreReviewBanner';
 import { useNotificationStore } from '../../../stores/useNotificationStore';
 import { getCurrentUserId } from '../../../utils/auth';
 import { useLanguage } from '../../../contexts/LanguageContext';
@@ -688,6 +689,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ onNavigate }) => {
                 </div>
             </div>
 
+            <PendingStoreReviewBanner onNavigate={onNavigate} className="mb-2" />
 
             {/* 2. Primary Stat Cards (Legacy Restoration) */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">

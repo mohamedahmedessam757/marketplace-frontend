@@ -99,6 +99,7 @@ function mapSupabaseMessage(raw: any): OrderChatMessage {
 
 // Module-level variable for typing timeout
 let typingTimeout: any = null;
+let previousChatRoom: string | null = null;
 
 export const useOrderChatStore = create<OrderChatState>((set, get) => ({
     chats: [],
@@ -215,7 +216,7 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
         }));
 
         try {
-            await api.post(`/chats/${activeChat.id}/messages`, {
+            const response = await api.post(`/chats/${activeChat.id}/messages`, {
                 text: text || '',
                 mediaUrl,
                 mediaType,
@@ -224,15 +225,21 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
                 subject
             });
 
-            // SUCCESS: Remove temp message — the REAL message will arrive
-            // via Socket.IO / Supabase Realtime automatically with proper UUID.
-            // This prevents duplicate: temp + real = 2 messages.
-            set((state) => ({
-                activeChat: state.activeChat ? {
-                    ...state.activeChat,
-                    messages: state.activeChat.messages.filter(m => m.id !== tempId)
-                } : null
-            }));
+            // Replace temp message with real DB message immediately (no wait for WebSocket)
+            const realMessage = mapSupabaseMessage(response.data);
+            set((state) => {
+                if (!state.activeChat) return state;
+                const withoutTemp = state.activeChat.messages.filter(m => m.id !== tempId);
+                if (withoutTemp.some(m => m.id === realMessage.id)) {
+                    return { activeChat: { ...state.activeChat, messages: withoutTemp } };
+                }
+                return {
+                    activeChat: {
+                        ...state.activeChat,
+                        messages: [...withoutTemp, realMessage]
+                    }
+                };
+            });
 
         } catch (error: any) {
             const errorMessage = error.response?.data?.message || error.message;
@@ -335,13 +342,10 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
     },
 
     subscribeToChat: (chatId: string) => {
-        // 1. Socket.IO Connection (0ms Latency)
-        let socket = get().socket;
-        if (!socket) {
-            // Initialize Socket Connection to NestJS WebSocket Gateway
-            const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+        const initSocket = () => {
+            const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(/\/api\/?$/, '');
             const token = localStorage.getItem('access_token');
-            socket = io(`${baseUrl}/chat`, {
+            const socket = io(`${baseUrl}/chat`, {
                 path: '/socket.io',
                 transports: ['websocket'],
                 auth: token ? { token } : {},
@@ -350,21 +354,22 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
 
             socket.on('connect', () => {
                 console.log('Connected to Chat WebSockets');
-                socket?.emit('joinChat', { chatId });
+                const room = get().activeChat?.id || chatId;
+                socket.emit('joinChat', { chatId: room });
+                previousChatRoom = room;
             });
 
             socket.on('newMessage', (rawMessage: any) => {
                 const message = mapSupabaseMessage(rawMessage);
+                const targetChatId = message.chatId || rawMessage.chat_id;
                 set((state) => {
-                    if (!state.activeChat || state.activeChat.id !== chatId) return state;
-                    // Dedup: skip if real message already exists
+                    if (!state.activeChat || state.activeChat.id !== targetChatId) return state;
                     if (state.activeChat.messages.some(m => m.id === message.id)) return state;
-                    // Clean up any lingering temp messages matching this real one
                     const cleaned = state.activeChat.messages.filter(
                         m => !(m.id.startsWith('temp-') && m.text === message.text && m.senderId === message.senderId)
                     );
                     return {
-                        isTyping: false, // Turn off typing when message arrives
+                        isTyping: false,
                         activeChat: {
                             ...state.activeChat,
                             messages: [...cleaned, message]
@@ -372,17 +377,31 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
                     };
                 });
 
-                // Clear typing timeout if it exists
                 if (typingTimeout) {
                     clearTimeout(typingTimeout);
                     typingTimeout = null;
                 }
             });
 
+            socket.on('messageUpdated', (rawMessage: any) => {
+                const message = mapSupabaseMessage(rawMessage);
+                const targetChatId = message.chatId || rawMessage.chat_id;
+                set((state) => {
+                    if (!state.activeChat || state.activeChat.id !== targetChatId) return state;
+                    return {
+                        activeChat: {
+                            ...state.activeChat,
+                            messages: state.activeChat.messages.map(m =>
+                                m.id === message.id ? { ...m, translatedText: message.translatedText } : m
+                            )
+                        }
+                    };
+                });
+            });
+
             socket.on('userTyping', ({ userId, isTyping }) => {
                 set({ isTyping, typingUserId: userId });
 
-                // Auto-clear typing indicator after 3 seconds of no new typing events
                 if (typingTimeout) clearTimeout(typingTimeout);
                 if (isTyping) {
                     typingTimeout = setTimeout(() => {
@@ -391,7 +410,6 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
                 }
             });
 
-            // Listen for read receipts
             socket.on('messagesRead', ({ chatId: readChatId, readByUserId }) => {
                 set((state) => {
                     if (!state.activeChat || state.activeChat.id !== readChatId) return state;
@@ -406,7 +424,6 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
                 });
             });
 
-            // Listen for admin actions (close/block) to lock UI in real-time
             socket.on('chatStatusChanged', ({ chatId: changedChatId, status }) => {
                 set((state) => {
                     if (!state.activeChat || state.activeChat.id !== changedChatId) return state;
@@ -418,8 +435,20 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
                     };
                 });
             });
+
+        };
+
+        // 1. Socket.IO Connection (real-time delivery)
+        let socket = get().socket;
+        if (!socket) {
+            initSocket();
+            socket = get().socket;
         } else {
+            if (previousChatRoom && previousChatRoom !== chatId) {
+                socket.emit('leaveChat', { chatId: previousChatRoom });
+            }
             socket.emit('joinChat', { chatId });
+            previousChatRoom = chatId;
         }
 
         // 2. Supabase Realtime (Failsafe & DB Updates)
@@ -448,6 +477,29 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
                             activeChat: {
                                 ...state.activeChat,
                                 messages: [...cleaned, newMessage]
+                            }
+                        };
+                    });
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'order_chat_messages',
+                    filter: `chat_id=eq.${chatId}`,
+                },
+                (payload) => {
+                    const updated = mapSupabaseMessage(payload.new);
+                    set((state) => {
+                        if (!state.activeChat || state.activeChat.id !== chatId) return state;
+                        return {
+                            activeChat: {
+                                ...state.activeChat,
+                                messages: state.activeChat.messages.map(m =>
+                                    m.id === updated.id ? { ...m, translatedText: updated.translatedText } : m
+                                )
                             }
                         };
                     });
@@ -522,6 +574,10 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
     unsubscribeFromChat: () => {
         const socket = get().socket;
         if (socket) {
+            if (previousChatRoom) {
+                socket.emit('leaveChat', { chatId: previousChatRoom });
+                previousChatRoom = null;
+            }
             socket.disconnect();
             set({ socket: null });
         }

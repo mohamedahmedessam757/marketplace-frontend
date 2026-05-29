@@ -28,5 +28,10 @@ export const cardsApi = {
 
   setDefault: async (id: string) => {
     await client.patch(`/cards/${id}/default`);
-  }
+  },
+
+  syncFromIntent: async (paymentIntentId: string) => {
+    const response = await client.post<UserCard>('/cards/sync-intent', { paymentIntentId });
+    return response.data;
+  },
 };

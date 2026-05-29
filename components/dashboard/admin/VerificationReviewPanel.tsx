@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShieldCheck, CheckCircle2, XCircle, AlertTriangle, User, Calendar,
@@ -13,7 +13,11 @@ interface VerificationReviewPanelProps {
     orderId: string;
     status: string;
     documents: any[];
+    offers?: Array<{ id: string; orderPartId?: string; partName?: string; storeId?: string }>;
+    parts?: Array<{ id: string; name: string }>;
     onReviewSubmit: (action: 'APPROVE' | 'REJECT', payload?: {
+        documentId?: string;
+        offerId?: string;
         reason?: string;
         rejectionImages?: string[];
         rejectionVideo?: string;
@@ -24,8 +28,21 @@ interface VerificationReviewPanelProps {
     }) => Promise<void>;
 }
 
+function resolvePartLabel(
+    doc: { offerId?: string | null },
+    offers?: VerificationReviewPanelProps['offers'],
+    parts?: VerificationReviewPanelProps['parts'],
+    fallbackIndex = 0,
+): string {
+    if (!doc.offerId) return `Part ${fallbackIndex + 1}`;
+    const offer = offers?.find((o) => o.id === doc.offerId);
+    const partId = offer?.orderPartId;
+    const part = parts?.find((p) => p.id === partId);
+    return part?.name || offer?.partName || `Part ${fallbackIndex + 1}`;
+}
+
 export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = ({
-    orderId, status, documents, onReviewSubmit
+    orderId, status, documents, offers, parts, onReviewSubmit
 }) => {
     const { language } = useLanguage();
     const isAr = language === 'ar';
@@ -44,15 +61,46 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
     const imgInputRef = useRef<HTMLInputElement>(null);
     const vidInputRef = useRef<HTMLInputElement>(null);
 
-    const activeDoc = documents?.[0];
-    const hasDocuments = (documents?.length ?? 0) > 0;
-    const isPending = status === 'VERIFICATION' || status === 'CORRECTION_SUBMITTED';
-    const isHistoricalRecord = hasDocuments && !isVerificationFlowStatus(status);
+    const allDocs = documents || [];
+    const pendingDocs = useMemo(
+        () =>
+            allDocs.filter(
+                (d) => !d.adminStatus || String(d.adminStatus).toUpperCase() === 'PENDING',
+            ),
+        [allDocs],
+    );
+
+    const [activeDocId, setActiveDocId] = useState<string | null>(null);
+    useEffect(() => {
+        if (!allDocs.length) {
+            setActiveDocId(null);
+            return;
+        }
+        if (!activeDocId || !allDocs.some((d) => d.id === activeDocId)) {
+            setActiveDocId(pendingDocs[0]?.id ?? allDocs[0].id);
+        }
+    }, [allDocs, pendingDocs, activeDocId]);
+
+    useEffect(() => {
+        setActionType(null);
+        setRejectionReason('');
+        setRejectionImages([]);
+        setRejectionImageUrls([]);
+        setRejectionVideo(null);
+        setRejectionVideoUrl(null);
+        setError('');
+    }, [activeDocId]);
+
+    const activeDoc =
+        allDocs.find((d) => d.id === activeDocId) || allDocs[0];
+    const hasDocuments = allDocs.length > 0;
+    const activeDocStatus = String(activeDoc?.adminStatus || 'PENDING').toUpperCase();
+    const isActiveDocPending = activeDocStatus === 'PENDING';
+    const isPending = isActiveDocPending;
+    const isHistoricalRecord = hasDocuments && !isVerificationFlowStatus(status) && pendingDocs.length === 0;
     const showPanel = hasDocuments || isVerificationFlowStatus(status);
-    const isApprovedRecord =
-        status === 'VERIFICATION_SUCCESS' || activeDoc?.adminStatus === 'APPROVED';
-    const isRejectedRecord =
-        status === 'NON_MATCHING' || activeDoc?.adminStatus === 'REJECTED';
+    const isApprovedRecord = activeDocStatus === 'APPROVED';
+    const isRejectedRecord = activeDocStatus === 'REJECTED';
 
     if (!hasDocuments) {
         if (!showPanel) return null;
@@ -194,6 +242,8 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
 
             setUploadProgress(90);
             await onReviewSubmit(pendingAction, {
+                documentId: activeDoc?.id,
+                offerId: activeDoc?.offerId,
                 reason: sigData.adminReviewDetails || rejectionReason || undefined,
                 rejectionImages: uploadedImages.length > 0 ? uploadedImages : undefined,
                 rejectionVideo: uploadedVideoUrl,
@@ -207,8 +257,14 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
             setPendingAction(null);
             setActionType(null);
         } catch (err: any) {
-            setError(err.message || (isAr ? 'حدث خطأ غير متوقع' : 'An unexpected error occurred'));
-            setShowSignatureModal(true); // Allow retry
+            const raw = err?.response?.data?.message ?? err?.response?.data?.error;
+            const apiMsg = Array.isArray(raw)
+                ? raw.join(' · ')
+                : typeof raw === 'string'
+                  ? raw
+                  : null;
+            setError(apiMsg || err.message || (isAr ? 'حدث خطأ غير متوقع' : 'An unexpected error occurred'));
+            setShowSignatureModal(true);
         } finally {
             setIsSubmitting(false);
             setUploadProgress(0);
@@ -221,6 +277,63 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
             isApprovedRecord ? 'border-l-green-500 bg-green-500/5' :
             'border-l-amber-500 bg-amber-500/5'
         }`}>
+            {allDocs.length > 1 && (
+                <div className="flex flex-wrap gap-2 mb-6">
+                    {allDocs.map((doc, idx) => {
+                        const label = resolvePartLabel(doc, offers, parts, idx);
+                        const isActive = doc.id === activeDoc?.id;
+                        const docStatus = String(doc.adminStatus || 'PENDING').toUpperCase();
+                        const isDocPending = docStatus === 'PENDING';
+                        const isDocApproved = docStatus === 'APPROVED';
+                        const isDocRejected = docStatus === 'REJECTED';
+                        return (
+                            <button
+                                key={doc.id}
+                                type="button"
+                                onClick={() => setActiveDocId(doc.id)}
+                                className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${
+                                    isActive
+                                        ? isDocApproved
+                                            ? 'bg-green-500/20 border-green-500/40 text-green-200'
+                                            : isDocRejected
+                                              ? 'bg-red-500/20 border-red-500/40 text-red-200'
+                                              : 'bg-amber-500/20 border-amber-500/40 text-amber-200'
+                                        : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
+                                }`}
+                            >
+                                <span className="flex items-center gap-1.5">
+                                    {isDocApproved && <CheckCircle2 size={12} className="text-green-400" />}
+                                    {isDocRejected && <XCircle size={12} className="text-red-400" />}
+                                    {label}
+                                </span>
+                                {isDocPending && (
+                                    <span className="block text-[9px] text-amber-400/80 font-normal mt-0.5">
+                                        {isAr ? 'قيد المراجعة' : 'Pending'}
+                                    </span>
+                                )}
+                                {isDocApproved && (
+                                    <span className="block text-[9px] text-green-400/80 font-normal mt-0.5">
+                                        {isAr ? 'معتمد' : 'Approved'}
+                                    </span>
+                                )}
+                                {isDocRejected && (
+                                    <span className="block text-[9px] text-red-400/80 font-normal mt-0.5">
+                                        {isAr ? 'مرفوض' : 'Rejected'}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {activeDoc?.offerId && (
+                <p className="text-sm text-amber-400/90 mb-4 font-bold">
+                    {isAr ? 'توثيق القطعة:' : 'Part verification:'}{' '}
+                    {resolvePartLabel(activeDoc, offers, parts, 0)}
+                </p>
+            )}
+
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
                 <div>
@@ -240,13 +353,13 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
                                 : isRejectedRecord
                                     ? (isAr ? 'سجل رفض المطابقة — محفوظ للمراجعة والتدقيق' : 'Rejection record — kept for audit review')
                                     : (isAr ? 'سجل توثيق المطابقة — محفوظ للمراجعة والتدقيق' : 'Verification record — kept for audit review')
-                            : status === 'NON_MATCHING'
-                            ? (isAr ? 'تم رفض توثيق القطعة وينتظر إعادة الإرسال من التاجر' : 'Part verification rejected, awaiting merchant correction')
-                            : status === 'VERIFICATION_SUCCESS'
-                            ? (isAr ? 'تم الموافقة على التوثيق، الشحنة جاهزة' : 'Verification Approved, Ready for Shipment')
-                            : status === 'CORRECTION_SUBMITTED'
-                            ? (isAr ? 'قام التاجر بإعادة رفع التوثيق المصحح - بانتظار مراجعتك' : 'Merchant submitted corrected verification - awaiting your review')
-                            : (isAr ? 'قام البائع برفع حالة القطعة للمراجعة قبل التسليم' : 'Merchant uploaded part condition for pre-handover review')}
+                            : isRejectedRecord
+                            ? (isAr ? 'تم رفض توثيق هذه القطعة — بانتظار إعادة التوثيق من التاجر' : 'This part verification was rejected — awaiting merchant correction')
+                            : isApprovedRecord
+                            ? (isAr ? 'تم اعتماد توثيق هذه القطعة' : 'This part verification was approved')
+                            : isActiveDocPending
+                            ? (isAr ? 'قام البائع برفع توثيق هذه القطعة — بانتظار مراجعتك' : 'Merchant submitted this part for your review')
+                            : (isAr ? 'مراجعة وثائق التوثيق لكل قطعة على حدة' : 'Review verification documents per part')}
                     </p>
                 </div>
                 <div className={`px-3 py-1 border rounded-lg text-xs font-bold shrink-0 ${
@@ -256,13 +369,13 @@ export const VerificationReviewPanel: React.FC<VerificationReviewPanelProps> = (
                 }`}>
                     {isHistoricalRecord
                         ? (isAr ? 'سجل محفوظ' : 'Archived Record')
-                        : isAr ? (
-                            status === 'VERIFICATION' ? 'قيد التوثيق' :
-                            status === 'VERIFICATION_SUCCESS' ? 'التوثيق ناجح' :
-                            status === 'NON_MATCHING' ? 'طلب مراجعة' :
-                            status === 'CORRECTION_PERIOD' ? 'فترة التصحيح' :
-                            status === 'CORRECTION_SUBMITTED' ? 'تم إرسال التصحيح' : status
-                        ) : status}
+                        : isApprovedRecord
+                        ? (isAr ? 'معتمد' : 'Approved')
+                        : isRejectedRecord
+                        ? (isAr ? 'مرفوض' : 'Rejected')
+                        : isActiveDocPending
+                        ? (isAr ? 'قيد المراجعة' : 'Pending review')
+                        : activeDocStatus}
                 </div>
             </div>
 

@@ -10,15 +10,36 @@ interface VerificationFormProps {
     orderId: string;
     isCorrection?: boolean;
     existingData?: any; // If viewing read-only or pre-filling some
+    /** Changes when switching parts — clears the form for a fresh submission */
+    resetKey?: string;
     isReadOnly?: boolean;
     onSubmit: (data: any) => Promise<void>;
     onCancel: () => void;
+}
+
+function buildInitialFormState(existingData?: any) {
+    return {
+        images: [] as File[],
+        imageUrls: (existingData?.images as string[]) || [],
+        video: null as File | null,
+        videoUrl: (existingData?.videoUrl as string) || null,
+        description: existingData?.description || '',
+        recipientName: existingData?.recipientName || '',
+        handoverDate: existingData?.handoverDate
+            ? new Date(existingData.handoverDate).toISOString().split('T')[0]
+            : '',
+        handoverTime: existingData?.handoverTime || '',
+        recipientSignature: (existingData?.recipientSignature as string) || null,
+        signatureType: (existingData?.signatureType as 'DRAWN' | 'TYPED') || 'DRAWN',
+        signatureText: existingData?.signatureText || '',
+    };
 }
 
 export const VerificationForm: React.FC<VerificationFormProps> = ({
     orderId,
     isCorrection = false,
     existingData = null,
+    resetKey = 'default',
     isReadOnly = false,
     onSubmit,
     onCancel
@@ -45,6 +66,27 @@ export const VerificationForm: React.FC<VerificationFormProps> = ({
 
     const signatureRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
+
+    useEffect(() => {
+        const initial = buildInitialFormState(existingData);
+        setImages(initial.images);
+        setImageUrls(initial.imageUrls);
+        setVideo(initial.video);
+        setVideoUrl(initial.videoUrl);
+        setDescription(initial.description);
+        setRecipientName(initial.recipientName);
+        setHandoverDate(initial.handoverDate);
+        setHandoverTime(initial.handoverTime);
+        setRecipientSignature(initial.recipientSignature);
+        setSignatureType(initial.signatureType);
+        setSignatureText(initial.signatureText);
+        setErrors({});
+        const canvas = signatureRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (canvas && ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }, [resetKey]);
 
     // Canvas Signature Logic
     useEffect(() => {

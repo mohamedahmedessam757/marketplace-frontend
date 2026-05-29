@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, ArrowRight, Info, PackageCheck, CheckSquare, Square } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { CartItem } from './CartItem';
+import { AssemblyCartHandoverBanner } from './AssemblyCartHandoverBanner';
 import { GlassCard } from '../../ui/GlassCard';
 import { useCartStore } from '../../../stores/useCartStore';
 import { getCurrentUserId } from '../../../utils/auth';
@@ -58,7 +59,7 @@ export const ShippingCartPage: React.FC = () => {
         
         if (success) {
             // If all items were shipped, redirect. Otherwise, state refreshes via store.
-            if (selectedOfferIds.length === items.length) {
+            if (selectedOfferIds.length === selectableItems.length && selectableItems.length > 0) {
                 window.history.pushState({ view: 'dashboard', dashboardPath: 'shipments' }, '', '/dashboard/shipments');
                 window.dispatchEvent(new PopStateEvent('popstate', { state: { view: 'dashboard', dashboardPath: 'shipments' } }));
             } else {
@@ -101,6 +102,19 @@ export const ShippingCartPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {selectedOfferIds.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-start gap-4"
+                >
+                    <Info className="text-blue-400 shrink-0 mt-0.5" size={20} />
+                    <p className="text-sm text-white/70 leading-relaxed">
+                        {t.dashboard.shippingCart.waybillBatchNote}
+                    </p>
+                </motion.div>
+            )}
 
             {/* Partial Shipping Banner */}
             {selectedOfferIds.length > 0 && selectedOfferIds.length < items.length && (
@@ -184,7 +198,7 @@ export const ShippingCartPage: React.FC = () => {
                             <div className="flex flex-col items-center">
                                 <span className="flex items-center gap-2">
                                     {requestingShipping ? t.common.loading : (
-                                        selectedOfferIds.length === items.length 
+                                        selectedOfferIds.length === selectableItems.length && selectableItems.length > 0
                                         ? t.dashboard.shippingCart.requestShipping 
                                         : t.dashboard.shippingCart.shipSelected
                                     )}

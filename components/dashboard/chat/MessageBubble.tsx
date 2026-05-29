@@ -14,15 +14,30 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onAcceptO
   // Support both 'user'/'me' sender formats
   const isMe = message.sender === 'user' || message.sender === 'me';
   const { t, language } = useLanguage();
+  const isAr = language === 'ar';
+
+  // RTL-aware alignment: my messages on the right in Arabic, left in English
+  const alignmentClass = isMe
+    ? (isAr ? 'justify-start' : 'justify-end')
+    : (isAr ? 'justify-end' : 'justify-start');
+  const itemsClass = isMe
+    ? (isAr ? 'items-start' : 'items-end')
+    : (isAr ? 'items-end' : 'items-start');
+  const bubbleTailClass = isMe
+    ? (isAr ? 'rounded-tl-none' : 'rounded-tr-none')
+    : (isAr ? 'rounded-tr-none' : 'rounded-tl-none');
+  const bubbleMarginClass = isMe
+    ? (isAr ? 'me-12' : 'ms-12')
+    : (isAr ? 'ms-12' : 'me-12');
 
   return (
     <motion.div 
       initial={{ opacity: 0, y: 15, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-      className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-6`}
+      transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+      className={`flex ${alignmentClass} mb-6`}
     >
-      <div className={`max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+      <div className={`max-w-[85%] flex flex-col ${itemsClass}`}>
         <div
           className={`
             relative overflow-hidden transition-all duration-300
@@ -30,8 +45,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onAcceptO
               ? 'rounded-[2rem] shadow-2xl border border-white/10 ring-1 ring-white/5' 
               : 'p-4 rounded-2xl shadow-lg'}
             ${isMe
-              ? 'bg-[#1A1814] text-white rounded-tr-none ml-12'
-              : 'bg-[#2A2824] text-white rounded-tl-none border border-white/10 mr-12'}
+              ? `bg-gold-500/10 text-white border border-gold-500/20 ${bubbleTailClass} ${bubbleMarginClass}`
+              : `bg-[#2A2824] text-white border border-white/10 ${bubbleTailClass} ${bubbleMarginClass}`}
           `}
           style={(message.subject || message.priority) ? {
             background: 'linear-gradient(135deg, #1A1814 0%, #2A2824 100%)',

@@ -1572,22 +1572,40 @@ export const useAdminStore = create<AdminState>()(
         const { financialSubscription } = get();
         if (financialSubscription) return;
 
+        const refreshFinancials = () => {
+          get().fetchAdminFinancials(undefined, true);
+          get().fetchFinancialFeed(true, true);
+        };
+
         const channel = supabase.channel('admin-financials-realtime')
           .on(
             'postgres_changes',
+            { event: '*', schema: 'public', table: 'payment_transactions' },
+            (payload) => {
+              if (
+                payload.eventType === 'INSERT' ||
+                (payload.eventType === 'UPDATE' &&
+                  (payload.new as any).status === 'SUCCESS' &&
+                  (payload.old as any)?.status !== 'SUCCESS')
+              ) {
+                refreshFinancials();
+              }
+            },
+          )
+          .on(
+            'postgres_changes',
             { event: '*', schema: 'public', table: 'wallet_transactions' },
-            // silent=true: update numbers smoothly in background without any loading flicker
-            () => get().fetchAdminFinancials(undefined, true)
+            refreshFinancials,
           )
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'withdrawal_requests' },
-            () => get().fetchAdminFinancials(undefined, true)
+            refreshFinancials,
           )
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'escrow_transactions' },
-            () => get().fetchAdminFinancials(undefined, true)
+            refreshFinancials,
           )
           .subscribe();
 

@@ -2,6 +2,27 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useNotificationStore } from './useNotificationStore';
 import { supabase } from '../services/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+
+/** Ref-count: multiple components may request vendor profile realtime. */
+let vendorProfileRealtimeRefCount = 0;
+let vendorProfileRealtimeStoreId: string | null = null;
+
+function teardownVendorProfileChannel(getState: () => { vendorProfileSubscription: RealtimeChannel | null }) {
+  const { vendorProfileSubscription } = getState();
+  if (vendorProfileSubscription) {
+    supabase.removeChannel(vendorProfileSubscription);
+  }
+  if (vendorProfileRealtimeStoreId) {
+    const channelName = `vendor-profile-${vendorProfileRealtimeStoreId}`;
+    const orphaned = supabase
+      .getChannels()
+      .find((ch) => ch.topic === `realtime:${channelName}`);
+    if (orphaned) {
+      supabase.removeChannel(orphaned);
+    }
+  }
+}
 
 export type MerchantStatus = 'IDLE' | 'PENDING_DOCUMENTS' | 'PENDING_REVIEW' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'BLOCKED' | 'LICENSE_EXPIRED';
 
@@ -674,18 +695,37 @@ export const useVendorStore = create<VendorState>()(
 
   vendorProfileSubscription: null,
   subscribeToVendorProfile: () => {
-    const { vendorProfileSubscription, fetchVendorProfile, storeId } = get();
-    if (vendorProfileSubscription || !storeId) return;
+    const { fetchVendorProfile, storeId } = get();
+    if (!storeId) return;
 
-    console.log(`⚡ [VendorStore] Starting Realtime for store ${storeId}`);
+    if (
+      vendorProfileRealtimeRefCount > 0 &&
+      vendorProfileRealtimeStoreId === storeId &&
+      get().vendorProfileSubscription
+    ) {
+      vendorProfileRealtimeRefCount += 1;
+      return;
+    }
 
-    const channel = supabase.channel(`vendor-profile-${storeId}`)
+    teardownVendorProfileChannel(get);
+
+    vendorProfileRealtimeRefCount = 1;
+    vendorProfileRealtimeStoreId = storeId;
+
+    const channelName = `vendor-profile-${storeId}`;
+    const orphaned = supabase
+      .getChannels()
+      .find((ch) => ch.topic === `realtime:${channelName}`);
+    if (orphaned) {
+      supabase.removeChannel(orphaned);
+    }
+
+    const channel: RealtimeChannel = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` },
         (payload) => {
-          console.log('⚡ [VendorStore] Store profile updated via Realtime:', payload.new);
-          // 1. Instant sync for governance fields (2026 Standard)
           set({
             vendorStatus: payload.new.status,
             withdrawalsFrozen: payload.new.withdrawals_frozen,
@@ -694,20 +734,22 @@ export const useVendorStore = create<VendorState>()(
             dailyOfferCount: payload.new.daily_offer_count,
             visibilityRestricted: payload.new.visibility_restricted,
             visibilityRate: payload.new.visibility_rate,
-            restrictionAlertMessage: payload.new.restriction_alert_message
+            restrictionAlertMessage: payload.new.restriction_alert_message,
           });
-          
-          // 2. Background full refresh for complex relations
           fetchVendorProfile();
-        }
+        },
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'contract_acceptances', filter: `store_id=eq.${storeId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'contract_acceptances',
+          filter: `store_id=eq.${storeId}`,
+        },
         () => {
-          console.log('🔔 Vendor Contract Update Received Real-time');
           fetchVendorProfile();
-        }
+        },
       )
       .subscribe();
 
@@ -715,14 +757,19 @@ export const useVendorStore = create<VendorState>()(
   },
 
   unsubscribeFromVendorProfile: () => {
-    const { vendorProfileSubscription } = get();
-    if (vendorProfileSubscription) {
-      supabase.removeChannel(vendorProfileSubscription);
-      set({ vendorProfileSubscription: null });
-    }
+    vendorProfileRealtimeRefCount = Math.max(0, vendorProfileRealtimeRefCount - 1);
+    if (vendorProfileRealtimeRefCount > 0) return;
+
+    teardownVendorProfileChannel(get);
+    vendorProfileRealtimeStoreId = null;
+    set({ vendorProfileSubscription: null });
   },
 
   reset: () => {
+    vendorProfileRealtimeRefCount = 0;
+    teardownVendorProfileChannel(get);
+    vendorProfileRealtimeStoreId = null;
+
     // SECURITY: Explicitly clear local identifiers
     localStorage.removeItem('merchant_store_id');
     

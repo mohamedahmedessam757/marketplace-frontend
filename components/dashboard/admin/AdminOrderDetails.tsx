@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '../../ui/GlassCard';
 import { Badge, StatusType } from '../../ui/Badge';
@@ -26,6 +26,12 @@ import { OrderInvoicesPanel } from '../shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from '../shared/OrderWaybillsPanel';
 import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../../utils/orderSla';
 import { shouldShowAdminVerificationSections } from '../../../utils/orderVerificationVisibility';
+import { MerchantHandoverPendingBanner } from '../shared/MerchantHandoverPendingBanner';
+import { CartShipmentBadge } from '../shared/CartShipmentBadge';
+import { PartialShippingProgressCard } from '../shared/PartialShippingProgressCard';
+import { PartialDeliveryProgressCard } from '../shared/PartialDeliveryProgressCard';
+import { useOrderFulfillmentSummary } from '../../../hooks/useOrderFulfillmentSummary';
+import { computeShipmentDeliverySummary } from '../../../utils/offerFulfillmentHelpers';
 
 interface AdminOrderDetailsProps {
     orderId: any;
@@ -205,6 +211,15 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
 
     const order = useOrderById(orderId ? String(orderId) : undefined);
     useOrderRealtimeSync(orderId ? String(orderId) : undefined);
+    const fulfillmentSummary = useOrderFulfillmentSummary(
+        orderId ? String(orderId) : undefined,
+        order,
+    );
+
+    const shipmentDeliverySummary = useMemo(
+        () => computeShipmentDeliverySummary(order?.shipments, order?.status),
+        [order?.shipments, order?.status],
+    );
 
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronRight : ChevronLeft;
@@ -400,7 +415,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
 
                         <div className="flex flex-wrap items-center gap-3">
                             {/* Attractive Go to Shipping Button */}
-                            {['PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED'].includes(order.status) && (
+                            {['PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED'].includes(order.status) && (
                                 <button
                                     onClick={() => onNavigate?.('shipping', order.id)}
                                     className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 group active:scale-95"
@@ -428,6 +443,22 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                         </div>
                     )}
 
+                    <div className="px-6 pt-4 space-y-4">
+                        <MerchantHandoverPendingBanner
+                            order={order}
+                            role="admin"
+                            isAr={isAr}
+                        />
+                        <PartialShippingProgressCard order={order} isAr={isAr} />
+                        <PartialDeliveryProgressCard
+                            shipments={order.shipments}
+                            shipmentBatches={order.shipmentBatches}
+                            orderStatus={order.status}
+                            isAr={isAr}
+                            className="mt-4"
+                        />
+                    </div>
+
                     {/* Derived Shipment Status for Tracker Accuracy */}
                     {(() => {
                         const derivedShipmentStatus = (order.shipments && order.shipments.length > 0)
@@ -436,6 +467,8 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                 ? 'PREPARED'
                                 : order.status === 'VERIFICATION_SUCCESS'
                                     ? 'PREPARATION'
+                                    : order.status === 'PARTIALLY_SHIPPED'
+                                    ? 'PACKAGED_FOR_SHIPPING'
                                     : order.status === 'SHIPPED'
                                     ? 'PICKED_UP_BY_CARRIER'
                                     : order.status === 'DELIVERED'
@@ -445,7 +478,11 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                         return !['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_PAYMENT', 'CANCELLED'].includes(order.status) ? (
                             <div className="p-6">
                                 <div className="flex justify-between items-center mb-6">
-                                    <StatusTimeline currentStatus={order.status} />
+                                    <StatusTimeline
+                                        currentStatus={order.status}
+                                        fulfillmentSummary={fulfillmentSummary}
+                                        shipmentDeliverySummary={shipmentDeliverySummary}
+                                    />
                                 </div>
 
                                 <AnimatePresence>
@@ -473,7 +510,11 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                             </div>
                         ) : (
                             <div className="p-6">
-                                <StatusTimeline currentStatus={order.status} />
+                                <StatusTimeline
+                                    currentStatus={order.status}
+                                    fulfillmentSummary={fulfillmentSummary}
+                                    shipmentDeliverySummary={shipmentDeliverySummary}
+                                />
                             </div>
                         );
                     })()}
@@ -524,12 +565,20 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                             orderId={order.id}
                             status={order.status}
                             documents={order.verificationDocuments || []}
+                            offers={order.offers}
+                            parts={order.parts}
                             onReviewSubmit={async (action, payload) => {
                                 await ordersApi.adminReviewVerification(String(order.id), {
                                     action,
+                                    documentId: payload?.documentId,
+                                    offerId: payload?.offerId,
                                     rejectionReason: payload?.reason,
-                                    rejectionImages: payload?.rejectionImages || [],
-                                    rejectionVideo: payload?.rejectionVideo,
+                                    ...(payload?.rejectionImages?.length
+                                        ? { rejectionImages: payload.rejectionImages }
+                                        : {}),
+                                    ...(payload?.rejectionVideo
+                                        ? { rejectionVideo: payload.rejectionVideo }
+                                        : {}),
                                     adminSignatureName: payload?.adminSignatureName,
                                     adminSignatureImage: payload?.adminSignatureImage,
                                     adminSignatureType: payload?.adminSignatureType,
@@ -541,7 +590,12 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                     )}
 
                     {shouldShowAdminVerificationSections(order) && (
-                        <VerificationTaskManager orderId={order.id} />
+                        <VerificationTaskManager
+                            orderId={order.id}
+                            offers={order.offers}
+                            parts={order.parts}
+                            verificationDocuments={order.verificationDocuments}
+                        />
                     )}
 
                     {/* STATE: AWAITING OFFERS - Only show if NO offers yet */}
@@ -826,6 +880,11 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                 orderStatus={order.status} 
                                 role={currentAdmin?.role || 'ADMIN'} 
                                 initialData={order.shippingWaybills}
+                                requestType={order.requestType}
+                                orderNumber={order.orderNumber}
+                                offers={order.offers}
+                                shipmentBatches={order.shipmentBatches}
+                                onRefreshOrder={() => fetchOrder(String(order.id))}
                             />
                         )}
                     </div>
@@ -1085,10 +1144,21 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                         <div key={offer.id || idx} className="space-y-2 p-3 bg-black/40 rounded-xl border border-white/5 relative overflow-hidden group">
                                             <div className="absolute top-0 left-0 w-1 h-full bg-green-500/40" />
                                             <div className="pl-3 rtl:pl-0 rtl:pr-3">
-                                                <div className="text-[10px] font-bold text-gold-400 uppercase mb-2 flex justify-between items-center">
+                                                <div className="text-[10px] font-bold text-gold-400 uppercase mb-2 flex justify-between items-center gap-2">
                                                     <span className="truncate max-w-[150px]">{partDisplayName}</span>
                                                     <button onClick={() => setEditingOffer(offer)} className="text-white/20 hover:text-white transition-colors opacity-0 group-hover:opacity-100"><Edit2 size={10} /></button>
                                                 </div>
+                                                {order.requestType === 'multiple' && (
+                                                    <div className="mb-2">
+                                                        <CartShipmentBadge
+                                                            offer={offer}
+                                                            order={order}
+                                                            allOffers={order.offers || order.acceptedOffers || []}
+                                                            inAssemblyCart={!offer.shippedFromCart}
+                                                            isAr={isAr}
+                                                        />
+                                                    </div>
+                                                )}
                                                 <div className="flex justify-between text-xs text-white/70">
                                                     <span>{isAr ? 'السعر' : 'Price'}</span>
                                                     <span className="font-mono">{base.toFixed(2)} AED</span>

@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { client } from '../services/api/client';
 import { paymentsApi } from '../services/api/payments';
+import { formatApiErrorMessage } from '../utils/formatApiErrorMessage';
+import {
+  clearCheckoutSession,
+  hasMeaningfulAddress,
+  loadCheckoutSession,
+  saveCheckoutSession,
+  type PersistedCheckoutSession,
+} from '../utils/checkoutSessionStorage';
 
 /** Dedupes concurrent create-intent calls (expand prefetch + pay button race). */
 const paymentIntentInflight = new Map<string, Promise<string | null>>();
@@ -82,10 +90,48 @@ interface CheckoutState {
   fetchPaymentStatus: (offerId: string) => Promise<any>;
   /** Merge SUCCESS payments from API for each offer (source of truth). */
   syncPaidOffersForOrder: (offerIds: string[]) => Promise<string[]>;
+  persistCheckoutSession: () => void;
+  /** Restore local session + optional server shipping; avoid wipe on re-entry. */
+  initCheckoutForOrder: (
+    orderId: string,
+    options?: { defaultStep?: number; forceReset?: boolean },
+  ) => void;
+  hydrateShippingFromOrder: (order: {
+    shippingAddresses?: Array<{
+      orderPartId?: string | null;
+      fullName?: string;
+      phone?: string;
+      email?: string;
+      country?: string;
+      city?: string;
+      details?: string;
+    }>;
+  }) => void;
   reset: () => void;
+  clearCheckoutForOrder: (orderId: string) => void;
 }
 
-export const useCheckoutStore = create<CheckoutState>((set) => ({
+const emptyAddress = (): Address => ({
+  fullName: '',
+  phone: '',
+  email: '',
+  country: '',
+  city: '',
+  details: '',
+});
+
+const snapshotForPersist = (s: CheckoutState): PersistedCheckoutSession => ({
+  step: s.step,
+  address: s.address,
+  partAddresses: s.partAddresses,
+  termsAccepted: s.termsAccepted,
+  returnPolicyAccepted: s.returnPolicyAccepted,
+  isEditingShipping: s.isEditingShipping,
+  paidOfferIds: s.paidOfferIds.map(String),
+  selectedOffer: s.selectedOffer,
+});
+
+export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   orderId: null,
   step: 1,
   address: {
@@ -112,16 +158,137 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
   isOnline: navigator.onLine,
 
   setOrderId: (id) => set({ orderId: id }),
-  setStep: (step) => set({ step }),
-  setOpenDrawerForPartId: (id) => set({ openDrawerForPartId: id }),
-  updateAddress: (field, value) =>
-    set((state) => ({ address: { ...state.address, [field]: value } })),
-  setSelectedOffer: (offer) => set({ selectedOffer: offer }),
 
-  setTermsAccepted: (accepted) => set({ termsAccepted: accepted }),
-  setReturnPolicyAccepted: (accepted) => set({ returnPolicyAccepted: accepted }),
-  setIsEditingShipping: (isEditing) => set({ isEditingShipping: isEditing }),
-  setPartAddress: (partId, addr) => set((state) => ({ partAddresses: { ...state.partAddresses, [partId]: addr } })),
+  persistCheckoutSession: () => {
+    const s = get();
+    if (!s.orderId) return;
+    saveCheckoutSession(s.orderId, snapshotForPersist(s));
+  },
+
+  initCheckoutForOrder: (orderId, options) => {
+    const forceReset = options?.forceReset === true;
+    const saved = !forceReset ? loadCheckoutSession(orderId) : null;
+    const current = get();
+
+    if (saved) {
+      set({
+        orderId,
+        step: saved.step,
+        address: saved.address,
+        partAddresses: saved.partAddresses,
+        termsAccepted: saved.termsAccepted,
+        returnPolicyAccepted: saved.returnPolicyAccepted,
+        isEditingShipping: saved.isEditingShipping,
+        paidOfferIds: saved.paidOfferIds,
+        selectedOffer: saved.selectedOffer,
+        paymentError: null,
+        clientSecret: null,
+        isProcessing: false,
+      });
+      get().persistCheckoutSession();
+      return;
+    }
+
+    const keepInMemory =
+      !forceReset &&
+      current.orderId === orderId &&
+      (hasMeaningfulAddress(current.address) ||
+        Object.keys(current.partAddresses).length > 0);
+
+    if (keepInMemory) {
+      set({
+        orderId,
+        step: options?.defaultStep ?? current.step,
+        paymentError: null,
+        clientSecret: null,
+        isProcessing: false,
+      });
+      get().persistCheckoutSession();
+      return;
+    }
+
+    set({
+      orderId,
+      step: options?.defaultStep ?? 1,
+      address: emptyAddress(),
+      isProcessing: false,
+      selectedOffer: null,
+      openDrawerForPartId: null,
+      termsAccepted: false,
+      returnPolicyAccepted: false,
+      isEditingShipping: true,
+      partAddresses: {},
+      paidOfferIds: [],
+      paymentError: null,
+      lastPaymentResult: null,
+      clientSecret: null,
+      isOnline: navigator.onLine,
+    });
+    get().persistCheckoutSession();
+  },
+
+  hydrateShippingFromOrder: (order) => {
+    const addrs = order.shippingAddresses;
+    if (!addrs?.length) return;
+    if (hasMeaningfulAddress(get().address)) return;
+
+    const toAddress = (a: (typeof addrs)[0]): Address => ({
+      fullName: a.fullName || '',
+      phone: a.phone || '',
+      email: a.email || '',
+      country: a.country || '',
+      city: a.city || '',
+      details: a.details || '',
+    });
+
+    const main = addrs.find((a) => !a.orderPartId) || addrs[0];
+    const partAddresses: Record<string, Address> = {};
+    for (const a of addrs) {
+      if (a.orderPartId) {
+        partAddresses[String(a.orderPartId)] = toAddress(a);
+      }
+    }
+
+    set({
+      address: toAddress(main),
+      partAddresses,
+      termsAccepted: true,
+      returnPolicyAccepted: true,
+      isEditingShipping: false,
+    });
+    get().persistCheckoutSession();
+  },
+
+  setStep: (step) => {
+    set({ step });
+    get().persistCheckoutSession();
+  },
+  setOpenDrawerForPartId: (id) => set({ openDrawerForPartId: id }),
+  updateAddress: (field, value) => {
+    set((state) => ({ address: { ...state.address, [field]: value } }));
+    get().persistCheckoutSession();
+  },
+  setSelectedOffer: (offer) => {
+    set({ selectedOffer: offer });
+    get().persistCheckoutSession();
+  },
+
+  setTermsAccepted: (accepted) => {
+    set({ termsAccepted: accepted });
+    get().persistCheckoutSession();
+  },
+  setReturnPolicyAccepted: (accepted) => {
+    set({ returnPolicyAccepted: accepted });
+    get().persistCheckoutSession();
+  },
+  setIsEditingShipping: (isEditing) => {
+    set({ isEditingShipping: isEditing });
+    get().persistCheckoutSession();
+  },
+  setPartAddress: (partId, addr) => {
+    set((state) => ({ partAddresses: { ...state.partAddresses, [partId]: addr } }));
+    get().persistCheckoutSession();
+  },
 
   saveOrderData: async () => {
     const { orderId, address, partAddresses } = useCheckoutStore.getState();
@@ -141,6 +308,7 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
       }
 
       await client.patch(`/orders/${orderId}/checkout-data`, { addresses: payloadAddresses });
+      get().persistCheckoutSession();
 
       return true;
     } catch (e) {
@@ -169,8 +337,8 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
       }));
 
       return result;
-    } catch (e: any) {
-      const errorMessage = e.response?.data?.message || e.message || 'Payment failed';
+    } catch (e: unknown) {
+      const errorMessage = formatApiErrorMessage(e, 'Payment failed');
       set({ paymentError: errorMessage });
       return { success: false, error: errorMessage };
     } finally {
@@ -190,8 +358,8 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
       try {
         const result = await paymentsApi.createIntent({ orderId, offerId });
         return result.clientSecret;
-      } catch (e: any) {
-        const errorMessage = e.response?.data?.message || e.message || 'Failed to initialize payment';
+      } catch (e: unknown) {
+        const errorMessage = formatApiErrorMessage(e, 'Failed to initialize payment');
         set({ paymentError: errorMessage });
         return null;
       } finally {
@@ -264,10 +432,14 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
     });
   },
 
+  clearCheckoutForOrder: (orderId) => {
+    clearCheckoutSession(orderId);
+  },
+
   reset: () => set({
     orderId: null,
     step: 1,
-    address: { fullName: '', phone: '', email: '', country: '', city: '', details: '' },
+    address: emptyAddress(),
     isProcessing: false,
     selectedOffer: null,
     openDrawerForPartId: null,
@@ -280,5 +452,17 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
     lastPaymentResult: null,
     clientSecret: null,
     isOnline: navigator.onLine,
-  })
+  }),
 }));
+
+/** Auto-save checkout progress while the customer is on the checkout flow. */
+if (typeof window !== 'undefined') {
+  let persistTimer: ReturnType<typeof setTimeout> | null = null;
+  useCheckoutStore.subscribe((state) => {
+    if (!state.orderId) return;
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      saveCheckoutSession(state.orderId!, snapshotForPersist(state));
+    }, 400);
+  });
+}

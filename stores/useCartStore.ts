@@ -29,6 +29,7 @@ export interface CartItemType {
     isMyOffer?: boolean; // Merchant highlight
     fulfillmentStatus?: string;
     canSelectForShipping?: boolean;
+    handoverPending?: boolean;
     lockReasonAr?: string;
     lockReasonEn?: string;
 }

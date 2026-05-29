@@ -11,5 +11,17 @@ export const waybillsApi = {
     getById: async (id: string) => {
         const response = await client.get(`/waybills/${id}`);
         return response.data;
-    }
+    },
+
+    issueForOrder: async (
+        orderId: string,
+        payload: {
+            mode: 'per_part' | 'single_batch' | 'custom';
+            offerIds?: string[];
+            groups?: { offerIds: string[] }[];
+        },
+    ) => {
+        const response = await client.post(`/orders/${orderId}/waybills/issue`, payload);
+        return response.data;
+    },
 };

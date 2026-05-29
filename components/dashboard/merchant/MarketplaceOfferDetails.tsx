@@ -21,17 +21,32 @@ import { StatusTimeline } from '../../ui/StatusTimeline';
 import { VerificationForm } from './VerificationForm';
 import { OrderInvoicesPanel } from '../shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from '../shared/OrderWaybillsPanel';
+import { ShipmentBatchCard } from '../shared/ShipmentBatchCard';
 import { useShipmentsStore } from '../../../stores/useShipmentsStore';
 import { ShipmentTracker } from '../shipments/ShipmentTracker';
 import { useResolutionStore } from '../../../stores/useResolutionStore';
 import { ShippingPaymentCard } from '../resolution/ShippingPaymentCard';
 import {
     getFulfillmentLabel,
+    getFulfillmentRank,
+    getVerificationDocForOffer,
     merchantCanMarkPrepared,
     merchantCanSubmitVerification,
     merchantCanRequestReadyForShipping,
+    merchantOfferVerificationPending,
+    merchantOfferAdminRejected,
 } from '../../../utils/offerFulfillmentHelpers';
 import { getOfferGovernanceWindow } from '../../../utils/offerGovernance';
+import { MerchantHandoverPendingBanner } from '../shared/MerchantHandoverPendingBanner';
+import { CartShipmentBadge } from '../shared/CartShipmentBadge';
+import { PartialShippingProgressCard } from '../shared/PartialShippingProgressCard';
+import { useOrderFulfillmentSummary } from '../../../hooks/useOrderFulfillmentSummary';
+import { computeShipmentDeliverySummary } from '../../../utils/offerFulfillmentHelpers';
+import {
+    getMerchantHandoverStatusCopy,
+    getMerchantPartLogisticsLabel,
+    resolveMerchantHandoverPhase,
+} from '../../../utils/merchantLogisticsStatus';
 
 function toDisplayImageUrls(images?: (string | File)[]): string[] {
     return (images ?? []).filter((item): item is string => typeof item === 'string');
@@ -83,6 +98,11 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     const { addOfferToOrder, patchOrderFromRealtime, fetchOrder, removeOfferFromOrder, markOfferWithdrawnInOrder } =
         useOrderStore();
     const order = useOrderById(orderId);
+    const fulfillmentSummary = useOrderFulfillmentSummary(orderId, order);
+    const shipmentDeliverySummary = useMemo(
+        () => computeShipmentDeliverySummary(order?.shipments, order?.status),
+        [order?.shipments, order?.status],
+    );
     const { storeId, performance, fetchDashboardStats } = useVendorStore();
     const { shipments, fetchShipments } = useShipmentsStore();
     const { cases, fetchCases } = useResolutionStore();
@@ -246,13 +266,36 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         return counts;
     }, [order?.offers]);
 
-    // Map partId -> MY offer data for per-part indicator
+    // Accepted offers for this store — merge fulfillment from myOffers + order, dedupe by part
     const merchantAcceptedOffers = useMemo(() => {
         if (!storeId || !order?.offers) return [];
-        return order.offers.filter(
+        const myById = new Map(myOffers.map((o: any) => [o.id, o]));
+        const accepted = order.offers.filter(
             (o) => o.storeId === storeId && String(o.status).toLowerCase() === 'accepted',
         );
-    }, [order?.offers, storeId]);
+        const merged = accepted.map((o) => {
+            const mine = myById.get(o.id);
+            const rankOrder = getFulfillmentRank(o.fulfillmentStatus);
+            const rankMine = getFulfillmentRank(mine?.fulfillmentStatus);
+            const fulfillmentStatus =
+                rankMine > rankOrder
+                    ? mine?.fulfillmentStatus
+                    : o.fulfillmentStatus ?? mine?.fulfillmentStatus;
+            return { ...o, fulfillmentStatus };
+        });
+        const byPart = new Map<string, (typeof merged)[0]>();
+        for (const o of merged) {
+            const partId = String(o.orderPartId || (o as { order_part_id?: string }).order_part_id || o.id);
+            const existing = byPart.get(partId);
+            if (
+                !existing ||
+                getFulfillmentRank(o.fulfillmentStatus) >= getFulfillmentRank(existing.fulfillmentStatus)
+            ) {
+                byPart.set(partId, o);
+            }
+        }
+        return Array.from(byPart.values());
+    }, [order?.offers, storeId, myOffers]);
 
     const offersNeedingPrepare = useMemo(
         () => merchantAcceptedOffers.filter((o) => merchantCanMarkPrepared(o.fulfillmentStatus)),
@@ -262,9 +305,53 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         () => merchantAcceptedOffers.filter((o) => merchantCanSubmitVerification(o.fulfillmentStatus)),
         [merchantAcceptedOffers],
     );
+    const offersUnderVerificationReview = useMemo(
+        () => merchantAcceptedOffers.filter((o) => merchantOfferVerificationPending(o.fulfillmentStatus)),
+        [merchantAcceptedOffers],
+    );
+    const offersVerificationApproved = useMemo(
+        () =>
+            merchantAcceptedOffers.filter(
+                (o) =>
+                    getFulfillmentRank(o.fulfillmentStatus) >=
+                    getFulfillmentRank('VERIFICATION_SUCCESS'),
+            ),
+        [merchantAcceptedOffers],
+    );
+    const offersRejectedVerification = useMemo(
+        () =>
+            merchantAcceptedOffers.filter((o) => {
+                const doc = getVerificationDocForOffer(
+                    order?.verificationDocuments,
+                    o.id,
+                );
+                return merchantOfferAdminRejected(o.fulfillmentStatus, doc);
+            }),
+        [merchantAcceptedOffers, order?.verificationDocuments],
+    );
     const offersReadyForHandover = useMemo(
         () => merchantAcceptedOffers.filter((o) => merchantCanRequestReadyForShipping(o.fulfillmentStatus)),
         [merchantAcceptedOffers],
+    );
+
+    const shipment = useMemo(
+        () => shipments.find((s) => s.orderId === (orderId || '')),
+        [shipments, orderId],
+    );
+
+    const handoverPhase = useMemo(
+        () =>
+            resolveMerchantHandoverPhase({
+                orderStatus: order?.status || '',
+                waybills: order?.shippingWaybills,
+                shipmentStatus: shipment?.status,
+            }),
+        [order?.status, order?.shippingWaybills, shipment?.status],
+    );
+
+    const handoverCopy = useMemo(
+        () => getMerchantHandoverStatusCopy(handoverPhase, isAr, shipment?.status),
+        [handoverPhase, isAr, shipment?.status],
     );
 
     const myOffersByPart = useMemo(() => {
@@ -282,13 +369,119 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         (partId: string) => {
             const mine = myOffersByPart.get(partId);
             if (!mine || !isActiveMerchantOffer(mine)) return null;
-            const fromOrder = order?.offers?.find((o) => o.id === mine.id);
+            const enriched = merchantAcceptedOffers.find((o) => o.id === mine.id);
             return {
                 ...mine,
-                fulfillmentStatus: fromOrder?.fulfillmentStatus ?? mine.fulfillmentStatus,
+                fulfillmentStatus:
+                    enriched?.fulfillmentStatus ??
+                    order?.offers?.find((o) => o.id === mine.id)?.fulfillmentStatus ??
+                    mine.fulfillmentStatus,
             };
         },
-        [myOffersByPart, order?.offers],
+        [myOffersByPart, order?.offers, merchantAcceptedOffers],
+    );
+
+    const getMerchantOfferPartName = useCallback(
+        (offer: { orderPartId?: string; order_part_id?: string; partName?: string }) => {
+            const partId = offer.orderPartId || offer.order_part_id;
+            const part = order?.parts?.find((p: any) => p.id === partId);
+            return part?.name || offer.partName || (isAr ? 'قطعة' : 'Part');
+        },
+        [order?.parts, isAr],
+    );
+
+    const merchantPartsPreparedCount = useMemo(
+        () =>
+            merchantAcceptedOffers.filter((o) =>
+                getFulfillmentRank(o.fulfillmentStatus) >= getFulfillmentRank('PREPARED'),
+            ).length,
+        [merchantAcceptedOffers],
+    );
+
+    const merchantPartsUnderReviewCount = useMemo(
+        () => offersUnderVerificationReview.length,
+        [offersUnderVerificationReview],
+    );
+
+    const merchantPartsVerifiedCount = useMemo(
+        () =>
+            merchantAcceptedOffers.filter((o) =>
+                getFulfillmentRank(o.fulfillmentStatus) >= getFulfillmentRank('VERIFICATION_SUCCESS'),
+            ).length,
+        [merchantAcceptedOffers],
+    );
+
+    const merchantPrepProgressPct = useMemo(() => {
+        const total = merchantAcceptedOffers.length;
+        if (total === 0) return 0;
+        return Math.min(100, Math.round((merchantPartsPreparedCount / total) * 100));
+    }, [merchantAcceptedOffers.length, merchantPartsPreparedCount]);
+
+    const merchantVerificationProgressPct = useMemo(() => {
+        const total = merchantAcceptedOffers.length;
+        if (total === 0) return 0;
+        const done = merchantPartsUnderReviewCount + merchantPartsVerifiedCount;
+        return Math.min(100, Math.round((done / total) * 100));
+    }, [
+        merchantAcceptedOffers.length,
+        merchantPartsUnderReviewCount,
+        merchantPartsVerifiedCount,
+    ]);
+
+    const verificationExistingData = useMemo(() => {
+        if (!verificationOfferId) return undefined;
+        const offer = merchantAcceptedOffers.find((o) => o.id === verificationOfferId);
+        if (!offer || !merchantOfferVerificationPending(offer.fulfillmentStatus)) {
+            return undefined;
+        }
+        return getVerificationDocForOffer(order?.verificationDocuments, verificationOfferId);
+    }, [verificationOfferId, merchantAcceptedOffers, order?.verificationDocuments]);
+
+    /** Timeline reflects this merchant's parts, not the whole multi-vendor order. */
+    const merchantTimelineStatus = useMemo((): StatusType => {
+        if (merchantAcceptedOffers.length === 0) return (order?.status || 'PREPARATION') as StatusType;
+        const statuses = merchantAcceptedOffers.map((o) =>
+            String(o.fulfillmentStatus || 'IN_PREPARATION').toUpperCase(),
+        );
+        if (statuses.some((s) => s === 'AWAITING_PAYMENT' || s === 'IN_PREPARATION')) return 'PREPARATION';
+        if (statuses.some((s) => s === 'PREPARED')) return 'PREPARED';
+        if (statuses.some((s) => s === 'VERIFICATION')) return 'VERIFICATION';
+        if (statuses.some((s) => s === 'VERIFICATION_SUCCESS')) return 'VERIFICATION_SUCCESS';
+        if (statuses.some((s) => s === 'READY_FOR_SHIPPING')) return 'READY_FOR_SHIPPING';
+        if (statuses.every((s) => s === 'DELIVERED')) return 'DELIVERED';
+        if (statuses.every((s) => s === 'SHIPPED' || s === 'DELIVERED')) return 'SHIPPED';
+        return (order?.status || 'PREPARATION') as StatusType;
+    }, [merchantAcceptedOffers, order?.status]);
+
+    const merchantFulfillmentSummary = useMemo(() => {
+        const total = merchantAcceptedOffers.length;
+        if (total <= 1) return fulfillmentSummary;
+        const stepCounts = {
+            preparation: 0,
+            prepared: 0,
+            verification: 0,
+            verificationSuccess: 0,
+            handoverPending: 0,
+            readyForShipping: 0,
+            shipped: 0,
+            inCart: 0,
+        };
+        for (const o of merchantAcceptedOffers) {
+            const s = String(o.fulfillmentStatus || 'IN_PREPARATION').toUpperCase();
+            if (s === 'AWAITING_PAYMENT' || s === 'IN_PREPARATION') stepCounts.preparation++;
+            else if (s === 'PREPARED') stepCounts.prepared++;
+            else if (s === 'VERIFICATION') stepCounts.verification++;
+            else if (s === 'VERIFICATION_SUCCESS') stepCounts.handoverPending++;
+            else if (s === 'READY_FOR_SHIPPING') stepCounts.readyForShipping++;
+            else if (s === 'SHIPPED') stepCounts.shipped++;
+            else if (s === 'DELIVERED') stepCounts.shipped++;
+        }
+        return { total, stepCounts };
+    }, [merchantAcceptedOffers, fulfillmentSummary]);
+
+    const prepareOfferForDialog = useMemo(
+        () => offersNeedingPrepare.find((o) => o.id === prepareOfferId) || offersNeedingPrepare[0],
+        [offersNeedingPrepare, prepareOfferId],
     );
 
     // Map partId -> check if awarded to ANOTHER merchant
@@ -359,7 +552,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     };
 
     // 2026 Centralized Lifecycle States
-    const progressiveStates = ['AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
+    const progressiveStates = ['AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
     const isProgressive = order ? progressiveStates.includes(order.status) : false;
 
     const handleOpenLightbox = (images: string[], index: number) => {
@@ -435,16 +628,21 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
             await fetchOrder(String(orderId));
             setIsPrepareDialogOpen(false);
             setPrepareOfferId(null);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to mark prepared:', err);
-            alert(isAr ? 'فشل تأكيد التجهيز، يرجى المحاولة لاحقاً.' : 'Failed to confirm preparation.');
+            const msg = err?.response?.data?.message || err?.message;
+            alert(
+                isAr
+                    ? `فشل تأكيد التجهيز: ${msg || 'يرجى المحاولة لاحقاً'}`
+                    : `Failed to confirm preparation: ${msg || 'Please try again'}`,
+            );
         } finally {
             setIsPreparing(false);
         }
     };
 
-    const handleRequestShipping = async () => {
-        const targetOfferId = offersReadyForHandover[0]?.id;
+    const handleRequestShipping = async (offerId?: string) => {
+        const targetOfferId = offerId || offersReadyForHandover[0]?.id;
         if (!targetOfferId) return;
         setIsRequestingShipping(true);
         try {
@@ -485,12 +683,31 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     }
 
     if (showVerificationForm) {
+        const verifyPartName = verificationOfferId
+            ? getMerchantOfferPartName(
+                  merchantAcceptedOffers.find((o) => o.id === verificationOfferId) || {},
+              )
+            : null;
         return (
-            <div className="pt-6">
+            <div className="pt-6 space-y-4">
+                {verifyPartName && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center">
+                        <p className="text-xs text-amber-400/80 uppercase tracking-wider font-bold mb-1">
+                            {isAr ? 'توثيق القطعة' : 'Verifying part'}
+                        </p>
+                        <p className="text-white font-bold">{verifyPartName}</p>
+                    </div>
+                )}
                 <VerificationForm
+                    key={verificationOfferId || 'order-verification'}
+                    resetKey={verificationOfferId || 'order-verification'}
                     orderId={order.id}
                     isCorrection={order.status === 'CORRECTION_PERIOD' || order.status === 'NON_MATCHING'}
-                    existingData={order.verificationDocuments?.[0]} 
+                    existingData={
+                        order.status === 'CORRECTION_PERIOD' || order.status === 'NON_MATCHING'
+                            ? order.verificationDocuments?.[0]
+                            : verificationExistingData
+                    }
                     onSubmit={async (payload) => {
                         try {
                             if (order.status === 'CORRECTION_PERIOD' || order.status === 'NON_MATCHING') {
@@ -507,6 +724,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 }
                             }
                             setShowVerificationForm(false);
+                            setVerificationOfferId(null);
                             await fetchOrder(String(order.id));
                             await fetchMyOffers();
                         } catch (err) {
@@ -521,7 +739,6 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     }
 
     const expired = isOrderExpired(order.createdAt || order.date);
-    const shipment = shipments.find(s => s.orderId === (orderId || ''));
 
     return (
         <motion.div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 pb-20 lg:pb-0">
@@ -717,6 +934,14 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                 </div>
             </div>
 
+            <MerchantHandoverPendingBanner
+                order={order}
+                role="merchant"
+                storeId={storeId ?? undefined}
+                isAr={isAr}
+                className="mb-2"
+            />
+
             {/* MAIN CONTENT GRID */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -776,11 +1001,31 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 orderStatus={order.status} 
                                 role="MERCHANT" 
                                 initialData={order.shippingWaybills}
+                                requestType={order.requestType}
+                                orderNumber={order.orderNumber}
+                                offers={order.offers}
+                                shipmentBatches={order.shipmentBatches}
                             />
                         )}
                     </div>
 
                     <div className={activeTab === 'overview' ? 'space-y-6' : 'hidden'}>
+
+                    {order.shipmentBatches?.length > 0 && (
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-bold text-white/50 uppercase tracking-wider">
+                                {isAr ? 'دفعات الشحن للطلب' : 'Order shipment batches'}
+                            </h4>
+                            {order.shipmentBatches.map((batch: { shipmentId: string }) => (
+                                <ShipmentBatchCard
+                                    key={batch.shipmentId}
+                                    batch={batch as any}
+                                    orderNumber={order.orderNumber}
+                                    isAr={isAr}
+                                />
+                            ))}
+                        </div>
+                    )}
 
                     {/* Premium Warranty Protection Hub (2026) */}
                     {order.status === 'WARRANTY_ACTIVE' && order.warranty_end_at && (
@@ -792,12 +1037,35 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                         </motion.div>
                     )}
 
+                    <PartialShippingProgressCard order={order} isAr={isAr} />
+
                     {/* ★ Order Progress Tracker (Mirror of Customer View) */}
                     <GlassCard className="p-0 overflow-hidden bg-[#1A1814] border-white/5">
                         <div className="p-6">
-                            <StatusTimeline currentStatus={order.status} />
+                            <StatusTimeline
+                                currentStatus={
+                                    merchantAcceptedOffers.length > 0
+                                        ? merchantTimelineStatus
+                                        : order.status
+                                }
+                                fulfillmentSummary={
+                                    merchantAcceptedOffers.length > 1
+                                        ? merchantFulfillmentSummary
+                                        : fulfillmentSummary
+                                }
+                                shipmentDeliverySummary={shipmentDeliverySummary}
+                            />
+                            {merchantAcceptedOffers.length > 0 &&
+                                merchantTimelineStatus !== order.status &&
+                                ['PREPARATION', 'DELAYED_PREPARATION', 'PREPARED'].includes(order.status) && (
+                                    <p className="mt-4 text-center text-xs text-white/45 px-4 leading-relaxed">
+                                        {isAr
+                                            ? 'شريط التقدم يعرض قطعك فقط. حالة الطلب العامة قد تتأخر إذا كانت هناك قطع من تجار آخرين.'
+                                            : 'Progress reflects your parts only. Overall order status may lag while other merchants finish their parts.'}
+                                    </p>
+                                )}
                         </div>
-                        {['SHIPPED', 'PREPARATION', 'READY_FOR_SHIPPING', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && shipment && (
+                        {['SHIPPED', 'PARTIALLY_SHIPPED', 'PREPARATION', 'READY_FOR_SHIPPING', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && shipment && (
                             <div className="border-t border-white/5 pt-6 mt-2 px-6 pb-6 shadow-inner">
                                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                                     <Truck className="text-gold-500" size={20} />
@@ -1093,22 +1361,183 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                                     <span className="text-sm font-bold text-white">{getWarrantyText(partOffer.warranty)}</span>
                                                                 </div>
                                                             )}
-                                                            {partOffer.fulfillmentStatus && String(partOffer.status).toLowerCase() === 'accepted' && (
-                                                                <div className="bg-blue-500/10 rounded-lg px-2 py-1.5 border border-blue-500/20 col-span-2 sm:col-span-3">
-                                                                    <span className="text-[10px] text-blue-400 block font-bold">{isAr ? 'حالة التجهيز' : 'Fulfillment'}</span>
-                                                                    <span className="text-sm font-bold text-white">{getFulfillmentLabel(partOffer.fulfillmentStatus, isAr)}</span>
-                                                                </div>
-                                                            )}
-                                                            {partOffer.fulfillmentStatus === 'READY_FOR_SHIPPING' && !partOffer.shippedFromCart && partOffer.status === 'accepted' && (
-                                                                <div className="bg-gold-500/10 rounded-lg px-2 py-1.5 border border-gold-500/20 flex flex-col justify-center animate-in zoom-in duration-500">
-                                                                    <span className="text-[10px] text-gold-400 block font-bold uppercase tracking-tighter">{isAr ? 'حالة اللوجستيات' : 'Logistics'}</span>
-                                                                    <span className="text-[11px] font-black text-white flex items-center gap-1">
-                                                                        <Box size={10} className="text-gold-400 animate-pulse" />
-                                                                        {isAr ? 'في سلة الشحن' : 'In Shipping Cart'}
+                                                            {partOffer.fulfillmentStatus && String(partOffer.status).toLowerCase() === 'accepted' && (() => {
+                                                                const partVerificationDoc = getVerificationDocForOffer(
+                                                                    order?.verificationDocuments,
+                                                                    partOffer.id,
+                                                                );
+                                                                const isPartRejected = merchantOfferAdminRejected(
+                                                                    partOffer.fulfillmentStatus,
+                                                                    partVerificationDoc,
+                                                                );
+                                                                const isPartVerified =
+                                                                    getFulfillmentRank(partOffer.fulfillmentStatus) >=
+                                                                    getFulfillmentRank('VERIFICATION_SUCCESS');
+                                                                const isPartInReview = merchantOfferVerificationPending(
+                                                                    partOffer.fulfillmentStatus,
+                                                                );
+                                                                return (
+                                                                <div className={`rounded-lg px-2 py-1.5 border col-span-2 sm:col-span-3 ${
+                                                                    isPartRejected
+                                                                        ? 'bg-red-500/10 border-red-500/25'
+                                                                        : isPartInReview
+                                                                        ? 'bg-amber-500/10 border-amber-500/25'
+                                                                        : isPartVerified
+                                                                          ? 'bg-green-500/10 border-green-500/25'
+                                                                          : 'bg-blue-500/10 border-blue-500/20'
+                                                                }`}>
+                                                                    <span className={`text-[10px] block font-bold flex items-center gap-1 ${
+                                                                        isPartRejected
+                                                                            ? 'text-red-400'
+                                                                            : isPartInReview
+                                                                            ? 'text-amber-400'
+                                                                            : isPartVerified
+                                                                              ? 'text-green-400'
+                                                                              : 'text-blue-400'
+                                                                    }`}>
+                                                                        {isPartRejected && <XCircle size={12} />}
+                                                                        {isPartInReview && <Clock size={12} />}
+                                                                        {isPartVerified && <CheckCircle2 size={12} />}
+                                                                        {isAr ? 'حالة التجهيز' : 'Fulfillment'}
                                                                     </span>
+                                                                    <span className="text-sm font-bold text-white">
+                                                                        {isPartRejected
+                                                                            ? (isAr ? 'مرفوض — مطلوب إعادة التوثيق' : 'Rejected — re-verify required')
+                                                                            : getFulfillmentLabel(partOffer.fulfillmentStatus, isAr)}
+                                                                    </span>
+                                                                    {isPartRejected && partVerificationDoc?.adminRejectionReason && (
+                                                                        <p className="text-[11px] text-red-300/90 mt-1 line-clamp-2">
+                                                                            {partVerificationDoc.adminRejectionReason}
+                                                                        </p>
+                                                                    )}
+                                                                    {order.requestType === 'multiple' && (
+                                                                        <div className="mt-2">
+                                                                            <CartShipmentBadge
+                                                                                offer={partOffer}
+                                                                                order={order}
+                                                                                allOffers={order.offers || []}
+                                                                                inAssemblyCart={!partOffer.shippedFromCart}
+                                                                                isAr={isAr}
+                                                                            />
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            )}
+                                                                );
+                                                            })()}
+                                                            {(() => {
+                                                                const logistics = getMerchantPartLogisticsLabel({
+                                                                    order,
+                                                                    partOffer,
+                                                                    shipmentStatus: shipment?.status,
+                                                                    isAr,
+                                                                });
+                                                                if (!logistics.show) return null;
+                                                                return (
+                                                                    <div className="bg-gold-500/10 rounded-lg px-2 py-1.5 border border-gold-500/20 flex flex-col justify-center animate-in zoom-in duration-500">
+                                                                        <span className="text-[10px] text-gold-400 block font-bold uppercase tracking-tighter">{logistics.title}</span>
+                                                                        <span className="text-[11px] font-black text-white flex items-center gap-1">
+                                                                            <Box size={10} className="text-gold-400" />
+                                                                            {logistics.value}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                            {partOffer.cartShipmentId && (() => {
+                                                                const batchMates = (order?.offers || []).filter(
+                                                                    (o: { id: string; cartShipmentId?: string }) =>
+                                                                        o.cartShipmentId === partOffer.cartShipmentId &&
+                                                                        o.id !== partOffer.id,
+                                                                );
+                                                                if (!batchMates.length) return null;
+                                                                const names = batchMates.map((o: { orderPartId?: string; partName?: string }) => {
+                                                                    const p = order?.parts?.find((pp: { id: string }) => pp.id === o.orderPartId);
+                                                                    return p?.name || o.partName || (isAr ? 'قطعة' : 'Part');
+                                                                });
+                                                                return (
+                                                                    <div className="col-span-2 sm:col-span-3 rounded-lg px-3 py-2 bg-blue-500/10 border border-blue-500/25 text-xs text-blue-200">
+                                                                        <span className="font-bold block mb-1">
+                                                                            {isAr ? 'مشمول في شحنة مجمعة مع:' : 'Grouped in one shipment with:'}
+                                                                        </span>
+                                                                        <span>{names.join(isAr ? ' · ' : ', ')}</span>
+                                                                        <span className="block text-[10px] text-white/30 font-mono mt-1">
+                                            #{String(partOffer.cartShipmentId).slice(0, 8)}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </div>
+
+                                                        {partOffer && String(partOffer.status).toLowerCase() === 'accepted' && (
+                                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                                {merchantCanMarkPrepared(partOffer.fulfillmentStatus) && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setPrepareOfferId(partOffer.id);
+                                                                            setIsPrepareDialogOpen(true);
+                                                                        }}
+                                                                        className="px-4 py-2 rounded-lg text-xs font-bold bg-blue-500 hover:bg-blue-400 text-white border border-blue-500/30"
+                                                                    >
+                                                                        {isAr ? 'تأكيد تجهيز هذه القطعة' : 'Mark this part prepared'}
+                                                                    </button>
+                                                                )}
+                                                                {merchantOfferVerificationPending(partOffer.fulfillmentStatus) && (
+                                                                    <span className="px-4 py-2 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/25 flex items-center gap-1.5">
+                                                                        <Clock size={14} />
+                                                                        {isAr ? 'التوثيق قيد مراجعة الإدارة' : 'Verification under admin review'}
+                                                                    </span>
+                                                                )}
+                                                                {(() => {
+                                                                    const partDoc = getVerificationDocForOffer(
+                                                                        order?.verificationDocuments,
+                                                                        partOffer.id,
+                                                                    );
+                                                                    if (
+                                                                        !merchantOfferAdminRejected(
+                                                                            partOffer.fulfillmentStatus,
+                                                                            partDoc,
+                                                                        )
+                                                                    ) {
+                                                                        return null;
+                                                                    }
+                                                                    return (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setVerificationOfferId(partOffer.id);
+                                                                                setShowVerificationForm(true);
+                                                                            }}
+                                                                            className="px-4 py-2 rounded-lg text-xs font-bold bg-red-600/90 hover:bg-red-500 text-white border border-red-500/30 flex items-center gap-1.5"
+                                                                        >
+                                                                            <AlertTriangle size={14} />
+                                                                            {isAr ? 'إعادة التوثيق' : 'Re-verify'}
+                                                                        </button>
+                                                                    );
+                                                                })()}
+                                                                {merchantCanSubmitVerification(partOffer.fulfillmentStatus) && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setVerificationOfferId(partOffer.id);
+                                                                            setShowVerificationForm(true);
+                                                                        }}
+                                                                        className="px-4 py-2 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30"
+                                                                    >
+                                                                        {isAr ? 'توثيق هذه القطعة' : 'Verify this part'}
+                                                                    </button>
+                                                                )}
+                                                                {merchantCanRequestReadyForShipping(partOffer.fulfillmentStatus) && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRequestShipping(partOffer.id)}
+                                                                        disabled={isRequestingShipping}
+                                                                        className="px-4 py-2 rounded-lg text-xs font-bold bg-teal-600/90 hover:bg-teal-500 text-white border border-teal-500/30 disabled:opacity-50"
+                                                                    >
+                                                                        {isAr ? 'تسليم للإدارة' : 'Handover to admin'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
 
                                                         {/* 2026 Governance: Edit/Withdraw Logic */}
                                                         {(order.status === 'AWAITING_OFFERS' || order.status === 'COLLECTING_OFFERS') && (
@@ -1311,35 +1740,290 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                     </GlassCard>
 
                     {/* Dynamic Context Card (Bidding vs Action) */}
-                    <GlassCard className="p-6 relative z-20">
-                        {offersNeedingPrepare.length > 0 ? (
-                            <div className="text-center">
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border ${order.status === 'DELAYED_PREPARATION' ? 'bg-red-500/10 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'bg-blue-500/10 border-blue-500/20'}`}>
-                                    <Package size={28} className={order.status === 'DELAYED_PREPARATION' ? "text-red-500 animate-pulse" : "text-blue-400"} />
+                    <GlassCard className="p-6 relative z-20 space-y-6">
+                        {merchantAcceptedOffers.length > 1 && (
+                            <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/10 p-4 text-sm text-indigo-200/90 leading-relaxed">
+                                {isAr
+                                    ? 'طلب متعدد القطع: جهّز كل قطعة على حدة، ثم وثّق كل قطعة بشكل منفصل. لا يمكن الانتقال للتوثيق لقطعة حتى تُعلّم «تم التجهيز» لتلك القطعة فقط.'
+                                    : 'Multi-part order: prepare and verify each part separately. A part can only be verified after you mark that specific part as prepared.'}
+                            </div>
+                        )}
+
+                        {merchantAcceptedOffers.length > 0 &&
+                            !['AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'CANCELLED'].includes(
+                                order.status,
+                            ) && (
+                                <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                                    <div>
+                                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-white/40 mb-2">
+                                            <span>{isAr ? 'التجهيز' : 'Preparation'}</span>
+                                            <span className="text-gold-400">
+                                                {merchantPartsPreparedCount}/{merchantAcceptedOffers.length}{' '}
+                                                {isAr ? 'جهّزت' : 'prepared'}
+                                            </span>
+                                        </div>
+                                        <div className="h-2 bg-white/5 rounded-full overflow-hidden" dir="ltr">
+                                            <motion.div
+                                                className="h-full bg-gradient-to-r from-blue-600 to-blue-400"
+                                                initial={false}
+                                                animate={{ width: `${merchantPrepProgressPct}%` }}
+                                                transition={{ duration: 0.4, ease: 'easeOut' }}
+                                            />
+                                        </div>
+                                    </div>
+                                    {merchantPartsPreparedCount > 0 && (
+                                        <div>
+                                            <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-white/40 mb-2">
+                                                <span>{isAr ? 'التوثيق' : 'Verification'}</span>
+                                                <span className="text-amber-400">
+                                                    {merchantPartsUnderReviewCount > 0 && (
+                                                        <span>
+                                                            {merchantPartsUnderReviewCount}/{merchantAcceptedOffers.length}{' '}
+                                                            {isAr ? 'قيد المراجعة' : 'in review'}
+                                                        </span>
+                                                    )}
+                                                    {merchantPartsUnderReviewCount > 0 &&
+                                                        merchantPartsVerifiedCount > 0 && (
+                                                            <span className="text-white/30 mx-1">·</span>
+                                                        )}
+                                                    {merchantPartsVerifiedCount > 0 && (
+                                                        <span className="text-green-400">
+                                                            {merchantPartsVerifiedCount}/{merchantAcceptedOffers.length}{' '}
+                                                            {isAr ? 'موثّق' : 'verified'}
+                                                        </span>
+                                                    )}
+                                                    {merchantPartsUnderReviewCount === 0 &&
+                                                        merchantPartsVerifiedCount === 0 && (
+                                                            <span className="text-white/40">
+                                                                0/{merchantAcceptedOffers.length}
+                                                            </span>
+                                                        )}
+                                                </span>
+                                            </div>
+                                            <div className="h-2 bg-white/5 rounded-full overflow-hidden" dir="ltr">
+                                                <motion.div
+                                                    className="h-full bg-gradient-to-r from-amber-500 to-green-500"
+                                                    initial={false}
+                                                    animate={{ width: `${merchantVerificationProgressPct}%` }}
+                                                    transition={{ duration: 0.4, ease: 'easeOut' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                                <h3 className={`text-xl font-bold mb-2 ${order.status === 'DELAYED_PREPARATION' ? 'text-red-400' : 'text-white'}`}>
-                                    {isAr ? 'خطوة التجهيز' : 'Preparation Phase'}
-                                </h3>
-                                <p className="text-white/60 text-sm px-4 mb-6 leading-relaxed">
-                                    {isAr 
-                                        ? 'العميل بانتظار تجهيزك للطلب بالكامل في كرتون محكم الغلق. إضغط "تم التجهيز" لتأكيد جاهزيته لشركة التوصيل.' 
-                                        : 'The customer is waiting for you to prepare the order in a tightly sealed box. Click the button once packed.'}
-                                </p>
-                                <button
-                                    onClick={() => {
-                                        setPrepareOfferId(offersNeedingPrepare[0]?.id || null);
-                                        setIsPrepareDialogOpen(true);
-                                    }}
-                                    className={`w-full py-4 rounded-xl font-bold transition-all shadow-lg active:scale-98 flex items-center justify-center gap-2 ${order.status === 'DELAYED_PREPARATION' ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/20' : 'bg-blue-500 hover:bg-blue-400 text-white shadow-blue-500/20'}`}
+                            )}
+
+                        {offersNeedingPrepare.length > 0 && (
+                            <div className="text-center space-y-4">
+                                <div
+                                    className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto border ${order.status === 'DELAYED_PREPARATION' ? 'bg-red-500/10 border-red-500/30' : 'bg-blue-500/10 border-blue-500/20'}`}
                                 >
-                                    <CheckCircle2 size={20} />
-                                    <span>{isAr ? 'تأكيد: تم التجهيز' : 'Confirm Preparation'}</span>
-                                </button>
-                                {order.status === 'DELAYED_PREPARATION' && (
-                                    <p className="text-xs text-red-400/80 mt-3 font-bold">{isAr ? '* يجب إنهاء هذه الخطوة فوراً لتجنب غرامة التأخير أو إلغاء الطلب.' : '* Must be completed immediately to avoid penalty.'}</p>
+                                    <Package
+                                        size={28}
+                                        className={order.status === 'DELAYED_PREPARATION' ? 'text-red-500 animate-pulse' : 'text-blue-400'}
+                                    />
+                                </div>
+                                <h3
+                                    className={`text-xl font-bold ${order.status === 'DELAYED_PREPARATION' ? 'text-red-400' : 'text-white'}`}
+                                >
+                                    {isAr ? 'تجهيز القطع' : 'Part preparation'}
+                                </h3>
+                                <p className="text-white/60 text-sm px-2 leading-relaxed">
+                                    {merchantAcceptedOffers.length > 1
+                                        ? isAr
+                                            ? 'اختر القطعة التي أنهيت تجهيزها وتغليفها. يمكنك تأكيد التجهيز قطعة بقطعة دون انتظار باقي القطع.'
+                                            : 'Select each part you have packed. Confirm preparation one part at a time.'
+                                        : isAr
+                                          ? 'بعد تغليف القطعة بشكل محكم، أكّد أنها جاهزة للتوثيق.'
+                                          : 'Once securely packed, confirm it is ready for verification.'}
+                                </p>
+                                <div className="space-y-2">
+                                    {offersNeedingPrepare.map((offer) => (
+                                        <button
+                                            key={offer.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setPrepareOfferId(offer.id);
+                                                setIsPrepareDialogOpen(true);
+                                            }}
+                                            className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 border ${
+                                                order.status === 'DELAYED_PREPARATION'
+                                                    ? 'bg-red-600/90 hover:bg-red-500 text-white border-red-500/30'
+                                                    : 'bg-blue-500/90 hover:bg-blue-400 text-white border-blue-500/30'
+                                            }`}
+                                        >
+                                            <CheckCircle2 size={18} />
+                                            <span className="truncate">
+                                                {isAr ? 'تجهيز:' : 'Prepare:'} {getMerchantOfferPartName(offer)}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {offersUnderVerificationReview.length > 0 && (
+                            <div className="space-y-2 border-t border-white/10 pt-6">
+                                <p className="text-center text-white/50 text-xs uppercase tracking-wider font-bold">
+                                    {isAr ? 'بانتظار مراجعة الإدارة' : 'Awaiting admin review'}
+                                </p>
+                                {offersUnderVerificationReview.map((offer) => (
+                                    <div
+                                        key={offer.id}
+                                        className="w-full py-3 px-4 rounded-xl text-sm bg-amber-500/10 border border-amber-500/25 flex items-center gap-2 text-amber-200"
+                                    >
+                                        <Clock size={18} className="text-amber-400 shrink-0" />
+                                        <span className="truncate flex-1">
+                                            {getMerchantOfferPartName(offer)}
+                                        </span>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90 shrink-0">
+                                            {isAr ? 'قيد المراجعة' : 'In review'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {offersVerificationApproved.length > 0 && (
+                            <div className="space-y-2 border-t border-white/10 pt-6">
+                                <p className="text-center text-white/50 text-xs uppercase tracking-wider font-bold">
+                                    {isAr ? 'تم اعتماد التوثيق' : 'Verification approved'}
+                                </p>
+                                {offersVerificationApproved.map((offer) => (
+                                    <div
+                                        key={offer.id}
+                                        className="w-full py-3 px-4 rounded-xl text-sm bg-green-500/10 border border-green-500/25 flex items-center gap-2 text-green-200"
+                                    >
+                                        <CheckCircle2 size={18} className="text-green-400 shrink-0" />
+                                        <span className="truncate flex-1">
+                                            {getMerchantOfferPartName(offer)}
+                                        </span>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-green-400/90 shrink-0">
+                                            {isAr ? 'معتمد' : 'Approved'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {offersRejectedVerification.length > 0 && (
+                            <div className="space-y-3 border-t border-white/10 pt-6">
+                                <p className="text-center text-white/50 text-xs uppercase tracking-wider font-bold">
+                                    {isAr ? 'رفض التوثيق — مطلوب تصحيح' : 'Verification rejected — correction required'}
+                                </p>
+                                {offersRejectedVerification.map((offer) => {
+                                    const doc = getVerificationDocForOffer(
+                                        order?.verificationDocuments,
+                                        offer.id,
+                                    );
+                                    return (
+                                        <div
+                                            key={offer.id}
+                                            className="rounded-xl text-sm bg-red-500/10 border border-red-500/25 overflow-hidden"
+                                        >
+                                            <div className="py-3 px-4 flex items-center gap-2 text-red-200">
+                                                <XCircle size={18} className="text-red-400 shrink-0" />
+                                                <span className="truncate flex-1 font-bold">
+                                                    {getMerchantOfferPartName(offer)}
+                                                </span>
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-red-400/90 shrink-0">
+                                                    {isAr ? 'مرفوض' : 'Rejected'}
+                                                </span>
+                                            </div>
+                                            {doc?.adminRejectionReason && (
+                                                <div className="px-4 pb-3 border-t border-red-500/15 pt-3">
+                                                    <p className="text-xs text-red-300/90 font-bold mb-1">
+                                                        {isAr ? 'سبب الرفض:' : 'Rejection reason:'}
+                                                    </p>
+                                                    <p className="text-white/80 text-sm whitespace-pre-wrap">
+                                                        {doc.adminRejectionReason}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <div className="px-4 pb-4">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setVerificationOfferId(offer.id);
+                                                        setShowVerificationForm(true);
+                                                    }}
+                                                    className="w-full py-2.5 rounded-lg font-bold text-xs bg-red-600/90 hover:bg-red-500 text-white flex items-center justify-center gap-2"
+                                                >
+                                                    <AlertTriangle size={14} />
+                                                    {isAr ? 'إعادة توثيق هذه القطعة' : 'Re-verify this part'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {offersNeedingVerification.length > 0 && (
+                            <div className="space-y-3 border-t border-white/10 pt-6">
+                                <p className="text-center text-white/50 text-xs uppercase tracking-wider font-bold">
+                                    {isAr ? 'التوثيق — لكل قطعة على حدة' : 'Verification — per part'}
+                                </p>
+                                {offersNeedingVerification.length === 1 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setVerificationOfferId(offersNeedingVerification[0]?.id || null);
+                                            setShowVerificationForm(true);
+                                        }}
+                                        className="w-full py-4 rounded-xl font-bold bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black transition-all shadow-[0_0_25px_rgba(245,158,11,0.35)] flex items-center justify-center gap-2"
+                                    >
+                                        <ShieldCheck size={20} />
+                                        <span>{isAr ? 'توثيق القطعة' : 'Verify part'}</span>
+                                    </button>
+                                ) : (
+                                    offersNeedingVerification.map((offer) => (
+                                        <button
+                                            key={offer.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setVerificationOfferId(offer.id);
+                                                setShowVerificationForm(true);
+                                            }}
+                                            className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 flex items-center justify-center gap-2"
+                                        >
+                                            <ShieldCheck size={18} />
+                                            <span className="truncate">
+                                                {isAr ? 'توثيق:' : 'Verify:'} {getMerchantOfferPartName(offer)}
+                                            </span>
+                                        </button>
+                                    ))
                                 )}
                             </div>
-                        ) : (
+                        )}
+
+                        {offersReadyForHandover.length > 0 && (
+                            <div className="space-y-3 border-t border-white/10 pt-6">
+                                <p className="text-center text-white/50 text-xs uppercase tracking-wider font-bold">
+                                    {isAr ? 'تسليم للإدارة — لكل قطعة' : 'Handover to admin — per part'}
+                                </p>
+                                {offersReadyForHandover.map((offer) => (
+                                    <button
+                                        key={offer.id}
+                                        type="button"
+                                        onClick={() => handleRequestShipping(offer.id)}
+                                        disabled={isRequestingShipping}
+                                        className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-blue-600/90 hover:bg-blue-500 text-white border border-blue-500/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {isRequestingShipping ? (
+                                            <Loader2 size={18} className="animate-spin" />
+                                        ) : (
+                                            <Truck size={18} />
+                                        )}
+                                        <span className="truncate">
+                                            {isAr ? 'تسليم:' : 'Handover:'} {getMerchantOfferPartName(offer)}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {offersNeedingPrepare.length === 0 && offersNeedingVerification.length === 0 && (
                             <>
                                 {(() => {
                                     const display = (() => {
@@ -1389,14 +2073,16 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                                     bgColor: 'bg-green-500/10',
                                                     borderColor: 'border-green-500/20'
                                                 };
-                                            case 'READY_FOR_SHIPPING':
+                                            case 'READY_FOR_SHIPPING': {
+                                                const dynamic = handoverCopy;
                                                 return {
                                                     icon: <Truck size={28} className="text-blue-400" />,
-                                                    title: isAr ? s.READY_FOR_SHIPPING.title : s.READY_FOR_SHIPPING.enTitle,
-                                                    desc: isAr ? s.READY_FOR_SHIPPING.desc : s.READY_FOR_SHIPPING.enDesc,
+                                                    title: dynamic.title,
+                                                    desc: dynamic.desc,
                                                     bgColor: 'bg-blue-500/10',
-                                                    borderColor: 'border-blue-500/20'
+                                                    borderColor: 'border-blue-500/20',
                                                 };
+                                            }
                                             case 'NON_MATCHING':
                                             case 'CORRECTION_PERIOD':
                                                 return {
@@ -1466,46 +2152,13 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 })()}
 
                                 {(() => {
-                                    const progressiveStates = ['AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED'];
+                                    const progressiveStates = ['AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED'];
                                     const isProgressive = progressiveStates.includes(order.status);
-
-                                    if (offersNeedingVerification.length > 0) {
-                                        return (
-                                            <button
-                                                onClick={() => {
-                                                    setVerificationOfferId(offersNeedingVerification[0]?.id || null);
-                                                    setShowVerificationForm(true);
-                                                }}
-                                                className="w-full py-4 rounded-xl font-bold bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black transition-all shadow-[0_0_25px_rgba(245,158,11,0.4)] hover:shadow-[0_0_40px_rgba(245,158,11,0.6)] flex items-center justify-center gap-2 group relative overflow-hidden active:scale-98 animate-pulse"
-                                            >
-                                                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out pointer-events-none" />
-                                                <ShieldCheck className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                                <span>{isAr ? 'توثيق حالة القطعة والتسليم' : 'Document Part & Handover'}</span>
-                                            </button>
-                                        );
-                                    }
 
                                     if (order.status === 'VERIFICATION' || order.status === 'CORRECTION_SUBMITTED') {
                                         return (
                                             <button disabled className="w-full py-4 rounded-xl font-bold text-amber-500/80 bg-amber-500/10 cursor-not-allowed border border-amber-500/20">
                                                 {isAr ? 'في انتظار مراجعة الإدارة' : 'Pending Admin Review'}
-                                            </button>
-                                        );
-                                    }
-
-                                    if (offersReadyForHandover.length > 0) {
-                                        return (
-                                            <button 
-                                                onClick={handleRequestShipping}
-                                                disabled={isRequestingShipping}
-                                                className="w-full py-4 rounded-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white transition-all shadow-[0_0_25px_rgba(59,130,246,0.4)] hover:shadow-[0_0_40px_rgba(59,130,246,0.6)] flex items-center justify-center gap-2 group relative overflow-hidden active:scale-98"
-                                            >
-                                                {isRequestingShipping ? (
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                ) : (
-                                                    <Truck className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                                )}
-                                                <span>{isAr ? 'طلب تسليم الشحنة للإدارة' : 'Request delivery of the shipment to management'}</span>
                                             </button>
                                         );
                                     }
@@ -1518,7 +2171,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                             >
                                                 <div className="flex items-center gap-2">
                                                     <Truck className="w-5 h-5 inline group-hover:translate-x-1 transition-transform" />
-                                                    <span>{isAr ? 'بانتظار بوليصة الشحن' : 'Awaiting Waybill'}</span>
+                                                    <span>{handoverCopy.actionLabel}</span>
                                                 </div>
                                             </button>
                                         );
@@ -1955,12 +2608,17 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                     <Package size={32} />
                                 </div>
                                 <h3 className="text-xl font-bold text-white">
-                                    {isAr ? 'تأكيد التجهيز النهائي' : 'Confirm Final Preparation'}
+                                    {isAr ? 'تأكيد تجهيز القطعة' : 'Confirm part preparation'}
                                 </h3>
+                                {prepareOfferForDialog && (
+                                    <p className="text-gold-400 font-bold text-sm">
+                                        {getMerchantOfferPartName(prepareOfferForDialog)}
+                                    </p>
+                                )}
                                 <p className="text-sm text-white/50 leading-relaxed px-2">
-                                    {isAr 
-                                        ? 'هل القطع محفوظة ومغلفة بشكل محكم وتامة الجاهزية للتسليم لمندوب الشحن؟ سيتم إعلام العميل بانتهاء التجهيز.' 
-                                        : 'Are the products securely packed and fully ready to be picked up by the courier? The customer will be instantly notified.'}
+                                    {isAr
+                                        ? 'هل هذه القطعة مغلفة بشكل محكم وجاهزة للتوثيق؟ التوثيق يتم لكل قطعة على حدة في الخطوة التالية.'
+                                        : 'Is this part securely packed and ready for verification? Each part is verified separately in the next step.'}
                                 </p>
                             </div>
 

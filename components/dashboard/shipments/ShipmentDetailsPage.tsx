@@ -174,6 +174,13 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
                                                 </div>
 
                                                 <div className="p-4 bg-white/5 rounded-xl border border-white/5">
+                                                    {(shipment as any).cartBatchSize > 1 && (
+                                                        <p className="text-[10px] font-bold text-blue-300/90 mb-2 px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 inline-block">
+                                                            {isAr
+                                                                ? `شحنة مجمعة — ${(shipment as any).cartBatchSize} قطع`
+                                                                : `Grouped batch — ${(shipment as any).cartBatchSize} parts`}
+                                                        </p>
+                                                    )}
                                                     <span className="text-xs text-white/30 uppercase font-bold tracking-wider mb-1 block">{isAr ? 'القطع وتفاصيلها' : 'Parts & Details'}</span>
                                                     <div className="space-y-2">
                                                         {shipment.items.map((item, i) => (

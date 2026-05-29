@@ -4,6 +4,12 @@ import { isAcceptedOfferStatus } from './offerStatusHelpers';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export const REVIEWABLE_ORDER_STATUSES = [
+  'DELIVERED',
+  'COMPLETED',
+  'WARRANTY_ACTIVE',
+] as const;
+
 export function isValidUuid(value: unknown): value is string {
   return typeof value === 'string' && UUID_RE.test(value);
 }
@@ -11,6 +17,18 @@ export function isValidUuid(value: unknown): value is string {
 function isAcceptedOffer(offer?: OrderOffer | null): boolean {
   if (!offer) return false;
   return isAcceptedOfferStatus(offer.status);
+}
+
+export function orderNeedsReview(order: Order | null | undefined): boolean {
+  if (!order) return false;
+  return (
+    REVIEWABLE_ORDER_STATUSES.includes(order.status as (typeof REVIEWABLE_ORDER_STATUSES)[number]) &&
+    !order.review
+  );
+}
+
+export function findOrdersPendingReview(orders: Order[]): Order[] {
+  return orders.filter(orderNeedsReview);
 }
 
 /** Resolve store + display labels for the customer review modal. */

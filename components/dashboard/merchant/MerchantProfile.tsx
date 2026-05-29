@@ -19,7 +19,7 @@ export const MerchantProfile: React.FC = () => {
         updateStoreInfo, fetchVendorProfile, 
         documents, isLoadingProfile, performance, 
         updateVendorProfile, uploadLogo, uploadDocument,
-        contractAcceptance, subscribeToVendorProfile, unsubscribeFromVendorProfile,
+        contractAcceptance,
         connectStripe, openStripeDashboard
     } = useVendorStore();
 
@@ -36,16 +36,14 @@ export const MerchantProfile: React.FC = () => {
     useEffect(() => {
         fetchVendorProfile();
         fetchImpactRules();
-        subscribeToVendorProfile();
         if (makes.length === 0) {
             fetchCatalog();
         }
         subscribeToCatalog();
         return () => {
-            unsubscribeFromVendorProfile();
             unsubscribeFromCatalog();
         };
-    }, [fetchVendorProfile, fetchImpactRules, subscribeToVendorProfile, unsubscribeFromVendorProfile, makes.length, fetchCatalog, subscribeToCatalog, unsubscribeFromCatalog]);
+    }, [fetchVendorProfile, fetchImpactRules, makes.length, fetchCatalog, subscribeToCatalog, unsubscribeFromCatalog]);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -166,11 +164,11 @@ export const MerchantProfile: React.FC = () => {
         <div className="space-y-8 animate-pulse">
             <div className="grid lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1 space-y-6">
-                    <GlassCard className="p-6 h-64 bg-white/5" />
-                    <GlassCard className="p-6 h-48 bg-white/5" />
+                    <GlassCard className="p-6 h-64 bg-white/5"><div /></GlassCard>
+                    <GlassCard className="p-6 h-48 bg-white/5"><div /></GlassCard>
                 </div>
                 <div className="lg:col-span-2 space-y-6">
-                    <GlassCard className="p-6 h-96 bg-white/5" />
+                    <GlassCard className="p-6 h-96 bg-white/5"><div /></GlassCard>
                 </div>
             </div>
         </div>

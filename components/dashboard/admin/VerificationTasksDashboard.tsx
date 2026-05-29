@@ -216,7 +216,9 @@ export const VerificationTasksDashboard: React.FC<VerificationTasksDashboardProp
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <h4 className="text-lg font-bold text-white">{task.order?.partName || '—'}</h4>
+                    <h4 className="text-lg font-bold text-white">
+                      {task.offer?.orderPart?.name || task.order?.partName || '—'}
+                    </h4>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-4 text-xs text-white/40 mt-1">

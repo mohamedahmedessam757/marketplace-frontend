@@ -1,20 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { waybillsApi } from './../../../services/api/waybills';
 import { useLanguage } from './../../../contexts/LanguageContext';
-import { Printer, ChevronDown, ChevronUp, Truck, ShieldAlert, Download } from 'lucide-react';
+import { Printer, ChevronDown, ChevronUp, Truck, ShieldAlert, Download, Plus, X, Loader2 } from 'lucide-react';
 import { excelApi } from './../../../services/api/excel';
 import { GlassCard } from './../../ui/GlassCard';
 import { supabase } from '../../../services/supabase';
+import { ShipmentBatchCard, type ShipmentBatchSummary } from './ShipmentBatchCard';
 
 interface OrderWaybillsPanelProps {
     orderId: string;
     orderStatus: string;
     role: 'ADMIN' | 'SUPER_ADMIN' | 'MERCHANT' | 'CUSTOMER';
     initialData?: any[];
+    requestType?: string;
+    orderNumber?: string;
+    offers?: Array<{ id: string; orderPartId?: string; partName?: string; fulfillmentStatus?: string; status?: string }>;
+    shipmentBatches?: ShipmentBatchSummary[];
+    onRefreshOrder?: () => void | Promise<void>;
 }
 
-export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId, orderStatus, role, initialData }) => {
+export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({
+    orderId,
+    orderStatus,
+    role,
+    initialData,
+    requestType,
+    orderNumber,
+    offers = [],
+    shipmentBatches = [],
+    onRefreshOrder,
+}) => {
     const { language } = useLanguage();
     const isAr = language === 'ar';
     const isRTL = isAr;
@@ -26,6 +42,25 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
     const [error, setError] = useState<string | null>(null);
     const [isExporting, setIsExporting] = useState<string | null>(null);
+    const [issueOpen, setIssueOpen] = useState(false);
+    const [issueMode, setIssueMode] = useState<'per_part' | 'single_batch'>('single_batch');
+    const [selectedOfferIds, setSelectedOfferIds] = useState<string[]>([]);
+    const [issuing, setIssuing] = useState(false);
+
+    const isGrouped = String(requestType || '').toLowerCase() === 'multiple';
+    const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+
+    const eligibleOffers = useMemo(
+        () =>
+            offers.filter(
+                (o) =>
+                    String(o.status || '').toLowerCase() === 'accepted' &&
+                    ['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED'].includes(
+                        String(o.fulfillmentStatus || '').toUpperCase(),
+                    ),
+            ),
+        [offers],
+    );
 
     const fetchWaybills = async () => {
         try {
@@ -86,6 +121,30 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
             setIsPrinting(false);
             setActiveWaybill(null);
         }, 300);
+    };
+
+    const handleIssueWaybills = async () => {
+        setIssuing(true);
+        setError(null);
+        try {
+            const ids =
+                selectedOfferIds.length > 0
+                    ? selectedOfferIds
+                    : eligibleOffers.map((o) => o.id);
+            await waybillsApi.issueForOrder(orderId, {
+                mode: issueMode,
+                offerIds: ids,
+            });
+            setIssueOpen(false);
+            setSelectedOfferIds([]);
+            await fetchWaybills();
+            await onRefreshOrder?.();
+        } catch (err: any) {
+            const raw = err?.response?.data?.message;
+            setError(Array.isArray(raw) ? raw.join(' · ') : raw || err.message);
+        } finally {
+            setIssuing(false);
+        }
     };
 
     const handleExportExcel = async (wb: any) => {
@@ -331,6 +390,108 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
 
             {!isPrinting && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                    {isGrouped && shipmentBatches.length > 0 && (
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-bold text-white/60 uppercase tracking-wider">
+                                {isAr ? 'دفعات الشحن (حسب اختيار العميل)' : 'Shipment batches (customer selection)'}
+                            </h4>
+                            {shipmentBatches.map((batch) => (
+                                <ShipmentBatchCard
+                                    key={batch.shipmentId}
+                                    batch={batch}
+                                    orderNumber={orderNumber}
+                                    isAr={isAr}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {isAdmin && isGrouped && eligibleOffers.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIssueOpen(true);
+                                    setSelectedOfferIds(eligibleOffers.map((o) => o.id));
+                                    setIssueMode('single_batch');
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-sm font-bold hover:bg-amber-500/30"
+                            >
+                                <Plus size={16} />
+                                {isAr ? 'إصدار بوليصة مجمعة' : 'Issue grouped waybill'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIssueOpen(true);
+                                    setSelectedOfferIds([]);
+                                    setIssueMode('per_part');
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/20 text-white/70 text-sm font-bold hover:bg-white/10"
+                            >
+                                <Plus size={16} />
+                                {isAr ? 'إصدار لكل قطعة' : 'Issue per part'}
+                            </button>
+                        </div>
+                    )}
+
+                    {issueOpen && isAdmin && (
+                        <GlassCard className="p-4 border border-amber-500/30 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h4 className="font-bold text-white">
+                                    {isAr ? 'إصدار بوليصة يدوي' : 'Manual waybill issuance'}
+                                </h4>
+                                <button type="button" onClick={() => setIssueOpen(false)} className="text-white/40 hover:text-white">
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIssueMode('single_batch')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${issueMode === 'single_batch' ? 'bg-amber-500/30 border-amber-500/50 text-amber-100' : 'border-white/10 text-white/50'}`}
+                                >
+                                    {isAr ? 'بوليصة واحدة' : 'Single waybill'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIssueMode('per_part')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${issueMode === 'per_part' ? 'bg-amber-500/30 border-amber-500/50 text-amber-100' : 'border-white/10 text-white/50'}`}
+                                >
+                                    {isAr ? 'لكل قطعة' : 'Per part'}
+                                </button>
+                            </div>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {eligibleOffers.map((o) => (
+                                    <label key={o.id} className="flex items-center gap-2 text-sm text-white/80 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedOfferIds.includes(o.id)}
+                                            onChange={() =>
+                                                setSelectedOfferIds((prev) =>
+                                                    prev.includes(o.id)
+                                                        ? prev.filter((id) => id !== o.id)
+                                                        : [...prev, o.id],
+                                                )
+                                            }
+                                            className="rounded border-white/20"
+                                        />
+                                        <span>{o.partName || o.id.slice(0, 8)}</span>
+                                    </label>
+                                ))}
+                            </div>
+                            <button
+                                type="button"
+                                disabled={issuing || (issueMode === 'single_batch' && selectedOfferIds.length === 0)}
+                                onClick={handleIssueWaybills}
+                                className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {issuing ? <Loader2 size={18} className="animate-spin" /> : null}
+                                {isAr ? 'تأكيد الإصدار' : 'Confirm issue'}
+                            </button>
+                        </GlassCard>
+                    )}
+
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl flex items-center gap-2">
                             <ShieldAlert size={18} />
@@ -345,12 +506,16 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                                 {isAr ? 'لا توجد بوليصات شحن' : 'No Shipping Waybills Found'}
                             </h3>
                             <p className="text-white/50 mb-6 max-w-md mx-auto">
-                                {isAr 
-                                    ? 'لم يتم إصدار بوليصات الشحن القطع بعد. يتم إصدار البوليصة فقط بعد نجاح عملية التوثيق.' 
-                                    : 'Order waybills have not been issued yet. Waybills are issued only after successful verification.'}
+                                {isGrouped
+                                    ? isAr
+                                        ? 'للطلبات المجمعة تُصدر البوليصة عند طلب الشحن من سلة التجميع (قطعة أو أكثر معاً) أو تلقائياً بعد 7 أيام.'
+                                        : 'For grouped orders, waybills are issued when you ship from the assembly cart (one or more parts together) or automatically after 7 days.'
+                                    : isAr
+                                      ? 'لم يتم إصدار بوليصات الشحن بعد. للطلب المفرد تُصدر تلقائياً بعد اعتماد التوثيق.'
+                                      : 'No waybills yet. Single-part orders get a waybill automatically after verification approval.'}
                             </p>
                             
-                            {['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING'].includes(orderStatus) && (
+                            {!isGrouped && ['VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING'].includes(orderStatus) && (
                                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm font-bold">
                                     <Truck size={16} />
                                     <span>
@@ -380,6 +545,19 @@ export const OrderWaybillsPanel: React.FC<OrderWaybillsPanelProps> = ({ orderId,
                                                 <div>
                                                     <div className="text-[10px] font-black uppercase tracking-widest text-white/30">{isAr ? 'رقم التتبع' : 'Tracking ID'}</div>
                                                     <div className="font-mono font-black text-white tracking-tighter">{wb.waybillNumber}</div>
+                                                    {wb.partNames?.length > 1 && (
+                                                        <p className="text-[10px] text-blue-300/80 mt-0.5">
+                                                            {isAr ? 'قطع:' : 'Parts:'}{' '}
+                                                            {wb.partNames.join(isAr ? ' · ' : ', ')}
+                                                        </p>
+                                                    )}
+                                                    {wb.batchSize > 1 && !wb.partNames?.length && (
+                                                        <p className="text-[10px] text-blue-300/80 mt-0.5">
+                                                            {isAr
+                                                                ? `دفعة مجمعة (${wb.batchSize})`
+                                                                : `Grouped batch (${wb.batchSize})`}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">

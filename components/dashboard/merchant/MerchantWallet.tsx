@@ -810,13 +810,13 @@ export const MerchantWallet: React.FC<MerchantWalletProps> = ({ onNavigate }) =>
                 />
                 <StatCard
                     label={w.netEarnings}
-                    value={stats.netEarnings}
+                    value={stats.ledgerNetProfit ?? stats.netEarnings}
                     unit="AED"
                     icon={TrendingUp}
                     colorClass="text-purple-400"
                     bgClass="bg-purple-500/10"
                     borderClass="border-purple-500/10"
-                    subtitle={`${w.totalWalletBalance}: ${Number(stats.totalWalletBalance || 0).toLocaleString()} AED`}
+                    subtitle={w.netEarningsHint}
                 />
                 <StatCard
                     label={w.completedOrders}

@@ -10,6 +10,43 @@ import { ShipmentTracker } from '../shipments/ShipmentTracker';
 import { useShipmentStore } from '../../../stores/useShipmentStore';
 import { useAdminStore } from '../../../stores/useAdminStore';
 import { OrderCountdown } from '../../ui/OrderCountdown';
+import { ShipmentBatchCard } from '../shared/ShipmentBatchCard';
+
+function shipmentMatchesQuery(s: Shipment, query: string): boolean {
+    const q = query.toLowerCase().trim();
+    if (!q) return true;
+    const orderNumber = ((s.order as any)?.orderNumber || '').toLowerCase();
+    const partNames = (s.batchPartNames || s.items?.map((i) => i.name) || []).join(' ').toLowerCase();
+    const waybill = (s.waybillNumber || '').toLowerCase();
+    return (
+        s.orderId.toLowerCase() === q ||
+        s.orderId.toLowerCase().includes(q) ||
+        s.id.toLowerCase() === q ||
+        orderNumber.includes(q) ||
+        (s.trackingNumber || '').toLowerCase().includes(q) ||
+        (s.carrierName || '').toLowerCase().includes(q) ||
+        partNames.includes(q) ||
+        waybill.includes(q)
+    );
+}
+
+function toBatchSummary(s: Shipment) {
+    const partNames =
+        s.batchPartNames?.length
+            ? s.batchPartNames
+            : s.items?.map((i) => i.name) || [];
+    return {
+        shipmentId: s.id,
+        waybillId: s.waybillId ?? null,
+        waybillNumber: s.waybillNumber ?? null,
+        offerIds: [],
+        partNames,
+        batchSize: s.cartBatchSize || partNames.length || 1,
+        shippedAt: s.updatedAt,
+        trigger: s.issueMode ?? null,
+        status: s.status,
+    };
+}
 
 // These MUST match the Prisma ShipmentStatus enum exactly
 const shipmentStatuses = [
@@ -97,12 +134,10 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
     const [view, setView] = useState<'list' | 'detail'>('list');
 
     useEffect(() => {
-        // We only fetch if the list is empty to provide a real-time experience
-        // The subscription in AdminHome handles background updates
-        if (shipments.length === 0) {
+        if (shipments.length === 0 || initialSearch) {
             useShipmentStore.getState().fetchShipments();
         }
-    }, [shipments.length]);
+    }, [shipments.length, initialSearch]);
 
     // Sync effect: If the selected shipment is updated in the store (via realtime), update the local details view
     useEffect(() => {
@@ -114,18 +149,26 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
         }
     }, [shipments, selectedShipment]);
 
-    // Effect to auto-select if initialSearch matches an order perfectly
+    // Deep-link from order details: filter by order id / number; open detail only if one batch
     useEffect(() => {
-        if (initialSearch && shipments.length > 0) {
-            const found = shipments.find(s => 
-                s.orderId === initialSearch || 
-                (s.order as any)?.orderNumber === initialSearch ||
-                s.id === initialSearch
-            );
-            if (found) {
-                handleSelectShipment(found);
-                setView('detail');
-            }
+        if (!initialSearch || shipments.length === 0) return;
+
+        const matches = shipments.filter((s) => shipmentMatchesQuery(s, initialSearch));
+        setSearch(initialSearch);
+
+        if (matches.length === 1) {
+            const only = matches[0];
+            setSelectedShipment(only);
+            setView('detail');
+            setFormCarrierType(only.carrierType);
+            setFormCarrierName(only.carrierName || '');
+            setFormTrackingNumber(only.trackingNumber || '');
+            setFormTrackingLink(only.trackingLink || '');
+            setFormStatus(only.status);
+            setFormCustomsDelayNote(only.customsDelayNote || '');
+            shipmentsApi.getLogs(only.id).then(setLogs).catch(() => setLogs([]));
+        } else {
+            setView('list');
         }
     }, [initialSearch, shipments]);
 
@@ -236,13 +279,7 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
         }
     };
 
-    const filteredShipments = shipments.filter(s => {
-        const query = search.toLowerCase();
-        const orderNumber = (s.order as any)?.orderNumber || s.orderId;
-        return orderNumber.toLowerCase().includes(query)
-            || (s.trackingNumber || '').toLowerCase().includes(query)
-            || (s.carrierName || '').toLowerCase().includes(query);
-    });
+    const filteredShipments = shipments.filter((s) => shipmentMatchesQuery(s, search));
 
     const getStatusIndex = (st: string) => shipmentStatuses.indexOf(st);
 
@@ -294,14 +331,30 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                                 <Truck className="text-purple-400" />
                                 {isAr ? 'إدارة الشحنة التفصيلية' : 'Detailed Shipment Management'}
                             </h2>
-                            <p className="text-white/50 text-sm flex items-center gap-2">
+                            <p className="text-white/50 text-sm flex flex-wrap items-center gap-2">
                                 <Badge status={selectedShipment.status} />
                                 <OrderCountdown updatedAt={selectedShipment.updatedAt} status={selectedShipment.status} />
-                                <span>{isAr ? `طلب #${selectedShipment.orderId}` : `Order #${selectedShipment.orderId}`}</span>
+                                <span className="font-mono">
+                                    {(selectedShipment.order as any)?.orderNumber
+                                        ? `#${(selectedShipment.order as any).orderNumber}`
+                                        : selectedShipment.orderId.substring(0, 8)}
+                                </span>
+                                {selectedShipment.waybillNumber && (
+                                    <span className="text-amber-400/90 text-xs font-mono">
+                                        {selectedShipment.waybillNumber}
+                                    </span>
+                                )}
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => navigate('admin-order-details', selectedShipment.orderId)}
+                            className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 text-sm font-bold border border-white/10"
+                        >
+                            {isAr ? 'فتح الطلب' : 'Open Order'}
+                        </button>
                         <button 
                              onClick={handleSaveChanges} 
                              disabled={isSaving}
@@ -314,6 +367,52 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-3">
+                        <GlassCard className="p-6 bg-[#1A1814] border-blue-500/20">
+                            <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                                <Package size={18} className="text-blue-400" />
+                                {isAr ? 'محتوى هذه الشحنة' : 'This shipment contains'}
+                            </h3>
+                            <ShipmentBatchCard
+                                batch={toBatchSummary(selectedShipment)}
+                                orderNumber={(selectedShipment.order as any)?.orderNumber}
+                                isAr={isAr}
+                            />
+                            {(selectedShipment.vehicleMake || selectedShipment.partDescription) && (
+                                <div className="mt-4 pt-4 border-t border-white/10 grid md:grid-cols-2 gap-4 text-sm">
+                                    {(selectedShipment.vehicleMake || selectedShipment.vehicleModel) && (
+                                        <div>
+                                            <span className="text-white/40 text-xs block mb-1">
+                                                {isAr ? 'المركبة' : 'Vehicle'}
+                                            </span>
+                                            <span className="text-white font-bold">
+                                                {selectedShipment.vehicleMake} {selectedShipment.vehicleModel}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {selectedShipment.partDescription && (
+                                        <div>
+                                            <span className="text-white/40 text-xs block mb-1">
+                                                {isAr ? 'وصف الدفعة' : 'Batch description'}
+                                            </span>
+                                            <span className="text-white/80">{selectedShipment.partDescription}</span>
+                                        </div>
+                                    )}
+                                    {selectedShipment.waybillValue != null && (
+                                        <div>
+                                            <span className="text-white/40 text-xs block mb-1">
+                                                {isAr ? 'قيمة البوليصة' : 'Waybill value'}
+                                            </span>
+                                            <span className="text-amber-400 font-mono font-bold">
+                                                {selectedShipment.waybillValue.toLocaleString()} AED
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </GlassCard>
+                    </div>
+
                     {/* Progress Column */}
                     <div className="lg:col-span-3">
                         <GlassCard className="p-0 overflow-hidden bg-[#1A1814]">
@@ -527,14 +626,25 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                 </div>
             </div>
 
+            {initialSearch && filteredShipments.length > 1 && (
+                <GlassCard className="p-4 border-blue-500/25 bg-blue-500/10">
+                    <p className="text-sm text-blue-100 font-bold">
+                        {isAr
+                            ? `هذا الطلب له ${filteredShipments.length} دفعات شحن منفصلة — اختر الدفعة التي تريد إدارتها:`
+                            : `This order has ${filteredShipments.length} separate shipment batches — select one to manage:`}
+                    </p>
+                </GlassCard>
+            )}
+
             <GlassCard className="p-0 overflow-hidden bg-[#1A1814] border-white/5">
                 <table className="w-full text-right" dir="rtl">
                     <thead className="bg-[#151310] text-xs text-white/40 uppercase font-bold tracking-wider border-b border-white/5">
                         <tr>
-                            <th className="p-4 text-right w-[25%]">{isAr ? 'الشحنة / الطلب' : 'Shipment / Order'}</th>
-                            <th className="p-4 text-right w-[20%]">{isAr ? 'شركة الشحن' : 'Carrier'}</th>
-                            <th className="p-4 text-right w-[20%]">{isAr ? 'الحالة الحالية' : 'Current Status'}</th>
-                            <th className="p-4 text-right w-[20%]">{isAr ? 'تاريخ التحديث' : 'Last Updated'}</th>
+                            <th className="p-4 text-right w-[18%]">{isAr ? 'الشحنة / الطلب' : 'Shipment / Order'}</th>
+                            <th className="p-4 text-right w-[22%]">{isAr ? 'القطع في الشحنة' : 'Batch contents'}</th>
+                            <th className="p-4 text-right w-[15%]">{isAr ? 'شركة الشحن' : 'Carrier'}</th>
+                            <th className="p-4 text-right w-[15%]">{isAr ? 'الحالة الحالية' : 'Current Status'}</th>
+                            <th className="p-4 text-right w-[15%]">{isAr ? 'تاريخ التحديث' : 'Last Updated'}</th>
                             <th className="p-4 text-center w-[15%]">{isAr ? 'الإجراءات' : 'Actions'}</th>
                         </tr>
                     </thead>
@@ -550,9 +660,34 @@ export const AdminShipping: React.FC<AdminShippingProps> = ({ initialSearch }) =
                                                 <div className="font-bold text-white mb-1">
                                                     {(shipment.order as any)?.orderNumber ? `#${(shipment.order as any).orderNumber}` : `Order #${shipment.orderId.substring(0,8)}`}
                                                 </div>
-                                                <div className="text-[10px] text-white/30 font-mono tracking-wider">{shipment.id.substring(0,8).toUpperCase()}</div>
+                                                <div className="text-[10px] text-white/30 font-mono tracking-wider">
+                                                    {shipment.waybillNumber || shipment.id.substring(0, 8).toUpperCase()}
+                                                </div>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td className="p-4">
+                                        {shipment.cartBatchSize && shipment.cartBatchSize > 1 ? (
+                                            <span className="text-[10px] font-bold text-blue-300 block mb-1">
+                                                {isAr
+                                                    ? `مجمعة — ${shipment.cartBatchSize} قطع`
+                                                    : `Grouped — ${shipment.cartBatchSize} parts`}
+                                            </span>
+                                        ) : null}
+                                        <ul className="space-y-0.5">
+                                            {(shipment.batchPartNames?.length
+                                                ? shipment.batchPartNames
+                                                : shipment.items?.map((i) => i.name) || []
+                                            ).map((name) => (
+                                                <li key={`${shipment.id}-${name}`} className="text-xs text-white/70 flex items-center gap-1">
+                                                    <Box size={10} className="text-purple-400 shrink-0" />
+                                                    {name}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        {!shipment.batchPartNames?.length && !shipment.items?.length && (
+                                            <span className="text-white/30 text-xs">{isAr ? '—' : '—'}</span>
+                                        )}
                                     </td>
                                 <td className="p-4">
                                     <div className="font-bold text-white/90">{shipment.carrierName || '-'}</div>

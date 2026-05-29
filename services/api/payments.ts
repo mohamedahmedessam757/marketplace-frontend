@@ -23,4 +23,10 @@ export const paymentsApi = {
         const res = await client.get(`/payments/status/${offerId}`);
         return res.data;
     },
+
+    /** Triggers server-side fulfillment when Stripe succeeded but webhook is delayed. */
+    confirmIntent: async (paymentIntentId: string) => {
+        const res = await client.post('/payments/confirm-intent', { paymentIntentId });
+        return res.data;
+    },
 };

@@ -8,6 +8,8 @@ import { Plus, Search, Car, ArrowRight, ArrowLeft, Clock, CheckCircle2, Trending
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useOrderStore } from '../../stores/useOrderStore';
 import { useProfileStore } from '../../stores/useProfileStore';
+import { PendingStoreReviewBanner } from './shared/PendingStoreReviewBanner';
+import { isAcceptedOfferStatus } from '../../utils/offerStatusHelpers';
 
 interface DashboardHomeProps {
     onNavigate: (path: string, id?: number) => void;
@@ -33,7 +35,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         'AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PARTIALLY_PAID',
         'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 
         'VERIFICATION_SUCCESS', 'NON_MATCHING', 'CORRECTION_PERIOD', 
-        'CORRECTION_SUBMITTED', 'READY_FOR_SHIPPING', 'SHIPPED', 'DISPUTED'
+        'CORRECTION_SUBMITTED', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'SHIPPED', 'DISPUTED'
     ];
     const activeOrdersCount = orders.filter(o => activeStatuses.includes(o.status)).length;
     const completedOrdersCount = orders.filter(o => ['COMPLETED', 'DELIVERED', 'WARRANTY_ACTIVE'].includes(o.status)).length;
@@ -43,6 +45,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
     // 2. Get the most relevant active order to show in the "Live Tracking" card
     // Priority: Shipped > Preparation > Awaiting Payment > Awaiting Offers
     const activeOrder = orders.find(o => o.status === 'SHIPPED')
+        || orders.find(o => o.status === 'PARTIALLY_SHIPPED')
         || orders.find(o => o.status === 'READY_FOR_SHIPPING')
         || orders.find(o => o.status === 'VERIFICATION_SUCCESS')
         || orders.find(o => o.status === 'VERIFICATION')
@@ -70,6 +73,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
             case 'CORRECTION_SUBMITTED': return 76;
             case 'VERIFICATION_SUCCESS': return 80;
             case 'READY_FOR_SHIPPING': return 85;
+            case 'PARTIALLY_SHIPPED': return 88;
             case 'SHIPPED': return 90;
             case 'DELIVERED': return 95;
             case 'WARRANTY_ACTIVE': return 98;
@@ -101,6 +105,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
             animate="show"
             className="space-y-8"
         >
+
+            <motion.div variants={itemVariants}>
+                <PendingStoreReviewBanner onNavigate={onNavigate} />
+            </motion.div>
 
             {/* 1. Hero / Welcome Section */}
             <motion.div variants={itemVariants} className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#A88B3E] to-[#655020] shadow-2xl group">
@@ -216,6 +224,24 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                                     <div className="mt-2 text-xs text-white/40 text-right">
                                         {activeOrder.date}
                                     </div>
+                                    {activeOrder.requestType === 'multiple' &&
+                                        (activeOrder.status === 'PARTIALLY_SHIPPED' ||
+                                            (activeOrder.offers?.some(
+                                                (o) =>
+                                                    isAcceptedOfferStatus(o.status) &&
+                                                    o.shippedFromCart,
+                                            ) &&
+                                                activeOrder.offers?.some(
+                                                    (o) =>
+                                                        isAcceptedOfferStatus(o.status) &&
+                                                        !o.shippedFromCart,
+                                                ))) && (
+                                            <p className="mt-2 text-[10px] text-blue-300/90 font-medium">
+                                                {language === 'ar'
+                                                    ? 'شحن جزئي — بعض القطع في سلة التجميع'
+                                                    : 'Partial shipping — some parts still in assembly cart'}
+                                            </p>
+                                        )}
                                 </div>
                             </div>
 

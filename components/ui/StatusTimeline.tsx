@@ -4,7 +4,12 @@ import { motion } from 'framer-motion';
 import { Check, Clock, Package, Truck, CheckCircle, AlertTriangle, ShieldCheck, FileText } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { StatusType } from './Badge';
-import { buildFulfillmentStepHint } from '../../utils/offerFulfillmentHelpers';
+import {
+    buildFulfillmentStepHint,
+    buildShipmentDeliveryStepHint,
+    getOrderTimelineStepIndex,
+    type ShipmentDeliverySummary,
+} from '../../utils/offerFulfillmentHelpers';
 
 export interface FulfillmentSummaryHint {
   total: number;
@@ -13,17 +18,24 @@ export interface FulfillmentSummaryHint {
     prepared: number;
     verification: number;
     verificationSuccess: number;
+    handoverPending?: number;
     readyForShipping: number;
     shipped: number;
+    inCart?: number;
   };
 }
 
 interface StatusTimelineProps {
   currentStatus: StatusType;
   fulfillmentSummary?: FulfillmentSummaryHint | null;
+  shipmentDeliverySummary?: ShipmentDeliverySummary | null;
 }
 
-export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, fulfillmentSummary }) => {
+export const StatusTimeline: React.FC<StatusTimelineProps> = ({
+  currentStatus,
+  fulfillmentSummary,
+  shipmentDeliverySummary,
+}) => {
   const { language } = useLanguage();
   
   // Define steps and their icons
@@ -37,71 +49,9 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, f
     { id: 'delivery', label: { ar: 'الاستلام', en: 'Delivery' }, icon: CheckCircle },
   ];
 
-  const getActiveStepIndex = (status: string): number => {
-    switch (status) {
-      case 'AWAITING_OFFERS':
-      case 'COLLECTING_OFFERS':
-      case 'AWAITING_SELECTION': return 1;
-      
-      case 'AWAITING_PAYMENT':
-      case 'PARTIALLY_PAID': return 2;
-      
-      // Preparation phase
-      case 'PREPARATION': 
-      case 'DELAYED_PREPARATION': 
-      case 'PREPARED': return 3;
-      
-      // Verification / Hub phase
-      case 'VERIFICATION': 
-      case 'VERIFICATION_SUCCESS': 
-      case 'NON_MATCHING': 
-      case 'CORRECTION_PERIOD': 
-      case 'CORRECTION_SUBMITTED': return 4;
-      
-      // Shipping phase
-      case 'RECEIVED_AT_HUB':
-      case 'QUALITY_CHECK_PASSED':
-      case 'PACKAGED_FOR_SHIPPING':
-      case 'AWAITING_CARRIER_PICKUP':
-      case 'READY_FOR_SHIPPING':
-      case 'PARTIALLY_SHIPPED':
-      case 'SHIPPED': 
-      case 'PICKED_UP_BY_CARRIER':
-      case 'IN_TRANSIT_TO_DESTINATION':
-      case 'ARRIVED_AT_LOCAL_FACILITY':
-      case 'CUSTOMS_CLEARANCE':
-      case 'AT_LOCAL_WAREHOUSE':
-      case 'OUT_FOR_DELIVERY': 
-      case 'DELIVERY_ATTEMPTED': return 5;
-      
-      // Delivery / Completed / Resolution phase
-      case 'DELIVERED': 
-      case 'DELIVERED_TO_CUSTOMER':
-      case 'COMPLETED':
-      case 'RETURNED':
-      case 'RETURN_REQUESTED':
-      case 'RETURN_APPROVED':
-      case 'RETURN_LABEL_ISSUED':
-      case 'RETURN_STARTED':
-      case 'RECEIVED_FROM_CUSTOMER':
-      case 'DELIVERED_TO_VENDOR':
-      case 'EXCHANGE_COMPLETED':
-      case 'IN_TRANSIT_TO_CUSTOMER':
-      case 'RETURN_COMPLETED_TO_CUSTOMER':
-      case 'DISPUTED':
-      case 'RESOLVED':
-      case 'REFUNDED':
-      case 'WARRANTY_ACTIVE':
-      case 'WARRANTY_EXPIRED': return 6;
-      
-      case 'CANCELLED': return 0;
-      default: return 0;
-    }
-  };
-
   const isDelayed = currentStatus === 'DELAYED_PREPARATION';
   const isPrepared = currentStatus === 'PREPARED';
-  const activeIndex = getActiveStepIndex(currentStatus);
+  const activeIndex = getOrderTimelineStepIndex(currentStatus);
   const isCancelled = currentStatus === 'CANCELLED';
 
   return (
@@ -156,11 +106,24 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, f
                 isCurrentDelayed ? 'text-red-400' : isCompleted ? 'text-white' : 'text-white/30'
               }`}>
                 {language === 'ar' ? step.label.ar : step.label.en}
-                {fulfillmentSummary && fulfillmentSummary.total > 1 && (() => {
+                {fulfillmentSummary && fulfillmentSummary.total > 1 && idx <= activeIndex && (() => {
                   const hint = buildFulfillmentStepHint(fulfillmentSummary, idx, language === 'ar');
                   return hint ? (
                     <span className="block text-[9px] text-gold-400/80 font-normal text-center mt-0.5">
                       {hint}
+                    </span>
+                  ) : null;
+                })()}
+                {shipmentDeliverySummary && shipmentDeliverySummary.total > 1 && (() => {
+                  const deliveryHint = buildShipmentDeliveryStepHint(
+                    shipmentDeliverySummary,
+                    idx,
+                    language === 'ar',
+                    activeIndex,
+                  );
+                  return deliveryHint ? (
+                    <span className="block text-[9px] text-cyan-400/90 font-normal text-center mt-0.5">
+                      {deliveryHint}
                     </span>
                   ) : null;
                 })()}
@@ -169,7 +132,7 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, f
                     {language === 'ar' ? '(متأخر)' : '(Delayed)'}
                   </span>
                 )}
-                {isPrepared && idx === activeIndex && (
+                {isPrepared && (idx === 3 || idx === activeIndex) && (
                   <span className="block text-[9px] text-green-400/70 font-normal text-center">
                     {language === 'ar' ? '(تم)' : '(Done)'}
                   </span>

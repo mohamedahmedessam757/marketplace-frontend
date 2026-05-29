@@ -17,6 +17,7 @@ import {
     areAllAcceptedOffersPaid,
     getAcceptedOffersFromList,
 } from '../../../utils/checkoutPaymentHelpers';
+import { hasMeaningfulAddress } from '../../../utils/checkoutSessionStorage';
 
 interface CheckoutWizardProps {
     onComplete: () => void;
@@ -39,6 +40,9 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
         orderId,
         paidOfferIds,
         syncPaidOffersForOrder,
+        hydrateShippingFromOrder,
+        persistCheckoutSession,
+        clearCheckoutForOrder,
     } = useCheckoutStore();
     const { updateOrderStatus, orders } = useOrderStore();
     const { addNotification } = useNotificationStore();
@@ -59,6 +63,22 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
         if (!orderId) return;
         void useOrderStore.getState().fetchOrder(orderId);
     }, [orderId]);
+
+    useEffect(() => {
+        if (!order || !orderId) return;
+        hydrateShippingFromOrder(order);
+        const s = useCheckoutStore.getState();
+        if (hasMeaningfulAddress(s.address) && s.step === 1 && s.termsAccepted) {
+            setStep(2);
+        }
+    }, [order?.id, order?.shippingAddresses, orderId, hydrateShippingFromOrder, setStep]);
+
+    useEffect(() => {
+        if (!orderId) return;
+        const onLeave = () => persistCheckoutSession();
+        window.addEventListener('beforeunload', onLeave);
+        return () => window.removeEventListener('beforeunload', onLeave);
+    }, [orderId, persistCheckoutSession]);
 
     const acceptedOffers = React.useMemo(
         () => getAcceptedOffersFromList(order?.offers),
@@ -148,6 +168,20 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
             }
             setShowValidationErrors(false);
             setIsEditingShipping(false); // Lock it
+            const saved = await saveOrderData();
+            if (!saved) {
+                addNotification({
+                    recipientRole: 'CUSTOMER',
+                    type: 'system',
+                    titleKey: 'error',
+                    message:
+                        language === 'ar'
+                            ? 'تعذّر حفظ بيانات الشحن. تحقق من الاتصال وحاول مرة أخرى.'
+                            : 'Could not save shipping details. Check your connection and try again.',
+                    priority: 'high',
+                });
+                return;
+            }
             setStep(2);
         } else if (step === 2) {
             const success = await saveOrderData();
@@ -202,6 +236,9 @@ export const CheckoutWizard: React.FC<CheckoutWizardProps> = ({ onComplete, onNa
                     return;
                 }
 
+                if (orderId) {
+                    clearCheckoutForOrder(orderId);
+                }
                 onNavigate('order-details', orderId);
             } finally {
                 setIsVerifyingPayments(false);

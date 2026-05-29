@@ -73,7 +73,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
     messages: orderChat.messages.map(m => ({
       id: m.id,
       text: m.text,  // Keep ORIGINAL text — toggle logic in render handles switching
-      sender: m.senderId === user?.id ? 'me' : 'other',
+      sender: (
+        user?.role === 'CUSTOMER'
+          ? m.senderId === user?.id
+          : user?.role === 'VENDOR'
+            ? m.senderId === user?.id || m.senderId === orderChat.vendorId
+            : m.senderId === user?.id
+      ) ? 'me' : 'other',
       time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isRead: m.isRead,
       originalText: m.text,

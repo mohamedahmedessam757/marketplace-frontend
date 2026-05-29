@@ -1,8 +1,8 @@
 import { client } from './client';
 
 export const verificationTasksApi = {
-  assignTask: (orderId: string, officerId?: string) =>
-    client.post('/verification-tasks', { orderId, officerId }),
+  assignTask: (orderId: string, officerId?: string, offerId?: string) =>
+    client.post('/verification-tasks', { orderId, officerId, offerId }),
 
   getMyTasks: () => client.get('/verification-tasks/my-tasks'),
 

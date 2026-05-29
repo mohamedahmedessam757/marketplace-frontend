@@ -4,6 +4,7 @@ import { GlassCard } from '../../ui/GlassCard';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { Truck, Clock, User, Phone, Mail, ChevronRight, Box, Loader2, ShieldAlert } from 'lucide-react';
 import { ordersApi } from '../../../services/api/orders';
+import { CartShipmentBadge } from '../shared/CartShipmentBadge';
 
 export const AdminShippingCarts: React.FC = () => {
     const { language } = useLanguage();
@@ -203,15 +204,17 @@ export const AdminShippingCarts: React.FC = () => {
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] text-white/40 font-mono">#{offer.orderNumber}</span>
                                                 <span className="text-xs text-white/80 max-w-[150px] truncate">{offer.partName}</span>
-                                                {offer.shippedFromCart ? (
-                                                    <span className="px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 text-[8px] font-bold">SHIPPED</span>
-                                                ) : (
-                                                    <span className="px-1.5 py-0.5 rounded bg-gold-500/20 text-gold-400 text-[8px] font-bold">AWAITING BATCH</span>
-                                                )}
                                             </div>
+                                            <CartShipmentBadge
+                                                offer={offer}
+                                                order={{ requestType: 'multiple', shippingType: 'combined' }}
+                                                inAssemblyCart={!offer.shippedFromCart}
+                                                isAr={isAr}
+                                                className="mt-1"
+                                            />
                                             <div className="flex items-center justify-between">
                                                 <span className="text-[9px] text-white/20 font-bold uppercase">{offer.storeName || 'Merchant'}</span>
-                                                <span className="text-[9px] text-gold-500/50">{offer.totalValue || offer.unitPrice} AED</span>
+                                                <span className="text-[9px] text-gold-500/50">{offer.totalValue || offer.price} AED</span>
                                             </div>
                                         </div>
                                     ))}

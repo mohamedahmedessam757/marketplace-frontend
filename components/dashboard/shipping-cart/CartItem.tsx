@@ -5,6 +5,7 @@ import { CountdownTimer } from './CountdownTimer';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { CartItemType } from '../../../stores/useCartStore';
 import { getFulfillmentLabel } from '../../../utils/offerFulfillmentHelpers';
+import { CartShipmentBadge } from '../shared/CartShipmentBadge';
 
 const conditionMap: Record<string, string> = {
     'new': 'جديد',
@@ -93,7 +94,17 @@ export const CartItem: React.FC<CartItemProps> = ({ item, isSelected, onSelect }
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <CartShipmentBadge
+                        offer={{
+                            fulfillmentStatus: item.fulfillmentStatus,
+                            shippedFromCart: false,
+                            handoverPending: item.handoverPending,
+                        }}
+                        order={{ requestType: item.requestType, shippingType: item.shippingType }}
+                        inAssemblyCart
+                        isAr={isAr}
+                    />
                     {item.fulfillmentStatus && (
                         <span className={`px-2 py-0.5 rounded text-xs font-medium border ${
                             canSelect

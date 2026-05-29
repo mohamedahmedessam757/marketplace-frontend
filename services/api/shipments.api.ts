@@ -2,6 +2,11 @@ import { client as api } from './client';
 import { supabase } from '../supabase';
 export type CarrierType = 'EXTERNAL' | 'INTERNAL' | 'NO_TRACKING';
 
+export interface ShipmentItemRow {
+    name: string;
+    quantity: number;
+}
+
 export interface Shipment {
     id: string;
     orderId: string;
@@ -20,6 +25,17 @@ export interface Shipment {
     updatedAt: string;
     order?: any;
     statusLogs?: ShipmentStatusLog[];
+    /** Admin enrichment — cart batch parts */
+    items?: ShipmentItemRow[];
+    batchPartNames?: string[];
+    cartBatchSize?: number;
+    cartBatchType?: 'group' | 'solo' | null;
+    partDescription?: string | null;
+    waybillNumber?: string | null;
+    waybillValue?: number | null;
+    issueMode?: string | null;
+    vehicleMake?: string | null;
+    vehicleModel?: string | null;
 }
 
 export interface ShipmentStatusLog {
