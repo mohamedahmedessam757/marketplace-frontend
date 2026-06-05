@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { supabase } from '../services/supabase';
 import { Return, Dispute } from '../types';
 
 interface ReturnsState {
@@ -12,7 +11,7 @@ interface ReturnsState {
     fetchReturnsAndDisputes: (options?: { silent?: boolean }) => Promise<void>;
     fetchDeliveredOrders: () => Promise<void>;
     requestReturn: (orderId: string, orderPartId: string | undefined, reason: string, description: string, usageCondition: string | undefined, files: File[]) => Promise<boolean>;
-    cancelReturn: (orderId: string) => Promise<boolean>;
+    cancelReturn: (returnId: string) => Promise<boolean>;
     escalateDispute: (orderId: string, orderPartId: string | undefined, reason: string, description: string, files: File[]) => Promise<boolean>;
 }
 
@@ -126,19 +125,22 @@ export const useReturnsStore = create<ReturnsState>((set, get) => ({
         }
     },
 
-    cancelReturn: async (orderId: string) => {
+    cancelReturn: async (returnId: string) => {
         try {
-            const { error } = await supabase
-                .from('orders')
-                .update({ status: 'DELIVERED' })
-                .eq('id', orderId);
+            const response = await fetch(`${getApiUrl()}/returns/${returnId}/cancel`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+            });
 
-            if (error) throw error;
+            if (!response.ok) {
+                throw new Error(await parseApiError(response, 'Failed to cancel return'));
+            }
 
             void get().fetchReturnsAndDisputes({ silent: true });
             return true;
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to cancel return:', err);
+            set({ error: err?.message || 'Failed to cancel return' });
             return false;
         }
     },

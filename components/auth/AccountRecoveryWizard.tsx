@@ -237,11 +237,13 @@ export const AccountRecoveryWizard: React.FC<AccountRecoveryWizardProps> = ({ on
                         </form>
                     )}
 
-                    {/* STEP 2: EMAIL OTP */}
+                    {/* STEP 2: identity OTP (WhatsApp on registered number) */}
                     {step === 2 && (
                         <form onSubmit={handleVerifyEmailOtp} className="space-y-6 text-center">
                             <p className="text-sm text-white/70">
-                                {isAr ? 'تم إرسال رمز تحقق ذو 6 أرقام إلى' : 'A 6-digit code has been sent to'}<br />
+                                {isAr
+                                    ? 'تم إرسال رمز تحقق ذو 6 أرقام إلى واتساب الرقم المسجّل للحساب'
+                                    : 'A 6-digit code was sent to WhatsApp on the phone registered for'}<br />
                                 <strong className="text-gold-400">{email}</strong>
                             </p>
 

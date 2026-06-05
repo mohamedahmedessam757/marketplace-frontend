@@ -4,6 +4,7 @@ import { GlassCard } from '../ui/GlassCard';
 import { Button } from '../ui/Button';
 import { Badge, StatusType } from '../ui/Badge';
 import { StatusTimeline } from '../ui/StatusTimeline';
+import type { FulfillmentSummaryPartHint } from '../ui/StatusTimeline';
 import { OfferCard } from './OfferCard';
 import { PartOffersDrawer } from './PartOffersDrawer';
 import { ChevronRight, ChevronLeft, Calendar, FileText, Package, Clock, Shield, Truck, Search, MapPin, Star, AlertTriangle, RefreshCcw, CheckCircle2, X, Loader2, Eye, ChevronDown, ChevronUp, ExternalLink, Lock, ShoppingBag } from 'lucide-react';
@@ -45,7 +46,9 @@ import { MerchantHandoverPendingBanner } from './shared/MerchantHandoverPendingB
 import { CartShipmentBadge } from './shared/CartShipmentBadge';
 import { PartialShippingProgressCard } from './shared/PartialShippingProgressCard';
 import { PartialDeliveryProgressCard } from './shared/PartialDeliveryProgressCard';
+import { PartReturnWindowCard, PartReturnWindowOffer } from './shared/PartReturnWindowCard';
 import { useOrderFulfillmentSummary } from '../../hooks/useOrderFulfillmentSummary';
+import type { EligibleResolutionPart } from './resolution/resolutionTypes';
 import {
     collectPaidOfferIdsFromOrder,
     getAcceptedOffersFromList,
@@ -54,6 +57,9 @@ import {
     shouldShowContinuePaymentButton,
 } from '../../utils/checkoutPaymentHelpers';
 import { PendingStoreReviewBanner } from './shared/PendingStoreReviewBanner';
+import { MultiItemCompletionBadge } from './shared/MultiItemCompletionBadge';
+import { MultiItemResolutionProgress } from './shared/MultiItemResolutionProgress';
+import { readDashboardDeepLink } from '../../utils/widersDeepLink';
 
 interface OrderDetailsProps {
     orderId: string | null;
@@ -184,14 +190,24 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     const [showTracking, setShowTracking] = useState(false);
     const [isLoadingSupport, setIsLoadingSupport] = useState(false);
     const [showReviewModal, setShowReviewModal] = useState(false);
+    const [reviewOfferId, setReviewOfferId] = useState<string | undefined>(undefined);
+    const [reviewedOfferIds, setReviewedOfferIds] = useState<Set<string>>(() => new Set());
     const [showReturnModal, setShowReturnModal] = useState(false);
     const [showDisputeModal, setShowDisputeModal] = useState(false);
     const [showExpiredModal, setShowExpiredModal] = useState(false);
     const [expiredModalVariant, setExpiredModalVariant] = useState<OrderExpiryScenario>('no_offers');
     const [expiryTick, setExpiryTick] = useState(0);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'waybills'>('overview');
+    const deepLink = useMemo(() => readDashboardDeepLink(), []);
+    const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'waybills'>(
+        deepLink.tab ?? 'overview',
+    );
     const [returnInitialReason, setReturnInitialReason] = useState<string | undefined>(undefined);
+    const [resolutionPart, setResolutionPart] = useState<{
+        orderPartId?: string;
+        partName: string;
+        merchantName: string;
+    } | null>(null);
 
     // Rejection State
     const [offerToReject, setOfferToReject] = useState<OrderOffer | null>(null);
@@ -334,10 +350,62 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
         acceptedOffersCount: acceptedOffers.length,
     });
     const firstAcceptedOffer = acceptedOffers[0];
+    const isMultiPartOrder = (order.parts?.length ?? 0) > 1;
+    const isDeliveredLike = ['DELIVERED', 'PARTIALLY_DELIVERED', 'DELIVERED_TO_CUSTOMER'].includes(
+        order.status,
+    );
 
     const BackIcon = language === 'ar' ? ChevronRight : ChevronLeft;
 
-    const isMultiPartOrder = (order.parts?.length ?? 0) > 1;
+    const partResolutionByOfferId = useMemo(() => {
+        const map = new Map<string, FulfillmentSummaryPartHint>();
+        fulfillmentSummary?.parts?.forEach((p) => {
+            if (p.offerId) map.set(p.offerId, p);
+        });
+        return map;
+    }, [fulfillmentSummary]);
+
+    const eligibleResolutionParts = useMemo((): EligibleResolutionPart[] => {
+        if (!order || !fulfillmentSummary?.parts?.length) return [];
+        return fulfillmentSummary.parts
+            .filter((p) => p.isReturnEligible && p.orderPartId && !p.hasOpenCase)
+            .map((p) => {
+                const offer = order.offers?.find((o) => String(o.id) === String(p.offerId));
+                return {
+                    offerId: p.offerId,
+                    orderId: order.id,
+                    orderPartId: p.orderPartId!,
+                    partName: p.partName,
+                    merchantName: offer?.merchantName ?? order.merchantName ?? 'Store',
+                    orderNumber: order.orderNumber,
+                    returnWindowEndsAt: p.returnWindowEndsAt,
+                    isReturnEligible: p.isReturnEligible,
+                };
+            });
+    }, [fulfillmentSummary, order]);
+
+    const openReturnForPart = (offer: PartReturnWindowOffer) => {
+        setResolutionPart({
+            orderPartId: offer.orderPartId || undefined,
+            partName: offer.partName,
+            merchantName: offer.merchantName,
+        });
+        setReturnInitialReason(undefined);
+        setShowReturnModal(true);
+    };
+
+    const openDisputeForPart = (offer: PartReturnWindowOffer) => {
+        setResolutionPart({
+            orderPartId: offer.orderPartId || undefined,
+            partName: offer.partName,
+            merchantName: offer.merchantName,
+        });
+        setShowDisputeModal(true);
+    };
+
+    const modalPartName = resolutionPart?.partName ?? order?.part ?? 'Part';
+    const modalMerchantName = resolutionPart?.merchantName ?? order?.merchantName ?? 'Store';
+    const modalOrderPartId = isMultiPartOrder ? resolutionPart?.orderPartId : undefined;
 
     const expiredPartsWithoutOffers = isMultiPartOrder
         ? getExpiredPartsWithoutOffers(
@@ -610,6 +678,7 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
     };
 
     const getReturnDeadline = () => {
+        if (isMultiPartOrder) return '';
         if (order.status !== 'DELIVERED' && order.status !== 'DELIVERED_TO_CUSTOMER') return '';
         const baseDate = order.deliveredAt || order.updatedAt;
         if (!baseDate) return '';
@@ -654,17 +723,24 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
             )}
 
             {(() => {
-                const reviewTarget = resolveReviewTarget(order);
+                const reviewTarget = resolveReviewTarget(order, reviewOfferId);
                 return (
                     <ReviewModal
                         isOpen={showReviewModal}
-                        onClose={() => setShowReviewModal(false)}
+                        onClose={() => {
+                            setShowReviewModal(false);
+                            setReviewOfferId(undefined);
+                        }}
                         orderId={order.id}
                         storeId={reviewTarget?.storeId}
                         merchantName={reviewTarget?.merchantName}
                         partName={reviewTarget?.partName}
+                        offerId={reviewTarget?.offerId}
                         onSuccess={(review) => {
                             if (!orderId) return;
+                            if (reviewTarget?.offerId) {
+                                setReviewedOfferIds((prev) => new Set(prev).add(reviewTarget.offerId!));
+                            }
                             useOrderStore.getState().patchOrderReview(orderId, {
                                 id: review.id,
                                 rating: review.rating,
@@ -677,25 +753,6 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 );
             })()}
 
-            <ReturnRequestModal
-                isOpen={showReturnModal}
-                onClose={() => setShowReturnModal(false)}
-                orderId={order.id}
-                merchantName={order.merchantName || 'Store'}
-                partName={order.part}
-                initialReason={returnInitialReason}
-                onSuccess={() => onNavigate('resolution')}
-            />
-
-            <DisputeModal
-                isOpen={showDisputeModal}
-                onClose={() => setShowDisputeModal(false)}
-                orderId={order.id}
-                merchantName={order.merchantName || 'Store'}
-                partName={order.part}
-                onSuccess={() => onNavigate('resolution')}
-            />
-
             <OrderExpiredModal
                 isOpen={showExpiredModal}
                 orderId={order.id}
@@ -706,6 +763,28 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
             />
 
             <PendingStoreReviewBanner order={order} onNavigate={onNavigate} className="mb-6" />
+
+            {isMultiPartOrder && (fulfillmentSummary?.parts?.length ?? 0) > 1 && (
+                <motion.div
+                    initial={{ opacity: 0, y: -12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6"
+                >
+                    <GlassCard className="p-4 border-amber-500/20 bg-amber-500/[0.04] flex flex-col sm:flex-row sm:items-center gap-3">
+                        <MultiItemCompletionBadge
+                            completedCount={
+                                fulfillmentSummary?.parts?.filter((p) => p.fulfillmentStatus === 'COMPLETED').length ?? 0
+                            }
+                            totalCount={fulfillmentSummary?.parts?.length ?? order.parts?.length ?? 0}
+                        />
+                        <p className="text-sm text-white/60 leading-relaxed">
+                            {language === 'ar'
+                                ? 'كل قطعة لها نافذة إرجاع/نزاع مستقلة لمدة 24 ساعة بعد التسليم.'
+                                : 'Each part has its own independent 24-hour return/dispute window after delivery.'}
+                        </p>
+                    </GlassCard>
+                </motion.div>
+            )}
 
             {/* Premium Warranty Protection Hub (2026) */}
             {order.status === 'WARRANTY_ACTIVE' && order.warranty_end_at && (
@@ -837,14 +916,20 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                             </div>
                         </div>
                     )}
-                    {(order.status === 'DELIVERED' || order.status === 'DELIVERED_TO_CUSTOMER') && (
+                    {!isMultiPartOrder &&
+                        (order.status === 'DELIVERED' ||
+                            order.status === 'PARTIALLY_DELIVERED' ||
+                            order.status === 'DELIVERED_TO_CUSTOMER') && (
                         <div className="w-full md:w-auto">
                             <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} variant="badge" />
                         </div>
                     )}
                 </div>
 
-                {(order.status === 'DELIVERED' || order.status === 'DELIVERED_TO_CUSTOMER') && (
+                {!isMultiPartOrder &&
+                    (order.status === 'DELIVERED' ||
+                        order.status === 'PARTIALLY_DELIVERED' ||
+                        order.status === 'DELIVERED_TO_CUSTOMER') && (
                     <OrderCountdown updatedAt={order.deliveredAt || order.updatedAt} status={order.status} variant="full" />
                 )}
 
@@ -912,8 +997,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
                             {/* Warranty Badge Removed (Replaced by Hub above or Compact Badge in header) */}
 
-                            {/* Review: write CTA or submitted badge */}
-                            {(order.status === 'COMPLETED' || order.status === 'DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
+                            {/* Review: write CTA or submitted badge (single-item orders) */}
+                            {!isMultiPartOrder && (order.status === 'COMPLETED' || order.status === 'DELIVERED' || order.status === 'PARTIALLY_DELIVERED' || order.status === 'WARRANTY_ACTIVE') && (
                                 order.review ? (
                                     <motion.div
                                         initial={{ opacity: 0, scale: 0.95 }}
@@ -947,10 +1032,11 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 )
                             )}
 
-                            {/* Return Button (ONLY for DELIVERED stage) */}
-                            {order.status === 'DELIVERED' && (
+                            {/* Return / Dispute — single-item orders only (multi-part uses PartReturnWindowCard) */}
+                            {!isMultiPartOrder && isDeliveredLike && (
                                 <button
                                     onClick={() => {
+                                        setResolutionPart(null);
                                         setReturnInitialReason(undefined);
                                         setShowReturnModal(true);
                                     }}
@@ -961,14 +1047,43 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                 </button>
                             )}
 
-                            {/* Dispute Button (ONLY for DELIVERED stage) */}
-                            {order.status === 'DELIVERED' && (
+                            {isMultiPartOrder && eligibleResolutionParts.length > 0 && (
                                 <button
-                                    onClick={() => setShowDisputeModal(true)}
+                                    onClick={() => {
+                                        setResolutionPart(null);
+                                        setReturnInitialReason(undefined);
+                                        setShowReturnModal(true);
+                                    }}
+                                    className="flex items-center gap-2 px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-white border border-cyan-500/30 rounded-lg transition-all font-bold text-sm"
+                                >
+                                    <RefreshCcw size={16} />
+                                    {language === 'ar' ? 'طلب إرجاع (اختر قطعة)' : 'Request Return (select part)'}
+                                </button>
+                            )}
+
+                            {!isMultiPartOrder && isDeliveredLike && (
+                                <button
+                                    onClick={() => {
+                                        setResolutionPart(null);
+                                        setShowDisputeModal(true);
+                                    }}
                                     className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 rounded-lg transition-all font-bold text-sm"
                                 >
                                     <AlertTriangle size={16} />
                                     {t.dashboard.resolution.newDispute}
+                                </button>
+                            )}
+
+                            {isMultiPartOrder && eligibleResolutionParts.length > 0 && (
+                                <button
+                                    onClick={() => {
+                                        setResolutionPart(null);
+                                        setShowDisputeModal(true);
+                                    }}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 rounded-lg transition-all font-bold text-sm"
+                                >
+                                    <AlertTriangle size={16} />
+                                    {language === 'ar' ? 'فتح نزاع (اختر قطعة)' : 'Open Dispute (select part)'}
                                 </button>
                             )}
 
@@ -1128,7 +1243,8 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                         <OrderInvoicesPanel 
                             orderId={order.id} 
                             role="CUSTOMER" 
-                            initialData={order.invoices} 
+                            initialData={order.invoices}
+                            highlightOfferId={deepLink.offerId}
                         />
                     </div>
                     <div className={activeTab === 'waybills' ? 'block' : 'hidden'}>
@@ -1394,6 +1510,64 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                                                     </div>
                                                 )
                                             )}
+
+                                            {acceptedPartOffer && isMultiPartOrder && (() => {
+                                                const meta = partResolutionByOfferId.get(acceptedPartOffer.id);
+                                                const cardOffer: PartReturnWindowOffer = {
+                                                    offerId: acceptedPartOffer.id,
+                                                    orderPartId: p.id,
+                                                    partName: p.name,
+                                                    merchantName:
+                                                        (acceptedPartOffer as { store?: { name?: string } }).store?.name ||
+                                                        order.merchantName ||
+                                                        'Store',
+                                                    fulfillmentStatus: acceptedPartOffer.fulfillmentStatus,
+                                                    deliveredAt: meta?.deliveredAt ?? null,
+                                                    completedAt: meta?.completedAt ?? null,
+                                                    returnWindowEndsAt: meta?.returnWindowEndsAt ?? null,
+                                                    isReturnEligible: Boolean(meta?.isReturnEligible),
+                                                    resolutionLocked: Boolean(meta?.resolutionLocked),
+                                                    hasOpenCase: Boolean(meta?.hasOpenCase),
+                                                };
+                                                return (
+                                                    <div className="border-t border-white/5 px-5 py-4 space-y-3">
+                                                        <PartReturnWindowCard
+                                                            offer={cardOffer}
+                                                            isAr={language === 'ar'}
+                                                            onReturn={openReturnForPart}
+                                                            onDispute={openDisputeForPart}
+                                                        />
+                                                        {typeof meta?.warrantyEndAt === 'string' && meta.warrantyEndAt && (
+                                                            <WarrantyProtectionCard
+                                                                order={{
+                                                                    ...order,
+                                                                    warranty_end_at: meta.warrantyEndAt,
+                                                                }}
+                                                                variant="compact"
+                                                                onClaim={() => {
+                                                                    setReturnInitialReason('warranty_claim');
+                                                                    openReturnForPart(cardOffer);
+                                                                }}
+                                                            />
+                                                        )}
+                                                        {(cardOffer.fulfillmentStatus === 'COMPLETED' ||
+                                                            cardOffer.fulfillmentStatus === 'completed') &&
+                                                            !reviewedOfferIds.has(acceptedPartOffer.id) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setReviewOfferId(acceptedPartOffer.id);
+                                                                    setShowReviewModal(true);
+                                                                }}
+                                                                className="flex items-center gap-2 px-3 py-2 bg-gold-500/10 hover:bg-gold-500/20 text-gold-400 border border-gold-500/30 rounded-lg transition-all font-bold text-xs"
+                                                            >
+                                                                <Star size={14} />
+                                                                {language === 'ar' ? 'قيّم هذا المتجر' : 'Review this store'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                         </GlassCard>
                                     );
                                 })}
@@ -1473,6 +1647,9 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
 
                 {/* Sidebar Summary - Spans 1 col */}
                 <div className="space-y-6">
+                    {isMultiPartOrder && (
+                        <MultiItemResolutionProgress fulfillmentSummary={fulfillmentSummary} />
+                    )}
                     <GlassCard className="bg-[#1A1814] border-white/5 p-6">
                         <h3 className="text-sm font-bold text-white/50 uppercase tracking-wider mb-6 pb-2 border-b border-white/10">
                             {language === 'ar' ? 'تفاصيل الطلب' : 'Order Details'}
@@ -1816,21 +1993,34 @@ export const OrderDetails: React.FC<OrderDetailsProps> = ({ orderId, onBack, onN
                 )}
             </AnimatePresence>
 
-            {/* Resolution Modals */}
+            {/* Resolution Modals (bottom — shared with part-level actions) */}
             <ReturnRequestModal 
                 isOpen={showReturnModal}
-                onClose={() => setShowReturnModal(false)}
+                onClose={() => {
+                    setShowReturnModal(false);
+                    setResolutionPart(null);
+                }}
                 orderId={order.id}
+                orderPartId={modalOrderPartId}
+                eligibleParts={isMultiPartOrder ? eligibleResolutionParts : undefined}
                 initialReason={returnInitialReason}
-                merchantName={order.merchantName || 'Merchant'}
-                partName={order.part}
+                merchantName={modalMerchantName}
+                partName={modalPartName}
                 onSuccess={() => useOrderStore.getState().fetchOrder(order.id)}
             />
 
             <DisputeModal 
                 isOpen={showDisputeModal}
-                onClose={() => setShowDisputeModal(false)}
+                onClose={() => {
+                    setShowDisputeModal(false);
+                    setResolutionPart(null);
+                }}
                 orderId={order.id}
+                orderPartId={modalOrderPartId}
+                eligibleParts={isMultiPartOrder ? eligibleResolutionParts : undefined}
+                merchantName={modalMerchantName}
+                partName={modalPartName}
+                onSuccess={() => useOrderStore.getState().fetchOrder(order.id)}
             />
         </div >
     );

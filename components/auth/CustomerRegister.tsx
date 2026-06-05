@@ -156,7 +156,9 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
       // Step 1: Pre-Register Check (Duplicate check logic)
       await authApi.registerInit({
         email: formData.email,
-        phone: fullPhone
+        phone: fullPhone,
+        name: formData.name,
+        role: 'customer',
       });
 
       // Show Double OTP Step
@@ -186,10 +188,30 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
     }
   };
 
-  // Step 2: Actually register the user after OTPs are verified
-  const handleOtpVerify = async () => {
+  const handleOtpVerify = async ({
+    whatsappCode,
+    emailCode,
+  }: {
+    whatsappCode: string;
+    emailCode: string;
+  }) => {
+    const fullPhone = `${countryCode}${phone}`;
+
+    if (!emailCode || emailCode.length !== 6) {
+      throw new Error(
+        language === 'ar'
+          ? 'يرجى إدخال رمز الإيميل (6 أرقام) — سيتم تفعيله عند ربط مزود البريد'
+          : 'Please enter the 6-digit email code (provider coming soon)',
+      );
+    }
+
+    await authApi.registerVerifyOtp({
+      email: formData.email,
+      phone: fullPhone,
+      code: whatsappCode,
+    });
+
     try {
-      const fullPhone = `${countryCode}${phone}`;
       const generatedPassword = generateSecurePassword();
 
       // Find Country Name based on selected countryCode
@@ -239,6 +261,14 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
           email={formData.email}
           phone={`${countryCode}${phone}`}
           onVerify={handleOtpVerify}
+          onResendWhatsapp={async () => {
+            await authApi.registerResendOtp({
+              email: formData.email,
+              phone: `${countryCode}${phone}`,
+              name: formData.name,
+              role: 'customer',
+            });
+          }}
         />
       </div>
     );

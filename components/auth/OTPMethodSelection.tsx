@@ -1,15 +1,24 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { MessageSquare, Mail } from 'lucide-react';
+import { MessageSquare, Mail, Loader2 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { OtpErrorCard } from './OtpErrorCard';
 
 interface OTPMethodSelectionProps {
-    onSelect: (method: 'email' | 'whatsapp') => void;
+    onSelect: (method: 'email' | 'whatsapp') => void | Promise<void>;
     email: string;
     name?: string;
+    isLoading?: boolean;
+    error?: string | null;
 }
 
-export const OTPMethodSelection: React.FC<OTPMethodSelectionProps> = ({ onSelect, email, name }) => {
+export const OTPMethodSelection: React.FC<OTPMethodSelectionProps> = ({
+    onSelect,
+    email,
+    name,
+    isLoading = false,
+    error,
+}) => {
     const { t } = useLanguage();
 
     return (
@@ -23,10 +32,21 @@ export const OTPMethodSelection: React.FC<OTPMethodSelectionProps> = ({ onSelect
                 </div>
             </div>
 
+            {error && <OtpErrorCard message={error} />}
+
+            {isLoading && (
+                <div className="flex items-center justify-center gap-2 text-white/50 text-sm py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t.auth.otp.verifying || 'Sending code...'}
+                </div>
+            )}
+
             <div className="space-y-3">
                 <button
-                    onClick={() => onSelect('whatsapp')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-green-500/5 border border-green-500/10 hover:bg-green-500/10 transition-all group active:scale-[0.98]"
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => void onSelect('whatsapp')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl bg-green-500/5 border border-green-500/10 hover:bg-green-500/10 transition-all group active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 group-hover:scale-110 transition-transform">
@@ -43,8 +63,10 @@ export const OTPMethodSelection: React.FC<OTPMethodSelectionProps> = ({ onSelect
                 </button>
 
                 <button
-                    onClick={() => onSelect('email')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-gold-500/5 border border-gold-500/10 hover:bg-gold-500/10 transition-all group active:scale-[0.98]"
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => void onSelect('email')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl bg-gold-500/5 border border-gold-500/10 hover:bg-gold-500/10 transition-all group active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center text-gold-400 group-hover:scale-110 transition-transform">

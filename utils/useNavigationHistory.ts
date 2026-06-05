@@ -5,6 +5,7 @@ export interface NavigationState {
     dashboardPath?: string;
     viewId?: any;
     verifyToken?: string;
+    search?: string;
 }
 
 /**
@@ -15,7 +16,7 @@ export function useNavigationHistory(
     onStateChange: (state: NavigationState) => void
 ) {
     // Utility to build URL based on view and path
-    const buildUrl = useCallback((view: string, dashboardPath?: string, viewId?: any) => {
+    const buildUrl = useCallback((view: string, dashboardPath?: string, viewId?: any, search?: string) => {
         let url = '/';
 
         if (view === 'landing') url = '/landing';
@@ -39,19 +40,24 @@ export function useNavigationHistory(
             }
         }
 
+        if (search) {
+            url += search.startsWith('?') ? search : `?${search}`;
+        }
+
         return url;
     }, []);
 
     // Update history state
-    const pushView = useCallback((view: string, dashboardPath?: string, viewId?: any) => {
-        const url = buildUrl(view, dashboardPath, viewId);
-        const state: NavigationState = { view, dashboardPath, viewId };
+    const pushView = useCallback((view: string, dashboardPath?: string, viewId?: any, search?: string) => {
+        const url = buildUrl(view, dashboardPath, viewId, search);
+        const state: NavigationState = { view, dashboardPath, viewId, search };
 
         // Avoid pushing duplicate state if it's the same URL
         if (window.history.state &&
             window.history.state.view === view &&
             window.history.state.dashboardPath === dashboardPath &&
-            window.history.state.viewId === viewId) {
+            window.history.state.viewId === viewId &&
+            window.history.state.search === search) {
             return;
         }
 
@@ -59,9 +65,9 @@ export function useNavigationHistory(
     }, [buildUrl]);
 
     // Replace current history state (used for redirects or initial load)
-    const replaceView = useCallback((view: string, dashboardPath?: string, viewId?: any) => {
-        const url = buildUrl(view, dashboardPath, viewId);
-        const state: NavigationState = { view, dashboardPath, viewId };
+    const replaceView = useCallback((view: string, dashboardPath?: string, viewId?: any, search?: string) => {
+        const url = buildUrl(view, dashboardPath, viewId, search);
+        const state: NavigationState = { view, dashboardPath, viewId, search };
         window.history.replaceState(state, '', url);
     }, [buildUrl]);
 
@@ -121,7 +127,8 @@ export function parseUrlToState(): NavigationState {
         const segments = path.split('/').filter(Boolean); // ["dashboard", "orders", "123"]
         const dashboardPath = segments[1] || 'home';
         const viewId = segments[2] || null;
-        return { view: 'dashboard', dashboardPath, viewId };
+        const search = window.location.search || undefined;
+        return { view: 'dashboard', dashboardPath, viewId, search };
     }
 
     return { view: 'role-selection' };

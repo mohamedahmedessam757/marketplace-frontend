@@ -6,6 +6,7 @@ const UUID_RE =
 
 export const REVIEWABLE_ORDER_STATUSES = [
   'DELIVERED',
+  'PARTIALLY_DELIVERED',
   'COMPLETED',
   'WARRANTY_ACTIVE',
 ] as const;
@@ -32,10 +33,14 @@ export function findOrdersPendingReview(orders: Order[]): Order[] {
 }
 
 /** Resolve store + display labels for the customer review modal. */
-export function resolveReviewTarget(order: Order | null | undefined): {
+export function resolveReviewTarget(
+  order: Order | null | undefined,
+  offerId?: string,
+): {
   storeId: string;
   merchantName: string;
   partName: string;
+  offerId?: string;
 } | null {
   if (!order) return null;
 
@@ -44,9 +49,11 @@ export function resolveReviewTarget(order: Order | null | undefined): {
     order.offers?.filter(isAcceptedOffer) ??
     [];
 
-  const primary = order.acceptedOffer && isAcceptedOffer(order.acceptedOffer)
-    ? order.acceptedOffer
-    : acceptedList[0];
+  const primary = offerId
+    ? acceptedList.find((o) => o.id === offerId)
+    : order.acceptedOffer && isAcceptedOffer(order.acceptedOffer)
+      ? order.acceptedOffer
+      : acceptedList[0];
 
   const storeId =
     (primary?.storeId && isValidUuid(primary.storeId) ? primary.storeId : undefined) ??
@@ -71,5 +78,5 @@ export function resolveReviewTarget(order: Order | null | undefined): {
     order.parts?.[0]?.name ||
     'Part';
 
-  return { storeId, merchantName, partName };
+  return { storeId, merchantName, partName, offerId: primary?.id };
 }

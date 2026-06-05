@@ -11,6 +11,21 @@ import {
     type ShipmentDeliverySummary,
 } from '../../utils/offerFulfillmentHelpers';
 
+export interface FulfillmentSummaryPartHint {
+  offerId: string;
+  orderPartId?: string | null;
+  partName: string;
+  fulfillmentStatus: string;
+  canSelectForShipping?: boolean;
+  deliveredAt?: string | null;
+  completedAt?: string | null;
+  returnWindowEndsAt?: string | null;
+  isReturnEligible?: boolean;
+  resolutionLocked?: boolean;
+  hasOpenCase?: boolean;
+  warrantyEndAt?: string | null;
+}
+
 export interface FulfillmentSummaryHint {
   total: number;
   stepCounts: {
@@ -23,6 +38,7 @@ export interface FulfillmentSummaryHint {
     shipped: number;
     inCart?: number;
   };
+  parts?: FulfillmentSummaryPartHint[];
 }
 
 interface StatusTimelineProps {

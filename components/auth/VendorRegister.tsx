@@ -38,6 +38,8 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
 
   // Local OTP State
   const [otpStep, setOtpStep] = React.useState<'method' | 'verify'>('method');
+  const [isSendingOtp, setIsSendingOtp] = React.useState(false);
+  const [otpMethodError, setOtpMethodError] = React.useState<string | null>(null);
   const [otpMethod, setOtpMethod] = React.useState<'email' | 'whatsapp'>('email');
 
   const { makes, fetchCatalog, isLoading: isLoadingCatalog, subscribeToCatalog, unsubscribeFromCatalog } = useCatalogStore();
@@ -243,27 +245,8 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
   const handleNext = async () => {
     if (validateStep(store.step)) {
       if (store.step === 1) {
-        try {
-          setIsSubmitting(true);
-          const fullPhone = `${store.account.countryCode}${store.account.phone}`;
-          // Pre-Register Check for Phone and Email duplicates
-          await authApi.registerInit({
-            email: store.account.email,
-            phone: fullPhone
-          });
-          setIsSubmitting(false);
-          store.setStep(store.step + 1);
-        } catch (err: any) {
-          setIsSubmitting(false);
-          const errorMsg = err.response?.data?.message || err.message;
-          if (errorMsg.toString().toLowerCase().includes('phone')) {
-            triggerError(t.auth.errors?.phoneExists || (language === 'ar' ? 'رقم الجوال مسجل مسبقاً' : 'Phone number already exists'), 'phone');
-          } else if (errorMsg.toString().toLowerCase().includes('email')) {
-            triggerError(language === 'ar' ? 'البريد الإلكتروني مسجل مسبقاً' : 'Email already exists', 'email');
-          } else {
-            triggerError(errorMsg || t.auth.errors?.registrationFailed || (language === 'ar' ? 'فشل التسجيل، يرجى المحاولة مرة أخرى' : 'Registration failed'), 'all');
-          }
-        }
+        setOtpStep('method');
+        store.setStep(store.step + 1);
       } else {
         store.setStep(store.step + 1);
       }
@@ -276,13 +259,25 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
     store.setStep(store.step - 1);
   };
 
-  const handleVerifyOTP = (code: string) => {
-    // For M1 Phase (Mock OTP): Accept any 6-digit code
-    if (code.length === 6) {
+  const handleVerifyOTP = async (code: string) => {
+    if (code.length !== 6) {
+      throw new Error(t.auth.errors?.invalidCode || t.auth.otp.invalidCode);
+    }
+
+    const fullPhone = `${store.account.countryCode}${store.account.phone}`;
+
+    setIsSubmitting(true);
+    try {
+      await authApi.registerVerifyOtp({
+        email: store.account.email,
+        phone: fullPhone,
+        code,
+      });
       store.setOtpVerified(true);
-      handleNext();
-    } else {
-      setError(t.auth.errors?.invalidCode || t.auth.otp.invalidCode);
+      store.setStep(store.step + 1);
+      setOtpStep('method');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -631,16 +626,51 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                 <OTPMethodSelection
                   email={store.account.email}
                   name={store.account.name}
-                  onSelect={(m) => {
+                  isLoading={isSendingOtp}
+                  error={otpMethodError}
+                  onSelect={async (m) => {
                     setOtpMethod(m);
-                    setOtpStep('verify');
+                    setOtpMethodError(null);
+                    setIsSendingOtp(true);
+                    try {
+                      const fullPhone = `${store.account.countryCode}${store.account.phone}`;
+                      await authApi.registerInit({
+                        email: store.account.email,
+                        phone: fullPhone,
+                        name: store.account.name,
+                        role: 'vendor',
+                      });
+                      setOtpStep('verify');
+                    } catch (err: any) {
+                      const errorMsg = err.response?.data?.message || err.message;
+                      setOtpMethodError(
+                        errorMsg ||
+                          t.auth.errors?.registrationFailed ||
+                          (language === 'ar' ? 'فشل إرسال رمز التحقق' : 'Failed to send verification code'),
+                      );
+                    } finally {
+                      setIsSendingOtp(false);
+                    }
                   }}
                 />
               ) : (
                 <OTPVerification
                   email={store.account.email}
-                  phone={store.account.phone}
+                  phone={`${store.account.countryCode}${store.account.phone}`}
                   method={otpMethod}
+                  deliveryHint={
+                    otpMethod === 'email'
+                      ? `${store.account.countryCode}${store.account.phone}`
+                      : undefined
+                  }
+                  onResend={async () => {
+                    await authApi.registerResendOtp({
+                      email: store.account.email,
+                      phone: `${store.account.countryCode}${store.account.phone}`,
+                      name: store.account.name,
+                      role: 'vendor',
+                    });
+                  }}
                   onVerify={handleVerifyOTP}
                 />
               )}

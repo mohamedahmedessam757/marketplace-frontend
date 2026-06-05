@@ -5,7 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { isAcceptedOfferStatus, isRejectedOfferStatus } from '../../utils/offerStatusHelpers';
 
 export interface OfferProps {
-    id: number;
+    id: number | string;
     storeName: string;
     rating: number | string;
     storeCity?: string;

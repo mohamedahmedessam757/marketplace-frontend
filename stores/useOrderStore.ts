@@ -23,12 +23,13 @@ const TRANSITION_RULES: Record<StatusType, StatusType[]> = {
     VERIFICATION: ['VERIFICATION_SUCCESS', 'NON_MATCHING', 'CANCELLED'],
     VERIFICATION_SUCCESS: ['READY_FOR_SHIPPING', 'CANCELLED'],
     READY_FOR_SHIPPING: ['SHIPPED', 'PARTIALLY_SHIPPED', 'CANCELLED'],
-    PARTIALLY_SHIPPED: ['PARTIALLY_SHIPPED', 'SHIPPED', 'DELIVERED', 'CANCELLED'],
+    PARTIALLY_SHIPPED: ['PARTIALLY_SHIPPED', 'SHIPPED', 'PARTIALLY_DELIVERED', 'DELIVERED', 'CANCELLED'],
     NON_MATCHING: ['CORRECTION_PERIOD', 'CANCELLED'],
     CORRECTION_PERIOD: ['CORRECTION_SUBMITTED', 'CANCELLED'],
     CORRECTION_SUBMITTED: ['VERIFICATION_SUCCESS', 'NON_MATCHING', 'CANCELLED'],
     DELAYED_PREPARATION: ['PREPARED', 'CANCELLED'],
-    SHIPPED: ['DELIVERED', 'RETURNED', 'DISPUTED'],
+    SHIPPED: ['DELIVERED', 'PARTIALLY_DELIVERED', 'RETURNED', 'DISPUTED'],
+    PARTIALLY_DELIVERED: ['DELIVERED', 'PARTIALLY_DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURN_REQUESTED', 'RETURNED'],
     DELIVERED: ['COMPLETED', 'RETURNED', 'DISPUTED'],
     COMPLETED: ['WARRANTY_ACTIVE'],
     WARRANTY_ACTIVE: ['WARRANTY_EXPIRED', 'RETURN_REQUESTED', 'DISPUTED'],
@@ -219,6 +220,15 @@ export interface Order {
     expectedDeliveryDate?: string;
     waybillImage?: string | File;
     shipments?: any[];
+    shippingAddresses?: Array<{
+        orderPartId?: string | null;
+        fullName?: string;
+        phone?: string;
+        email?: string;
+        country?: string;
+        city?: string;
+        details?: string;
+    }>;
     shippingWaybills?: any[];
     /** Per cart-shipment batch for grouped orders (from API). */
     shipmentBatches?: ShipmentBatchSummary[];

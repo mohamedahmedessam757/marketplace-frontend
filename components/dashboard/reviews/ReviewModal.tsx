@@ -12,6 +12,7 @@ interface ReviewModalProps {
   storeId?: string;
   merchantName?: string;
   partName?: string;
+  offerId?: string;
   onSuccess?: (review: {
     id: string;
     rating: number;
@@ -28,6 +29,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   storeId = '',
   merchantName = 'Store',
   partName = 'Part',
+  offerId,
   onSuccess,
 }) => {
   const { t, language } = useLanguage();
@@ -57,6 +59,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           storeId: storeId.trim(),
           rating,
           comment,
+          offerId,
       });
 
       if (created) {

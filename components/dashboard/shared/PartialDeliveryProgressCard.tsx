@@ -60,8 +60,8 @@ export const PartialDeliveryProgressCard: React.FC<PartialDeliveryProgressCardPr
                         </h4>
                         <p className="text-white/40 text-[10px] uppercase tracking-wider">
                             {isAr
-                                ? 'سيُفعّل تأكيد الاستلام وعداد الـ 24 ساعة بعد وصول كل الدفعات'
-                                : 'Receipt confirm & 24h window start after all batches arrive'}
+                                ? 'كل دفعة لها مهلة 24 ساعة مستقلة للإرجاع/النزاع بعد وصولها'
+                                : 'Each batch gets its own 24h return/dispute window when delivered'}
                         </p>
                     </div>
                 </div>

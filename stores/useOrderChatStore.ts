@@ -10,6 +10,10 @@ export interface OrderChatMessage {
     senderId: string;
     text: string;
     translatedText?: string;
+    /** Play typewriter reveal once when translation just arrived */
+    revealTranslation?: boolean;
+    /** Optimistic: waiting for translation (show typing dots, hide source language) */
+    translationPending?: boolean;
     mediaUrl?: string;
     mediaType?: string;
     mediaName?: string;
@@ -65,7 +69,7 @@ interface OrderChatState {
     fetchChats: (silent?: boolean) => Promise<void>;
     createSupportChat: (subject: string, message: string, orderId?: string, mediaUrl?: string, mediaType?: string, mediaName?: string, priority?: string) => Promise<void>;
     setActiveChat: (chatId: string) => void;
-    sendMessage: (payload: { text?: string; mediaUrl?: string; mediaType?: string; mediaName?: string; userId?: string; priority?: string; subject?: string }) => Promise<void>;
+    sendMessage: (payload: { text?: string; mediaUrl?: string; mediaType?: string; mediaName?: string; userId?: string; priority?: string; subject?: string; translationEnabled?: boolean }) => Promise<void>;
     toggleTranslation: (chatId: string, enabled: boolean, userRole?: string) => Promise<void>;
     markAsRead: (chatId: string) => Promise<void>;
     subscribeToChat: (chatId: string) => void;
@@ -179,7 +183,7 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
         }
     },
 
-    sendMessage: async ({ text, mediaUrl, mediaType, mediaName, userId, priority, subject }) => {
+    sendMessage: async ({ text, mediaUrl, mediaType, mediaName, userId, priority, subject, translationEnabled }) => {
         const { activeChat } = get();
         if (!activeChat) return;
 
@@ -205,7 +209,8 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
             mediaType,
             mediaName,
             priority,
-            subject
+            subject,
+            translationPending: !!(translationEnabled && text?.trim()),
         };
 
         set((state) => ({
@@ -226,7 +231,10 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
             });
 
             // Replace temp message with real DB message immediately (no wait for WebSocket)
-            const realMessage = mapSupabaseMessage(response.data);
+            const realMessage = {
+                ...mapSupabaseMessage(response.data),
+                revealTranslation: !!(translationEnabled && mapSupabaseMessage(response.data).translatedText),
+            };
             set((state) => {
                 if (!state.activeChat) return state;
                 const withoutTemp = state.activeChat.messages.filter(m => m.id !== tempId);
@@ -360,7 +368,11 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
             });
 
             socket.on('newMessage', (rawMessage: any) => {
-                const message = mapSupabaseMessage(rawMessage);
+                const mapped = mapSupabaseMessage(rawMessage);
+                const message: OrderChatMessage = {
+                    ...mapped,
+                    revealTranslation: !!mapped.translatedText,
+                };
                 const targetChatId = message.chatId || rawMessage.chat_id;
                 set((state) => {
                     if (!state.activeChat || state.activeChat.id !== targetChatId) return state;
@@ -392,7 +404,13 @@ export const useOrderChatStore = create<OrderChatState>((set, get) => ({
                         activeChat: {
                             ...state.activeChat,
                             messages: state.activeChat.messages.map(m =>
-                                m.id === message.id ? { ...m, translatedText: message.translatedText } : m
+                                m.id === message.id
+                                    ? {
+                                        ...m,
+                                        translatedText: message.translatedText,
+                                        revealTranslation: !!message.translatedText,
+                                    }
+                                    : m
                             )
                         }
                     };

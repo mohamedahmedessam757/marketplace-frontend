@@ -35,6 +35,16 @@ import { OrderSelectionModal } from './OrderSelectionModal';
 import { ReturnRequestModal } from '../resolution/ReturnRequestModal';
 import { DisputeModal } from '../resolution/DisputeModal';
 import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../../../utils/orderSla';
+import { ordersApi } from '../../../services/api/orders';
+
+interface EligibleDeliveredItem {
+  orderId: string;
+  orderPartId: string;
+  partName: string;
+  merchantName: string;
+  orderNumber?: string;
+  returnExpiryDate?: string;
+}
 
 interface CustomerResolutionCenterProps {
   onNavigate?: (path: string, id?: any) => void;
@@ -66,14 +76,35 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
   const [isEscalateConfirmOpen, setIsEscalateConfirmOpen] = useState(false);
   const [caseToEscalate, setCaseToEscalate] = useState<string | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [selectedPartId, setSelectedPartId] = useState<string | undefined>(undefined);
+  const [selectedDeliveredItem, setSelectedDeliveredItem] = useState<EligibleDeliveredItem | null>(null);
+  const [eligibleItems, setEligibleItems] = useState<EligibleDeliveredItem[]>([]);
+  const [loadingEligible, setLoadingEligible] = useState(false);
   const [selectionMode, setSelectionMode] = useState<'return' | 'dispute'>('return');
 
   useEffect(() => {
     (window as any).currentViewRole = 'customer';
     fetchUserRequests();
     subscribeToCases('customer');
+
+    setLoadingEligible(true);
+    ordersApi
+      .getDeliveredOrders()
+      .then((items: any[]) => {
+        setEligibleItems(
+          (items || [])
+            .filter((item) => item.isReturnEligible === true && item.orderPartId)
+            .map((item) => ({
+              orderId: item.id,
+              orderPartId: item.orderPartId,
+              partName: item.name,
+              merchantName: item.storeName || 'Store',
+              orderNumber: item.orderNumber,
+              returnExpiryDate: item.returnExpiryDate,
+            })),
+        );
+      })
+      .catch(() => setEligibleItems([]))
+      .finally(() => setLoadingEligible(false));
 
     return () => {
       unsubscribeFromCases();
@@ -98,8 +129,13 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
   };
 
   const handleSelectOrder = (order: Order, type: 'return' | 'dispute', partId?: string) => {
-    setSelectedOrder(order);
-    setSelectedPartId(partId);
+    setSelectedDeliveredItem({
+      orderId: order.id,
+      orderPartId: partId || order.parts?.[0]?.id || '',
+      partName: order.part,
+      merchantName: order.merchantName || 'Store',
+      orderNumber: order.orderNumber,
+    });
     setIsOrderModalOpen(false);
     if (type === 'return') {
       setIsReturnModalOpen(true);
@@ -107,13 +143,6 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
       setIsDisputeModalOpen(true);
     }
   };
-
-  const eligibleOrders = orders.filter(order => {
-    if (order.status !== 'DELIVERED' && order.status !== 'DELIVERED_TO_CUSTOMER') return false;
-    const deliveredDate = order.deliveredAt ? new Date(order.deliveredAt) : new Date(order.updatedAt);
-    const diffHours = (new Date().getTime() - deliveredDate.getTime()) / (1000 * 60 * 60);
-    return diffHours <= POST_DELIVERY_RETURN_DISPUTE_HOURS;
-  });
 
   const stats = [
     {
@@ -137,7 +166,7 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
     },
     {
       title: (t as any).dashboard.resolution.stats.eligibleOrders,
-      value: eligibleOrders.length,
+      value: eligibleItems.length,
       icon: Zap,
       color: 'cyan',
       trend: (t as any).dashboard.resolution.stats.readyAction
@@ -249,7 +278,7 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
 
       {/* 2026 Quick Action Zone (Functional/Incentive) */}
       <AnimatePresence>
-        {eligibleOrders.length > 0 && (
+        {eligibleItems.length > 0 && (
           <motion.div 
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -276,8 +305,8 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {eligibleOrders.slice(0, 3).map((order) => (
-                    <GlassCard key={order.id} className="p-7 bg-[#0C0B0A] border-white/5 hover:border-gold-500/30 transition-all duration-700 group relative overflow-hidden shadow-2xl">
+                  {eligibleItems.slice(0, 3).map((item) => (
+                    <GlassCard key={`${item.orderId}-${item.orderPartId}`} className="p-7 bg-[#0C0B0A] border-white/5 hover:border-gold-500/30 transition-all duration-700 group relative overflow-hidden shadow-2xl">
                       <div className="absolute -right-10 -top-10 w-32 h-32 bg-gold-500/5 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
                       
                       <div className="relative z-10">
@@ -288,7 +317,7 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
                           <div className="flex flex-col items-end">
                             <span className="text-[10px] font-black text-gold-500/80 uppercase tracking-[0.2em] mb-1.5 flex items-center gap-1.5">
                               <div className="w-1 h-1 rounded-full bg-gold-500" />
-                              #{order.orderNumber}
+                              #{item.orderNumber || item.orderId.slice(0, 8)}
                             </span>
                             <div className="px-2.5 py-1 bg-green-500/10 text-green-400 text-[8px] font-black rounded-lg border border-green-500/20 uppercase tracking-widest shadow-lg shadow-green-500/5">
                               {isAr ? 'مؤهل' : 'Eligible'}
@@ -297,7 +326,7 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
                         </div>
 
                         <h4 className="text-xl font-black text-white mb-4 uppercase truncate tracking-tight group-hover:text-gold-400 transition-colors">
-                          {order.part}
+                          {item.partName}
                         </h4>
 
                         <div className="flex items-center gap-2.5 mb-8">
@@ -310,7 +339,7 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
                         <div className="flex gap-3">
                           <button 
                             onClick={() => {
-                              setSelectedOrder(order);
+                              setSelectedDeliveredItem(item);
                               setSelectionMode('return');
                               setIsReturnModalOpen(true);
                              }}
@@ -320,7 +349,7 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
                           </button>
                           <button 
                             onClick={() => {
-                              setSelectedOrder(order);
+                              setSelectedDeliveredItem(item);
                               setSelectionMode('dispute');
                               setIsDisputeModalOpen(true);
                              }}
@@ -542,33 +571,67 @@ export const CustomerResolutionCenter: React.FC<CustomerResolutionCenterProps> =
          mode={selectionMode}
       />
 
-      {selectedOrder && (
+      {selectedDeliveredItem && (
         <AnimatePresence>
           {isReturnModalOpen && (
             <ReturnRequestModal 
               isOpen={isReturnModalOpen}
-              onClose={() => setIsReturnModalOpen(false)}
-              orderId={selectedOrder.id}
-              orderPartId={selectedPartId}
-              merchantName={selectedOrder.merchantName || 'Store'}
-              partName={selectedOrder.part}
+              onClose={() => {
+                setIsReturnModalOpen(false);
+                setSelectedDeliveredItem(null);
+              }}
+              orderId={selectedDeliveredItem.orderId}
+              orderPartId={selectedDeliveredItem.orderPartId}
+              merchantName={selectedDeliveredItem.merchantName}
+              partName={selectedDeliveredItem.partName}
               onSuccess={() => {
                  setIsReturnModalOpen(false);
+                 setSelectedDeliveredItem(null);
                  fetchUserRequests();
+                 ordersApi.getDeliveredOrders().then((items: any[]) => {
+                   setEligibleItems(
+                     (items || [])
+                       .filter((i) => i.isReturnEligible === true && i.orderPartId)
+                       .map((i) => ({
+                         orderId: i.id,
+                         orderPartId: i.orderPartId,
+                         partName: i.name,
+                         merchantName: i.storeName || 'Store',
+                         orderNumber: i.orderNumber,
+                       })),
+                   );
+                 }).catch(() => {});
               }}
             />
           )}
           {isDisputeModalOpen && (
             <DisputeModal 
               isOpen={isDisputeModalOpen}
-              onClose={() => setIsDisputeModalOpen(false)}
-              orderId={selectedOrder.id}
-              orderPartId={selectedPartId}
-              merchantName={selectedOrder.merchantName || 'Store'}
-              partName={selectedOrder.part}
+              onClose={() => {
+                setIsDisputeModalOpen(false);
+                setSelectedDeliveredItem(null);
+              }}
+              orderId={selectedDeliveredItem.orderId}
+              orderPartId={selectedDeliveredItem.orderPartId}
+              merchantName={selectedDeliveredItem.merchantName}
+              partName={selectedDeliveredItem.partName}
               onSuccess={() => {
                  setIsDisputeModalOpen(false);
+                 setSelectedDeliveredItem(null);
                  fetchUserRequests();
+                 ordersApi.getDeliveredOrders().then((items: any[]) => {
+                   setEligibleItems(
+                     (items || [])
+                       .filter((i) => i.isReturnEligible === true && i.orderPartId)
+                       .map((i) => ({
+                         orderId: i.id,
+                         orderPartId: i.orderPartId,
+                         partName: i.name,
+                         merchantName: i.storeName || 'Store',
+                         orderNumber: i.orderNumber,
+                       })),
+                   );
+                 }).catch(() => {});
               }}
             />
           )}

@@ -20,6 +20,7 @@ interface OrderInvoicesPanelProps {
     orderId: string;
     role: 'ADMIN' | 'SUPER_ADMIN' | 'MERCHANT' | 'CUSTOMER' | 'VERIFICATION_OFFICER';
     initialData?: any[];
+    highlightOfferId?: string;
 }
 
 /* ─────────────── PRINT CSS ─────────────── */
@@ -94,7 +95,12 @@ const PrintStyles = () => (
     `}</style>
 );
 
-export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId, role, initialData }) => {
+export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({
+    orderId,
+    role,
+    initialData,
+    highlightOfferId,
+}) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
     const isRTL = isAr;
@@ -107,6 +113,8 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
     const [expandedPolicy, setExpandedPolicy] = useState<string | null>(null);
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
     const [isExporting, setIsExporting] = useState<string | null>(null);
+    const [highlightedInvoiceId, setHighlightedInvoiceId] = useState<string | null>(null);
+    const invoiceRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     const isMerchant = role === 'MERCHANT';
     const isCustomer = role === 'CUSTOMER';
@@ -161,6 +169,35 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
             supabase.removeChannel(channel);
         };
     }, [orderId]);
+
+    useEffect(() => {
+        if (!highlightOfferId || isLoading || invoices.length === 0) return;
+
+        const match = invoices.find(
+            (inv) =>
+                inv.payment?.offerId === highlightOfferId ||
+                inv.offerId === highlightOfferId,
+        );
+        if (!match) return;
+
+        setHighlightedInvoiceId(match.id);
+        setCollapsedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(match.id);
+            return next;
+        });
+
+        const timer = window.setTimeout(() => {
+            const el = invoiceRefs.current[match.id];
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+
+        const clearTimer = window.setTimeout(() => setHighlightedInvoiceId(null), 6000);
+        return () => {
+            window.clearTimeout(timer);
+            window.clearTimeout(clearTimer);
+        };
+    }, [highlightOfferId, invoices, isLoading]);
 
     const handlePrint = (inv: any) => {
         setActiveInvoice(inv);
@@ -677,7 +714,15 @@ export const OrderInvoicesPanel: React.FC<OrderInvoicesPanelProps> = ({ orderId,
 
                     <div className="grid gap-8">
                         {invoices.map((inv) => (
-                            <GlassCard key={inv.id} className="p-0 overflow-hidden relative border-white/10 group">
+                            <GlassCard
+                                key={inv.id}
+                                ref={(el) => { invoiceRefs.current[inv.id] = el; }}
+                                className={`p-0 overflow-hidden relative border-white/10 group transition-all duration-500 ${
+                                    highlightedInvoiceId === inv.id
+                                        ? 'ring-2 ring-gold-500/80 shadow-[0_0_24px_rgba(212,175,55,0.25)]'
+                                        : ''
+                                }`}
+                            >
                                 {/* Action Header */}
                                 <div className="p-4 border-b border-white/10 bg-[#111] flex justify-between items-center">
                                     <div className="flex items-center gap-3">

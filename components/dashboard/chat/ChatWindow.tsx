@@ -84,6 +84,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
       isRead: m.isRead,
       originalText: m.text,
       translatedText: m.translatedText,
+      translationPending: !!(m as any).translationPending,
+      revealTranslation: !!m.revealTranslation,
       mediaUrl: m.mediaUrl,
       mediaType: m.mediaType,
       mediaName: m.mediaName,
@@ -202,7 +204,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
           mediaUrl: uploadedMediaUrl,
           mediaType: pendingAttachment?.type,
           mediaName: pendingAttachment?.file.name,
-          userId: user?.id
+          userId: user?.id,
+          translationEnabled: isTranslationEnabled,
         });
       } catch (err: any) {
         if (err.message === 'CHAT_VIOLATION_DETECTED') {
@@ -441,18 +444,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onNavigateToCheckout }) 
           </div>
         ) : null}
 
-        {displayChat.messages?.map((msg: any) => (
+        {displayChat.messages?.map((msg: any) => {
+          const wantsTranslation = isTranslationEnabled && !!msg.text;
+          const translationPending =
+            !!msg.translationPending || (wantsTranslation && !msg.translatedText);
+          const displayText =
+            translationPending
+              ? ''
+              : wantsTranslation && msg.translatedText
+                ? msg.translatedText
+                : msg.text;
+          return (
           <MessageBubble
             key={msg.id}
             message={{
               ...msg,
-              text: (isTranslationEnabled && msg.translatedText) ? msg.translatedText : msg.text,
-              isTranslated: !!(isTranslationEnabled && msg.translatedText)
+              text: displayText,
+              translationPending,
+              isTranslated: wantsTranslation && !!msg.translatedText,
+              animateTranslation: !!msg.revealTranslation,
             }}
             onAcceptOffer={handleAcceptOffer}
             onViewMedia={(url, type) => setLightboxMedia({ url, type })}
           />
-        ))}
+        );
+        })}
 
         {/* Global Typing Indicator */}
         {showTypingIndicator && (

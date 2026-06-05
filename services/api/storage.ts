@@ -11,6 +11,11 @@ export const storageApi = {
   ): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
+    if (_bucket === 'support-files') {
+      formData.append('folder', folder);
+      const { data } = await client.post<{ url: string }>('/uploads/support', formData);
+      return data.url;
+    }
     if (folder.includes('appeal')) {
       const violationId = folder.split('/').pop() || folder;
       formData.append('violationId', violationId);

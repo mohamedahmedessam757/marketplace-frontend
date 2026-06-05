@@ -92,10 +92,17 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
     const PrevIcon = isAr ? ChevronRight : ChevronLeft;
 
     const catalogOrderTotal = Number(order?.price || 0);
+    const isMultiPartCase = Boolean(dispute?.orderPartId);
+    const itemOfferTotal =
+        dispute?.offer?.unitPrice != null
+            ? Number(dispute.offer.unitPrice) + Number(dispute.offer.shippingCost || 0)
+            : null;
     const orderPaidTotal =
-        dispute?.paidTotal != null && dispute.paidTotal > 0
-            ? Number(dispute.paidTotal)
-            : catalogOrderTotal;
+        isMultiPartCase && itemOfferTotal != null && itemOfferTotal > 0
+            ? itemOfferTotal
+            : dispute?.paidTotal != null && dispute.paidTotal > 0
+              ? Number(dispute.paidTotal)
+              : catalogOrderTotal;
     const paymentMismatch =
         dispute?.paidTotal != null &&
         dispute.paidTotal > 0 &&
@@ -800,9 +807,24 @@ export const AdminDisputeDetails: React.FC<AdminDisputeDetailsProps> = ({ caseId
                                                      {/* Financial Breakdown Table */}
                                                      <div className="mt-6 pt-6 border-t border-white/5 space-y-3">
                                                          <div className="flex justify-between text-[10px]">
-                                                             <span className="text-white/40">{isAr ? 'إجمالي المدفوع (Stripe)' : 'Total paid (Stripe)'}</span>
+                                                             <span className="text-white/40">
+                                                                 {isMultiPartCase
+                                                                     ? isAr
+                                                                         ? 'مبلغ القطعة المتنازع عليها'
+                                                                         : 'Disputed item amount'
+                                                                     : isAr
+                                                                       ? 'إجمالي المدفوع (Stripe)'
+                                                                       : 'Total paid (Stripe)'}
+                                                             </span>
                                                              <span className="text-white font-mono">{orderPaidTotal.toLocaleString()} AED</span>
                                                          </div>
+                                                         {isMultiPartCase && catalogOrderTotal > 0 && (
+                                                             <p className="text-[9px] text-amber-400/80">
+                                                                 {isAr
+                                                                     ? `إجمالي الطلب: ${catalogOrderTotal.toLocaleString()} AED — الاسترداد على القطعة المحددة فقط`
+                                                                     : `Order total: ${catalogOrderTotal.toLocaleString()} AED — refund scoped to selected item`}
+                                                             </p>
+                                                         )}
                                                          
                                                          {/* Responsibility Indicator */}
                                                          <motion.div className={`p-3 rounded-xl border mb-4 ${isCloseCompleteRefund ? 'bg-gold-500/5 border-gold-500/20' : faultParty === 'MERCHANT' ? 'bg-orange-500/5 border-orange-500/20' : faultParty === 'SHIPPING_COMPANY' ? 'bg-purple-500/5 border-purple-500/20' : 'bg-cyan-500/5 border-cyan-500/20'}`}>

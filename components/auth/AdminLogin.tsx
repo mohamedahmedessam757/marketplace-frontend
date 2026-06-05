@@ -5,29 +5,30 @@ import { OTPVerification } from './OTPVerification';
 import { OTPMethodSelection } from './OTPMethodSelection';
 import { useAdminStore } from '../../stores/useAdminStore';
 import { authApi } from '@/services/api/auth';
+import { formatApiErrorMessage } from '../../utils/formatApiErrorMessage';
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { loginAdmin } = useAdminStore();
 
-  // Local OTP State
   const [otpStep, setOtpStep] = useState<'none' | 'method' | 'verify'>('none');
-  const [otpMethod, setOtpMethod] = useState<'email' | 'whatsapp'>('email');
+  const [otpMethod, setOtpMethod] = useState<'email' | 'whatsapp'>('whatsapp');
 
   const [email, setEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [userPhone, setUserPhone] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [credentialsError, setCredentialsError] = useState<string | null>(null);
+  const [methodError, setMethodError] = useState<string | null>(null);
   const [fingerprint, setFingerprint] = useState<string | null>(null);
   const [loginData, setLoginData] = useState<any>(null);
 
-  // Initialize FingerprintJS on mount for 2026 security standards
   React.useEffect(() => {
     const loadFingerprint = async () => {
       try {
@@ -45,66 +46,72 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError(null);
+    setCredentialsError(null);
 
     try {
-      // 1. First Step: Credentials Check (Include Fingerprint for Deduplication)
       const data = await authApi.login(email, password, fingerprint || undefined);
 
-      // Store Token (Temporary scope)
-      localStorage.setItem('access_token', data.access_token);
-
-      // Verify Role
       const role = data.user?.role;
       if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPPORT' || role === 'VERIFICATION_OFFICER') {
-        // Store Admin Details
         setUserName(data.user.name || 'Admin');
         setUserPhone(data.user.phone || '');
         setLoginData(data);
-
-        // 2. Trigger OTP
-        // In real backend, login might return "OTP_REQUIRED" status
-        // For M1, we explicitly request OTP sending here
-        try {
-          await authApi.sendOTP(email);
-        } catch (otpErr) {
-          console.warn('OTP Send warning (mock mode maybe)', otpErr);
-        }
+        setMethodError(null);
         setOtpStep('method');
       } else {
-        setError(t.auth.errors?.accessDenied || 'Access Denied');
-        localStorage.removeItem('access_token');
+        setCredentialsError(t.auth.errors?.accessDenied || 'Access Denied');
       }
-
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Admin Login Failed', err);
-      setError(t.auth.errors?.invalidCredentials || 'Invalid Admin Credentials');
+      setCredentialsError(
+        formatApiErrorMessage(
+          err,
+          t.auth.errors?.invalidCredentials || 'Invalid Admin Credentials',
+        ),
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleVerifyOTP = async (code: string) => {
+  const handleMethodSelect = async (method: 'email' | 'whatsapp') => {
+    setOtpMethod(method);
+    setMethodError(null);
+    setIsSendingOtp(true);
     try {
-      // DEVELOPMENT BYPASS: Allow any code for testing
-      // await authApi.verifyOTP(email, code);
-      console.log('DEV MODE: OTP Bypassed with code', code);
-
-      if (!loginData?.user || !loginData.user.id || !loginData.user.role) {
-        console.error('[handleVerifyOTP] Invalid loginData:', loginData);
-        setError(t.auth.errors?.invalidCredentials || 'Login session expired. Please try again.');
-        setOtpStep('none');
-        throw new Error('Login session expired');
+      const otpResult = await authApi.sendOTP(email);
+      if (!otpResult?.success) {
+        throw new Error(
+          language === 'ar' ? 'تعذّر إرسال رمز التحقق' : 'Failed to send verification code',
+        );
       }
-
-      loginAdmin(loginData.user, loginData.permissions);
-      onLoginSuccess();
-    } catch (err) {
-      console.error('OTP Verification Failed', err);
-      setError(t.auth.errors?.invalidCredentials || 'Verification failed. Please try again.');
-      setOtpStep('none');
-      throw err;
+      setOtpStep('verify');
+    } catch (err: unknown) {
+      setMethodError(
+        formatApiErrorMessage(
+          err,
+          language === 'ar' ? 'تعذّر إرسال رمز التحقق' : 'Failed to send verification code',
+        ),
+      );
+    } finally {
+      setIsSendingOtp(false);
     }
+  };
+
+  const handleVerifyOTP = async (code: string) => {
+    await authApi.verifyOTP(email, code);
+
+    if (!loginData?.user?.id || !loginData.user.role) {
+      throw new Error(
+        language === 'ar'
+          ? 'انتهت جلسة الدخول. أعد إدخال البريد وكلمة المرور.'
+          : 'Login session expired. Please sign in again.',
+      );
+    }
+
+    localStorage.setItem('access_token', loginData.access_token);
+    loginAdmin(loginData.user, loginData.permissions);
+    onLoginSuccess();
   };
 
   if (otpStep === 'method') {
@@ -112,16 +119,25 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
       <OTPMethodSelection
         email={email}
         name={userName}
-        onSelect={(method) => {
-          setOtpMethod(method);
-          setOtpStep('verify');
-        }}
+        isLoading={isSendingOtp}
+        error={methodError}
+        onSelect={handleMethodSelect}
       />
     );
   }
 
   if (otpStep === 'verify') {
-    return <OTPVerification email={email} phone={userPhone} method={otpMethod} onVerify={handleVerifyOTP} />;
+    return (
+      <OTPVerification
+        email={email}
+        phone={userPhone}
+        method={otpMethod}
+        onVerify={handleVerifyOTP}
+        onResend={async () => {
+          await authApi.sendOTP(email);
+        }}
+      />
+    );
   }
 
   return (
@@ -135,9 +151,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
       </div>
 
       <form onSubmit={handleLoginSubmit} className="space-y-4">
-        {error && (
+        {credentialsError && (
           <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-3 rounded-lg text-sm font-mono text-center">
-            {error}
+            {credentialsError}
           </div>
         )}
 

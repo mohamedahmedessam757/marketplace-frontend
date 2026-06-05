@@ -54,6 +54,7 @@ interface ReviewState {
     storeId: string;
     rating: number;
     comment: string;
+    offerId?: string;
   }) => Promise<ReviewSubmitResult | null>;
   updateReviewStatus: (id: string, status: 'PENDING' | 'PUBLISHED' | 'REJECTED') => Promise<void>;
   clearReviewError: () => void;
@@ -146,6 +147,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
         storeId: data.storeId.trim(),
         rating: data.rating,
         comment: data.comment?.trim() || '—',
+        offerId: data.offerId,
       });
 
       set({ error: null });

@@ -5,6 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { OTPVerification } from './OTPVerification';
 import { OTPMethodSelection } from './OTPMethodSelection';
 import { authApi } from '@/services/api/auth';
+import type { PendingRedirect } from '../../utils/widersDeepLink';
 
 interface LoginPageProps {
   onRegisterClick: () => void;
@@ -13,7 +14,9 @@ interface LoginPageProps {
   onForgotPasswordClick?: () => void;
   onRecoveryClick?: (role: 'customer' | 'merchant') => void;
   initialTab?: 'customer' | 'merchant';
-  forcedRole?: 'customer' | 'merchant'; // NEW: If set, tabs are hidden
+  forcedRole?: 'customer' | 'merchant';
+  pendingRedirect?: PendingRedirect | null;
+  roleMismatch?: boolean;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
@@ -23,7 +26,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   onForgotPasswordClick,
   onRecoveryClick,
   initialTab = 'customer',
-  forcedRole
+  forcedRole,
+  pendingRedirect,
+  roleMismatch,
 }) => {
   const { t, language } = useLanguage();
   // If forcedRole is provided, use it. Otherwise use initialTab.
@@ -36,6 +41,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [loginEmail, setLoginEmail] = useState(''); // New state for input
   const [userEmail, setUserEmail] = useState(''); // Used for storage after init
   const [userName, setUserName] = useState('');
+  const [maskedPhone, setMaskedPhone] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,9 +144,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         const fullPhone = `${countryCode}${phone}`;
         data = await authApi.initiateMobileLogin(fullPhone);
       } else {
-        // 1. Initiate Email Login
         data = await authApi.initiateEmailLogin(loginEmail);
-        setUserEmail(loginEmail); // Set it early for the verify step
+        setUserEmail(loginEmail);
+        setMaskedPhone(data?.maskedPhone ?? data?.user?.phone ?? null);
       }
 
       // Access user data from response with extreme caution
@@ -193,36 +199,68 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           email={userEmail}
           phone={`${countryCode}${phone}`}
           method={activationMethod}
-          onVerify={async (code) => {
-            try {
-              let response;
-
-              if (activationMethod === 'whatsapp') {
-                const fullPhone = `${countryCode}${phone}`;
-                response = await authApi.verifyMobileLogin(fullPhone, code, fingerprint || undefined);
-              } else {
-                response = await authApi.verifyEmailLogin(userEmail, code, fingerprint || undefined);
-              }
-
-              localStorage.setItem('access_token', response.access_token);
-              if (response.user) {
-                localStorage.setItem('user', JSON.stringify(response.user));
-              }
-
-              onLoginSuccess(activeTab);
-            } catch (err: any) {
-              console.error('Verify Failed', err);
-              alert(t.auth.errors?.invalidCode || (language === 'ar' ? 'رمز التحقق غير صحيح' : 'Invalid verification code'));
-              throw err;
+          deliveryHint={activationMethod === 'email' ? maskedPhone ?? undefined : undefined}
+          onResend={async () => {
+            if (activationMethod === 'whatsapp') {
+              await authApi.resendMobileLoginOtp(`${countryCode}${phone}`);
+            } else {
+              const data = await authApi.initiateEmailLogin(loginEmail || userEmail);
+              setMaskedPhone(data?.maskedPhone ?? data?.user?.phone ?? null);
             }
+          }}
+          onVerify={async (code) => {
+            let response;
+
+            if (activationMethod === 'whatsapp') {
+              const fullPhone = `${countryCode}${phone}`;
+              response = await authApi.verifyMobileLogin(fullPhone, code, fingerprint || undefined);
+            } else {
+              response = await authApi.verifyEmailLogin(userEmail, code, fingerprint || undefined);
+            }
+
+            localStorage.setItem('access_token', response.access_token);
+            if (response.user) {
+              localStorage.setItem('user', JSON.stringify(response.user));
+            }
+
+            onLoginSuccess(activeTab);
           }}
         />
       </div>
     );
   }
 
+  const redirectLabel = pendingRedirect
+    ? (() => {
+        const isOrder =
+          pendingRedirect.path === 'order-details' || pendingRedirect.path === 'explore-offer';
+        const shortId = pendingRedirect.id ? String(pendingRedirect.id).slice(0, 8) : '';
+        if (isOrder && shortId) {
+          return language === 'ar'
+            ? `سجّل الدخول لمتابعة طلبك (${shortId}…)`
+            : `Sign in to continue to your order (${shortId}…)`;
+        }
+        return language === 'ar'
+          ? 'سجّل الدخول للوصول إلى الصفحة المطلوبة'
+          : 'Sign in to access the requested page';
+      })()
+    : null;
+
   return (
     <div className="space-y-6">
+      {redirectLabel && (
+        <div className="bg-gold-500/10 border border-gold-500/30 text-gold-300 p-4 rounded-xl text-sm text-center">
+          {redirectLabel}
+        </div>
+      )}
+      {roleMismatch && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 p-4 rounded-xl text-sm text-center flex items-center justify-center gap-2">
+          <AlertCircle size={18} />
+          {language === 'ar'
+            ? 'هذا الرابط مخصّص لنوع حساب آخر. سجّل الدخول بالحساب الصحيح.'
+            : 'This link is for a different account type. Please sign in with the correct account.'}
+        </div>
+      )}
       {/* Tabs - Only show if NO forced role */}
       {!forcedRole && (
         <div className="flex p-1 bg-black/20 rounded-xl">

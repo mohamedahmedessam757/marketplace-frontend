@@ -2,20 +2,38 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, MessageSquare, Mail, RefreshCcw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { formatApiErrorMessage } from '../../utils/formatApiErrorMessage';
+import { OtpErrorCard } from './OtpErrorCard';
 
 interface OTPVerificationProps {
   onVerify: (code: string) => void | Promise<void>;
   email: string;
   phone?: string;
   method?: 'email' | 'whatsapp';
+  /** Masked phone when login-via-email sends OTP to WhatsApp */
+  deliveryHint?: string;
+  onResend?: () => void | Promise<void>;
 }
 
-export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, email, phone, method = 'email' }) => {
-  const { t } = useLanguage();
+export const OTPVerification: React.FC<OTPVerificationProps> = ({
+  onVerify,
+  email,
+  phone,
+  method = 'email',
+  deliveryHint,
+  onResend,
+}) => {
+  const { t, language } = useLanguage();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const invalidCodeFallback =
+    t.auth.errors?.invalidCode ||
+    (language === 'ar' ? 'رمز التحقق غير صحيح' : 'Invalid verification code');
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -24,8 +42,14 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
     return () => clearInterval(interval);
   }, []);
 
+  const clearOtpInputs = () => {
+    setOtp(['', '', '', '', '', '']);
+    inputRefs.current[0]?.focus();
+  };
+
   const handleChange = (index: number, value: string) => {
     if (isVerifying || isNaN(Number(value))) return;
+    setError(null);
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
@@ -44,25 +68,70 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
 
   const handleVerify = async () => {
     setIsVerifying(true);
+    setError(null);
     const code = otp.join('');
     try {
       await onVerify(code);
-    } catch {
+    } catch (err: unknown) {
+      setError(formatApiErrorMessage(err, invalidCodeFallback));
+      clearOtpInputs();
+    } finally {
       setIsVerifying(false);
     }
   };
+
+  const handleResend = async () => {
+    if (!onResend || isResending) return;
+    setIsResending(true);
+    setError(null);
+    try {
+      await onResend();
+      setTimer(60);
+      clearOtpInputs();
+    } catch (err: unknown) {
+      setError(
+        formatApiErrorMessage(
+          err,
+          language === 'ar' ? 'تعذّر إعادة الإرسال' : 'Could not resend code',
+        ),
+      );
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const destination =
+    method === 'whatsapp'
+      ? phone || email
+      : deliveryHint || email;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-white mb-2">{t.auth.otp.title}</h2>
         <div className="text-white/60 text-sm">
-          {t.auth.otp.subtitle} <br />
-          <div className="text-gold-400 font-mono mt-1 text-lg" dir="ltr">
-            {method === 'whatsapp' ? (phone || email) : email}
-          </div>
+          {method === 'email' && deliveryHint ? (
+            <>
+              {language === 'ar'
+                ? 'تم إرسال رمز التحقق إلى واتساب الرقم المسجّل:'
+                : 'Verification code sent to WhatsApp on your registered number:'}
+              <br />
+              <div className="text-gold-400 font-mono mt-1 text-lg" dir="ltr">
+                {deliveryHint}
+              </div>
+            </>
+          ) : (
+            <>
+              {t.auth.otp.subtitle} <br />
+              <div className="text-gold-400 font-mono mt-1 text-lg" dir="ltr">
+                {destination}
+              </div>
+            </>
+          )}
         </div>
       </div>
+
+      {error && <OtpErrorCard message={error} />}
 
       <div className="flex gap-2 justify-center direction-ltr" dir="ltr">
         {otp.map((digit, index) => (
@@ -104,10 +173,11 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
         ) : (
           <button
             type="button"
-            disabled={isVerifying}
+            disabled={isVerifying || isResending || !onResend}
+            onClick={handleResend}
             className="w-full flex items-center justify-center gap-2 text-white/60 hover:text-white text-sm transition-colors py-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCcw size={14} />
+            <RefreshCcw size={14} className={isResending ? 'animate-spin' : ''} />
             {t.auth.otp.resend}
           </button>
         )}
@@ -122,7 +192,9 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ onVerify, emai
             ) : (
               <span className="flex items-center justify-center gap-2 text-gold-500/50">
                 <Mail size={12} />
-                {t.auth.otp.emailAlt}
+                {deliveryHint
+                  ? (language === 'ar' ? 'التحقق عبر واتساب (الإيميل قريباً)' : 'WhatsApp verification (email provider coming soon)')
+                  : t.auth.otp.emailAlt}
               </span>
             )}
           </div>

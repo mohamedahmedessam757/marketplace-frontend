@@ -11,8 +11,28 @@ export const authApi = {
         return response.data;
     },
 
-    registerInit: async (data: { email: string; phone: string }) => {
+    registerInit: async (data: {
+        email: string;
+        phone: string;
+        name?: string;
+        role?: 'customer' | 'vendor';
+    }) => {
         const response = await client.post('/auth/register-init', data);
+        return response.data;
+    },
+
+    registerVerifyOtp: async (data: { email: string; phone: string; code: string }) => {
+        const response = await client.post('/auth/register-verify-otp', data);
+        return response.data;
+    },
+
+    registerResendOtp: async (data: {
+        email: string;
+        phone: string;
+        name?: string;
+        role?: 'customer' | 'vendor';
+    }) => {
+        const response = await client.post('/auth/register-resend-otp', data);
         return response.data;
     },
 
@@ -43,6 +63,11 @@ export const authApi = {
 
     verifyOTP: async (email: string, code: string) => {
         const response = await client.post('/auth/otp/verify', { email, code });
+        return response.data;
+    },
+
+    resendMobileLoginOtp: async (phone: string) => {
+        const response = await client.post('/auth/mobile-login-resend', { phone });
         return response.data;
     },
 

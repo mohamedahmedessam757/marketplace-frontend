@@ -3,6 +3,7 @@ import React from 'react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { CheckCircle2, FileText, Download, Globe, Check, CheckCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { TranslationTypingIndicator, TypewriterText } from './TranslatedMessageText';
 
 interface MessageBubbleProps {
   message: any;
@@ -205,10 +206,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onAcceptO
                 </div>
               )}
 
-              {message.text && (
+              {(message.text || message.translationPending) && (
                 <div className="relative">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
-                  {message.isTranslated && (
+                  {message.translationPending ? (
+                    <TranslationTypingIndicator />
+                  ) : (
+                    <TypewriterText
+                      text={message.text}
+                      active={!!message.animateTranslation}
+                      className="text-sm leading-relaxed whitespace-pre-wrap"
+                    />
+                  )}
+                  {message.isTranslated && !message.translationPending && (
                     <div className="flex items-center gap-1 mt-1 text-[10px] text-gold-400 font-medium">
                       <Globe size={10} />
                       <span>{language === 'ar' ? 'مترجم تلقائياً' : 'Auto-Translated'}</span>

@@ -30,6 +30,7 @@ import { MerchantHandoverPendingBanner } from '../shared/MerchantHandoverPending
 import { CartShipmentBadge } from '../shared/CartShipmentBadge';
 import { PartialShippingProgressCard } from '../shared/PartialShippingProgressCard';
 import { PartialDeliveryProgressCard } from '../shared/PartialDeliveryProgressCard';
+import { MultiItemCompletionBadge } from '../shared/MultiItemCompletionBadge';
 import { useOrderFulfillmentSummary } from '../../../hooks/useOrderFulfillmentSummary';
 import { computeShipmentDeliverySummary } from '../../../utils/offerFulfillmentHelpers';
 
@@ -221,6 +222,15 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
         [order?.shipments, order?.status],
     );
 
+    const multiItemCompletion = useMemo(() => {
+        const parts = fulfillmentSummary?.parts ?? [];
+        if (parts.length <= 1) return null;
+        const completedCount = parts.filter(
+            (p) => p.fulfillmentStatus === 'COMPLETED' || p.resolutionLocked,
+        ).length;
+        return { completedCount, totalCount: parts.length };
+    }, [fulfillmentSummary]);
+
     const isAr = language === 'ar';
     const ArrowIcon = isAr ? ChevronRight : ChevronLeft;
 
@@ -395,6 +405,12 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
                                         : order.part}
                                 </h1>
                                 <Badge status={order.status} />
+                                {multiItemCompletion && (
+                                    <MultiItemCompletionBadge
+                                        completedCount={multiItemCompletion.completedCount}
+                                        totalCount={multiItemCompletion.totalCount}
+                                    />
+                                )}
                                 {order.warranty_end_at && (
                                     <WarrantyProtectionCard 
                                         order={order} 
@@ -415,7 +431,7 @@ export const AdminOrderDetails: React.FC<AdminOrderDetailsProps> = ({ orderId, o
 
                         <div className="flex flex-wrap items-center gap-3">
                             {/* Attractive Go to Shipping Button */}
-                            {['PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED'].includes(order.status) && (
+                            {['PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'PARTIALLY_DELIVERED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED'].includes(order.status) && (
                                 <button
                                     onClick={() => onNavigate?.('shipping', order.id)}
                                     className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 group active:scale-95"

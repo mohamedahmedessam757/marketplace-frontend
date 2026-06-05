@@ -2,22 +2,36 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, Mail, MessageSquare, RefreshCcw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { formatApiErrorMessage } from '../../utils/formatApiErrorMessage';
+import { OtpErrorCard } from './OtpErrorCard';
+
+export interface RegistrationOtpCodes {
+    whatsappCode: string;
+    emailCode: string;
+}
 
 interface CustomerRegistrationOTPProps {
-    onVerify: () => void | Promise<void>;
+    onVerify: (codes: RegistrationOtpCodes) => void | Promise<void>;
+    onResendWhatsapp?: () => void | Promise<void>;
     email: string;
     phone: string;
 }
 
-export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = ({ onVerify, email, phone }) => {
+export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = ({
+    onVerify,
+    onResendWhatsapp,
+    email,
+    phone,
+}) => {
     const { t, language } = useLanguage();
 
-    // Two separate OTP states
     const [emailOtp, setEmailOtp] = useState(['', '', '', '', '', '']);
     const [whatsappOtp, setWhatsappOtp] = useState(['', '', '', '', '', '']);
 
     const [timer, setTimer] = useState(60);
     const [isVerifying, setIsVerifying] = useState(false);
+    const [isResending, setIsResending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const emailInputRefs = useRef<(HTMLInputElement | null)[]>([]);
     const whatsappInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -32,9 +46,10 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
     const handleOtpChange = (
         type: 'email' | 'whatsapp',
         index: number,
-        value: string
+        value: string,
     ) => {
         if (isNaN(Number(value))) return;
+        setError(null);
 
         if (type === 'email') {
             const newOtp = [...emailOtp];
@@ -52,7 +67,7 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
     const handleKeyDown = (
         type: 'email' | 'whatsapp',
         index: number,
-        e: React.KeyboardEvent
+        e: React.KeyboardEvent,
     ) => {
         if (e.key === 'Backspace') {
             if (type === 'email' && !emailOtp[index] && index > 0) {
@@ -67,10 +82,42 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
 
     const handleVerify = async () => {
         setIsVerifying(true);
+        setError(null);
         try {
-            await onVerify();
-        } catch {
+            await onVerify({
+                whatsappCode: whatsappOtp.join(''),
+                emailCode: emailOtp.join(''),
+            });
+        } catch (err: unknown) {
+            setError(
+                formatApiErrorMessage(
+                    err,
+                    language === 'ar' ? 'رمز واتساب غير صحيح' : 'Invalid WhatsApp code',
+                ),
+            );
+            setWhatsappOtp(['', '', '', '', '', '']);
+            whatsappInputRefs.current[0]?.focus();
             setIsVerifying(false);
+        }
+    };
+
+    const handleResend = async () => {
+        if (!onResendWhatsapp || isResending) return;
+        setIsResending(true);
+        try {
+            await onResendWhatsapp();
+            setTimer(60);
+            setWhatsappOtp(['', '', '', '', '', '']);
+            whatsappInputRefs.current[0]?.focus();
+        } catch (err: unknown) {
+            setError(
+                formatApiErrorMessage(
+                    err,
+                    language === 'ar' ? 'تعذّر إعادة الإرسال' : 'Could not resend code',
+                ),
+            );
+        } finally {
+            setIsResending(false);
         }
     };
 
@@ -79,7 +126,8 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
         icon: React.ReactNode,
         labelAr: string,
         labelEn: string,
-        targetValue: string
+        targetValue: string,
+        pendingProvider?: boolean,
     ) => {
         const otpArray = type === 'email' ? emailOtp : whatsappOtp;
         const refs = type === 'email' ? emailInputRefs : whatsappInputRefs;
@@ -96,6 +144,14 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
                     <span className="text-xs font-mono text-gold-400" dir="ltr">{targetValue}</span>
                 </div>
 
+                {pendingProvider && (
+                    <p className="text-xs text-white/40 text-center">
+                        {language === 'ar'
+                            ? 'حقل الإيميل جاهز — سيتم ربط مزود البريد لاحقاً'
+                            : 'Email field ready — email provider will be connected later'}
+                    </p>
+                )}
+
                 <div className="flex gap-1.5 sm:gap-2 justify-center px-2" dir="ltr">
                     {otpArray.map((digit, index) => (
                         <input
@@ -105,9 +161,10 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
                             inputMode="numeric"
                             maxLength={1}
                             value={digit}
+                            disabled={isVerifying}
                             onChange={(e) => handleOtpChange(type, index, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(type, index, e)}
-                            className="flex-1 max-w-[56px] aspect-square rounded-xl bg-white/5 border border-white/10 text-center text-xl sm:text-2xl font-bold text-white focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20 outline-none transition-all focus:bg-white/10"
+                            className="flex-1 max-w-[56px] aspect-square rounded-xl bg-white/5 border border-white/10 text-center text-xl sm:text-2xl font-bold text-white focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20 outline-none transition-all focus:bg-white/10 disabled:opacity-50"
                         />
                     ))}
                 </div>
@@ -121,15 +178,29 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
                 <h2 className="text-2xl font-bold text-white mb-2">{t.auth.otp.title}</h2>
                 <div className="text-white/60 text-sm leading-relaxed">
                     {language === 'ar'
-                        ? 'يرجى إدخال رموز التحقق المرسلة إلى كل من البريد الإلكتروني ورقم الواتساب الخاص بك لإتمام عملية التسجيل.'
-                        : 'Please enter the verification codes sent to both your email and WhatsApp number to complete registration.'
-                    }
+                        ? 'أدخل رمز واتساب المرسل إلى جوالك. حقل الإيميل مُفعّل للمرحلة القادمة عند ربط مزود البريد.'
+                        : 'Enter the WhatsApp code sent to your phone. The email field stays active for a future email provider.'}
                 </div>
             </div>
 
+            {error && <OtpErrorCard message={error} />}
+
             <div className="space-y-4">
-                {renderOtpBlock('email', <Mail size={16} className="text-gold-500" />, 'أدخل الرمز المرسل إلى الإيميل', 'Enter code sent to Email', email)}
-                {renderOtpBlock('whatsapp', <MessageSquare size={16} className="text-green-500" />, 'أدخل الرمز المرسل إلى الواتساب', 'Enter code sent to WhatsApp', phone)}
+                {renderOtpBlock(
+                    'whatsapp',
+                    <MessageSquare size={16} className="text-green-500" />,
+                    'أدخل الرمز المرسل إلى الواتساب',
+                    'Enter code sent to WhatsApp',
+                    phone,
+                )}
+                {renderOtpBlock(
+                    'email',
+                    <Mail size={16} className="text-gold-500" />,
+                    'أدخل الرمز المرسل إلى الإيميل',
+                    'Enter code sent to Email',
+                    email,
+                    true,
+                )}
             </div>
 
             <button
@@ -140,7 +211,7 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
                 {isVerifying ? (
                     <>
                         <Loader2 className="animate-spin" />
-                        {language === 'ar' ? 'جاري إنشاء الحساب...' : 'Creating account...'}
+                        {language === 'ar' ? 'جاري التحقق...' : 'Verifying...'}
                     </>
                 ) : (
                     language === 'ar' ? 'تأكيد التسجيل وإنشاء حساب' : 'Verify & Create Account'
@@ -153,9 +224,14 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
                         {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
                     </div>
                 ) : (
-                    <button className="flex items-center justify-center gap-2 text-gold-400 hover:text-gold-300 text-sm mx-auto transition-colors">
-                        <RefreshCcw size={14} />
-                        {t.auth.otp.resend}
+                    <button
+                        type="button"
+                        onClick={handleResend}
+                        disabled={isResending || !onResendWhatsapp}
+                        className="flex items-center justify-center gap-2 text-gold-400 hover:text-gold-300 text-sm mx-auto transition-colors disabled:opacity-50"
+                    >
+                        <RefreshCcw size={14} className={isResending ? 'animate-spin' : ''} />
+                        {language === 'ar' ? 'إعادة إرسال رمز واتساب' : 'Resend WhatsApp code'}
                     </button>
                 )}
             </div>

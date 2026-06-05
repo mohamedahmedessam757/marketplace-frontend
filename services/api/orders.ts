@@ -141,6 +141,11 @@ export const ordersApi = {
         const response = await client.post(`/orders/${id}/deliver`, { customerNote });
         return response.data;
     },
+
+    getDeliveredOrders: async () => {
+        const response = await client.get('/orders/delivered');
+        return response.data;
+    },
     
     delete: async (id: string) => {
         const response = await client.delete(`/orders/${id}`);

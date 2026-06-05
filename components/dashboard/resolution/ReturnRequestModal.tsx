@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
@@ -18,15 +18,19 @@ import {
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
 import { FileUploader } from '../../ui/FileUploader';
+import { ResolutionPartPicker } from './ResolutionPartPicker';
+import type { EligibleResolutionPart } from './resolutionTypes';
+import { ordersApi } from '../../../services/api/orders';
 
 interface ReturnRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    orderId: string;
+    orderId?: string;
     orderPartId?: string;
-    merchantName: string;
-    partName: string;
+    merchantName?: string;
+    partName?: string;
+    eligibleParts?: EligibleResolutionPart[];
     initialReason?: string;
 }
 
@@ -34,17 +38,21 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
     isOpen, 
     onClose, 
     onSuccess,
-    orderId,
-    orderPartId,
-    merchantName,
-    partName,
+    orderId: initialOrderId,
+    orderPartId: initialOrderPartId,
+    merchantName: initialMerchantName,
+    partName: initialPartName,
+    eligibleParts: initialEligibleParts,
     initialReason
 }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
-    const { requestReturn } = useReturnsStore();
+    const { requestReturn, error: storeError } = useReturnsStore();
 
-    // Form State
+    const [selectedPart, setSelectedPart] = useState<EligibleResolutionPart | null>(null);
+    const [remoteParts, setRemoteParts] = useState<EligibleResolutionPart[]>([]);
+    const [loadingParts, setLoadingParts] = useState(false);
+
     const [reason, setReason] = useState(initialReason || '');
     const [description, setDescription] = useState('');
     const [usageCondition, setUsageCondition] = useState<'UNUSED' | 'OPENED' | 'INSTALLED' | ''>('');
@@ -56,31 +64,117 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
     const [files, setFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    const pickerParts = useMemo(() => {
+        if (initialEligibleParts?.length) return initialEligibleParts;
+        return remoteParts;
+    }, [initialEligibleParts, remoteParts]);
+
+    const partSelectionRequired = pickerParts.length > 1;
+
+    const needsPartPicker =
+        partSelectionRequired &&
+        !initialOrderPartId &&
+        !selectedPart;
+
+    const activeOrderId = selectedPart?.orderId ?? initialOrderId;
+    const activeOrderPartId = selectedPart?.orderPartId ?? initialOrderPartId;
+    const activePartName = selectedPart?.partName ?? initialPartName ?? 'Part';
+    const activeMerchantName = selectedPart?.merchantName ?? initialMerchantName ?? 'Store';
 
     useEffect(() => {
-        if (isOpen) {
-            setReason(initialReason || '');
-            setDescription('');
-            setUsageCondition('');
-            setConfirmations({ integrity: false, packaging: false, policy: false });
-            setFiles([]);
-            setAttemptedSubmit(false);
+        if (!isOpen) return;
+        setReason(initialReason || '');
+        setDescription('');
+        setUsageCondition('');
+        setConfirmations({ integrity: false, packaging: false, policy: false });
+        setFiles([]);
+        setAttemptedSubmit(false);
+        setSuccessMessage(null);
+        setSelectedPart(null);
+
+        if (initialOrderPartId && initialOrderId) {
+            setSelectedPart({
+                orderId: initialOrderId,
+                orderPartId: initialOrderPartId,
+                partName: initialPartName ?? 'Part',
+                merchantName: initialMerchantName ?? 'Store',
+            });
         }
-    }, [isOpen]);
+    }, [isOpen, initialOrderId, initialOrderPartId, initialPartName, initialMerchantName, initialReason]);
+
+    useEffect(() => {
+        if (!isOpen || selectedPart || initialOrderPartId) return;
+        if (pickerParts.length === 1) {
+            setSelectedPart(pickerParts[0]);
+        }
+    }, [isOpen, pickerParts, selectedPart, initialOrderPartId]);
+
+    useEffect(() => {
+        if (!isOpen || initialOrderId || initialEligibleParts?.length) return;
+
+        let cancelled = false;
+        setLoadingParts(true);
+        ordersApi
+            .getDeliveredOrders()
+            .then((items: any[]) => {
+                if (cancelled) return;
+                const mapped = (items || [])
+                    .filter((item) => item.isReturnEligible === true)
+                    .map((item) => ({
+                        offerId: item.offerId,
+                        orderId: item.id,
+                        orderPartId: item.orderPartId,
+                        partName: item.name,
+                        merchantName: item.storeName,
+                        orderNumber: item.orderNumber,
+                        returnWindowEndsAt: item.returnExpiryDate,
+                        isReturnEligible: item.isReturnEligible,
+                    }))
+                    .filter((p) => p.orderPartId);
+                setRemoteParts(mapped);
+            })
+            .catch(() => setRemoteParts([]))
+            .finally(() => {
+                if (!cancelled) setLoadingParts(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, initialOrderId, initialEligibleParts]);
 
     const handleSubmit = async () => {
         setAttemptedSubmit(true);
-        if (!orderId || !reason || !description || !usageCondition || files.length === 0) return;
+        if (!activeOrderId || !reason || !description || !usageCondition || files.length === 0) return;
+        if (partSelectionRequired && !activeOrderPartId) return;
         if (!confirmations.integrity || !confirmations.packaging || !confirmations.policy) return;
         
         setIsSubmitting(true);
 
-        const success = await requestReturn(String(orderId), orderPartId, reason, description, usageCondition, files);
+        const success = await requestReturn(
+            String(activeOrderId),
+            activeOrderPartId,
+            reason,
+            description,
+            usageCondition,
+            files,
+        );
         setIsSubmitting(false);
 
         if (success) {
-            onClose();
-            onSuccess();
+            const partLabel = activePartName || (isAr ? 'هذه القطعة' : 'This part');
+            setSuccessMessage(
+                isAr
+                    ? `تم تقديم طلب الإرجاع لـ «${partLabel}». القطع الأخرى لم تتأثر.`
+                    : `Return submitted for "${partLabel}". Other parts were not affected.`,
+            );
+            setTimeout(() => {
+                setSuccessMessage(null);
+                onClose();
+                onSuccess();
+            }, 1800);
         }
     };
 
@@ -105,7 +199,6 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                     className="w-full max-w-lg relative z-10"
                 >
                     <div className="p-0 border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl bg-[#0A0A0A] relative">
-                        {/* 2026 Header - Return specific */}
                         <div className="p-6 border-b border-white/5 relative overflow-hidden">
                             <div className="flex justify-between items-start relative z-10">
                                 <div>
@@ -128,40 +221,63 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                     <X size={20} className="text-white/40" />
                                 </button>
                             </div>
-                            {/* Visual background element */}
                             <div className="absolute -right-20 -top-20 w-64 h-64 bg-cyan-500/5 blur-[80px] rounded-full pointer-events-none" />
                         </div>
 
-                        {/* Interactive Form Body */}
                         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                            {/* Order Context Recap Card */}
+                            {loadingParts ? (
+                                <div className="flex items-center justify-center py-8 text-white/40 gap-2">
+                                    <Loader2 className="animate-spin" size={20} />
+                                    {isAr ? 'جاري تحميل القطع المؤهلة...' : 'Loading eligible parts...'}
+                                </div>
+                            ) : needsPartPicker ? (
+                                <ResolutionPartPicker
+                                    parts={pickerParts}
+                                    selectedOrderPartId={selectedPart?.orderPartId}
+                                    onSelect={setSelectedPart}
+                                    mode="return"
+                                />
+                            ) : !activeOrderId && pickerParts.length === 0 ? (
+                                <div className="p-5 bg-white/[0.02] border border-white/10 rounded-2xl text-center text-sm text-white/50">
+                                    {isAr
+                                        ? 'لا توجد قطع مؤهلة للإرجاع حالياً.'
+                                        : 'No parts are currently eligible for return.'}
+                                </div>
+                            ) : (
+                                <>
                             <div className="flex items-center gap-6 p-6 bg-white/[0.02] border border-white/5 rounded-3xl group">
                                 <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform duration-500">
                                     <Package size={32} className="text-cyan-500/50" />
                                 </div>
                                 <div className="space-y-1">
-                                    <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">#{orderId}</span>
-                                    <h4 className="text-xl font-black text-white uppercase tracking-tight">{partName}</h4>
+                                    <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">#{activeOrderId}</span>
+                                    <h4 className="text-xl font-black text-white uppercase tracking-tight">{activePartName}</h4>
                                     <p className="text-xs font-bold text-white/40 flex items-center gap-2 uppercase">
                                         <ShieldCheck size={14} className="text-cyan-500" />
-                                        {merchantName}
+                                        {activeMerchantName}
                                     </p>
                                 </div>
                             </div>
 
+                            {pickerParts.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedPart(null)}
+                                    className="text-xs text-cyan-400 hover:text-cyan-300 font-bold"
+                                >
+                                    {isAr ? '← تغيير القطعة' : '← Change selected part'}
+                                </button>
+                            )}
 
-                            {/* Warning / Intelligence Note */}
                             <div className="p-5 bg-cyan-500/[0.03] border border-cyan-500/10 rounded-2xl flex items-start gap-4">
                                 <Info className="text-cyan-400 shrink-0 mt-1" size={20} />
                                 <p className="text-[11px] text-cyan-100/50 leading-relaxed font-bold uppercase tracking-widest">
                                     {isAr
                                         ? 'يرجى إرفاق صور واضحة توضح سبب الإرجاع. سيتم مراجعة هذه البيانات من قبل الإدارة لضمان حماية حقوق الطرفين.'
-                                        : 'Please attach clear evidence justifying the return. This data will be audited to ensure the protection of both parties\' rights.'
-                                    }
+                                        : 'Please attach clear evidence justifying the return. This data will be audited to ensure the protection of both parties\' rights.'}
                                 </p>
                             </div>
 
-                            {/* Enhanced Form Controls */}
                             <div className="space-y-6">
                                 <div className="group">
                                     <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 ml-2">{t.dashboard.resolution.form.reason}</label>
@@ -188,7 +304,6 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                     </div>
                                 </div>
 
-                                {/* Usage Condition - Spec §2 */}
                                 <div>
                                     <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 ml-2">
                                         {isAr ? 'حالة استخدام القطعة' : 'Item Usage Condition'}
@@ -201,6 +316,7 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                         ].map((cond) => (
                                             <button
                                                 key={cond.id}
+                                                type="button"
                                                 onClick={() => setUsageCondition(cond.id as any)}
                                                 className={`
                                                     p-4 rounded-2xl border transition-all text-center group
@@ -212,97 +328,94 @@ export const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                                                     }
                                                 `}
                                             >
-                                                <span className="block text-xs font-black uppercase tracking-tighter mb-1">
+                                                <span className="text-[10px] font-black uppercase tracking-widest">
                                                     {isAr ? cond.labelAr : cond.labelEn}
                                                 </span>
-                                                <div className={`w-2 h-2 rounded-full mx-auto ${usageCondition === cond.id ? 'bg-cyan-500 scale-125' : 'bg-white/10 group-hover:bg-white/20'} transition-all`} />
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 ml-2">{t.dashboard.resolution.form.desc}</label>
+                                    <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 ml-2">{t.dashboard.resolution.form.description}</label>
                                     <textarea
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
-                                        className={`w-full bg-white/5 border rounded-3xl px-6 py-5 text-sm text-white outline-none resize-none h-32 placeholder-white/10 transition-all hover:bg-white/[0.08]
-                                        ${attemptedSubmit && !description ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'border-white/10 focus:border-cyan-500/50'}`}
-                                        placeholder={isAr ? 'صف الحالة بالتفصيل للمراجع الإداري...' : 'Narrate the issue for administrative audit...'}
+                                        rows={4}
+                                        placeholder={isAr ? 'اشرح سبب الإرجاع بالتفصيل...' : 'Describe the reason in detail...'}
+                                        className={`w-full bg-[#0A0A0A] border rounded-2xl px-5 py-4 text-xs text-white outline-none transition-all resize-none ${isAr ? 'text-right' : 'text-left'}
+                                        ${attemptedSubmit && !description ? 'border-red-500' : 'border-white/10 focus:border-cyan-500/50'}`}
                                     />
                                 </div>
 
-                                <div className="space-y-3">
-                                    <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">{t.dashboard.resolution.form.evidence}</label>
-                                    <div className={`rounded-3xl transition-all ${attemptedSubmit && files.length === 0 ? 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : ''}`}>
-                                        <FileUploader
-                                            onFilesSelected={setFiles}
-                                            accept={{
-                                                'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'],
-                                                'video/*': ['.mp4', '.mov', '.webm']
-                                            }}
-                                            maxFiles={5}
-                                        />
-                                    </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 ml-2">
+                                        {isAr ? 'المرفقات (إلزامي)' : 'Evidence (Required)'}
+                                    </label>
+                                    <FileUploader onFilesSelected={setFiles} maxFiles={5} />
+                                    {attemptedSubmit && files.length === 0 && (
+                                        <p className="text-red-400 text-xs mt-2 flex items-center gap-1">
+                                            <AlertCircle size={12} />
+                                            {isAr ? 'يجب إرفاق صورة واحدة على الأقل' : 'At least one image is required'}
+                                        </p>
+                                    )}
                                 </div>
 
-                                {/* Mandatory Confirmations - Spec §6 */}
-                                <div className="space-y-4 pt-4 border-t border-white/5">
-                                    <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-2 mb-2">
-                                        {isAr ? 'إقرارات إجبارية' : 'Mandatory Acknowledgements'}
-                                    </label>
+                                <div className="space-y-3 pt-2">
                                     {[
-                                        { id: 'integrity', textAr: 'أقر بأن جميع البيانات والأدلة المقدمة صحيحة', textEn: 'I confirm all data and evidence provided is accurate' },
-                                        { id: 'packaging', textAr: 'أقر بأنني سأقوم بتغليف القطعة بشكل آمن قبل التسليم', textEn: 'I agree to safely package the item before handover' },
-                                        { id: 'policy', textAr: 'أوافق على سياسة الإرجاع والنزاعات (3 أيام للتسليم)', textEn: 'I agree to the return policy (3-day handover window)' }
-                                    ].map((check) => (
-                                        <label key={check.id} className="flex items-start gap-3 cursor-pointer group">
-                                            <div 
-                                                onClick={() => setConfirmations(prev => ({ ...prev, [check.id]: !prev[check.id as keyof typeof confirmations] }))}
-                                                className={`
-                                                    w-5 h-5 rounded-md border shrink-0 mt-0.5 flex items-center justify-center transition-all
-                                                    ${confirmations[check.id as keyof typeof confirmations] 
-                                                        ? 'bg-cyan-500 border-cyan-500 text-black' 
-                                                        : 'bg-white/5 border-white/10 group-hover:border-white/30'
-                                                    }
-                                                    ${attemptedSubmit && !confirmations[check.id as keyof typeof confirmations] ? 'border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : ''}
-                                                `}
-                                            >
-                                                {confirmations[check.id as keyof typeof confirmations] && <X size={14} className="stroke-[4]" />}
-                                            </div>
-                                            <span className={`text-[11px] group-hover:text-white/60 transition-colors font-bold uppercase tracking-tight ${attemptedSubmit && !confirmations[check.id as keyof typeof confirmations] ? 'text-red-400' : 'text-white/40'}`}>
-                                                {isAr ? check.textAr : check.textEn}
+                                        { key: 'integrity' as const, ar: 'أقر بصحة البيانات المقدمة', en: 'I confirm the accuracy of submitted data' },
+                                        { key: 'packaging' as const, ar: 'سأعيد القطعة في تغليفها الأصلي', en: 'I will return the item in original packaging' },
+                                        { key: 'policy' as const, ar: 'أوافق على سياسة الإرجاع', en: 'I agree to the return policy' },
+                                    ].map((item) => (
+                                        <label key={item.key} className="flex items-start gap-3 cursor-pointer group">
+                                            <input
+                                                type="checkbox"
+                                                checked={confirmations[item.key]}
+                                                onChange={(e) => setConfirmations((prev) => ({ ...prev, [item.key]: e.target.checked }))}
+                                                className="mt-1 accent-cyan-500"
+                                            />
+                                            <span className="text-xs text-white/60 group-hover:text-white/80 transition-colors">
+                                                {isAr ? item.ar : item.en}
                                             </span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
+                                </>
+                            )}
                         </div>
 
-                        {/* Luxury Footer with Cinematic Button */}
-                        <div className="p-6 bg-white/[0.02] border-t border-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400 border border-cyan-500/20">
-                                    <UploadCloud size={16} />
-                                </div>
-                                <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">{files.length} {isAr ? 'ملفات مرفقة' : 'Files Prepared'}</span>
-                            </div>
-
+                        {!needsPartPicker && activeOrderId && (!partSelectionRequired || activeOrderPartId) && (
+                        <div className="p-6 border-t border-white/5 bg-black/40 space-y-3">
+                            {successMessage && (
+                                <p className="text-emerald-400 text-xs flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
+                                    <ShieldCheck size={14} />
+                                    {successMessage}
+                                </p>
+                            )}
+                            {storeError && (
+                                <p className="text-red-400 text-xs flex items-center gap-2">
+                                    <AlertCircle size={14} />
+                                    {storeError}
+                                </p>
+                            )}
                             <button
                                 onClick={handleSubmit}
                                 disabled={isSubmitting}
-                                className="w-full md:w-auto px-12 py-5 bg-cyan-500 text-black font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(6,182,212,0.3)] disabled:opacity-30 disabled:hover:scale-100 disabled:grayscale group"
+                                className="w-full py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg shadow-cyan-600/20"
                             >
                                 {isSubmitting ? (
-                                    <Loader2 className="animate-spin" size={18} />
+                                    <Loader2 className="animate-spin" size={20} />
                                 ) : (
                                     <>
-                                        <ArrowUpRight size={18} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                                        {t.dashboard.resolution.form.submitReturn}
+                                        <RotateCcw size={18} />
+                                        {isAr ? 'تقديم طلب الإرجاع' : 'Submit Return Request'}
+                                        <ArrowUpRight size={16} />
                                     </>
                                 )}
                             </button>
                         </div>
+                        )}
                     </div>
                 </motion.div>
             </div>

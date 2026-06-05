@@ -18,6 +18,7 @@ import { offersApi } from '../../../services/api/offers';
 import { ordersApi } from '../../../services/api/orders';
 import { shipmentsApi } from '../../../services/api/shipments.api';
 import { StatusTimeline } from '../../ui/StatusTimeline';
+import type { FulfillmentSummaryPartHint } from '../../ui/StatusTimeline';
 import { VerificationForm } from './VerificationForm';
 import { OrderInvoicesPanel } from '../shared/OrderInvoicesPanel';
 import { OrderWaybillsPanel } from '../shared/OrderWaybillsPanel';
@@ -47,6 +48,7 @@ import {
     getMerchantPartLogisticsLabel,
     resolveMerchantHandoverPhase,
 } from '../../../utils/merchantLogisticsStatus';
+import { readDashboardDeepLink } from '../../../utils/widersDeepLink';
 
 function toDisplayImageUrls(images?: (string | File)[]): string[] {
     return (images ?? []).filter((item): item is string => typeof item === 'string');
@@ -99,6 +101,12 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
         useOrderStore();
     const order = useOrderById(orderId);
     const fulfillmentSummary = useOrderFulfillmentSummary(orderId, order);
+
+    const partResolutionByOfferId = useMemo(() => {
+        const map = new Map<string, FulfillmentSummaryPartHint>();
+        fulfillmentSummary?.parts?.forEach((p) => map.set(p.offerId, p));
+        return map;
+    }, [fulfillmentSummary]);
     const shipmentDeliverySummary = useMemo(
         () => computeShipmentDeliverySummary(order?.shipments, order?.status),
         [order?.shipments, order?.status],
@@ -170,7 +178,10 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     const [isVoluntaryWithdrawing, setIsVoluntaryWithdrawing] = useState(false);
     const [offerToVoluntaryWithdraw, setOfferToVoluntaryWithdraw] = useState<any | null>(null);
     // Tab State
-    const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'waybills'>('overview');
+    const deepLink = useMemo(() => readDashboardDeepLink(), []);
+    const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'waybills'>(
+        deepLink.tab ?? 'overview',
+    );
 
     // Preparation States
     const [isPrepareDialogOpen, setIsPrepareDialogOpen] = useState(false);
@@ -552,7 +563,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
     };
 
     // 2026 Centralized Lifecycle States
-    const progressiveStates = ['AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
+    const progressiveStates = ['AWAITING_SELECTION', 'AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'PARTIALLY_DELIVERED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
     const isProgressive = order ? progressiveStates.includes(order.status) : false;
 
     const handleOpenLightbox = (images: string[], index: number) => {
@@ -991,7 +1002,8 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                         <OrderInvoicesPanel 
                             orderId={order.id} 
                             role="MERCHANT" 
-                            initialData={order.invoices} 
+                            initialData={order.invoices}
+                            highlightOfferId={deepLink.offerId}
                         />
                     </div>
                     <div className={activeTab === 'waybills' ? 'block' : 'hidden'}>
@@ -1065,7 +1077,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                     </p>
                                 )}
                         </div>
-                        {['SHIPPED', 'PARTIALLY_SHIPPED', 'PREPARATION', 'READY_FOR_SHIPPING', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && shipment && (
+                        {['SHIPPED', 'PARTIALLY_SHIPPED', 'PARTIALLY_DELIVERED', 'PREPARATION', 'READY_FOR_SHIPPING', 'DELIVERED', 'COMPLETED', 'DISPUTED', 'RETURNED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'REFUNDED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'].includes(order.status) && shipment && (
                             <div className="border-t border-white/5 pt-6 mt-2 px-6 pb-6 shadow-inner">
                                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                                     <Truck className="text-gold-500" size={20} />
@@ -1294,7 +1306,27 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
 
                                             {/* Content Area */}
                                             <div className="flex-1">
-                                                <h3 className="text-lg font-bold text-white mb-2">{part.name || order.part}</h3>
+                                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                    <h3 className="text-lg font-bold text-white">{part.name || order.part}</h3>
+                                                    {hasOffer && (() => {
+                                                        const meta = partResolutionByOfferId.get(partOffer.id);
+                                                        if (!meta?.hasOpenCase && !(meta?.resolutionLocked && meta.fulfillmentStatus !== 'COMPLETED')) {
+                                                            return null;
+                                                        }
+                                                        return (
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                                                meta.hasOpenCase
+                                                                    ? 'bg-red-500/10 text-red-400 border-red-500/30'
+                                                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                                            }`}>
+                                                                <AlertTriangle size={10} />
+                                                                {meta.hasOpenCase
+                                                                    ? (isAr ? 'نزاع/إرجاع' : 'Open case')
+                                                                    : (isAr ? 'مقفل' : 'Locked')}
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
                                                 <p className="text-white/60 text-sm mb-4 leading-relaxed">{part.description || order.partDescription || (isAr ? 'لا توجد تفاصيل إضافية للقطعة المحددة.' : 'No additional details provided.')}</p>
 
                                                 {/* Your Offer Summary for this part */}
@@ -2152,7 +2184,7 @@ export const MarketplaceOfferDetails: React.FC<MarketplaceOfferDetailsProps> = (
                                 })()}
 
                                 {(() => {
-                                    const progressiveStates = ['AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED'];
+                                    const progressiveStates = ['AWAITING_PAYMENT', 'PREPARATION', 'DELAYED_PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'PARTIALLY_SHIPPED', 'PARTIALLY_DELIVERED', 'NON_MATCHING', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURNED'];
                                     const isProgressive = progressiveStates.includes(order.status);
 
                                     if (order.status === 'VERIFICATION' || order.status === 'CORRECTION_SUBMITTED') {

@@ -5,6 +5,7 @@ export interface SubmitReviewPayload {
   storeId: string;
   rating: number;
   comment: string;
+  offerId?: string;
 }
 
 export interface ReviewSubmitResult {

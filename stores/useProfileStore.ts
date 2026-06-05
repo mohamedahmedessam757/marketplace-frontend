@@ -206,14 +206,15 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
       let currentSettings = get().settings;
       if (settingsData) {
+        const preferredLang = settingsData.preferred_language as 'ar' | 'en' | undefined;
         currentSettings = {
-          language: settingsData.language,
-          currency: settingsData.currency,
-          notifications_email: settingsData.notifications_email,
-          notifications_push: settingsData.notifications_push,
-          notifications_sms: settingsData.notifications_sms,
-          notifications_offers: settingsData.notifications_offers,
-          theme: settingsData.theme,
+          language: preferredLang || settingsData.language || 'ar',
+          currency: settingsData.currency || currentSettings.currency,
+          notifications_email: settingsData.notifications_email ?? currentSettings.notifications_email,
+          notifications_push: settingsData.notifications_push ?? currentSettings.notifications_push,
+          notifications_sms: settingsData.notifications_sms ?? currentSettings.notifications_sms,
+          notifications_offers: settingsData.notifications_offers ?? currentSettings.notifications_offers,
+          theme: settingsData.theme || currentSettings.theme,
           autoTranslateChat: settingsData.auto_translate_chat ?? false
         };
       }
@@ -264,13 +265,18 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
     try {
       const token = localStorage.getItem('access_token');
+      const payload: Record<string, unknown> = { ...data };
+      if (data.language) {
+        payload.preferredLanguage = data.language;
+        delete payload.language;
+      }
       await fetch(`${import.meta.env.VITE_API_URL}/users/settings/me`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
     } catch (err: any) {
       console.error('Failed to update settings:', err);

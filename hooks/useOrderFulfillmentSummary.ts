@@ -25,7 +25,14 @@ export function useOrderFulfillmentSummary(
         order?.offers?.map((o) => `${o.id}:${o.fulfillmentStatus}`).join('|') ?? '';
 
     useEffect(() => {
-        if (!orderId || !order || order.requestType !== 'multiple') {
+        if (!orderId || !order) {
+            setFulfillmentSummary(null);
+            return;
+        }
+        const isMultiPart =
+            order.requestType === 'multiple' ||
+            ((order as { parts?: unknown[] }).parts?.length ?? 0) > 1;
+        if (!isMultiPart) {
             setFulfillmentSummary(null);
             return;
         }

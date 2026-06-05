@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
@@ -17,31 +17,39 @@ import {
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useReturnsStore } from '../../../stores/useReturnsStore';
 import { FileUploader } from '../../ui/FileUploader';
+import { ResolutionPartPicker } from './ResolutionPartPicker';
+import type { EligibleResolutionPart } from './resolutionTypes';
+import { ordersApi } from '../../../services/api/orders';
 
 interface DisputeModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    orderId: string;
+    orderId?: string;
     orderPartId?: string;
-    merchantName: string;
-    partName: string;
+    merchantName?: string;
+    partName?: string;
+    eligibleParts?: EligibleResolutionPart[];
 }
 
 export const DisputeModal: React.FC<DisputeModalProps> = ({ 
     isOpen, 
     onClose, 
     onSuccess,
-    orderId,
-    orderPartId,
-    merchantName,
-    partName
+    orderId: initialOrderId,
+    orderPartId: initialOrderPartId,
+    merchantName: initialMerchantName,
+    partName: initialPartName,
+    eligibleParts: initialEligibleParts,
 }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
-    const { escalateDispute } = useReturnsStore();
+    const { escalateDispute, error: storeError } = useReturnsStore();
 
-    // Form State
+    const [selectedPart, setSelectedPart] = useState<EligibleResolutionPart | null>(null);
+    const [remoteParts, setRemoteParts] = useState<EligibleResolutionPart[]>([]);
+    const [loadingParts, setLoadingParts] = useState(false);
+
     const [reason, setReason] = useState('');
     const [description, setDescription] = useState('');
     const [confirmations, setConfirmations] = useState({
@@ -51,6 +59,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
     const [files, setFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const disputeReasons = [
         { id: 'non_matching', ar: 'عدم مطابقة القطعة', en: 'Non-matching part' },
@@ -61,29 +70,113 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
         { id: 'other', ar: 'نزاع آخر', en: 'Other dispute' }
     ];
 
+    const pickerParts = useMemo(() => {
+        if (initialEligibleParts?.length) return initialEligibleParts;
+        return remoteParts;
+    }, [initialEligibleParts, remoteParts]);
+
+    const partSelectionRequired = pickerParts.length > 1;
+
+    const needsPartPicker =
+        partSelectionRequired &&
+        !initialOrderPartId &&
+        !selectedPart;
+
+    const activeOrderId = selectedPart?.orderId ?? initialOrderId;
+    const activeOrderPartId = selectedPart?.orderPartId ?? initialOrderPartId;
+    const activePartName = selectedPart?.partName ?? initialPartName ?? 'Part';
+    const activeMerchantName = selectedPart?.merchantName ?? initialMerchantName ?? 'Store';
+
     useEffect(() => {
-        if (isOpen) {
-            setReason('');
-            setDescription('');
-            setConfirmations({ integrity: false, policy: false });
-            setFiles([]);
-            setAttemptedSubmit(false);
+        if (!isOpen) return;
+        setReason('');
+        setDescription('');
+        setConfirmations({ integrity: false, policy: false });
+        setFiles([]);
+        setAttemptedSubmit(false);
+        setSuccessMessage(null);
+        setSelectedPart(null);
+
+        if (initialOrderPartId && initialOrderId) {
+            setSelectedPart({
+                orderId: initialOrderId,
+                orderPartId: initialOrderPartId,
+                partName: initialPartName ?? 'Part',
+                merchantName: initialMerchantName ?? 'Store',
+            });
         }
-    }, [isOpen]);
+    }, [isOpen, initialOrderId, initialOrderPartId, initialPartName, initialMerchantName]);
+
+    useEffect(() => {
+        if (!isOpen || selectedPart || initialOrderPartId) return;
+        if (pickerParts.length === 1) {
+            setSelectedPart(pickerParts[0]);
+        }
+    }, [isOpen, pickerParts, selectedPart, initialOrderPartId]);
+
+    useEffect(() => {
+        if (!isOpen || initialOrderId || initialEligibleParts?.length) return;
+
+        let cancelled = false;
+        setLoadingParts(true);
+        ordersApi
+            .getDeliveredOrders()
+            .then((items: any[]) => {
+                if (cancelled) return;
+                const mapped = (items || [])
+                    .filter((item) => item.isReturnEligible === true)
+                    .map((item) => ({
+                        offerId: item.offerId,
+                        orderId: item.id,
+                        orderPartId: item.orderPartId,
+                        partName: item.name,
+                        merchantName: item.storeName,
+                        orderNumber: item.orderNumber,
+                        returnWindowEndsAt: item.returnExpiryDate,
+                        isReturnEligible: item.isReturnEligible,
+                    }))
+                    .filter((p) => p.orderPartId);
+                setRemoteParts(mapped);
+            })
+            .catch(() => setRemoteParts([]))
+            .finally(() => {
+                if (!cancelled) setLoadingParts(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, initialOrderId, initialEligibleParts]);
 
     const handleSubmit = async () => {
         setAttemptedSubmit(true);
-        if (!orderId || !reason || !description || files.length === 0) return;
+        if (!activeOrderId || !reason || !description || files.length === 0) return;
+        if (partSelectionRequired && !activeOrderPartId) return;
         if (!confirmations.integrity || !confirmations.policy) return;
         
         setIsSubmitting(true);
 
-        const success = await escalateDispute(String(orderId), orderPartId, reason, description, files);
+        const success = await escalateDispute(
+            String(activeOrderId),
+            activeOrderPartId,
+            reason,
+            description,
+            files,
+        );
         setIsSubmitting(false);
 
         if (success) {
-            onClose();
-            onSuccess();
+            const partLabel = activePartName || (isAr ? 'هذه القطعة' : 'This part');
+            setSuccessMessage(
+                isAr
+                    ? `تم تصعيد النزاع لـ «${partLabel}». القطع الأخرى لم تتأثر.`
+                    : `Dispute opened for "${partLabel}". Other parts were not affected.`,
+            );
+            setTimeout(() => {
+                setSuccessMessage(null);
+                onClose();
+                onSuccess();
+            }, 1800);
         }
     };
 
@@ -108,7 +201,6 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                     className="w-full max-w-lg relative z-10"
                 >
                     <div className="p-0 border border-red-500/20 rounded-[2rem] overflow-hidden shadow-2xl bg-[#0A0A0A] relative">
-                        {/* 2026 Header - Dispute (High Alert) */}
                         <div className="p-6 border-b border-white/5 relative overflow-hidden">
                             <div className="flex justify-between items-start relative z-10">
                                 <div>
@@ -131,28 +223,54 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                     <X size={20} className="text-white/40" />
                                 </button>
                             </div>
-                            {/* Visual background element - Red glow */}
                             <div className="absolute -right-20 -top-20 w-64 h-64 bg-red-500/5 blur-[80px] rounded-full pointer-events-none" />
                         </div>
 
-                        {/* Interactive Form Body */}
                         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                            {/* Order Context Recap Card */}
+                            {loadingParts ? (
+                                <div className="flex items-center justify-center py-8 text-white/40 gap-2">
+                                    <Loader2 className="animate-spin" size={20} />
+                                    {isAr ? 'جاري تحميل القطع المؤهلة...' : 'Loading eligible parts...'}
+                                </div>
+                            ) : needsPartPicker ? (
+                                <ResolutionPartPicker
+                                    parts={pickerParts}
+                                    selectedOrderPartId={selectedPart?.orderPartId}
+                                    onSelect={setSelectedPart}
+                                    mode="dispute"
+                                />
+                            ) : !activeOrderId && pickerParts.length === 0 ? (
+                                <div className="p-5 bg-white/[0.02] border border-white/10 rounded-2xl text-center text-sm text-white/50">
+                                    {isAr
+                                        ? 'لا توجد قطع مؤهلة للنزاع حالياً.'
+                                        : 'No parts are currently eligible for dispute.'}
+                                </div>
+                            ) : (
+                                <>
                             <div className="flex items-center gap-6 p-6 bg-white/[0.02] border border-white/5 rounded-3xl group">
                                 <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform duration-500">
                                     <Package size={32} className="text-red-500/50" />
                                 </div>
                                 <div className="space-y-1">
-                                    <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">#{orderId}</span>
-                                    <h4 className="text-xl font-black text-white uppercase tracking-tight">{partName}</h4>
+                                    <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">#{activeOrderId}</span>
+                                    <h4 className="text-xl font-black text-white uppercase tracking-tight">{activePartName}</h4>
                                     <p className="text-xs font-bold text-white/40 flex items-center gap-2 uppercase">
                                         <ShieldAlert size={14} className="text-red-500" />
-                                        {merchantName}
+                                        {activeMerchantName}
                                     </p>
                                 </div>
                             </div>
 
-                            {/* Escalation Policy Banner */}
+                            {pickerParts.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedPart(null)}
+                                    className="text-xs text-red-400 hover:text-red-300 font-bold"
+                                >
+                                    {isAr ? '← تغيير القطعة' : '← Change selected part'}
+                                </button>
+                            )}
+
                             <div className="p-5 bg-red-500/[0.03] border border-red-500/10 rounded-2xl flex items-start gap-4">
                                 <AlertTriangle className="text-red-500 shrink-0 mt-1" size={20} />
                                 <div className="space-y-2">
@@ -165,7 +283,6 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                 </div>
                             </div>
 
-                            {/* Form Controls */}
                             <div className="space-y-6">
                                 <div className="group">
                                     <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 ml-2">{t.dashboard.resolution.form.reason}</label>
@@ -194,7 +311,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                         onChange={(e) => setDescription(e.target.value)}
                                         className={`w-full bg-white/5 border rounded-3xl px-6 py-5 text-sm text-white outline-none resize-none h-32 placeholder-white/10 transition-all hover:bg-white/[0.08]
                                         ${attemptedSubmit && !description ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'border-white/10 focus:border-red-500/50'}`}
-                                        placeholder={isAr ? 'سجل شكواك الرسمية ليقوم المحكم الإداري بمراجعتها...' : 'Lore your official complaint for administrative arbitration...'}
+                                        placeholder={isAr ? 'سجل شكواك الرسمية ليقوم المحكم الإداري بمراجعتها...' : 'Record your official complaint for administrative arbitration...'}
                                     />
                                 </div>
 
@@ -212,7 +329,6 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                     </div>
                                 </div>
 
-                                {/* Mandatory Confirmations - Spec §6 */}
                                 <div className="space-y-4 pt-4 border-t border-white/5">
                                     <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-2 mb-2">
                                         {isAr ? 'تأكيدات النزاع الإجبارية' : 'Mandatory Dispute Confirmations'}
@@ -242,10 +358,25 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                     ))}
                                 </div>
                             </div>
+                                </>
+                            )}
                         </div>
 
-                        {/* Luxury Footer with High-Stakes Button */}
-                        <div className="p-6 bg-white/[0.02] border-t border-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
+                        {!needsPartPicker && activeOrderId && (!partSelectionRequired || activeOrderPartId) && (
+                        <div className="p-6 bg-white/[0.02] border-t border-white/5 flex flex-col gap-3">
+                            {successMessage && (
+                                <p className="text-emerald-400 text-xs flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 w-full">
+                                    <ShieldCheck size={14} />
+                                    {successMessage}
+                                </p>
+                            )}
+                        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                            {storeError && (
+                                <p className="text-red-400 text-xs flex items-center gap-2 w-full md:w-auto">
+                                    <AlertTriangle size={14} />
+                                    {storeError}
+                                </p>
+                            )}
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
                                     <Scale size={16} />
@@ -268,6 +399,8 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
                                 )}
                             </button>
                         </div>
+                        </div>
+                        )}
                     </div>
                 </motion.div>
             </div>

@@ -29,6 +29,8 @@ export const FinancialHub: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'REVENUE' | 'COMMISSION' | 'ESCROW'>('REVENUE');
   const [tempRate, setTempRate] = useState(commissionRate);
   const [orderToRelease, setOrderToRelease] = useState('');
+  const [paymentToRelease, setPaymentToRelease] = useState('');
+  const [offerToRelease, setOfferToRelease] = useState('');
   const [isReleasing, setIsReleasing] = useState(false);
 
   // Permissions-based Tab filtering
@@ -72,13 +74,19 @@ export const FinancialHub: React.FC = () => {
   };
 
   const handleReleaseEscrow = async () => {
-    if (!orderToRelease) return;
+    if (!orderToRelease && !paymentToRelease && !offerToRelease) return;
     setIsReleasing(true);
     try {
       const { client } = await import('../../../services/api/client');
-      await client.post('/payments/admin/release-escrow', { orderId: orderToRelease });
+      await client.post('/payments/admin/release-escrow', {
+        orderId: orderToRelease || undefined,
+        paymentId: paymentToRelease || undefined,
+        offerId: offerToRelease || undefined,
+      });
       alert(isAr ? 'تم تحرير الأموال بنجاح' : 'Funds released successfully');
       setOrderToRelease('');
+      setPaymentToRelease('');
+      setOfferToRelease('');
     } catch (error) {
       console.error(error);
       alert(isAr ? 'فشل تحرير الأموال' : 'Failed to release funds');
@@ -296,26 +304,43 @@ export const FinancialHub: React.FC = () => {
 
                     <div className="space-y-6">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] px-2">{isAr ? 'رقم الطلب المستهدف' : 'Target Order ID'}</label>
-                        <div className="relative group">
-                          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                            <Hash className="w-5 h-5 text-white/20 group-focus-within:text-orange-500 transition-colors" />
-                          </div>
-                          <input
+                        <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] px-2">{isAr ? 'رقم الطلب (اختياري للطلب أحادي الدفع)' : 'Order ID (optional for single-payment)'}</label>
+                        <input
                             type="text"
-                            placeholder="e.g. ORD-2026-991"
+                            placeholder="Order UUID"
                             value={orderToRelease}
                             onChange={(e) => setOrderToRelease(e.target.value)}
                             disabled={isReleasing}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 pl-12 pr-4 text-white font-mono focus:border-orange-500/50 outline-none transition-all"
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white font-mono focus:border-orange-500/50 outline-none transition-all"
                           />
-                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] px-2">{isAr ? 'معرف الدفع (مفضل للطلبات المجمّعة)' : 'Payment ID (preferred for multi-part)'}</label>
+                        <input
+                            type="text"
+                            placeholder="Payment UUID"
+                            value={paymentToRelease}
+                            onChange={(e) => setPaymentToRelease(e.target.value)}
+                            disabled={isReleasing}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white font-mono focus:border-orange-500/50 outline-none transition-all"
+                          />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] px-2">{isAr ? 'معرف العرض / Offer ID' : 'Offer ID'}</label>
+                        <input
+                            type="text"
+                            placeholder="Offer UUID"
+                            value={offerToRelease}
+                            onChange={(e) => setOfferToRelease(e.target.value)}
+                            disabled={isReleasing}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white font-mono focus:border-orange-500/50 outline-none transition-all"
+                          />
                       </div>
 
                       <button
                         onClick={handleReleaseEscrow}
-                        disabled={isReleasing || !orderToRelease}
-                        className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] ${orderToRelease && !isReleasing
+                        disabled={isReleasing || (!orderToRelease && !paymentToRelease && !offerToRelease)}
+                        className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] ${(orderToRelease || paymentToRelease || offerToRelease) && !isReleasing
                             ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-2xl shadow-orange-500/20'
                             : 'bg-white/5 text-white/20 cursor-not-allowed border border-white/10'
                           }`}
