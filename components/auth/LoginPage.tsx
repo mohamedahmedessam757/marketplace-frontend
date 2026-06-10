@@ -5,6 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { OTPVerification } from './OTPVerification';
 import { OTPMethodSelection } from './OTPMethodSelection';
 import { authApi } from '@/services/api/auth';
+import { otpSecondsFromMinutes } from '../../utils/otpConfig';
 import type { PendingRedirect } from '../../utils/widersDeepLink';
 
 interface LoginPageProps {
@@ -43,6 +44,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [userName, setUserName] = useState('');
   const [maskedPhone, setMaskedPhone] = useState<string | null>(null);
   const [maskedEmail, setMaskedEmail] = useState<string | null>(null);
+  const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | undefined>();
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +143,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     try {
       let data;
       if (activationMethod === 'whatsapp') {
-        // 1. Initiate Mobile Login
         const fullPhone = `${countryCode}${phone}`;
         data = await authApi.initiateMobileLogin(fullPhone);
       } else {
@@ -149,6 +150,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         setUserEmail(loginEmail);
         setMaskedEmail(data?.maskedEmail ?? loginEmail);
       }
+
+      setOtpExpiresInSeconds(otpSecondsFromMinutes(data?.expiresInMinutes));
 
       // Access user data from response with extreme caution
       const user = data?.user;
@@ -200,6 +203,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           email={userEmail}
           phone={`${countryCode}${phone}`}
           method={activationMethod}
+          expiresInSeconds={otpExpiresInSeconds}
           deliveryHint={
             activationMethod === 'email'
               ? maskedEmail ?? loginEmail ?? userEmail
@@ -207,10 +211,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           }
           onResend={async () => {
             if (activationMethod === 'whatsapp') {
-              await authApi.resendMobileLoginOtp(`${countryCode}${phone}`);
-            } else {
-              await authApi.resendEmailLoginOtp(loginEmail || userEmail);
+              const result = await authApi.resendMobileLoginOtp(`${countryCode}${phone}`);
+              return { expiresInMinutes: result?.expiresInMinutes };
             }
+            const result = await authApi.resendEmailLoginOtp(loginEmail || userEmail);
+            return { expiresInMinutes: result?.expiresInMinutes };
           }}
           onVerify={async (code) => {
             let response;

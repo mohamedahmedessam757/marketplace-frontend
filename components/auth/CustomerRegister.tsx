@@ -5,6 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { authApi } from '@/services/api/auth';
 import { OTPMethodSelection } from './OTPMethodSelection';
 import { OTPVerification } from './OTPVerification';
+import { otpSecondsFromMinutes } from '../../utils/otpConfig';
 
 interface CustomerRegisterProps {
   onLoginClick: () => void;
@@ -72,6 +73,7 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
   const [otpMethod, setOtpMethod] = useState<'email' | 'whatsapp'>('whatsapp');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpMethodError, setOtpMethodError] = useState<string | null>(null);
+  const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | undefined>();
 
   const countries = [
     { code: '+966', name: language === 'ar' ? 'السعودية' : 'Saudi Arabia', flag: '🇸🇦' },
@@ -223,13 +225,16 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
             setIsSendingOtp(true);
             try {
               const fullPhone = `${countryCode}${phone}`;
-              await authApi.registerInit({
+              const initResult = await authApi.registerInit({
                 email: formData.email,
                 phone: fullPhone,
                 channel: method,
                 name: formData.name,
                 role: 'customer',
               });
+              setOtpExpiresInSeconds(
+                otpSecondsFromMinutes(initResult?.expiresInMinutes),
+              );
               setOtpStep('verify');
             } catch (err: unknown) {
               const errorMsg =
@@ -255,15 +260,17 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
           email={formData.email}
           phone={`${countryCode}${phone}`}
           method={otpMethod}
+          expiresInSeconds={otpExpiresInSeconds}
           onVerify={handleOtpVerify}
           onResend={async () => {
-            await authApi.registerResendOtp({
+            const result = await authApi.registerResendOtp({
               email: formData.email,
               phone: `${countryCode}${phone}`,
               channel: otpMethod,
               name: formData.name,
               role: 'customer',
             });
+            return { expiresInMinutes: result?.expiresInMinutes };
           }}
         />
       </div>

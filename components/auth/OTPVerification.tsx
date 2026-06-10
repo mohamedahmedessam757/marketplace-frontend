@@ -4,6 +4,13 @@ import { Loader2, MessageSquare, Mail, RefreshCcw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatApiErrorMessage } from '../../utils/formatApiErrorMessage';
 import { OtpErrorCard } from './OtpErrorCard';
+import {
+  OTP_EXPIRY_SECONDS,
+  formatOtpCountdown,
+  otpSecondsFromMinutes,
+} from '../../utils/otpConfig';
+
+export type OtpResendResult = void | { expiresInMinutes?: number };
 
 interface OTPVerificationProps {
   onVerify: (code: string) => void | Promise<void>;
@@ -12,7 +19,9 @@ interface OTPVerificationProps {
   method?: 'email' | 'whatsapp';
   /** Masked phone when login-via-email sends OTP to WhatsApp */
   deliveryHint?: string;
-  onResend?: () => void | Promise<void>;
+  /** Seconds until code expires — from API expiresInMinutes or default 600 */
+  expiresInSeconds?: number;
+  onResend?: () => OtpResendResult | Promise<OtpResendResult>;
 }
 
 export const OTPVerification: React.FC<OTPVerificationProps> = ({
@@ -21,19 +30,30 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
   phone,
   method = 'email',
   deliveryHint,
+  expiresInSeconds: initialExpiresInSeconds,
   onResend,
 }) => {
   const { t, language } = useLanguage();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [timer, setTimer] = useState(60);
+  const [timer, setTimer] = useState(
+    initialExpiresInSeconds ?? OTP_EXPIRY_SECONDS,
+  );
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  const isExpired = timer <= 0;
+
   const invalidCodeFallback =
     t.auth.errors?.invalidCode ||
     (language === 'ar' ? 'رمز التحقق غير صحيح' : 'Invalid verification code');
+
+  const expiredMessage =
+    t.auth.otp?.expired ||
+    (language === 'ar'
+      ? 'انتهت صلاحية الرمز — اضغط إعادة الإرسال للحصول على رمز جديد'
+      : 'Code expired — tap Resend to get a new code');
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -42,13 +62,19 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (initialExpiresInSeconds != null && initialExpiresInSeconds > 0) {
+      setTimer(initialExpiresInSeconds);
+    }
+  }, [initialExpiresInSeconds]);
+
   const clearOtpInputs = () => {
     setOtp(['', '', '', '', '', '']);
     inputRefs.current[0]?.focus();
   };
 
   const handleChange = (index: number, value: string) => {
-    if (isVerifying || isNaN(Number(value))) return;
+    if (isVerifying || isExpired || isNaN(Number(value))) return;
     setError(null);
     const newOtp = [...otp];
     newOtp[index] = value;
@@ -60,13 +86,18 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (isVerifying) return;
+    if (isVerifying || isExpired) return;
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
   const handleVerify = async () => {
+    if (isExpired) {
+      setError(expiredMessage);
+      return;
+    }
+
     setIsVerifying(true);
     setError(null);
     const code = otp.join('');
@@ -85,8 +116,11 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
     setIsResending(true);
     setError(null);
     try {
-      await onResend();
-      setTimer(60);
+      const result = await onResend();
+      const seconds = otpSecondsFromMinutes(
+        result && typeof result === 'object' ? result.expiresInMinutes : undefined,
+      );
+      setTimer(seconds);
       clearOtpInputs();
     } catch (err: unknown) {
       setError(
@@ -104,6 +138,10 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
     method === 'whatsapp'
       ? phone || email
       : deliveryHint || email;
+
+  const validForLabel =
+    t.auth.otp?.validFor ||
+    (language === 'ar' ? 'صلاحية الرمز' : 'Code valid for');
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -142,7 +180,7 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
             inputMode="numeric"
             maxLength={1}
             value={digit}
-            disabled={isVerifying}
+            disabled={isVerifying || isExpired}
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             className="w-10 h-12 md:w-12 md:h-14 rounded-xl bg-white/5 border border-white/10 text-center text-xl font-bold text-white focus:border-gold-500 outline-none transition-all focus:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -152,7 +190,7 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
 
       <button
         onClick={handleVerify}
-        disabled={otp.some(d => !d) || isVerifying}
+        disabled={otp.some(d => !d) || isVerifying || isExpired}
         className="w-full py-3 md:py-4 bg-gold-500 hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-[0_4px_20px_rgba(168,139,62,0.3)] flex items-center justify-center gap-2"
       >
         {isVerifying ? (
@@ -166,11 +204,15 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
       </button>
 
       <div className="space-y-3">
-        {timer > 0 ? (
+        {!isExpired ? (
           <div className="text-center text-white/40 text-sm font-mono">
-            {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
+            {validForLabel}: {formatOtpCountdown(timer)}
           </div>
         ) : (
+          <p className="text-center text-amber-400/90 text-sm">{expiredMessage}</p>
+        )}
+
+        {isExpired && (
           <button
             type="button"
             disabled={isVerifying || isResending || !onResend}

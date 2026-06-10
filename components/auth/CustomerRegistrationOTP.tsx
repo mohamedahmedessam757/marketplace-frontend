@@ -4,6 +4,7 @@ import { Loader2, Mail, MessageSquare, RefreshCcw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatApiErrorMessage } from '../../utils/formatApiErrorMessage';
 import { OtpErrorCard } from './OtpErrorCard';
+import { OTP_EXPIRY_SECONDS, formatOtpCountdown } from '../../utils/otpConfig';
 
 export interface RegistrationOtpCodes {
     whatsappCode: string;
@@ -28,7 +29,7 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
     const [emailOtp, setEmailOtp] = useState(['', '', '', '', '', '']);
     const [whatsappOtp, setWhatsappOtp] = useState(['', '', '', '', '', '']);
 
-    const [timer, setTimer] = useState(60);
+    const [timer, setTimer] = useState(OTP_EXPIRY_SECONDS);
     const [isVerifying, setIsVerifying] = useState(false);
     const [isResending, setIsResending] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -106,7 +107,7 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
         setIsResending(true);
         try {
             await onResendWhatsapp();
-            setTimer(60);
+            setTimer(OTP_EXPIRY_SECONDS);
             setWhatsappOtp(['', '', '', '', '', '']);
             whatsappInputRefs.current[0]?.focus();
         } catch (err: unknown) {
@@ -220,8 +221,8 @@ export const CustomerRegistrationOTP: React.FC<CustomerRegistrationOTPProps> = (
 
             <div className="text-center">
                 {timer > 0 ? (
-                    <div className="text-white/40 text-sm font-mono">
-                        {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
+                    <div className="text-white/40 text-sm font-mono" dir="ltr">
+                        {formatOtpCountdown(timer)}
                     </div>
                 ) : (
                     <button

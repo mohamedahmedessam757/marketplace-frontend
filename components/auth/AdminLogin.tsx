@@ -6,6 +6,7 @@ import { OTPMethodSelection } from './OTPMethodSelection';
 import { useAdminStore } from '../../stores/useAdminStore';
 import { authApi } from '@/services/api/auth';
 import { formatApiErrorMessage } from '../../utils/formatApiErrorMessage';
+import { otpSecondsFromMinutes } from '../../utils/otpConfig';
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
@@ -28,6 +29,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const [methodError, setMethodError] = useState<string | null>(null);
   const [fingerprint, setFingerprint] = useState<string | null>(null);
   const [loginData, setLoginData] = useState<any>(null);
+  const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState<number | undefined>();
 
   React.useEffect(() => {
     const loadFingerprint = async () => {
@@ -85,6 +87,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
           language === 'ar' ? 'تعذّر إرسال رمز التحقق' : 'Failed to send verification code',
         );
       }
+      setOtpExpiresInSeconds(otpSecondsFromMinutes(otpResult?.expiresInMinutes));
       setOtpStep('verify');
     } catch (err: unknown) {
       setMethodError(
@@ -132,9 +135,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         email={email}
         phone={userPhone}
         method={otpMethod}
+        expiresInSeconds={otpExpiresInSeconds}
         onVerify={handleVerifyOTP}
         onResend={async () => {
-          await authApi.sendOTP(email, otpMethod);
+          const result = await authApi.sendOTP(email, otpMethod);
+          return { expiresInMinutes: result?.expiresInMinutes };
         }}
       />
     );

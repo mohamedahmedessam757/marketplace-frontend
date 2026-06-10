@@ -11,6 +11,7 @@ import { useAdminStore } from '../../stores/useAdminStore'; // Import AdminStore
 import { OTPVerification } from './OTPVerification';
 import { OTPMethodSelection } from './OTPMethodSelection';
 import { authApi } from '@/services/api/auth';
+import { otpSecondsFromMinutes } from '../../utils/otpConfig';
 import { useCatalogStore } from '../../stores/useCatalogStore';
 import { MultiSelectDropdown } from '../ui/MultiSelectDropdown';
 
@@ -41,6 +42,7 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
   const [isSendingOtp, setIsSendingOtp] = React.useState(false);
   const [otpMethodError, setOtpMethodError] = React.useState<string | null>(null);
   const [otpMethod, setOtpMethod] = React.useState<'email' | 'whatsapp'>('email');
+  const [otpExpiresInSeconds, setOtpExpiresInSeconds] = React.useState<number | undefined>();
 
   const { makes, fetchCatalog, isLoading: isLoadingCatalog, subscribeToCatalog, unsubscribeFromCatalog } = useCatalogStore();
   const [errorField, setErrorField] = React.useState<'name' | 'email' | 'phone' | 'storeName' | 'address' | 'makes' | 'models' | 'all' | null>(null);
@@ -636,13 +638,16 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                     setIsSendingOtp(true);
                     try {
                       const fullPhone = `${store.account.countryCode}${store.account.phone}`;
-                      await authApi.registerInit({
+                      const initResult = await authApi.registerInit({
                         email: store.account.email,
                         phone: fullPhone,
                         channel: m,
                         name: store.account.name,
                         role: 'vendor',
                       });
+                      setOtpExpiresInSeconds(
+                        otpSecondsFromMinutes(initResult?.expiresInMinutes),
+                      );
                       setOtpStep('verify');
                     } catch (err: any) {
                       const errorMsg = err.response?.data?.message || err.message;
@@ -661,19 +666,21 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                   email={store.account.email}
                   phone={`${store.account.countryCode}${store.account.phone}`}
                   method={otpMethod}
+                  expiresInSeconds={otpExpiresInSeconds}
                   deliveryHint={
                     otpMethod === 'email'
                       ? `${store.account.countryCode}${store.account.phone}`
                       : undefined
                   }
                   onResend={async () => {
-                    await authApi.registerResendOtp({
+                    const result = await authApi.registerResendOtp({
                       email: store.account.email,
                       phone: `${store.account.countryCode}${store.account.phone}`,
                       channel: otpMethod,
                       name: store.account.name,
                       role: 'vendor',
                     });
+                    return { expiresInMinutes: result?.expiresInMinutes };
                   }}
                   onVerify={handleVerifyOTP}
                 />
