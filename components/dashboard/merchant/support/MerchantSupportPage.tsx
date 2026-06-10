@@ -6,6 +6,7 @@ import { useLanguage } from '../../../../contexts/LanguageContext';
 import { TicketList } from '../../support/TicketList';
 import { MerchantTicketForm } from './MerchantTicketForm';
 import { AccordionItem } from '../../../ui/Accordion';
+import { SITE_CONTACT_EMAIL } from '../../../../config/site';
 
 interface MerchantSupportPageProps {
     onNavigate?: (path: string, id?: any) => void;
@@ -204,7 +205,7 @@ export const MerchantSupportPage: React.FC<MerchantSupportPageProps> = ({ onNavi
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between text-sm">
                                     <span className="text-white/40">Email:</span>
-                                    <a href="mailto:cs@e-tashleh.net" className="text-white/80 font-medium tracking-tight hover:text-gold-500 transition-colors">cs@e-tashleh.net</a>
+                                    <a href={`mailto:${SITE_CONTACT_EMAIL}`} className="text-white/80 font-medium tracking-tight hover:text-gold-500 transition-colors">{SITE_CONTACT_EMAIL}</a>
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
                                     <span className="text-white/40">WhatsApp:</span>

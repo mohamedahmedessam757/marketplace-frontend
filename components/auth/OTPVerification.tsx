@@ -193,7 +193,9 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
               <span className="flex items-center justify-center gap-2 text-gold-500/50">
                 <Mail size={12} />
                 {deliveryHint
-                  ? (language === 'ar' ? 'التحقق عبر واتساب (الإيميل قريباً)' : 'WhatsApp verification (email provider coming soon)')
+                  ? (language === 'ar'
+                      ? `تم الإرسال إلى ${deliveryHint}`
+                      : `Sent to ${deliveryHint}`)
                   : t.auth.otp.emailAlt}
               </span>
             )}

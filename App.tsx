@@ -10,6 +10,7 @@ import { HowWeWorkTutorial } from './components/HowWeWorkTutorial';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { Footer } from './components/Footer';
+import { SITE_CONTACT_EMAIL } from './config/site';
 
 import { LegalDocs } from './components/sections/LegalDocs';
 import { SupportModal } from './components/modals/SupportModal';
@@ -120,6 +121,8 @@ const TermsView = lazy(() => import('./components/auth/TermsView').then(module =
 const AccountRecoveryWizard = lazy(() => import('./components/auth/AccountRecoveryWizard').then(module => ({ default: module.AccountRecoveryWizard })));
 import { EarnIncomeLanding } from './components/EarnIncomeLanding';
 import { VerifyLinkPage } from './components/verify/VerifyLinkPage';
+import { BusinessLicensePage } from './components/legal/BusinessLicensePage';
+import { RegistryPdfViewer } from './components/legal/RegistryPdfViewer';
 
 type ViewState =
   | 'landing'
@@ -139,7 +142,9 @@ type ViewState =
   | 'how-we-work'
   | 'how-we-work-tutorial'
   | 'earn-income'
-  | 'verify-link';
+  | 'verify-link'
+  | 'business-license'
+  | 'business-license-verify';
 type UserRole = 'customer' | 'merchant' | 'admin' | null;
 
 function AppContent() {
@@ -461,6 +466,18 @@ function AppContent() {
     pushView('landing');
   };
 
+  const handleNavigateToLicense = () => {
+    setPreviousView(currentView);
+    setCurrentView('business-license');
+    pushView('business-license');
+  };
+
+  const handleNavigateToLicenseVerify = () => {
+    setPreviousView('business-license');
+    setCurrentView('business-license-verify');
+    pushView('business-license-verify');
+  };
+
   const handleBackFromTerms = () => {
     setCurrentView(previousView);
     pushView(previousView);
@@ -635,7 +652,7 @@ function AppContent() {
               </div>
               <div className="text-left overflow-hidden">
                 <p className="text-[8px] text-white/30 uppercase font-black tracking-widest truncate">{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</p>
-                <p className="text-white text-sm font-bold truncate">cs@e-tashleh.net</p>
+                <p className="text-white text-sm font-bold truncate">{SITE_CONTACT_EMAIL}</p>
               </div>
             </div>
           </div>
@@ -869,6 +886,7 @@ function AppContent() {
                 onNavigateToLegal={handleNavigateToLegal}
                 onNavigateToLandingSection={handleNavigateToLandingSection}
                 onEarnIncomeClick={() => handleNavigate('earn-income')}
+                onNavigateToLicense={handleNavigateToLicense}
               />
             ) : currentView === 'earn-income' ? (
               <EarnIncomeLanding
@@ -877,6 +895,19 @@ function AppContent() {
               />
             ) : currentView === 'wholesale' ? (
               <WholesaleScreen onBack={() => handleNavigate('role-selection')} />
+            ) : currentView === 'business-license' ? (
+              <BusinessLicensePage
+                onBack={() => {
+                  setCurrentView(previousView);
+                  pushView(previousView);
+                }}
+                onVerifyRegistry={handleNavigateToLicenseVerify}
+              />
+            ) : currentView === 'business-license-verify' ? (
+              <RegistryPdfViewer onBack={() => {
+                setCurrentView('business-license');
+                pushView('business-license');
+              }} />
             ) : currentView === 'how-we-work' ? (
               <HowWeWorkScreen
                 onComplete={() => {
@@ -889,6 +920,7 @@ function AppContent() {
                 onAdminClick={() => handleNavigate('admin-login')}
                 onNavigateToLegal={handleNavigateToLegal}
                 onNavigateToLandingSection={handleNavigateToLandingSection}
+                onNavigateToLicense={handleNavigateToLicense}
               />
             ) : currentView === 'how-we-work-tutorial' ? (
               <HowWeWorkTutorial
@@ -898,6 +930,7 @@ function AppContent() {
                 onAdminClick={() => handleNavigate('admin-login')}
                 onNavigateToLegal={handleNavigateToLegal}
                 onNavigateToLandingSection={handleNavigateToLandingSection}
+                onNavigateToLicense={handleNavigateToLicense}
               />
             ) : currentView === 'landing' ? (
 
@@ -927,6 +960,7 @@ function AppContent() {
                 <Footer
                   onOpenSupport={() => setIsSupportOpen(true)}
                   onAdminClick={() => handleNavigate('admin-login')}
+                  onNavigateToLicense={handleNavigateToLicense}
                 />
               </motion.main>
             ) : (

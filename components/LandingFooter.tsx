@@ -1,6 +1,6 @@
 import React from 'react';
 import { Container } from './ui/Container';
-import { SBCBadge } from './ui/SBCBadge';
+import { NomoBadge } from './ui/NomoBadge';
 import { HelpCircle, MapPin, Building2, FileText, Phone, Shield, Info, Cog, Mail } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 // import { Link } from 'react-router-dom'; // Assuming standard routing or just anchor tags if external/modal
@@ -10,9 +10,10 @@ interface LandingFooterProps {
     onAdminClick: () => void;
     onNavigateToLegal: (section: 'terms' | 'privacy') => void;
     onNavigateToLandingSection: (section: string) => void;
+    onNavigateToLicense?: () => void;
 }
 
-export const LandingFooter: React.FC<LandingFooterProps> = ({ onOpenSupport, onAdminClick, onNavigateToLegal, onNavigateToLandingSection }) => {
+export const LandingFooter: React.FC<LandingFooterProps> = ({ onOpenSupport, onAdminClick, onNavigateToLegal, onNavigateToLandingSection, onNavigateToLicense }) => {
     const { t } = useLanguage();
 
     // Links matching AppFooter.vue
@@ -99,7 +100,7 @@ export const LandingFooter: React.FC<LandingFooterProps> = ({ onOpenSupport, onA
                         {/* SBC Badge (Center) */}
                         <div className="flex items-center gap-3">
                             <div className="transform hover:scale-105 transition-transform duration-300">
-                                <SBCBadge />
+                                <NomoBadge onClick={onNavigateToLicense} />
                             </div>
                             {/* <span className="text-sm font-bold text-white/90">0000177555</span> */}
                         </div>

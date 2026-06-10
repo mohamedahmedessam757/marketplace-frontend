@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { User, Mail, Phone, Loader2, AlertCircle, CheckSquare, Square, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { authApi } from '@/services/api/auth';
-import { CustomerRegistrationOTP } from './CustomerRegistrationOTP';
+import { OTPMethodSelection } from './OTPMethodSelection';
+import { OTPVerification } from './OTPVerification';
 
 interface CustomerRegisterProps {
   onLoginClick: () => void;
@@ -67,7 +68,10 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
   const [shake, setShake] = useState(false); // Used for invalid submit animation
   const [errorField, setErrorField] = useState<'email' | 'phone' | 'all' | 'terms' | null>(null);
 
-  const [otpStep, setOtpStep] = useState<'none' | 'verify'>('none');
+  const [otpStep, setOtpStep] = useState<'none' | 'method' | 'verify'>('none');
+  const [otpMethod, setOtpMethod] = useState<'email' | 'whatsapp'>('whatsapp');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [otpMethodError, setOtpMethodError] = useState<string | null>(null);
 
   const countries = [
     { code: '+966', name: language === 'ar' ? 'السعودية' : 'Saudi Arabia', flag: '🇸🇦' },
@@ -149,35 +153,8 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
       return;
     }
 
-    try {
-      setIsLoading(true);
-      const fullPhone = `${countryCode}${phone}`;
-
-      // Step 1: Pre-Register Check (Duplicate check logic)
-      await authApi.registerInit({
-        email: formData.email,
-        phone: fullPhone,
-        name: formData.name,
-        role: 'customer',
-      });
-
-      // Show Double OTP Step
-      setOtpStep('verify');
-
-    } catch (err: any) {
-      console.error(err);
-      const errorMsg = err.response?.data?.message || err.message;
-
-      if (errorMsg.toLowerCase().includes('phone')) {
-        triggerError(t.auth.errors?.phoneExists || (language === 'ar' ? 'رقم الجوال مسجل مسبقاً' : 'Phone number already exists'), 'phone');
-      } else if (errorMsg.toLowerCase().includes('email')) {
-        triggerError(language === 'ar' ? 'البريد الإلكتروني مسجل مسبقاً' : 'Email already exists', 'email');
-      } else {
-        triggerError(errorMsg || t.auth.errors?.registrationFailed || (language === 'ar' ? 'حدث خطأ أثناء التسجيل' : 'Registration failed'), 'all');
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    setOtpMethodError(null);
+    setOtpStep('method');
   };
 
   const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,40 +165,22 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
     }
   };
 
-  const handleOtpVerify = async ({
-    whatsappCode,
-    emailCode,
-  }: {
-    whatsappCode: string;
-    emailCode: string;
-  }) => {
+  const handleOtpVerify = async (code: string) => {
     const fullPhone = `${countryCode}${phone}`;
-
-    if (!emailCode || emailCode.length !== 6) {
-      throw new Error(
-        language === 'ar'
-          ? 'يرجى إدخال رمز الإيميل (6 أرقام) — سيتم تفعيله عند ربط مزود البريد'
-          : 'Please enter the 6-digit email code (provider coming soon)',
-      );
-    }
 
     await authApi.registerVerifyOtp({
       email: formData.email,
       phone: fullPhone,
-      code: whatsappCode,
+      channel: otpMethod,
+      code,
     });
 
     try {
       const generatedPassword = generateSecurePassword();
-
-      // Find Country Name based on selected countryCode
       const selectedCountry = countries.find(c => c.code === countryCode);
       const countryName = selectedCountry ? selectedCountry.name : 'Unknown';
-
-      // Read referral code stored from the ?ref= URL param at time of landing
       const pendingReferralCode = sessionStorage.getItem('pending_referral_code') || undefined;
 
-      // Register the user
       await authApi.registerCustomer({
         email: formData.email,
         password: generatedPassword,
@@ -229,42 +188,79 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
         phone: fullPhone,
         countryCode: countryCode,
         country: countryName,
-        // Pass referral code if present — backend will link it to the referrer
-        ...(pendingReferralCode && { referralCode: pendingReferralCode })
+        otpChannel: otpMethod,
+        ...(pendingReferralCode && { referralCode: pendingReferralCode }),
       });
 
-      // Clear referral code after a successful registration to prevent re-use
       sessionStorage.removeItem('pending_referral_code');
 
-      // Automatically log them in right after registration
       const loginResponse = await authApi.login(formData.email, generatedPassword);
-
       localStorage.setItem('access_token', loginResponse.access_token);
       if (loginResponse.user) {
         localStorage.setItem('user', JSON.stringify(loginResponse.user));
       }
 
       onRegisterSuccess();
-    } catch (error: any) {
-      console.error("Registration failed after OTP", error);
+    } catch (error: unknown) {
+      console.error('Registration failed after OTP', error);
       alert(language === 'ar' ? 'حدث خطأ أثناء التسجيل' : 'An error occurred during registration.');
-      setOtpStep('none'); // Return to form
+      setOtpStep('none');
       throw error;
     }
   };
 
+  if (otpStep === 'method') {
+    return (
+      <div className="-mx-2 sm:-mx-4">
+        <OTPMethodSelection
+          email={formData.email}
+          name={formData.name}
+          isLoading={isSendingOtp}
+          error={otpMethodError}
+          onSelect={async (method) => {
+            setOtpMethod(method);
+            setOtpMethodError(null);
+            setIsSendingOtp(true);
+            try {
+              const fullPhone = `${countryCode}${phone}`;
+              await authApi.registerInit({
+                email: formData.email,
+                phone: fullPhone,
+                channel: method,
+                name: formData.name,
+                role: 'customer',
+              });
+              setOtpStep('verify');
+            } catch (err: unknown) {
+              const errorMsg =
+                (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+                (err instanceof Error ? err.message : '');
+              setOtpMethodError(
+                errorMsg ||
+                  (language === 'ar' ? 'فشل إرسال رمز التحقق' : 'Failed to send verification code'),
+              );
+            } finally {
+              setIsSendingOtp(false);
+            }
+          }}
+        />
+      </div>
+    );
+  }
 
   if (otpStep === 'verify') {
     return (
       <div className="-mx-2 sm:-mx-4">
-        <CustomerRegistrationOTP
+        <OTPVerification
           email={formData.email}
           phone={`${countryCode}${phone}`}
+          method={otpMethod}
           onVerify={handleOtpVerify}
-          onResendWhatsapp={async () => {
+          onResend={async () => {
             await authApi.registerResendOtp({
               email: formData.email,
               phone: `${countryCode}${phone}`,
+              channel: otpMethod,
               name: formData.name,
               role: 'customer',
             });
@@ -287,8 +283,8 @@ export const CustomerRegister: React.FC<CustomerRegisterProps> = ({ onLoginClick
         <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 flex items-center justify-center gap-2">
           <p className="text-xs text-white/70 font-medium text-center">
             {language === 'ar'
-              ? 'التحقق بخطوتين (سيتم إرسال كود التفعيل إلى الإيميل المدخل بالإضافة إلى الواتساب المسجل بالرقم)'
-              : '2-Step Verification (An activation code will be sent to the entered email in addition to the WhatsApp registered with this number)'}
+              ? 'التحقق بخطوتين — اختر إرسال رمز التفعيل إلى بريدك الإلكتروني أو واتساب'
+              : '2-Step Verification — choose to receive your code via email or WhatsApp'}
           </p>
           <AlertCircle size={16} className="text-gold-500 flex-shrink-0" />
         </div>

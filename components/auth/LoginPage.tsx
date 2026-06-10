@@ -42,6 +42,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [userEmail, setUserEmail] = useState(''); // Used for storage after init
   const [userName, setUserName] = useState('');
   const [maskedPhone, setMaskedPhone] = useState<string | null>(null);
+  const [maskedEmail, setMaskedEmail] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +147,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       } else {
         data = await authApi.initiateEmailLogin(loginEmail);
         setUserEmail(loginEmail);
-        setMaskedPhone(data?.maskedPhone ?? data?.user?.phone ?? null);
+        setMaskedEmail(data?.maskedEmail ?? loginEmail);
       }
 
       // Access user data from response with extreme caution
@@ -199,13 +200,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           email={userEmail}
           phone={`${countryCode}${phone}`}
           method={activationMethod}
-          deliveryHint={activationMethod === 'email' ? maskedPhone ?? undefined : undefined}
+          deliveryHint={
+            activationMethod === 'email'
+              ? maskedEmail ?? loginEmail ?? userEmail
+              : undefined
+          }
           onResend={async () => {
             if (activationMethod === 'whatsapp') {
               await authApi.resendMobileLoginOtp(`${countryCode}${phone}`);
             } else {
-              const data = await authApi.initiateEmailLogin(loginEmail || userEmail);
-              setMaskedPhone(data?.maskedPhone ?? data?.user?.phone ?? null);
+              await authApi.resendEmailLoginOtp(loginEmail || userEmail);
             }
           }}
           onVerify={async (code) => {

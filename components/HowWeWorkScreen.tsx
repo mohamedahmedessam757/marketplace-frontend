@@ -13,6 +13,7 @@ interface HowWeWorkScreenProps {
     onAdminClick: () => void;
     onNavigateToLegal: (section: 'terms' | 'privacy') => void;
     onNavigateToLandingSection: (section: string) => void;
+    onNavigateToLicense?: () => void;
 }
 
 export const HowWeWorkScreen: React.FC<HowWeWorkScreenProps> = ({
@@ -23,7 +24,8 @@ export const HowWeWorkScreen: React.FC<HowWeWorkScreenProps> = ({
     onOpenSupport,
     onAdminClick,
     onNavigateToLegal,
-    onNavigateToLandingSection
+    onNavigateToLandingSection,
+    onNavigateToLicense,
 }) => {
     const { t, language } = useLanguage();
 
@@ -146,6 +148,7 @@ export const HowWeWorkScreen: React.FC<HowWeWorkScreenProps> = ({
                     onAdminClick={onAdminClick}
                     onNavigateToLegal={onNavigateToLegal}
                     onNavigateToLandingSection={onNavigateToLandingSection}
+                    onNavigateToLicense={onNavigateToLicense}
                 />
             </div>
         </div>

@@ -79,7 +79,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     setMethodError(null);
     setIsSendingOtp(true);
     try {
-      const otpResult = await authApi.sendOTP(email);
+      const otpResult = await authApi.sendOTP(email, method);
       if (!otpResult?.success) {
         throw new Error(
           language === 'ar' ? 'تعذّر إرسال رمز التحقق' : 'Failed to send verification code',
@@ -99,7 +99,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   };
 
   const handleVerifyOTP = async (code: string) => {
-    await authApi.verifyOTP(email, code);
+    await authApi.verifyOTP(email, code, otpMethod);
 
     if (!loginData?.user?.id || !loginData.user.role) {
       throw new Error(
@@ -134,7 +134,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         method={otpMethod}
         onVerify={handleVerifyOTP}
         onResend={async () => {
-          await authApi.sendOTP(email);
+          await authApi.sendOTP(email, otpMethod);
         }}
       />
     );

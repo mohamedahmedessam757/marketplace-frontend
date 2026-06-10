@@ -1,5 +1,7 @@
 import { client } from './client';
 
+export type OtpChannel = 'email' | 'whatsapp';
+
 export const authApi = {
     login: async (email: string, password: string, fingerprint?: string) => {
         const response = await client.post('/auth/login', { email, password, fingerprint });
@@ -14,6 +16,7 @@ export const authApi = {
     registerInit: async (data: {
         email: string;
         phone: string;
+        channel: OtpChannel;
         name?: string;
         role?: 'customer' | 'vendor';
     }) => {
@@ -21,7 +24,12 @@ export const authApi = {
         return response.data;
     },
 
-    registerVerifyOtp: async (data: { email: string; phone: string; code: string }) => {
+    registerVerifyOtp: async (data: {
+        email: string;
+        phone: string;
+        channel: OtpChannel;
+        code: string;
+    }) => {
         const response = await client.post('/auth/register-verify-otp', data);
         return response.data;
     },
@@ -29,6 +37,7 @@ export const authApi = {
     registerResendOtp: async (data: {
         email: string;
         phone: string;
+        channel: OtpChannel;
         name?: string;
         role?: 'customer' | 'vendor';
     }) => {
@@ -56,18 +65,23 @@ export const authApi = {
         return response.data;
     },
 
-    sendOTP: async (email: string) => {
-        const response = await client.post('/auth/otp/send', { email });
+    sendOTP: async (email: string, channel: OtpChannel) => {
+        const response = await client.post('/auth/otp/send', { email, channel });
         return response.data;
     },
 
-    verifyOTP: async (email: string, code: string) => {
-        const response = await client.post('/auth/otp/verify', { email, code });
+    verifyOTP: async (email: string, code: string, channel: OtpChannel) => {
+        const response = await client.post('/auth/otp/verify', { email, code, channel });
         return response.data;
     },
 
     resendMobileLoginOtp: async (phone: string) => {
         const response = await client.post('/auth/mobile-login-resend', { phone });
+        return response.data;
+    },
+
+    resendEmailLoginOtp: async (email: string) => {
+        const response = await client.post('/auth/email-login-resend', { email });
         return response.data;
     },
 

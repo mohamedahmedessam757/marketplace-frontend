@@ -11,6 +11,7 @@ interface HowWeWorkTutorialProps {
     onAdminClick: () => void;
     onNavigateToLegal: (section: 'terms' | 'privacy') => void;
     onNavigateToLandingSection: (section: string) => void;
+    onNavigateToLicense?: () => void;
 }
 
 export const HowWeWorkTutorial: React.FC<HowWeWorkTutorialProps> = ({
@@ -19,7 +20,8 @@ export const HowWeWorkTutorial: React.FC<HowWeWorkTutorialProps> = ({
     onOpenSupport,
     onAdminClick,
     onNavigateToLegal,
-    onNavigateToLandingSection
+    onNavigateToLandingSection,
+    onNavigateToLicense,
 }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
@@ -197,6 +199,7 @@ export const HowWeWorkTutorial: React.FC<HowWeWorkTutorialProps> = ({
                     onAdminClick={onAdminClick}
                     onNavigateToLegal={onNavigateToLegal}
                     onNavigateToLandingSection={onNavigateToLandingSection}
+                    onNavigateToLicense={onNavigateToLicense}
                 />
             </div>
         </div>

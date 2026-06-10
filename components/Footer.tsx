@@ -1,16 +1,18 @@
 
 import React from 'react';
 import { Container } from './ui/Container';
-import { SBCBadge } from './ui/SBCBadge';
+import { NomoBadge } from './ui/NomoBadge';
 import { Headset, MapPin, Mail, Phone } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { SITE_CONTACT_EMAIL } from '../config/site';
 
 interface FooterProps {
     onOpenSupport: () => void;
     onAdminClick: () => void;
+    onNavigateToLicense?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenSupport, onAdminClick }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenSupport, onAdminClick, onNavigateToLicense }) => {
     const { t, language } = useLanguage();
 
     return (
@@ -30,7 +32,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSupport, onAdminClick }) =
                         <p className="text-white/40 text-xs leading-relaxed mb-4 max-w-xs">
                             {t.about.description}
                         </p>
-                        <SBCBadge />
+                        <NomoBadge onClick={onNavigateToLicense} />
                     </div>
 
                     {/* Contact Column */}
@@ -39,7 +41,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenSupport, onAdminClick }) =
                         <ul className="space-y-3">
                             <li className="flex items-center gap-3 justify-center lg:justify-start text-white/70 text-sm">
                                 <Mail size={16} className="text-gold-500 shrink-0" />
-                                <a href="mailto:cs@e-tashleh.net" className="hover:text-white transition-colors">cs@e-tashleh.net</a>
+                                <a href={`mailto:${SITE_CONTACT_EMAIL}`} className="hover:text-white transition-colors">{SITE_CONTACT_EMAIL}</a>
                             </li>
                             <li className="flex items-center gap-3 justify-center lg:justify-start text-white/70 text-sm">
                                 <Phone size={16} className="text-gold-500 shrink-0" />

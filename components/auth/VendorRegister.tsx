@@ -271,6 +271,7 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
       await authApi.registerVerifyOtp({
         email: store.account.email,
         phone: fullPhone,
+        channel: otpMethod,
         code,
       });
       store.setOtpVerified(true);
@@ -353,6 +354,7 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
         password: generatedPassword, // Use auto-generated secure password
         name: store.account.name,
         phone: fullPhone,
+        otpChannel: otpMethod,
         // Send Store Details during Registration
         storeName: store.storeInfo.storeName,
         category: "Specialized", // Legacy fallback, backend should use the arrays below
@@ -637,6 +639,7 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                       await authApi.registerInit({
                         email: store.account.email,
                         phone: fullPhone,
+                        channel: m,
                         name: store.account.name,
                         role: 'vendor',
                       });
@@ -667,6 +670,7 @@ export const VendorRegister: React.FC<VendorRegisterProps> = ({ onComplete, onBa
                     await authApi.registerResendOtp({
                       email: store.account.email,
                       phone: `${store.account.countryCode}${store.account.phone}`,
+                      channel: otpMethod,
                       name: store.account.name,
                       role: 'vendor',
                     });

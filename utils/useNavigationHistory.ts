@@ -30,6 +30,8 @@ export function useNavigationHistory(
         else if (view === 'reset-password') url = '/auth/reset-password';
         else if (view === 'account-recovery') url = '/auth/account-recovery';
         else if (view === 'terms') url = '/legal/terms';
+        else if (view === 'business-license') url = '/legal/business-license';
+        else if (view === 'business-license-verify') url = '/legal/business-license/verify';
         else if (view === 'wholesale') url = '/wholesale';
         else if (view === 'how-we-work') url = '/how-it-works';
         else if (view === 'how-we-work-tutorial') url = '/tutorial';
@@ -114,6 +116,8 @@ export function parseUrlToState(): NavigationState {
     if (path === '/auth/reset-password') return { view: 'reset-password' };
     if (path === '/auth/account-recovery') return { view: 'account-recovery' };
     if (path === '/legal/terms') return { view: 'terms' };
+    if (path === '/legal/business-license/verify') return { view: 'business-license-verify' };
+    if (path === '/legal/business-license') return { view: 'business-license' };
     if (path === '/wholesale') return { view: 'wholesale' };
     if (path === '/how-it-works') return { view: 'how-we-work' };
     if (path === '/tutorial') return { view: 'how-we-work-tutorial' };

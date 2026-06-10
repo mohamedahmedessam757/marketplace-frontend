@@ -14,6 +14,7 @@ interface RoleSelectionScreenProps {
     onNavigateToLegal: (section: 'terms' | 'privacy') => void;
     onNavigateToLandingSection: (section: string) => void;
     onEarnIncomeClick: () => void;
+    onNavigateToLicense?: () => void;
 }
 
 export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
@@ -26,6 +27,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     onNavigateToLegal,
     onNavigateToLandingSection,
     onEarnIncomeClick,
+    onNavigateToLicense,
 }) => {
     const { t, language } = useLanguage();
     const isAr = language === 'ar';
@@ -235,6 +237,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
                     onAdminClick={onAdminClick}
                     onNavigateToLegal={onNavigateToLegal}
                     onNavigateToLandingSection={onNavigateToLandingSection}
+                    onNavigateToLicense={onNavigateToLicense}
                 />
             </div>
 

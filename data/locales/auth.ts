@@ -1,3 +1,5 @@
+import { customerTermsAr, customerTermsEn } from '../customerTerms';
+
 
 export const auth = {
   ar: {
@@ -53,6 +55,7 @@ export const auth = {
       support: 'الدعم الفني',
       secureBadge: 'نظام لوحة التحكم V2.0 • اتصال آمن',
       sbcTitle: 'موثق في المركز السعودي للأعمال',
+      nomoTitle: 'السجل الاقتصادي الوطني',
       companyInfo: {
         name: 'ELLIPP FZ LLC',
         license: 'رخصة رقم: 45000927',
@@ -133,7 +136,7 @@ export const auth = {
         privacyTitle: 'ملخص الخصوصية',
         termsTitle: 'ملخص الشروط',
         privacyItems: ['حماية البيانات وتشفيرها', 'مشاركة محدودة مع مزودي الخدمة'],
-        termsItems: ['الالتزام بالأنظمة', 'سياسة الاسترجاع (يومين عمل)'],
+        termsItems: ['الالتزام بالأنظمة', 'سياسة الاسترجاع (24 ساعة)'],
         noteTitle: 'ملاحظة هامة',
         privacyNote: 'نستخدم تقنيات تشفير متقدمة لحماية بياناتك.',
         termsNote: 'استخدامك للمنصة يعني موافقتك على كافة الشروط.',
@@ -206,84 +209,7 @@ export const auth = {
           ]
         }
       ],
-      termsContent: [
-        {
-          title: 'أحكام عامة',
-          content: [
-            'يجب على العميل/المستخدم الموافقة على الشروط وسياسة الخصوصية وسياسة المدفوعات على موقعنا وسياسة الاستبدال والارجاع جميعها واستخدامك للموقع يعتبر موافقة منك على ذلك ولا يتحمل الموقع أي مسؤولية قانونية جراء عدم اطلاعكم عليها.',
-            'التواصل المعتمد لأي ملاحظات او بلاغات او مرسلات هو فقط الطرق المتاحة على أيقونة الموقع.',
-            'يوافق العميل ان جميع الأنظمة والقوانين المتبعة والمطبقة بموقعنا هي قوانين دولة الامارات العربية المتحدة.',
-            'يوافق العميل/المستخدم بان الموقع هو طرف ثالث وسيط بين المتجر/البائع والعميل دون تحمل أي مسؤولية وتطبق الشروط والاحكام.',
-            'للموقع الحق في التعديل على الشروط والسياسات متى ما اقتضت الحاجة ودون الرجوع لاحد الأطراف ولا نتحمل أي مسؤولية جراء عدم اطلاعك عليها ويعتبر استخدامك لموقعنا موافقة منك عليها.',
-            'يعد تسجيلكم بالموقع واستخدامه بمثابة موافقة منكم على جميع الشروط والاحكام والسياسات ولا يتحمل الموقع أي مسؤولية قانونية جراء عدم اطلاعكم عليها.',
-            'جميع السياسات والاحكام والشروط الموجودة بالموقع هي جزاء لا يتجزأ عن بعض وحال عدم ذكر بعضها او جزئها في أحدها فيعتبر ما ذكر في الاخر منها مكمل لها.',
-            'يطبق الشروط والاحكام.',
-            'يقر العميل/المستخدم وكذلك البائع/المتجر بان يستخدم الموقع بما لا يخالف الانظمة والتعليمات القانونية.'
-          ]
-        },
-        {
-          title: 'الشحن، الجمارك، والمسؤوليات',
-          content: [
-            'في حال شراء السلعة (المنتج) من المتاجر خارج دولة العميل فان الموقع والمتجر/البائع لا يتحملون اي رسوم او ضرائب او جمارك قد تفرض على المنتج المشحون للعميل وانما تضاف بفاتورة مستقلة عبر شركة الشحن وفسح المنتج او عدمه ونحوهم يتحملها العميل كاملة وما يترتب عليها.',
-            'يحق للموقع معاينة السلعة (المنتج) والتأكد منها وسلامتها ومطابقتها لطلب العميل قبل الشحن.',
-            'لا يتحمل الموقع أدني مسؤولية في حال استخدام المنتجات بطريقة غير امنة او غير صحيحة.',
-            'يقر العميل/المستخدم الحفاظ علي سرية البيانات وبيانات التسجيل وحسابة وأنها تحت مسؤوليته الكاملة وان الموقع لا يتحمل اي مسؤولية حال فقدانها او استخدامها من قبل مستخدم اخر وان يخطر الموقع مباشرة عبر قنواته الرسمية في حال فقدانها او استخدامها من قبل مستخدم اخر لإيقاف الحساب فقط دون تحمل الموقع أدني مسؤولية.',
-            'تطبق شروط وسياسات واحكام شركة الشحن وللإفادة الرجوع لموقع شركة الشحن للاطلاع عليها حيث لا يتحمل الموقع أدني مسؤولية تجاهها واستخدامك للموقع يعني موافقة منكم على ذلك.',
-            'في حالة استفادة العميل من شحن مجاني ورغب بالاسترجاع سيتم تحميلة رسوم الشحن المستفاد منها بالإضافة الى قيمة شحن الإرجاع.',
-            'لا يتحمل المتجر/البائع والموقع أي مشاكل من طرف شركات الشحن بعد تسليم الشحنة سليمة للمندوب والاحتفاظ بما يثبت ذلك من سجلات واستلام العميل للمنتج بمثابة موافقة على ذلك.'
-          ]
-        },
-        {
-          title: 'الدفع والدعم الفني',
-          content: [
-            'يقر ويوافق العميل/المستخدم بالموافقة على شروط واحكام وسياسة بوابة الدفع المرتبطة بموقعنا وللاطلاع عليها الرجوع لموقع بوابة الدفع حيث لا يتحمل الموقع أدني مسؤولية تجاهها واستخدامك للموقع يعني موافقة منكم على ذلك.',
-            'يقر ويوافق العميل/المستخدم بوجوب التعاون مع الدعم الفني من قبلنا والتحديث المستمر وحال مخالفة ذلك يتحمل المسؤولية كاملة.'
-          ]
-        },
-        {
-          title: 'سياسة الاستبدال والإرجاع',
-          content: [
-            'يوافق العميل في حال النزاع او طلب الاسترجاع او الإلغاء او الاستبدال التواصل مع المتجر/البائع عبر القنوات الرسمية بالموقع وخلال يومي عمل عمل رسمية من استلام المنتج (الشحنة) وفي حال عدم حل النزاع يتم تصعيده لإدارة الموقع لحل النزاع وابلاغ الاطراف بالنتيجة والزامهم بذلك تطبق الشروط والاحكام.',
-            'في حال كان الارجاع او الإلغاء لعدم رغبة العميل بالمنتج يتحمل العميل تكاليف الشحن من وإلى وكذلك رسوم 2% من قيمة الفاتورة وذلك لصالح بوابة الدفع تطبق الشروط والاحكام.',
-            'في حال طلب الاستبدال من قبل العميل لوجود خلل بالمنتج أو عيب او اختلاف عن فاتورة الشراء يتحمل المتجر/البائع تكاليف الشحن من والى وسيقوم المتجر بالاستبدال خلال مدة 14 يوم عمل رسمية من استلامه للمنتج المراد استبداله.',
-            'لو رغب العميل في الإلغاء والاسترجاع لوجود خلل بالمنتج أو عيب او اختلاف عن فاتورة الشراء سوف يتحمل المتجر/البائع تكاليف الشحن من والى مع فرض رسوم على المتجر 2% من قيمة الفاتورة وذلك لصالح بوابة الدفع تطبق الشروط والاحكام.',
-            'يحق للعميل في حال الموافقة باسترجاع أو استبدال او الغاء أي منتج تم شراءه على أن يكون بحالته الاصلية وخالية من الخدوش او الكسور وبغلافها الاصلي وذلك بوجود الفاتورة الاصلية كحد أقصى خلال يومي عمل رسمية من تاريخ الاستلام ويجب على العميل إخطار المتجر/البائع برغبته بالاستبدال أو الاسترجاع وفي حال تجاوز تلك المدة يسقط حقة بالمطالبة تطبق الشروط والاحكام.',
-            'في حال تطلب الاسترجاع أو الاستبدال شحن المنتج فإنه يكون على حساب سياسة الارجاع والاستبدال للموقع باستثناء إذا كان الخطأ من المتجر/البائع فانة لن يتم تحميل العميل أي مبالغ.',
-            'يتم إرجاع أي مبالغ مالية حسب شروط وسياسة بوابة الدفع في الموقع دون تحمل الموقع أدني مسؤولية من 14الى 45 يوم عمل رسمي وذلك بعد استلام المرتجع والتأكد منه ويتم إعادة المبلغ لنفس طريقة الدفع المسدد بها من قبل العميل.',
-            'في حال طلب العميل إلغاء الطلب قبل الشحن أو بعد الشحن فإنه سيتم تحميله أي مبالغ تم سدادها للشركات الوسيطة ورسوم 2% من قيمة فاتورة الشراء لصالح بوابة الدفع.',
-            'في حال حصول أي خطأ بوصول الشحنة للعميل وغير مطابقة لطلبه باختلاف الموديل أو الجهة المطلوبة أو نقص او أيا كان يجب على العميل إخطار الموقع بذلك في مدة أقصاها يومي عمل رسمية من استلامه للطلب وسيتم التنسيق معه لتعديل الخطأ دون تحميله أي تكاليف ولا يحق له المطالبة بشي بعد مرور المدة المحددة.',
-            'يقر العميل ويوافق انه يحق ل المتجر/البائع برفض المنتج المعاد متى ما ظهرت علية علامات التلف او الاستخدام او تم تفكيكها او غيرها خلافا لفاتورة الشراء.'
-          ]
-        },
-        {
-          title: 'إجراءات الشحن في الإرجاع',
-          content: [
-            'في حالة الموافقة على الاستبدال او الالغاء او الارجاع المنتج وفق الشروط والاحكام والسياسات فسوف نقوم بتزويد العميل ببوليصة شحن لاسترجاع المنتج على ان يستخدمها العميل خلال يومي عمل رسمية من وقت وتاريخ صدورها وفي حال عدم استخدامها خلال هذه الفترة من تسليم المنتج لشركة الشحن حسب بوليصة الشحن فسوف يسقط حق العميل تطبق الشروط والاحكام.',
-            'يحق للعميل استرجاع القطعة المشحونة بالخطاء او المكسورة او بها خلل نتيجة الشحن او المتأخرة خلافا لسياسة وشروط احكام شركة الشحن وذلك خلال يومي عمل رسمية من استلام الشحنة وتتحمل بهذه الحالة شركة الشحن قيمة الشحن وحال الغاء الطلب نتيجة لذلك تتحمل شركة الشحن دفع 2% من قيمة فاتورة المنتج واي مصروفات أخرى تم تكبدها ويجب على العميل إبلاغ المتجر/البائع بذلك مباشرة لتنسيق الاسترجاع او الإلغاء ولا يحق للعميل المطالبة بعد مضي المدة المحددة.',
-            'عدم استلام الطلب: في حالة رغب العميل من نفسه عدم استلام الطلب او لم يقم بالرد على مندوب شركات التوصيل او ظهر منة قصور في استلام الطلب (المنتج) باي حال كان فانة لا تنطبق على الطلب (المنتج) سياسة الاستبدال والارجاع او الالغاء وسوف يتم الاحتفاظ بالسلعة (المنتج) لمدة سبعه ايام كحد اقصى لدى شركة الشحن وفي حال عدم الاستلام خلال هذه المدة يحق للمتجر التصرف بها وفي حال المطالبة بالسلعة خلال الفترة المسموح بها فان العميل يتحمل كافة التكاليف اللازمة من الشحن ونحوه واي مصروفات ومتعلقات اخرى ترتبت عليها.'
-          ]
-        },
-        {
-          title: 'الضمان والكفالة',
-          content: [
-            'يتحمل العميل مصاريف الشحن إلى مستودعاتنا في حال استفادته من الضمان.',
-            'القطع الكهربائية غير مضمونة ولا ترد ولا تستبدل نهائياً.',
-            'في حال عدم ذكر مدة الضمان في الفاتورة فالسلعة غير مشمولة بالضمان.',
-            'يستثنى من ضمان المتجر/البائع هي الكسور والاضرار الناتجة من الحوادث او سواء الاستخدام والاضرار الناتجة عن طريق الصيانة للمنتج من قبل العميل ونحوها تطبق الشروط والاحكام.',
-            'في حال ذكر مدة الضمان في الفاتورة من قبل البائع/المتجر فالسلعة مشمولة بالضمان وبحسب ما هو مذكور بفاتورة الشراء بالمدة المحددة بالاسترداد او الاستبدال او الارجاع متى ما ثبت انها معيبة او لا تعمل ويجب على العميل اخطارنا عبر الموقع بذلك خلال مدة الضمان وان يلتزم حال موافقنا بالإرجاع بتسليمها لشركة الشحن خلال يومي عمل رسمية من بعد موافقتنا على الارجاع وخلافا لذلك يسقط حقة بالمطالبة تطبق الشروط والاحكام.'
-          ]
-        },
-        {
-          title: 'المحظورات وتجميع الشحنات',
-          content: [
-            'يقر ويوافق بعدم طلب القطع الغير أصلية أو منتجات غير مشروعه او مقلدة او معاد تجديدها او غير مرخصة على الموقع.',
-            'القطع المستعملة المحظور استيرادها الى المملكة العربية السعودية (زجاج السيارات-أحزمة الأمان-الوسائد الهوائية-أنظمة الفرامل وأجزائها-البطاريات السائلة-الكفرات المستعملة)، يحتفظ الموقع بإلغاء أي طلب إذا تبين وجود تعارض مع الأنظمة الجمركية او الأمنية دون الرجوع للعميل ويتحمل العميل كامل المصروفات.',
-            'يوافق العميل في حال اختيار تجميع الشحنات على ان اقصى مدة لاحتفاظنا بالمنتجات في سلة تجميع الشحنات هي 7 أيام تبدأ من تاريخ دخول اول طلب لسلة تجميع الشحنات في لوحة تحكم العميل كما يجب على العميل أن يطلب الكترونيا عبر لوحة تحكمه بشحنها والا ستبقي في سلة تجميع الشحنات وبعد مضي 7 أيام سيقوم النظام بتحويلها للشحن المفرد وحال التأخير عن تلك المدة يقوم النظام اليا بإحالتها للشحن المفرد.',
-            'يوافق العميل في حال اختيار تجميع الشحنات بدفع قيمة كل قطعه لوحدها بطلب منفصل قبل انتقالها لسلة تجميع الشحنات.',
-            'يوافق ويقر العميل في حال اختيار تجميع الشحنات بان مدة الشحن سوف تختلف وتكون أطول وبذلك لا يحق له المطالبة عن التأخير.'
-          ]
-        }
-      ],
+      termsContent: customerTermsAr,
     },
     authSection: {
       tabs: { customer: 'عميل', merchant: 'تاجر' },
@@ -465,6 +391,7 @@ export const auth = {
       support: 'Technical Support',
       secureBadge: 'ADMIN PANEL SYSTEM V2.0 • SECURE CONNECTION',
       sbcTitle: 'Authenticated by Saudi Business Center',
+      nomoTitle: 'National Economic Register',
       companyInfo: {
         name: 'ELLIPP FZ LLC',
         license: 'License No: 45000927',
@@ -545,7 +472,7 @@ export const auth = {
         privacyTitle: 'Privacy Summary',
         termsTitle: 'Terms Summary',
         privacyItems: ['Data Protection', 'No Sharing'],
-        termsItems: ['Fair Usage', 'Intellectual Property'],
+        termsItems: ['Fair Usage', 'Return Policy (24 hours)'],
         noteTitle: 'Important Note',
         privacyNote: 'We adhere to highest security standards.',
         termsNote: 'Using the platform implies agreement to all conditions.',
@@ -618,84 +545,7 @@ export const auth = {
           ]
         }
       ],
-      termsContent: [
-        {
-          title: 'General Provisions',
-          content: [
-            'The Customer/User must agree to all Terms, Privacy Policy, Payment Policy, and Return & Exchange Policy on our website. Using the site is considered your agreement, and the site bears no legal responsibility for your failure to read them.',
-            'The approved communication method for any notes, reports, or correspondence is only through the channels available on the site icon.',
-            'The Customer agrees that all regulations and laws followed and applied on our site are the laws of the United Arab Emirates.',
-            'The Customer/User agrees that the website is a third-party intermediary between the Store/Seller and the Customer without bearing any responsibility, and the Terms and Conditions apply.',
-            'The website has the right to amend the Terms and Policies whenever necessary without referring to any party. We bear no responsibility for your failure to read them, and your use of our site is considered your acceptance of them.',
-            'Your registration and use of the website is considered your agreement to all Terms, Conditions, and Policies. The website bears no legal responsibility for your failure to read them.',
-            'All Policies, Provisions, and Terms on the website are an integral part of each other. In case some or parts of them are not mentioned in one, what is mentioned in the other is considered complementary.',
-            'Terms and Conditions apply.',
-            'The Customer/User as well as the Seller/Store acknowledges using the site in a way that does not violate laws and legal instructions.'
-          ]
-        },
-        {
-          title: 'Shipping, Customs & Responsibilities',
-          content: [
-            'In case of purchasing the Item (Product) from stores outside the Customer\'s country, the Website and the Store/Seller do not bear any fees, taxes, or customs that may be imposed on the product shipped to the customer. These are added in a separate invoice via the shipping company, and customs clearance or lack thereof is fully borne by the customer along with any consequences.',
-            'The website has the right to inspect the Item (Product) to ensure its safety and conformity to the customer\'s request before shipping.',
-            'The website bears no responsibility in case of using products in an unsafe or incorrect manner.',
-            'The Customer/User acknowledges maintaining the confidentiality of data, registration data, and their account, and that they are fully responsible for it. The website bears no responsibility in case of its loss or use by another user. The Customer must notify the website immediately via official channels in case of loss or use by another user to suspend the account only, without the website bearing any responsibility.',
-            'The Terms, Policies, and Conditions of the Shipping Company apply. For information, refer to the Shipping Company\'s website as the website bears no responsibility towards it. Your use of the website means your agreement to that.',
-            'In case the customer benefited from free shipping and wishes to return the item, they will be charged the shipping fees benefited from in addition to the return shipping value.',
-            'The Store/Seller and the Website do not bear any problems from shipping companies after delivering the shipment intact to the representative and keeping records proving that. The customer\'s receipt of the product is considered an agreement to that.'
-          ]
-        },
-        {
-          title: 'Payment & Support',
-          content: [
-            'The Customer/User acknowledges and agrees to the Terms, Conditions, and Policy of the Payment Gateway linked to our website. For information, refer to the Payment Gateway\'s website as the website bears no responsibility towards it. Your use of the website means your agreement to that.',
-            'The Customer/User acknowledges and agrees to cooperate with technical support from us and continuous updating. In case of violation, they bear full responsibility.'
-          ]
-        },
-        {
-          title: 'Return & Exchange Policy',
-          content: [
-            'The Customer agrees in case of dispute, return request, cancellation, or exchange to communicate with the Store/Seller via official channels on the site within two official working days of receiving the Product (Shipment). In case the dispute is not resolved, it will be escalated to the site administration to resolve the dispute and notify parties of the result and oblige them to it. Terms and Conditions apply.',
-            'In case the return or cancellation is due to the customer\'s unwillingness for the product, the customer bears shipping costs to and from, as well as a 2% fee of the invoice value for the Payment Gateway. Terms and Conditions apply.',
-            'In case of an exchange request by the Customer due to a defect in the product or difference from the purchase invoice, the Store/Seller bears shipping costs to and from. The Store will exchange within 14 official working days of receiving the product to be exchanged.',
-            'If the Customer wishes to cancel and return due to a defect in the product or difference from the purchase invoice, the Store/Seller will bear shipping costs to and from with a fee imposed on the Store of 2% of the invoice value for the Payment Gateway. Terms and Conditions apply.',
-            'The Customer has the right, upon approval of return, exchange, or cancellation of any purchased product, provided it is in its original condition, free of scratches or breaks, and in its original packaging, with the original invoice, within a maximum of two official working days from the date of receipt. The Customer must notify the Store/Seller of their desire to exchange or return. If that period is exceeded, their right to claim is forfeited. Terms and Conditions apply.',
-            'In case return or exchange requires shipping the product, it will be at the account of the site\'s Return and Exchange Policy, except if the error is from the Store/Seller, then the Customer will not be charged any amounts.',
-            'Any financial amounts are returned according to the terms and policy of the Payment Gateway on the site without the site bearing any responsibility from 14 to 45 official working days after receiving the return and verifying it. The amount is returned to the same payment method paid by the Customer.',
-            'In case the Customer requests cancellation of the order before shipping or after shipping, they will be charged any amounts paid to intermediary companies and a 2% fee of the purchase invoice value for the Payment Gateway.',
-            'In case of any error in the shipment arrival to the Customer not matching their request due to difference in model, required side, shortage, or whatever, the Customer must notify the website within a maximum of two official working days of receiving the order. Coordination will be done to correct the error without charging them any costs. They have no right to claim anything after the specified period has passed.',
-            'The Customer acknowledges and agrees that the Store/Seller has the right to refuse the returned product whenever signs of damage, use, dismantling, or others contrary to the purchase invoice appear on it.'
-          ]
-        },
-        {
-          title: 'Return Shipping Procedures',
-          content: [
-            'In case of approval of exchange, cancellation, or return of the product according to Terms and Conditions and Policies, we will provide the Customer with a shipping waybill to return the product, provided the Customer uses it within two official working days of its issuance date and time. In case of failure to use it within this period from delivering the product to the shipping company according to the waybill, the Customer\'s right is forfeited. Terms and Conditions apply.',
-            'The Customer has the right to return the piece shipped by mistake, broken, or defective due to shipping or delayed contrary to the policy and terms of the shipping company within two official working days of receiving the shipment. In this case, the shipping company bears the shipping value. In case of order cancellation as a result, the shipping company bears paying 2% of the product invoice value and any other expenses incurred. The Customer must notify the Store/Seller immediately to coordinate return or cancellation. The Customer has no right to claim after the specified period has passed.',
-            'Non-receipt of Order: In case the Customer desires not to receive the order or does not respond to the delivery company representative or shows negligence in receiving the order (Product) in any way, the Exchange, Return, or Cancellation Policy does not apply to the Order (Product). The Commodity (Product) will be kept for a maximum of seven days at the shipping company. In case of non-receipt within this period, the Store has the right to dispose of it. In case of claiming the commodity within the allowed period, the Customer bears all necessary costs of shipping, etc., and any other expenses and dependencies incurred.'
-          ]
-        },
-        {
-          title: 'Warranty & Guarantee',
-          content: [
-            'The Customer bears shipping expenses to our warehouses in case of benefiting from the warranty.',
-            'Electrical parts are not guaranteed and are not returned or exchanged at all.',
-            'In case the warranty period is not mentioned in the invoice, the commodity is not covered by warranty.',
-            'Excluded from the Store/Seller warranty are breaks and damages resulting from accidents or misuse and damages resulting from maintenance of the product by the Customer, etc. Terms and Conditions apply.',
-            'In case the warranty period is mentioned in the invoice by the Seller/Store, the commodity is covered by warranty according to what is stated in the purchase invoice for the specified period of refund, exchange, or return whenever proven defective or not working. The Customer must notify us via the website within the warranty period and must commit, upon our approval of return, to deliver it to the shipping company within two official working days after our approval of return. Otherwise, their right to claim is forfeited. Terms and Conditions apply.'
-          ]
-        },
-        {
-          title: 'Prohibitions & Consolidated Shipping',
-          content: [
-            'Acknowledges and agrees not to request non-original parts, illegal products, counterfeit, refurbished, or unlicensed products on the site.',
-            'Used parts prohibited from import to Saudi Arabia (Car Glass - Seat Belts - Airbags - Brake Systems and Parts - Liquid Batteries - Used Tires), the website reserves the right to cancel any order if a conflict with customs or security regulations is found without referring to the Customer, and the Customer bears full expenses.',
-            'The Customer agrees in case of choosing Consolidated Shipping that the maximum period for keeping products in the consolidated shipping cart is 7 days starting from the date of the first order entering the consolidated shipping cart in the Customer\'s control panel. The Customer must also request electronically via their control panel to ship it, otherwise it will remain in the consolidated shipping cart and after 7 days the system will transfer it to Single Shipping. In case of delay beyond that period, the system automatically transfers it to Single Shipping.',
-            'The Customer agrees in case of choosing Consolidated Shipping to pay the value of each piece separately in a separate order before its transfer to the consolidated shipping cart.',
-            'The Customer agrees and acknowledges in case of choosing Consolidated Shipping that the shipping duration will differ and be longer, and thus they have no right to claim delay.'
-          ]
-        }
-      ],
+      termsContent: customerTermsEn,
     },
     authSection: {
       tabs: { customer: 'Customer', merchant: 'Merchant' },
